@@ -1,5 +1,5 @@
 #!/bin/bash
-TAG=7.4.2
+TAG=7.7.1
 DATA_DIR=$(pwd)/data
 if [ ! -e "$DATA_DIR" ]; then
     mkdir -p "$DATA_DIR"
