@@ -297,6 +297,11 @@ class Config:
             return default
         return value
 
+    def get_boolean(self, section, option, default=False):
+        """ A convenience method for boolean options """
+        value = self.get(section, option, str(default))
+        return value in ('True', 'true', 'TRUE', 1)
+
     def read(self, path, pattern='**/*.cfg'):
         """ Read configuration from a file or directory. The configuration file is appended to the current configuration.
 

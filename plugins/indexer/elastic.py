@@ -17,9 +17,7 @@
 
 """ Modules to index documents parsed by other modules into ElasticSearch. """
 
-import datetime
 import json
-import requests
 import os
 import logging
 import shutil
@@ -60,31 +58,42 @@ def coolOff(every=100, seconds=10):
         yield
 
 
-def get_esclient(es_hosts, retry_on_timeout=False, logger=logging, username=None, password=None, cafile=None, verify_ssl=True):
+def get_esclient(config, config_section='indexer', logger=logging):
     """ Get an elasticsearch.Elasticsearch object.
 
-    Attrs:
-        :es_hosts: A list of elastis servers
-        :retry_on_timeout: If true, retry queries after a timeout
-        :logger: The logger to use
-        :cafile: Absolute path to the CA that certifies the ElasticSearch server
-        :username: Username in the ElasticSearch server. If None, do nt authenticate.
-        :password: Password in the ElasticSearch server. If None, do nt authenticate.
-        :verify_ssl: If True, verify the SSL connection.
+    Parameters:
+        config: The base.config.Config object
+        config_section: read configuration from this section
+        logger: The logger to use
 
     Returns:
         An elasticsearch.Elasticsearch object
+        
+    Configuration section:
+        :es_hosts:
+        :es_sslverify:
+        :es_cafile:
+        :es_username:
+        :es_password:
+        :es_retry_on_timeout:
 
     Raises:
         base.job.RVTError if any of the server is available
     """
+    
+    es_sslverify = config.get_boolean(config_section, 'es_sslverify', False)
+    es_username = config.get(config_section, 'es_username', '')
+    es_password = config.get(config_section, 'es_password', '')
+    es_hosts = config.get(config_section, 'es_hosts', 'http://localhost:9200')
+    es_cafile = config.get(config_section, 'es_cafile', '')
+    retry_on_timeout = config.get_boolean(config_section, 'es_retry_on_timeout', False)
 
-    if verify_ssl:
-        context = ssl.create_default_context(cafile=cafile)
+    if es_sslverify:
+        context = ssl.create_default_context(cafile=es_cafile)
     else:
         context = ssl._create_unverified_context()
     context.check_hostname = False
-    http_auth = (username, password) if username else None
+    http_auth = (es_username, es_password) if es_username else None
 
     # Check if any of the hosts can be contacted
     hosts = base.config.parse_conf_array(es_hosts)
@@ -209,7 +218,6 @@ class ElasticSearchAdapter(base.job.BaseModule):
         name = self.myconfig('name').lower()
         doc_type = self.myconfig('doc_type')
 
-        exit_status = ''
         # read tags from the section
         mytags = base.config.parse_conf_array(self.myconfig('tags'))
         try:
@@ -222,28 +230,21 @@ class ElasticSearchAdapter(base.job.BaseModule):
                 # if the fileinfo already provides an index name, use it. If not, use the default index name
                 fileindex = fileinfo.pop('_index') if '_index' in fileinfo else name
                 yield dict(_index=fileindex, _type=doc_type, _id=_id, _source=fileinfo, _op_type=self.myconfig('operation'))
-            exit_status = 'ended'
         except base.job.RVTError as exc:
             # After an error, log as a warning and end the module
             import traceback
             tb = traceback.format_exc()
             self.logger().warning(tb)
             self.logger().error(str(exc))
-            exit_status = 'error'
         except KeyboardInterrupt:
             # if the module was interrupted
-            exit_status = 'interrupted'
+            pass
 
 
 class ElasticSearchRegisterSource(base.job.BaseModule):
     """ Registers or updates a source in ElasticSearch.
 
     Configuration section:
-        - **es_hosts**: a space separated list of hosts of ElasticSearch. Example: ``http://localhost:9200``. The port is mandatory.
-        - **es_username**: username for the ElaticSearch server. Empty to not use authentication.
-        - **es_password**: password for the ElaticSearch server. Empty to not use authentication.
-        - **es_cafile**: CA file for the ElaticSearch server.
-        - **verify_ssl**: True to verify the SSL certificate.
         - **name**: the name of the index in ElasticSearch. Defaults to the source name.
         - **casename**: The name of the case
         - **server**: The URL of the file server to access directly to the files.
@@ -255,11 +256,6 @@ class ElasticSearchRegisterSource(base.job.BaseModule):
     """
     def read_config(self):
         super().read_config()
-        self.set_default_config('es_hosts', 'localhost:9200')
-        self.set_default_config('es_username', '')
-        self.set_default_config('es_password', '')
-        self.set_default_config('es_cafile', '')
-        self.set_default_config('verify_ssl', 'True')
         self.set_default_config('name', self.myconfig('source'))
         self.set_default_config('casename', 'casename')
         self.set_default_config('server', 'http://localhost:80')
@@ -299,11 +295,7 @@ class ElasticSearchRegisterSource(base.job.BaseModule):
         if description:
             metadata['description'] = description
 
-        esclient = get_esclient(
-            self.myconfig('es_hosts'), retry_on_timeout=self.myflag('retry_on_timeout'), logger=self.logger(),
-            username=self.myconfig('es_user'), password=self.myconfig('es_password'), cafile=self.myconfig('es_cafile'),
-            verify_ssl=self.myflag('verify_ssl'))
-
+        esclient = get_esclient(self.config, logger=self.logger())
         if esclient.exists(index=rvtindex, id=name, _source=False):
             esclient.update(index=rvtindex, id=name, body=dict(doc=metadata))
         else:
@@ -315,22 +307,12 @@ class ElasticSearchRegisterCase(base.job.BaseModule):
     """ Registers or updates a case in ElasticSearch.
 
     Configuration:
-        - **es_hosts**: a space separated list of hosts of ElasticSearch. Example: ``http://localhost:9200``. The port is mandatory.
-        - **es_username**: username for the ElaticSearch server. Empty to not use authentication.
-        - **es_password**: password for the ElaticSearch server. Empty to not use authentication.
-        - **es_cafile**: CA file for the ElaticSearch server.
-        - **verify_ssl**: True to verify the SSL certificate.
         - **casename**: The name of the case
         - **rvtindex**: The name of the index where the run of this module will be registered. The name MUST be in lowcase.
         - **description**: The description of the case. If empty, do not update the description.
     """
     def read_config(self):
         super().read_config()
-        self.set_default_config('es_hosts', 'localhost:9200')
-        self.set_default_config('es_username', '')
-        self.set_default_config('es_password', '')
-        self.set_default_config('es_cafile', '')
-        self.set_default_config('verify_ssl', 'True')
         self.set_default_config('casename', 'casename')
         self.set_default_config('rvtindex', 'rvtcases')
         self.set_default_config('description', '')
@@ -347,10 +329,7 @@ class ElasticSearchRegisterCase(base.job.BaseModule):
         if description:
             metadata['description'] = description
 
-        esclient = get_esclient(
-            self.myconfig('es_hosts'), logger=self.logger(),
-            username=self.myconfig('es_user'), password=self.myconfig('es_password'), cafile=self.myconfig('es_cafile'),
-            verify_ssl=self.myflag('verify_ssl'))
+        esclient = get_esclient(self.config, logger=self.logger())
         if esclient.exists(index=rvtindex, id=casename, _source=False):
             esclient.update(index=rvtindex, id=casename, body=dict(doc=metadata))
         else:
@@ -362,11 +341,6 @@ class ElasticSearchBulkSender(base.job.BaseModule):
     """ A module to index the results from the ``ElasticSearchAdapter`` into an ElasticSearch server.
 
     Configuration:
-        - **es_hosts**: a space separated list of hosts of ElasticSearch. Example: ``http://localhost:9200``. The port is mandatory.
-        - **es_username**: username for the ElaticSearch server. Empty to not use authentication.
-        - **es_password**: password for the ElaticSearch server. Empty to not use authentication.
-        - **es_cafile**: CA file for the ElaticSearch server.
-        - **verify_ssl**: True to verify the SSL certificate.
         - **name**: the name of the index in ElasticSearch. If the index does not exist, create it using `mapping`.
              The name will be converted to lower case, since ES only accept lower case names.
         - **mapping**: If the index `name` must be created, use this file for initial settings and mappings.
@@ -386,11 +360,6 @@ class ElasticSearchBulkSender(base.job.BaseModule):
     """
     def read_config(self):
         super().read_config()
-        self.set_default_config('es_hosts', 'localhost:9200')
-        self.set_default_config('es_username', '')
-        self.set_default_config('es_password', '')
-        self.set_default_config('es_cafile', '')
-        self.set_default_config('verify_ssl', 'True')
         self.set_default_config('name', self.myconfig('source'))
         # self.set_default_config('mapping', os.path.join(self.myconfig('rvthome'), 'conf', 'indexer', 'es-settings.json'))
         self.set_default_config('mapping', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'es-settings.json'))
@@ -421,10 +390,7 @@ class ElasticSearchBulkSender(base.job.BaseModule):
         self.logger().info('Running on: %s', path)
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        esclient = get_esclient(
-            self.myconfig('es_hosts'), retry_on_timeout=self.myflag('retry_on_timeout'), logger=self.logger(),
-            username=self.myconfig('es_user'), password=self.myconfig('es_password'), cafile=self.myconfig('es_cafile'),
-            verify_ssl=self.myflag('verify_ssl'))
+        esclient = get_esclient(self.config, logger=self.logger())
 
         # create the index, if it doesn't exist
         name = self.myconfig('name').lower()
@@ -489,11 +455,6 @@ class ElasticSearchQuery(base.job.BaseModule):
     The path is ignored.
 
     Configuration section:
-        - **es_hosts**: An array of strings with the ES servers.
-        - **es_username**: username for the ElaticSearch server. Empty to not use authentication.
-        - **es_password**: password for the ElaticSearch server. Empty to not use authentication.
-        - **es_cafile**: CA file for the ElaticSearch server.
-        - **verify_ssl**: True to verify the SSL certificate.
         - **name**: The name of the index to query.  The name will be converted to lower case, since ES only accept lower case names.
         - **query**: The query in lucene language.
         - **source_includes**: a space separated list of fields to include in the answer. Use empty string for all fields.
@@ -505,11 +466,6 @@ class ElasticSearchQuery(base.job.BaseModule):
     """
     def read_config(self):
         super().read_config()
-        self.set_default_config('es_hosts', 'localhost:9200')
-        self.set_default_config('es_username', '')
-        self.set_default_config('es_password', '')
-        self.set_default_config('es_cafile', '')
-        self.set_default_config('verify_ssl', 'True')
         self.set_default_config('name', self.myconfig('source'))
         self.set_default_config('query', '*')
         self.set_default_config('source_includes', '')
@@ -519,11 +475,7 @@ class ElasticSearchQuery(base.job.BaseModule):
         self.set_default_config('retry_on_timeout', 'True')
 
     def run(self, path=None):
-        esclient = get_esclient(
-            self.myconfig('es_hosts'), retry_on_timeout=self.myflag('retry_on_timeout'), logger=self.logger(),
-            username=self.myconfig('es_user'), password=self.myconfig('es_password'), cafile=self.myconfig('es_cafile'),
-            verify_ssl=self.myflag('verify_ssl'))
-
+        esclient = get_esclient(self.config, logger=self.logger())
         max_results = int(self.myconfig('max_results'))
         query = {
             'query': {
@@ -559,11 +511,6 @@ class ElasticSearchQueryRelated(base.job.BaseModule):
     The path is ignored.
 
     Configuration section:
-        - **es_hosts**: An array of strings with the ES servers.
-        - **es_username**: username for the ElaticSearch server. Empty to not use authentication.
-        - **es_password**: password for the ElaticSearch server. Empty to not use authentication.
-        - **es_cafile**: CA file for the ElaticSearch server.
-        - **verify_ssl**: True to verify the SSL certificate.
         - **name**: The name of the index to query. The name will converted into lower case.
         - **query**: The query in lucene language.
         - **source_includes**: a space separated list of fields to include in the answer. Use empty string for all fields.
@@ -572,11 +519,6 @@ class ElasticSearchQueryRelated(base.job.BaseModule):
     """
     def read_config(self):
         super().read_config()
-        self.set_default_config('es_hosts', 'localhost:9200')
-        self.set_default_config('es_username', '')
-        self.set_default_config('es_password', '')
-        self.set_default_config('es_cafile', '')
-        self.set_default_config('verify_ssl', 'True')
         self.set_default_config('name', self.myconfig('source'))
         self.set_default_config('query', '*')
         self.set_default_config('source_includes', '')
@@ -585,11 +527,7 @@ class ElasticSearchQueryRelated(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
-        esclient = get_esclient(
-            self.myconfig('es_hosts'), retry_on_timeout=self.myflag('retry_on_timeout'), logger=self.logger(),
-            username=self.myconfig('es_user'), password=self.myconfig('es_password'), cafile=self.myconfig('es_cafile'),
-            verify_ssl=self.myflag('verify_ssl'))
-
+        esclient = get_esclient(config=self.config, logger=self.logger())
         name = self.myconfig('name').lower()
         for result in self.from_module.run(path):
             if not result.get('_id', ''):

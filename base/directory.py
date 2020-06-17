@@ -47,6 +47,7 @@ class DirectoryFilter(base.job.BaseModule):
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of subdirectories in the path.
         - **exclude_pattern**: If the path of the files matches this pattern, exclude the file.
+        - **sorted**: If True, sort directories alphabetically
         - **restartable**: If True, use the local store to save the name of the last directory fully parsed.
           The parsing won't continue until this directory is found.
 
@@ -59,6 +60,7 @@ class DirectoryFilter(base.job.BaseModule):
         self.set_default_config('void_extension', 'True')
         self.set_default_config('followlinks', 'False')
         self.set_default_config('filter', '')
+        self.set_default_config('sorted', 'False')
         # if there are filters, fill the self.filter_extensions dictionary
         filters = base.config.parse_conf_array(self.myconfig('filter'))
         # if this set is not None, only files with these extensions are parsed. If None, parse all files
@@ -139,6 +141,8 @@ class DirectoryFilter(base.job.BaseModule):
             lastParsed = self.config.store_get('last_dir_parsed', None)
         # walk
         for root, dirs, files in tqdm(os.walk(path, followlinks=self.myflag('followlinks')), total=total_iterations, disable=self.myflag('progress.disable'), desc=self.section):
+            if self.myflag('sorted'):
+                dirs.sort()
             for myfile in files:
                 filepath = os.path.join(root, myfile)
                 # if lastParsed is set, skip until root == lastParsed
@@ -229,8 +233,8 @@ class GlobFilter(base.job.BaseModule):
         for filepath in glob.iglob(path, recursive=self.myflag('recursive')):
             try:
                 if ftype == 'all' or \
-                    (ftype == 'file' and os.path.isfile(filepath)) or \
-                    (ftype == 'directory' and os.path.isdir(filepath)):
+                        (ftype == 'file' and os.path.isfile(filepath)) or \
+                        (ftype == 'directory' and os.path.isdir(filepath)):
                     for info in self.from_module.run(filepath):
                         yield info
             except Exception as exc:
