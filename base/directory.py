@@ -62,7 +62,7 @@ class DirectoryFilter(base.job.BaseModule):
         self.set_default_config('filter', '')
         self.set_default_config('sorted', 'False')
         # if there are filters, fill the self.filter_extensions dictionary
-        filters = base.config.parse_conf_array(self.myconfig('filter'))
+        filters = self.myarray('filter')
         # if this set is not None, only files with these extensions are parsed. If None, parse all files
         if filters:
             filter_extensions = list()
@@ -180,7 +180,7 @@ class FileParser(base.job.BaseModule):
     def read_config(self):
         base.job.BaseModule.read_config(self)
         self.set_default_config('parsers', '')
-        parsers = base.config.parse_conf_array(self.myconfig('parsers'))
+        parsers = self.myarray('parsers')
         self.regex_list = []
         for regex, parser in zip(parsers[0:len(parsers):2], parsers[1:len(parsers):2]):
             self.regex_list.append((re.compile(regex, flags=re.I), parser))
@@ -280,7 +280,7 @@ class FileClassifier(base.job.BaseModule):
         self.set_default_config('categories', '')
         self.set_default_config('check_extension', 'True')
 
-        categories = base.config.parse_conf_array(self.myconfig('categories'))
+        categories = self.myarray('categories')
         # this dictionary maps content_type -> category name
         self._inverted_extensions = dict()
         # this dictionary maps content_type -> category name

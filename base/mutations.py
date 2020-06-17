@@ -54,7 +54,7 @@ class DateFields(base.job.BaseModule):
     def run(self, path=None):
         """ The path will be passed to the mandatory from_module """
         self.check_params(path, check_from_module=True)
-        fields = base.config.parse_conf_array(self.myconfig('fields'))
+        fields = self.myarray('fields')
         for data in self.from_module.run(path):
             for field in fields:
                 if field in data:
@@ -98,7 +98,7 @@ class RemoveFields(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
-        fields = base.config.parse_conf_array(self.myconfig('fields'))
+        fields = self.myarray('fields')
         for data in self.from_module.run(path):
             for field in fields:
                 # remove the field only if it already exists

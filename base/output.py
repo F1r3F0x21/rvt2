@@ -196,7 +196,7 @@ class CSVSink(BaseSink):
             delimiter = '\t'
         for fileinfo in self._source(path):
             if csvwriter is None:
-                fieldnames = base.config.parse_conf_array(self.myconfig('fieldnames'))
+                fieldnames = self.myarray('fieldnames')
                 if not fieldnames:
                     fieldnames = fileinfo.keys()
                 csvwriter = csv.DictWriter(

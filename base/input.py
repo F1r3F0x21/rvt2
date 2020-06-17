@@ -26,7 +26,6 @@ import sys
 from tqdm import tqdm
 
 import base.job
-from base.config import parse_conf_array
 from base.commands import estimate_iterations
 
 
@@ -179,7 +178,7 @@ class CSVReader(base.job.BaseModule):
         csv.field_size_limit(int(self.myconfig('field_size_limit')))
         with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
             ignore_lines = int(self.myconfig('ignore_lines'))
-            fieldnames = (parse_conf_array(self.myconfig('fieldnames')) or None)
+            fieldnames = self.myarray('fieldnames', None)
             for i in range(0, ignore_lines):
                 infile.readline()
             reader = csv.DictReader(

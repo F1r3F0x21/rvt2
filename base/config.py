@@ -452,7 +452,7 @@ class ColoredFormatter(logging.Formatter):
 
 class TelegramHandler(logging.Handler):
     """ A logging handler to send messages to a list of telegram chatids """
-    def __init__(self, level=logging.INFO, token='', chatids=[]):
+    def __init__(self, level=logging.INFO, token='', chatids=''):
         super().__init__(level)
         self.chatids = parse_conf_array(chatids)
         self.token = token

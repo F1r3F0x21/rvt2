@@ -369,6 +369,13 @@ class BaseModule(object):
         value = self.myconfig(option, str(default))
         return value in ('True', 'true', 'TRUE', 1)
 
+    def myarray(self, option, default=[]):
+        """ A convenience method to get an array from a configuration """
+        value = self.myconfig(option, '')
+        if value:
+            return parse_conf_array(value)
+        return default
+
     def set_default_config(self, option, default=None):
         """ Get the value of a configuration for this module.
 

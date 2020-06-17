@@ -127,7 +127,7 @@ class Help(base.job.BaseModule):
     def _show_vars(self, help_for):
         """ Show the variables defined in a job/module description """
         if self.config.has_section(help_for):
-            var_names = base.job.parse_conf_array(self.myconfig('show_vars'))
+            var_names = self.myarray('show_vars')
             if len(var_names) == 1 and var_names[0] == 'ALL':
                 var_names = self.config.options(help_for)
             for option in var_names:

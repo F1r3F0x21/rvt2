@@ -54,7 +54,7 @@ class TemplateSink(base.output.BaseSink):
         """ Get the mako.Template from template or template_file """
         template_file = self.myconfig('template_file')
         if template_file:
-            template_dirs = base.config.parse_conf_array(self.myconfig('template_dirs'))
+            template_dirs = self.myarray('template_dirs')
             lookup = mako.lookup.TemplateLookup(directories=template_dirs, input_encoding=self.myconfig('input_encoding'))
             return lookup.get_template(template_file)
         else:

@@ -219,7 +219,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
         doc_type = self.myconfig('doc_type')
 
         # read tags from the section
-        mytags = base.config.parse_conf_array(self.myconfig('tags'))
+        mytags = self.myarray('tags')
         try:
             for fileinfo in self.from_module.run(path):
                 # save custom tags for this parser, if any
@@ -423,7 +423,7 @@ class ElasticSearchBulkSender(base.job.BaseModule):
                 inputfile.readline()
             actions = _actions(
                 inputfile,
-                tag_fields=base.config.parse_conf_array(self.myconfig('tag_fields')),
+                tag_fields=self.myarray('tag_fields'),
                 logger=self.logger()
             )
             total_actions = estimate_iterations(path, self.myconfig('progress.cmd'))
@@ -495,8 +495,8 @@ class ElasticSearchQuery(base.job.BaseModule):
                            esclient,
                            index=name,
                            q=self.myconfig('query'),
-                           _source_includes=base.config.parse_conf_array(self.myconfig('source_includes')),
-                           _source_excludes=base.config.parse_conf_array(self.myconfig('source_excludes')),
+                           _source_includes=self.myarray('source_includes'),
+                           _source_excludes=self.myarray('source_excludes'),
                            raise_on_error=self.myflag('stop_on_error')
                            ), total=total, disable=self.myflag('progress.disable')):
             data = result['_source']
