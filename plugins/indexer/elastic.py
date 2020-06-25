@@ -137,8 +137,7 @@ def _actions(origin, tag_fields=[], logger=logging):
                     tags_field=tf,
                     new_tag=new_tag,
                     _index=data['_index'],
-                    _id=data['_id'],
-                    _type=data['_type']
+                    _id=data['_id']
                 )
         yield data
 
@@ -193,8 +192,6 @@ class ElasticSearchAdapter(base.job.BaseModule):
 
     Configuration:
         - **name**: the name of the index in ElasticSearch. The name will be converted to lowcase, since ES only accept lowcase names.
-        - **doc_type**: the doc_type in ElasticSearch.
-          Do not change the default value ``"_doc"``, it will be deprecated in ES>6.
         - **operation**: The operation for elastic search. Possible values are "index" (default) overwrites data, or
           "update" updates existing data with new information. An update does always an upsert.
         - **casename**: The name of the case
@@ -203,7 +200,6 @@ class ElasticSearchAdapter(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('name', self.myconfig('source'))
-        self.set_default_config('doc_type', '_doc')
         self.set_default_config('operation', 'update')
         self.set_default_config('casename', 'casename')
 
@@ -216,7 +212,6 @@ class ElasticSearchAdapter(base.job.BaseModule):
         self.check_params(path, check_from_module=True)
 
         name = self.myconfig('name').lower()
-        doc_type = self.myconfig('doc_type')
 
         # read tags from the section
         mytags = self.myarray('tags')
@@ -229,7 +224,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
                 _id = str(generate_id(fileinfo))
                 # if the fileinfo already provides an index name, use it. If not, use the default index name
                 fileindex = fileinfo.pop('_index') if '_index' in fileinfo else name
-                yield dict(_index=fileindex, _type=doc_type, _id=_id, _source=fileinfo, _op_type=self.myconfig('operation'))
+                yield dict(_index=fileindex, _id=_id, _source=fileinfo, _op_type=self.myconfig('operation'))
         except base.job.RVTError as exc:
             # After an error, log as a warning and end the module
             import traceback

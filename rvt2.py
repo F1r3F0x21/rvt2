@@ -159,10 +159,26 @@ def load_default_vars(config, morgue, casename, source, jobid):
     config.config[base.config.DEFAULTSECT]['cwd'] = os.getcwd()
     config.config[base.config.DEFAULTSECT]['userhome'] = os.environ.get('HOME')
     config.config[base.config.DEFAULTSECT]['rvthome'] = os.path.dirname(os.path.abspath(__file__))
-    config.config['rvt2']['jobid'] = jobid
     for ar, name in zip([morgue, casename, source], ['morgue', 'casename', 'source']):
         if ar is not None:
             config.config[base.config.DEFAULTSECT][name] = ar
+
+
+def load_global_vars(config, _globals):
+    """ Load  global variables in the configuration object.
+
+    Params:
+        config: The configuration object
+        _globals: a dictionary with global variables, in the format {"SECTION:PARAM": "VALUE"}. If no SECTION
+            is provided, use "DEFAULT"
+    """
+    for varname in _globals:
+        sectionname = base.config.DEFAULTSECT
+        newvarname = varname
+        newvalue = _globals[varname]
+        if ':' in varname:
+            sectionname, newvarname = varname.split(':', 1)
+        config.config[sectionname][newvarname] = newvalue
 
 
 def configure_logging(config, verbose=False, jobname=None):
@@ -193,24 +209,40 @@ def main(params=sys.argv[1:]):
     Attrs:
         :params: The parameters to configure the system
     """
+
+    jobid = str(base.utils.generate_id())
+    INITIAL_CONF = {
+            'rvt2:jobid': jobid,
+            'rvthome': os.path.dirname(os.path.abspath(__file__)),
+            'userhome': os.environ.get('HOME'),
+            'cwd': os.getcwd()
+    }
+
     aparser = argparse.ArgumentParser(description='Script para...')
     aparser.add_argument('-c', '--config', help='Configuration file. Can be provided multiple times and configuration is appended', action='append')
     aparser.add_argument('-v', '--verbose', help='Outputs debug messages to the standard output', action='store_true', default=False)
     aparser.add_argument('-p', '--print', help='Print the results of the job as JSON', action='store_true', default=False)
-    aparser.add_argument('--params', help="Additional parameters to the job, as PARAM=VALUE", action=StoreDict, nargs='*', default={})
+    aparser.add_argument('--globals', help="Additional configuration, as SECTION:PARAM=VALUE. You can provide several parameters, enf the list with a --", action=StoreDict, nargs='*', default=INITIAL_CONF)
+    aparser.add_argument('--params', help="Additional parameters to the job, as PARAM=VALUE. You can provide seveal parameters, enf the list with a --", action=StoreDict, nargs='*', default={})
     aparser.add_argument('-j', '--job', help='Section name in the configuration file for the main job.', default=None)
-    aparser.add_argument('--morgue', help='If provided, ovewrite the value of the morgue variable in the DEFAULT section of the configuration', default=None)
-    aparser.add_argument('--casename', help='If provided, ovewrite the value of the casename variable in the DEFAULT section of the configuration', default=None)
-    aparser.add_argument('--source', help='If provided, ovewrite the value of the source variable in the DEFAULT section of the configuration', default=None)
+    aparser.add_argument('--morgue', help='If provided, ovewrite the value of the morgue variable in the DEFAULT section of the configuration. Shortcut to --globals morgue=MORGUE', default=None)
+    aparser.add_argument('--casename', help='If provided, ovewrite the value of the casename variable in the DEFAULT section of the configuration. Shortcut to --globals casename=CASENAME', default=None)
+    aparser.add_argument('--source', help='If provided, ovewrite the value of the source variable in the DEFAULT section of the configuration. Shortcut to --globals source=SOURCE', default=None)
     aparser.add_argument('paths', type=str, nargs='*', help='Filename or directories to parse')
     args = aparser.parse_args(params)
 
-    jobid = str(base.utils.generate_id())
+    # Update initial variables in globals, unless already provided
+    for ar, name in zip([args.morgue, args.casename, args.source], ['morgue', 'casename', 'source']):
+        if ar is not None and not name in args.globals:
+            args.globals[name] = ar
 
+    # First configuration pass, in case the initilization of the system needs these parameters
+    # Will be read again later
     # read configuration from one or more -c options
     config = base.config.Config()
     load_configpaths(config, args.config)
-    load_default_vars(config, args.morgue, args.casename, args.source, jobid)
+    # configure global variables
+    load_global_vars(config, args.globals)
 
     # configure the logging subsystem using a generic configuration
     configure_logging(config, args.verbose, None)
@@ -228,8 +260,8 @@ def main(params=sys.argv[1:]):
 
     # read again configuration from one or more -c options. They MUST overwrite the configuration of the plugins
     load_configpaths(config, args.config)
-    # configure default variables again. They MUST overwrite the configuration of the conf files
-    load_default_vars(config, args.morgue, args.casename, args.source, jobid)
+    # configure global variables. They MUST overwrite the configuration
+    load_global_vars(config, args.globals)
 
     # configure the job: if there is a Main section, use it. Else, get the default job from configuration rvt2.default_job
     if args.job is None:
