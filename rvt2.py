@@ -30,6 +30,7 @@ import base.utils
 import json
 import datetime
 
+__version__ = '20200625'
 
 def load_configpaths(config, configpaths):
     """ Load configuration from an array of paths.
@@ -213,6 +214,7 @@ def main(params=sys.argv[1:]):
     jobid = str(base.utils.generate_id())
     INITIAL_CONF = {
             'rvt2:jobid': jobid,
+            'rvt2:version': __version__,
             'rvthome': os.path.dirname(os.path.abspath(__file__)),
             'userhome': os.environ.get('HOME'),
             'cwd': os.getcwd()
@@ -221,6 +223,7 @@ def main(params=sys.argv[1:]):
     aparser = argparse.ArgumentParser(description='Script para...')
     aparser.add_argument('-c', '--config', help='Configuration file. Can be provided multiple times and configuration is appended', action='append')
     aparser.add_argument('-v', '--verbose', help='Outputs debug messages to the standard output', action='store_true', default=False)
+    aparser.add_argument('-V', '--version', help='Outputs version and current configuration and exit', action='store_true', default=False)
     aparser.add_argument('-p', '--print', help='Print the results of the job as JSON', action='store_true', default=False)
     aparser.add_argument('--globals', help="Additional configuration, as SECTION:PARAM=VALUE. You can provide several parameters, enf the list with a --", action=StoreDict, nargs='*', default=INITIAL_CONF)
     aparser.add_argument('--params', help="Additional parameters to the job, as PARAM=VALUE. You can provide seveal parameters, enf the list with a --", action=StoreDict, nargs='*', default={})
@@ -235,6 +238,10 @@ def main(params=sys.argv[1:]):
     for ar, name in zip([args.morgue, args.casename, args.source], ['morgue', 'casename', 'source']):
         if ar is not None and not name in args.globals:
             args.globals[name] = ar
+
+    if args.version:
+        print(args.globals)
+        sys.exit(0)
 
     # First configuration pass, in case the initilization of the system needs these parameters
     # Will be read again later
