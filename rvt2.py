@@ -19,6 +19,8 @@
 
 """ The entry point to the system. """
 
+__version__ = '20200625'
+
 import os
 import sys
 import argparse
@@ -30,7 +32,6 @@ import base.utils
 import json
 import datetime
 
-__version__ = '20200625'
 
 def load_configpaths(config, configpaths):
     """ Load configuration from an array of paths.
@@ -220,17 +221,17 @@ def main(params=sys.argv[1:]):
             'cwd': os.getcwd()
     }
 
-    aparser = argparse.ArgumentParser(description='Script para...')
-    aparser.add_argument('-c', '--config', help='Configuration file. Can be provided multiple times and configuration is appended', action='append')
-    aparser.add_argument('-v', '--verbose', help='Outputs debug messages to the standard output', action='store_true', default=False)
-    aparser.add_argument('-V', '--version', help='Outputs version and current configuration and exit', action='store_true', default=False)
-    aparser.add_argument('-p', '--print', help='Print the results of the job as JSON', action='store_true', default=False)
-    aparser.add_argument('--globals', help="Additional configuration, as SECTION:PARAM=VALUE. You can provide several parameters, enf the list with a --", action=StoreDict, nargs='*', default=INITIAL_CONF)
-    aparser.add_argument('--params', help="Additional parameters to the job, as PARAM=VALUE. You can provide seveal parameters, enf the list with a --", action=StoreDict, nargs='*', default={})
-    aparser.add_argument('-j', '--job', help='Section name in the configuration file for the main job.', default=None)
-    aparser.add_argument('--morgue', help='If provided, ovewrite the value of the morgue variable in the DEFAULT section of the configuration. Shortcut to --globals morgue=MORGUE', default=None)
-    aparser.add_argument('--casename', help='If provided, ovewrite the value of the casename variable in the DEFAULT section of the configuration. Shortcut to --globals casename=CASENAME', default=None)
-    aparser.add_argument('--source', help='If provided, ovewrite the value of the source variable in the DEFAULT section of the configuration. Shortcut to --globals source=SOURCE', default=None)
+    aparser = argparse.ArgumentParser(description='The Revealer Toolkit for forensic analysis')
+    aparser.add_argument('-v', '--verbose', help='outputs debug messages to the standard output', action='store_true', default=False)
+    aparser.add_argument('-V', '--version', help='outputs version and current configuration and exit', action='store_true', default=False)
+    aparser.add_argument('-c', '--config', help='additional configuration files. Can be provided multiple times and configuration is appended', action='append')
+    aparser.add_argument('--globals', help="additional configuration, as SECTION:PARAM=VALUE. You can provide several parameters, end the list with a --. If a section name is not provided, use DEFAULT", action=StoreDict, nargs='*', default=INITIAL_CONF)
+    aparser.add_argument('--morgue', help='value of the morgue variable in the DEFAULT section of the configuration. Shortcut to --globals morgue=MORGUE', default=None)
+    aparser.add_argument('--casename', help='value of the casename variable in the DEFAULT section of the configuration. Shortcut to --globals casename=CASENAME', default=None)
+    aparser.add_argument('--source', help='value of the source variable in the DEFAULT section of the configuration. Shortcut to --globals source=SOURCE', default=None)
+    aparser.add_argument('-j', '--job', help='section name in the configuration file for the main job.', default=None)
+    aparser.add_argument('--params', help="additional parameters to the job, as PARAM=VALUE. You can provide seveal parameters, end the list with a --", action=StoreDict, nargs='*', default={})
+    aparser.add_argument('-p', '--print', help='print the results of the job as JSON', action='store_true', default=False)
     aparser.add_argument('paths', type=str, nargs='*', help='Filename or directories to parse')
     args = aparser.parse_args(params)
 
