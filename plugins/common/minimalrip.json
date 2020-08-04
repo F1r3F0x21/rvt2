@@ -3,7 +3,7 @@
         "file": "01_operating_system_information",
         "description": "General Information about the Operating System and Its Configuration",
         "plugins": [
-            "winnt_cv",
+            "winver2",
             "timezone",
             "shutdown",
             "lastloggedon",

@@ -167,7 +167,7 @@ class ShimCache(base.job.BaseModule):
     def parse_ShimCache_hive(self, sysfile):
         """ Launch shimcache regripper plugin and parse results """
         ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
-        date_regex = re.compile(r'\w{3}\s\w{3}\s+\d+\s\d{2}:\d{2}:\d{2}\s\d{4} Z')
+        date_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
 
         res = run_command([ripcmd, "-r", os.path.join(self.myconfig('casedir'), sysfile), "-p", "shimcache"], logger=self.logger())
         for line in res.split('\n'):

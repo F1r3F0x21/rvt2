@@ -101,18 +101,18 @@ class CharacterizeDisk(base.job.BaseModule):
         # Get the autorip outputfile associated with each necessary plugin
         with open(ripplugins_file) as rf:
             ripplugins = json.load(rf)
-        used_plugins = ['winnt_cv', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'samparse', 'profilelist']
-        os_plugins = ['winnt_cv', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname']
+        used_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'samparse', 'profilelist']
+        os_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname']
         plugin_files = {plug: p['file'] for plug in used_plugins for p in ripplugins if plug in p['plugins']}
 
-        plugin_fields = {'winnt_cv': ['  ProductName', '  CurrentVersion', '  InstallationType', '  EditionID', '  CurrentBuild', '  ProductId', '  RegisteredOwner', '  RegisteredOrganization', '  InstallDate'],
-                         'shutdown': ['  ShutdownTime'],
+        plugin_fields = {'winver2': ['ProductName', 'CurrentVersion', 'InstallationType', 'EditionID', 'CurrentBuild', 'ProductId', 'RegisteredOwner', 'RegisteredOrganization', 'InstallDate'],
+                         'shutdown': ['ShutdownTime'],
                          'processor_architecture': ['PROCESSOR_ARCHITECTURE'],
                          'compname': ['ComputerName']}
 
-        field_names = {'  ProductName': 'ProductName', '  CurrentVersion': 'CurrentVersion', '  InstallationType': 'InstallationType',
-                       '  EditionID': 'EditionID', '  CurrentBuild': 'CurrentBuild', '  ProductId': 'ProductId', '  RegisteredOwner': 'RegisteredOwner',
-                       '  RegisteredOrganization': 'RegisteredOrganization', '  InstallDate': 'InstallDate', '  ShutdownTime': 'ShutdownTime',
+        field_names = {'ProductName': 'ProductName', 'CurrentVersion': 'CurrentVersion', 'InstallationType': 'InstallationType',
+                       'EditionID': 'EditionID', 'CurrentBuild': 'CurrentBuild', 'ProductId': 'ProductId', 'RegisteredOwner': 'RegisteredOwner',
+                       'RegisteredOrganization': 'RegisteredOrganization', 'InstallDate': 'InstallDate', 'ShutdownTime': 'ShutdownTime',
                        '  TimeZoneKeyName': 'TimeZone', 'PROCESSOR_ARCHITECTURE': 'ProcessorArchitecture', 'ComputerName': 'ComputerName'}
 
         partitions = [folder for folder in sorted(os.listdir(self.myconfig('mountdir'))) if folder.startswith('p')]
@@ -127,7 +127,7 @@ class CharacterizeDisk(base.job.BaseModule):
                 hivefile = os.path.join(hives_dir, '{}_{}.txt'.format(plugin_files[plug], part))
                 if not check_file(hivefile):
                     continue
-                with open(hivefile) as f_in:
+                with open(hivefile, 'r') as f_in:
                     if plug == 'lastloggedon':
                         for line in f_in:
                             if line.startswith('LastLoggedOn'):
@@ -183,16 +183,14 @@ class CharacterizeDisk(base.job.BaseModule):
                                 line = f_in.readline()
                                 aux = re.search(r"Account Created\s*:\s*(.*)\n", line)
                                 if aux:
-                                    aux1 = aux.group(1).replace("  ", " ")
-                                    date = datetime.datetime.strptime(aux1, '%a %b %d %H:%M:%S %Y Z')
-                                    user[1] = date.strftime('%d-%m-%Y %H:%M:%S UTC')
+                                    date = datetime.datetime.strptime(aux.group(1), '%Y-%m-%d %H:%M:%SZ')
+                                    user[1] = date.strftime('%Y-%m-%d %H:%M:%S UTC')
                                     continue
                                 aux = re.search(r"Last Login Date\s*:\s*(.*)\n", line)  # TODO: check this field is reliable
                                 if aux:
                                     if aux.group(1).find("Never") == -1:
-                                        aux1 = aux.group(1).replace("  ", " ")
-                                        date = datetime.datetime.strptime(aux1, '%a %b %d %H:%M:%S %Y Z')
-                                        user[2] = date.strftime('%d-%m-%Y %H:%M:%S UTC')
+                                        date = datetime.datetime.strptime(aux.group(1), '%Y-%m-%d %H:%M:%SZ')
+                                        user[2] = date.strftime('%Y-%m-%d %H:%M:%S UTC')
                                     else:
                                         user[2] = "Never"
                                     users.append(user)
@@ -210,16 +208,15 @@ class CharacterizeDisk(base.job.BaseModule):
                                 line = f_in.readline()
                                 aux = re.search(r"LastWrite\s*:\s*(.*)", line.strip())
                                 if aux:
-                                    aux1 = aux.group(1).replace("  ", " ")
-                                    date = datetime.datetime.strptime(aux1, '%a %b %d %H:%M:%S %Y (UTC)')
-                                    user[2] = date.strftime("%d-%m-%Y %H:%M:%S UTC")
+                                    date = datetime.datetime.strptime(aux.group(1), '%Y-%m-%d %H:%M:%SZ')
+                                    user[2] = date.strftime("%Y-%m-%d %H:%M:%S UTC")
                                     user_profiles.append(user)
 
             # Get creation date from NTUSER.DAT if not found in profilelist
             for i in user_profiles:
                 for j in self.ntusers[part]:
                     if i[0] == j[0] and i[1] == "":
-                        i[1] = j[1].strftime('%d-%m-%Y %H:%M:%S UTC')
+                        i[1] = j[1].strftime('%Y-%m-%d %H:%M:%SZ')
             os_info[part]["users"] = users
             os_info[part]["user_profiles"] = user_profiles
         return os_info
