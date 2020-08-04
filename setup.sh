@@ -196,12 +196,12 @@ build_install_libfvde() {
 }
 
 build_install_regripper() (
-    local NAME="RegRipper2.8"
-    local COMMIT="ee874d5245fb4f26147c29dc1db02b8e68a88698"
+    local NAME="RegRipper3.0"
+    local COMMIT="9f2a96acb49aef4957976331e1696e0afc984371"
     [ -d /tmp/patches ] || cp -rp patches /tmp/
     cd "${SRCDIR}"
     _download_verify "https://github.com/keydet89/${NAME}/archive/${COMMIT}.zip" \
-        "9cea8786588417b89a6f9497d8d97222f5f7daeaf276b40a2cd02157ea121b2e"
+        "7087ca440ca1656839c324d581158ff44741e5192b3036bc2b98bd9337f4a736"
     mv "${COMMIT}".zip ${NAME}-${COMMIT}.zip
     unzip ${NAME}-${COMMIT}.zip
     cd ${NAME}-${COMMIT}
@@ -212,8 +212,29 @@ build_install_regripper() (
     install -p -m 755 *.pl *.txt *.md *.pdf /opt/regripper/
     install -p -dm 755 /opt/regripper/plugins/
     install -p -m 755 plugins/* /opt/regripper/plugins/
-    install -p -m 755 /tmp/patches/regripper_plugins/outlook_search.pl \
+    install -p -m 755 /tmp/patches/regripper_plugins/ccleaner.pl \
+	      /tmp/patches/regripper_plugins/cortana.pl \
+	      /tmp/patches/regripper_plugins/defbrowser.pl \
+	      /tmp/patches/regripper_plugins/diag_sr.pl \
+	      /tmp/patches/regripper_plugins/eventlog.pl \
+	      /tmp/patches/regripper_plugins/eventlogs.pl \
+	      /tmp/patches/regripper_plugins/fw_config.pl \
+	      /tmp/patches/regripper_plugins/ie_settings.pl \
+	      /tmp/patches/regripper_plugins/ie_version.pl \
+	      /tmp/patches/regripper_plugins/outlook_search.pl \
+	      /tmp/patches/regripper_plugins/polacdms.pl \
+	      /tmp/patches/regripper_plugins/proxysettings.pl \
+	      /tmp/patches/regripper_plugins/rdphint.pl \
+	      /tmp/patches/regripper_plugins/rdpnla.pl \
+	      /tmp/patches/regripper_plugins/silentprocessexit.pl \
+	      /tmp/patches/regripper_plugins/silentprocessexit_tln.pl \
+	      /tmp/patches/regripper_plugins/teamviewer.pl \
+	      /tmp/patches/regripper_plugins/vmware_vsphere_client.pl \
+	      /tmp/patches/regripper_plugins/winevt.pl \
 	      /tmp/patches/regripper_plugins/winlogon_db.pl \
+	      /tmp/patches/regripper_plugins/winnt_cv.pl \
+	      /tmp/patches/regripper_plugins/winscp_sessions.pl \
+	      /tmp/patches/regripper_plugins/winver2.pl \
         /opt/regripper/plugins/
     install -p -dm 755 /usr/local/bin/
     ln -s /opt/regripper/rip.pl /usr/local/bin/rip
