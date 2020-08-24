@@ -119,7 +119,15 @@ def _actions(origin, tag_fields=[], logger=logging):
     Attrs:
         origin: a source of data, such as a file or a generator.
         tag_fields: an array with the name of the fields to be managed as tags.
-            If one of these fields is ingected, add a special operation named "tag".
+            These fields are assumed to be arrays that need to be updated.
+            For example, to update array "blindsearches", data must have
+            a field name "blindsearches-new" with the new tags. The existing
+            "blindsearches" array will be updated with the new tags.
+            In this case, tag_fields=["blindsearches"] and "blindsearches-new"
+            will be removed from data before injecting.
+
+            If one of these tag fields is injected, the function yields
+            a special operation named "tag".
             This operation will be managed by _expand_action()
 
     Returns:
