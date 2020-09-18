@@ -35,17 +35,27 @@ import shutil
 __maintainer__ = 'Juan Vera'
 
 
-def getSourceImage(myconfig):
-    # Try to scan 'imagefile' first if supplied
-    imagefile = myconfig('imagefile')
+def getSourceImage(myconfig, imagefile=None):
+    """ Returns the path to the image file.
+
+    imagegile is the absolute path to the image file or devide.
+    If not rpvided, search in imagedir for files as "source.ext"
+
+    Known images are in the KNOWN_IMAGETYPES directory.
+    """
     if imagefile:
         check_file(imagefile, error_missing=True)
+        # check for device files
+        if imagefile.startswith('/dev'):
+            return KNOWN_IMAGETYPES['/dev']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['dev']['type'], params=myconfig)
+        # check for known extensions
         try:
             ext = os.path.basename(imagefile).split('.')[-1]
             return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
         except KeyError:
             raise base.job.RVTError('Image file {} has unrecognized image extension format: {}'.format(imagefile, ext))
 
+    # No imagefile is provided. Search in imagedir files with known extensions
     source = myconfig('source')
     imagedir = myconfig('imagedir')
     for ext in KNOWN_IMAGETYPES.keys():
@@ -305,6 +315,7 @@ class EncaseImage(BaseImage):
 
 
 KNOWN_IMAGETYPES = {
+    "/dev": dict(type='raw', imgclass=BaseImage),
     "001": dict(type='raw', imgclass=BaseImage),
     "dd": dict(type='raw', imgclass=BaseImage),
     "raw": dict(type='raw', imgclass=BaseImage),

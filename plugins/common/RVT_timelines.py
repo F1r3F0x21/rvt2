@@ -32,13 +32,13 @@ class Timelines(base.job.BaseModule):
     """
 
     def run(self, path=None):
-        """ The path is ignored, and the source image is used. """
+        """ The path is the absolute path to the imagefile or device. If not provided, search in imagedir for known extensions """
         vss = self.myflag('vss')
         fls = self.myconfig('fls', 'fls')
         apfs_fls = self.myconfig('apfs_fls', 'fls')
         mactime = self.myconfig('mactime', 'mactime')
 
-        disk = getSourceImage(self.myconfig)
+        disk = getSourceImage(self.myconfig, imagefile=path)
 
         tl_path = self.myconfig('outdir')
         if vss:
