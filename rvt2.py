@@ -166,13 +166,14 @@ def load_default_vars(config, morgue, casename, source, jobid):
             config.config[base.config.DEFAULTSECT][name] = ar
 
 
-def load_global_vars(config, _globals):
+def load_global_vars(config, _globals, ignore_errors=False):
     """ Load  global variables in the configuration object.
 
     Params:
         config: The configuration object
         _globals: a dictionary with global variables, in the format {"SECTION:PARAM": "VALUE"}. If no SECTION
             is provided, use "DEFAULT"
+        ignore_errors: If True, ignore missing sections (do nothing)
     """
     for varname in _globals:
         sectionname = base.config.DEFAULTSECT
@@ -180,7 +181,11 @@ def load_global_vars(config, _globals):
         newvalue = _globals[varname]
         if ':' in varname:
             sectionname, newvarname = varname.split(':', 1)
-        config.config[sectionname][newvarname] = newvalue
+        try:
+            config.config[sectionname][newvarname] = newvalue
+        except KeyError:
+            if not ignore_errors:
+                raise
 
 
 def configure_logging(config, verbose=False, jobname=None):
@@ -214,11 +219,11 @@ def main(params=sys.argv[1:]):
 
     jobid = str(base.utils.generate_id())
     INITIAL_CONF = {
-            'rvt2:jobid': jobid,
-            'rvt2:version': __version__,
-            'rvthome': os.path.dirname(os.path.abspath(__file__)),
-            'userhome': os.environ.get('HOME'),
-            'cwd': os.getcwd()
+        'rvt2:jobid': jobid,
+        'rvt2:version': __version__,
+        'rvthome': os.path.dirname(os.path.abspath(__file__)),
+        'userhome': os.environ.get('HOME'),
+        'cwd': os.getcwd()
     }
 
     aparser = argparse.ArgumentParser(description='The Revealer Toolkit for forensic analysis')
@@ -235,9 +240,10 @@ def main(params=sys.argv[1:]):
     aparser.add_argument('paths', type=str, nargs='*', help='Filename or directories to parse')
     args = aparser.parse_args(params)
 
-    # Update initial variables in globals, unless already provided
+    # Update initial variables in globals
+    # Notice "--globals morgue=SOMETHING" has preference over "--morgue SOMETHING"
     for ar, name in zip([args.morgue, args.casename, args.source], ['morgue', 'casename', 'source']):
-        if ar is not None and not name in args.globals:
+        if ar is not None and name not in args.globals:
             args.globals[name] = ar
 
     if args.version:
@@ -250,7 +256,8 @@ def main(params=sys.argv[1:]):
     config = base.config.Config()
     load_configpaths(config, args.config)
     # configure global variables
-    load_global_vars(config, args.globals)
+    # Since plugins are not loaded yet, ignore errors of missing sections
+    load_global_vars(config, args.globals, ignore_errors=True)
 
     # configure the logging subsystem using a generic configuration
     configure_logging(config, args.verbose, None)

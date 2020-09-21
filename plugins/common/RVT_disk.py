@@ -44,10 +44,10 @@ def getSourceImage(myconfig, imagefile=None):
     Known images are in the KNOWN_IMAGETYPES directory.
     """
     if imagefile:
-        check_file(imagefile, error_missing=True)
         # check for device files
         if imagefile.startswith('/dev'):
-            return KNOWN_IMAGETYPES['/dev']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['dev']['type'], params=myconfig)
+            return KNOWN_IMAGETYPES['/dev']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['/dev']['type'], params=myconfig)
+        check_file(imagefile, error_missing=True)
         # check for known extensions
         try:
             ext = os.path.basename(imagefile).split('.')[-1]
@@ -314,6 +314,33 @@ class EncaseImage(BaseImage):
             run_command(["sudo", umount, '-l', mp])
 
 
+class VHDXImage(BaseImage):
+    """ Manages a VHDX image (VmWare)
+    
+    Params:
+        - nbd-device: the device to mount. Defaults to /dev/ndb0 """
+
+    def _getRawImagefile(self):
+        device = self.params('nbd_device', '/dev/nbd0')
+        qemu_nbd = self.params('qemu_nbd', 'qemu-nbd')
+        try:
+            # TODO: check if this needs sudo
+            run_command(["sudo", qemu_nbd, "-c", device, "-r", self.imagefile])
+        except Exception:
+            self.logger.error("Cannot mount VHDX imagefile=%s", self.imagefile)
+            raise base.job.RVTError("Cannot mount VHDX imagefile={}".format(self.imagefile))
+        return device
+
+    def umount(self, unzip_path=None):
+        super().umount()
+        device = self.params('ndb-device', '/dev/nbd0')
+        qemu_nbd = self.params('qemu_nbd', '/usr/bin/qemu_nbd')
+        # TODO: check if this needs sudo
+        run_command(["sudo", qemu_nbd, "-d", device])
+
+
+# name: type, imageclass
+# The order is important: zip must be the last option (an image maybe already unzipped)
 KNOWN_IMAGETYPES = {
     "/dev": dict(type='raw', imgclass=BaseImage),
     "001": dict(type='raw', imgclass=BaseImage),
@@ -322,6 +349,7 @@ KNOWN_IMAGETYPES = {
     "aff": dict(type='aff', imgclass=AFFImage),
     "aff4": dict(type='aff4', imgclass=AFFImage),
     "E01": dict(type='encase', imgclass=EncaseImage),
+    "vhdx": dict(type='vhdx', imgclass=VHDXImage),
     "zip": dict(type='zip', imgclass=ZipImage),
 }
 # NOT_MOUNTABLE_PARTITIONS = ("Primary Table", "GPT Header", "Safety Table", "Partition Table", "Unallocated")

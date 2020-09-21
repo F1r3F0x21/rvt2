@@ -30,6 +30,7 @@ class Mount(base.job.BaseModule):
         - **ext4_args** (str): specific options for mounting an EXT4 partition.
         - **hfs_args** (str): specific options for mounting an HFS partition.
         - **vss** (bool): mount regular (False) or Volume Shadow Snapshots (True) partitions
+        - **nbd_device** (str): for VMDX images (nbd), the device to use.
     """
     def run(self, path=None):
         disk = getSourceImage(self.myconfig)
