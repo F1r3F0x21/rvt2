@@ -142,7 +142,7 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, ella
         status=status,
         logfile=base.utils.relative_path(config.get('logging', 'file.logfile', None), config.get('DEFAULT', 'casedir')),
         outfile=base.utils.relative_path(config.get(job, 'outfile', None), config.get('DEFAULT', 'casedir')),
-        ellapsed=0.0
+        ellapsed=ellapsed
     )
     if status == 'start':
         data['date_start'] = data['date']
