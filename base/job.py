@@ -210,13 +210,13 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
     # in the modules configuration parameter
 
     if mymodule is None:
-        logging.critical('Critical error: No module loaded for job=$s', job_name)
+        logging.critical('Critical error: No module loaded for job=%s', job_name)
         raise RVTCritical('No module loaded for job={}'.format(job_name))
 
     for each_path in path:
         abspath = os.path.abspath(each_path) if each_path is not None else None
-        logging.info('Running job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
-        logging.debug('Running job=%s on path=%s params=%s modules=%s', job_name, abspath, myparams, modules)
+        logging.info('STARTED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
+        logging.debug('STARTED job=%s on path=%s params=%s modules=%s', job_name, abspath, myparams, modules)
         try:
             # notice we manage exceptions, and then we cannot return the generator: it must be run by us
             results = mymodule.run(abspath)
@@ -226,20 +226,20 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
             for data in results:
                 yield data
         except KeyboardInterrupt as exc:
-            logging.warning('Interrupted: %s', exc)
+            logging.warning('INTERRUPTED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
             raise
         except RVTCritical as exc:
-            logging.critical('Critical error: %s. %s', exc, traceback.format_exc())
+            logging.critical('CRITICAL job=%s on path=%s casename=%s source=%s. %s. %s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc())
             raise
         except Exception as exc:
-            # This except includes RVTError
+            # This except block includes RVTError
             if config.get(job_name, 'stop_on_error', 'False')[0] in 'tT1':
-                logging.critical('Exception: %s. %s', exc, traceback.format_exc())
+                logging.critical('EXCEPTION job=%s on path=%s casename=%s source=%s. %s. %s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc())
             else:
-                logging.error('Exception: %s. %s', exc, traceback.format_exc())
+                logging.error('EXCEPTION job=%s on path=%s casename=%s source=%s. %s. %s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc())
         finally:
             mymodule.shutdown()
-            logging.info('Finished job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
+            logging.info('FINISHED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
 
 
 def load_module(config, confsection, from_module=None, extra_config=None):
