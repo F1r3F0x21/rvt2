@@ -105,7 +105,7 @@ def get_esclient(config, config_section='indexer', logger=logging):
         logger.error('ElasticSearch hosts are not reacheable: %s', hosts)
         raise base.job.RVTError('ElasticSearch hosts are not reacheable: {}'.format(hosts))
 
-    logger.info('Connecting to %s', hosts)
+    logger.debug('Connecting to %s', hosts)
     return Elasticsearch(
         hosts,
         serializer=_CustomSerializer(), retry_on_timeout=retry_on_timeout, timeout=30,
@@ -409,7 +409,7 @@ class ElasticSearchBulkSender(base.job.BaseModule):
             else:
                 self.logger().warning('No mapping defined for index: %s', name)
             # create the index
-            self.logger().info('Creating index %s', name)
+            self.logger().debug('Creating index %s', name)
             esclient.indices.create(index=name, body=mapping, include_type_name=False)
         else:
             self.logger().warning('The index already exists: %s', name)
