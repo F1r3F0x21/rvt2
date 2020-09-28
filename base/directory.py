@@ -70,7 +70,7 @@ class DirectoryFilter(base.job.BaseModule):
                 for extension in base.config.parse_conf_array(self.config.get(myfilter, 'extension', '')):
                     filter_extensions.append(extension)
             self.filter_extensions = set(filter_extensions)
-            self.logger().info('Parsing only: %s', self.filter_extensions)
+            self.logger().debug('Parsing only: %s', self.filter_extensions)
         else:
             self.filter_extensions = None
         # progress configuration
@@ -129,7 +129,7 @@ class DirectoryFilter(base.job.BaseModule):
             # estimating the number of subdirectories may be very long. Do not estimate if progress is disabled
             total_subdirectories = base.commands.estimate_iterations(path, self.myconfig('progress.cmd'))
         # Notice total_interations is the number of subdirectories, not files
-        self.logger().info('total_subdirectories=%s', total_subdirectories)
+        self.logger().debug('total_subdirectories=%s', total_subdirectories)
         return total_subdirectories
 
     def _parse_directory(self, path):
@@ -191,7 +191,7 @@ class FileParser(base.job.BaseModule):
                 yield fileinfo
         for regex, parser in self.regex_list:
             if regex.match(path):
-                self.logger().info('Matched path: {}'.format(path))
+                self.logger().debug('Matched path: {}'.format(path))
                 for fileinfo in base.job.run_job(self.config.copy(), parser, path=[path]):
                     yield fileinfo
 
@@ -371,7 +371,7 @@ class DirectoryClear(base.job.BaseModule):
         elif os.path.isfile(target_path):
             os.remove(target_path)
             return []
-        self.logger().info('{} not recognized as file or directory'.format(target_path))
+        self.logger().debug('{} not recognized as file or directory'.format(target_path))
         return []
         # raise base.job.RVTError('{} not recognized as file or directory'.format(target_path))
 

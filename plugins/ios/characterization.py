@@ -112,6 +112,6 @@ class Characterization(base.job.BaseModule):
             for k, v in data.items():
                 writer.writerow([k, v])
 
-        self.logger().info("iPhone's characterization exported at %s", self.myconfig('outfile'))
+        self.logger().debug("iPhone's characterization exported at %s", self.myconfig('outfile'))
 
         return [data]

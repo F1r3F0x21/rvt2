@@ -111,7 +111,7 @@ class Unback(plugins.ios.IOSModule):
             An empty array, always.
         """
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.logger().info('Unback: %s', path)
+        self.logger().debug('Unback: %s', path)
         # check unzip path
         if base.utils.check_directory(self.myconfig('unzip_path')):
             shutil.rmtree(self.myconfig('unzip_path'))
@@ -131,7 +131,7 @@ class Unback(plugins.ios.IOSModule):
         if unback_cmd:
             # if an unback command is provided and the extract_path does not exist, use it
             unback_cmd = unback_cmd.format(bk_path=bk_path, extract_path=extract_path)
-            self.logger().info('Running %s', unback_cmd)
+            self.logger().debug('Running %s', unback_cmd)
             subprocess.call(unback_cmd, shell=True)
             # finally, copy some important files
             shutil.copy2(os.path.join(bk_path, 'Info.plist'), os.path.join(extract_path, 'Info.plist'))

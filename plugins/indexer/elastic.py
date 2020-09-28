@@ -216,7 +216,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
         Returns:
             An iterator with the adapted JSON.
         """
-        self.logger().info('Indexing: %s', path)
+        self.logger().debug('Indexing: %s', path)
         self.check_params(path, check_from_module=True)
 
         name = self.myconfig('name').lower()
@@ -390,7 +390,7 @@ class ElasticSearchBulkSender(base.job.BaseModule):
                 You MUST use this module if the operation from ElasticSearchAdapter
                 is "update", since `elasticdump` always overwrites data.
         """
-        self.logger().info('Running on: %s', path)
+        self.logger().debug('Running on: %s', path)
         self.check_params(path, check_path=True, check_path_exists=True)
 
         esclient = get_esclient(self.config, logger=self.logger())

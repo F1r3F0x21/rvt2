@@ -121,7 +121,7 @@ class TikaParser(base.job.BaseModule):
         This is useful to discover new metadata fields not yet mapped."""
         base.job.BaseModule.shutdown(self)
         if self.myflag('save_mapping'):
-            self.logger().info('Shutdown: writing mapping in file %s', self.myconfig('mapping'))
+            self.logger().debug('Shutdown: writing mapping in file %s', self.myconfig('mapping'))
             with open(self.myconfig('mapping'), 'w') as fmapping:
                 self._mapping.write(fmapping)
 

@@ -46,7 +46,7 @@ class Cookies(base.job.BaseModule):
             ``{"date_creation", "date_expiration", "name", "domain", "value", "cookie_path", "flags"}``
         """
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.logger().info('Parsing: %s', path)
+        self.logger().debug('Parsing: %s', path)
 
         # cookie files according to the possible iOS versions
         possible_cookie_files = [
