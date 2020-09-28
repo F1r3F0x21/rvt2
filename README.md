@@ -43,7 +43,7 @@ RVT2 manages the Python dependencies or the core plugins internally. The first t
 If you prefer a manual installation of the Python dependencies, run these commands from the $RVT2_HOME directory.
 
 ```bash
-pip3 install --user pipenv
+python3 -m pip install --user --force-reinstall pipenv
 pipenv --three
 pipenv install
 ```
