@@ -39,7 +39,7 @@ def getSourceImage(myconfig, imagefile=None):
     """ Returns the path to the image file.
 
     imagegile is the absolute path to the image file or devide.
-    If not rpvided, search in imagedir for files as "source.ext"
+    If not provided, search in imagedir for files as "source.ext"
 
     Known images are in the KNOWN_IMAGETYPES directory.
     """

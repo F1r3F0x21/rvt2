@@ -33,7 +33,9 @@ class Mount(base.job.BaseModule):
         - **nbd_device** (str): for VMDX images (nbd), the device to use.
     """
     def run(self, path=None):
-        disk = getSourceImage(self.myconfig)
+        """ If path is provided, it is an abolsolute path to the image to mount.
+        If not, search imagedir for available images """
+        disk = getSourceImage(self.myconfig, imagefile=path)
         disk.mount(partitions=self.myconfig('partitions'), vss=self.myconfig('vss'), unzip_path=self.myconfig('unzip_path'))
         if self.from_module:
             for data in self.from_module.run(path):

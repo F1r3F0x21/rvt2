@@ -191,7 +191,7 @@ def configure_logging(config, basic=False):
 
 
 def check_server(server):
-    """ Check whether a server cab be reached.
+    """ Check whether a server can be reached.
 
     >>> check_server(None)
     False
