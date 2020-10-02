@@ -23,12 +23,23 @@ from tqdm import tqdm
 
 
 class StringGenerate(base.job.BaseModule):
+    def __init__(self, *args, **kwargs):
+        """ Optional argument: disk, which is the RVT_disk object to create the strings. """
+        super.__init__(*args, **kwargs)
+        # Some other modules use this module directly with a keywork 'disk'.
+        # Give support to this modules in the constructor
+        if 'disk' in kwargs:
+            self.disk = disk
+        else:
+            self.disk = None
 
     def run(self, path=None):
         """ If a path is provided, it is the image file.
-        If nor, search for the image file in the imagedir directory
+        If not, search for the image file in the imagedir directory
         """
-        self.disk = getSourceImage(self.myconfig, imagefile=path)
+        if not self.disk:
+            # If a disk is not already defined, define it
+            self.disk = getSourceImage(self.myconfig, imagefile=path)
         self.string_path = self.myconfig('outdir')
         check_directory(self.string_path, create=True)
 
