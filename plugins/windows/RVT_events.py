@@ -328,7 +328,7 @@ class System(EventJob):
             path (str): Path to System.evtx
         """
 
-        path = self.get_evtx(path, r"System.evtx$")
+        path = self.get_evtx(path, r"/System.evtx$")
         if not path:
             return []
 
