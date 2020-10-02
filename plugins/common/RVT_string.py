@@ -24,15 +24,13 @@ from tqdm import tqdm
 
 class StringGenerate(base.job.BaseModule):
 
-    def __init__(self, *args, disk=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.disk = disk
-        if disk is None:
-            self.disk = getSourceImage(self.myconfig)
+    def run(self, path=None):
+        """ If a path is provided, it is the image file.
+        If nor, search for the image file in the imagedir directory
+        """
+        self.disk = getSourceImage(self.myconfig, imagefile=path)
         self.string_path = self.myconfig('outdir')
         check_directory(self.string_path, create=True)
-
-    def run(self, path=""):
 
         self.generate_strings()
         return []

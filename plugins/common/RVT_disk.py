@@ -53,7 +53,8 @@ def getSourceImage(myconfig, imagefile=None):
             ext = os.path.basename(imagefile).split('.')[-1]
             return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
         except KeyError:
-            raise base.job.RVTError('Image file {} has unrecognized image extension format: {}'.format(imagefile, ext))
+            # not a know extension: assume RAW image
+            return BaseImage(imagefile=imagefile, imagetype='raw', params=myconfig)
 
     # No imagefile is provided. Search in imagedir files with known extensions
     source = myconfig('source')
@@ -139,7 +140,7 @@ class BaseImage(object):
             volume = pytsk3.Volume_Info(img)
             self.sectorsize = volume.info.block_size
         except Exception:
-            pass
+            volume = None
 
         if not volume:
             self.logger.warning("File imagefile=%s has not a partition table or is malformed. Trying to manage as a single partition" % self.imagefile)
