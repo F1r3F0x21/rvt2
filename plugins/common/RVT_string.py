@@ -25,7 +25,7 @@ from tqdm import tqdm
 class StringGenerate(base.job.BaseModule):
     def __init__(self, *args, **kwargs):
         """ Optional argument: disk, which is the RVT_disk object to create the strings. """
-        super.__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         # Some other modules use this module directly with a keywork 'disk'.
         # Give support to this modules in the constructor
         if 'disk' in kwargs:
