@@ -22,6 +22,9 @@ import re
 import logging
 import struct
 import pyscca
+from cim import CIM
+from cim.objects import Namespace
+import json
 
 import base.job
 from plugins.common.RVT_filesystem import FileSystem
@@ -195,6 +198,58 @@ class Prefetch(base.job.BaseModule):
             csv_file.close()
 
         self.logger().info("Parsing prefetch files finished")
+
+
+class CCM(base.job.BaseModule):
+    """ Module based on https://github.com/fireeye/flare-wmi/blob/master/python-cim/samples/show_CCM_RecentlyUsedApps.py """
+
+    def run(self, path=""):
+        search = GetFiles(self.config, vss=self.myflag("vss"))
+        self.dir_path = search.search('Windows/System32/wbem/Repository$')
+
+        self.vss = self.myflag('vss')
+        self.type_ = 'win7'
+
+        for p in self.dir_path:
+            r = self.show_CCM_RecentlyUsedApps(p)
+            for a in r:
+                yield a
+
+    def show_CCM_RecentlyUsedApps(self, dir_path):
+        if self.type_ not in ("xp", "win7"):
+            raise RuntimeError("Invalid mapping type: {:s}".format(self.type_))
+
+        Values = ["FolderPath", "ExplorerFileName", "FileSize", "LastUserName", "LastUsedTime", "TimeZoneOffset",
+                  "LaunchCount", "OriginalFileName", "FileDescription", "CompanyName", "ProductName", "ProductVersion",
+                  "FileVersion", "AdditionalProductCodes", "msiVersion", "msiDisplayName", "ProductCode",
+                  "SoftwarePropertiesHash", "ProductLanguage", "FilePropertiesHash", "msiPublisher"]
+
+        path = os.path.join(self.myconfig('casedir'), dir_path)
+        c = CIM(self.type_, path)
+        try:
+            ret_items = []
+            with Namespace(c, "root\\ccm\\SoftwareMeteringAgent") as ns:
+                for RUA in ns.class_("CCM_RecentlyUsedApps").instances:
+                    RUAValues = {}
+                    for Value in Values:
+                        try:
+                            if Value == "LastUsedTime":
+                                Time = str(RUA.properties[Value].value)
+                                ExcelTime = "{}-{}-{} {}:{}:{}".format(Time[0:4], Time[4:6], Time[6:8], Time[8:10],
+                                                                       Time[10:12], Time[12:14])
+                                RUAValues[Value] = ExcelTime
+                            elif Value == "TimeZoneOffset":
+                                Time = str(RUA.properties[Value].value)
+                                TimeOffset = '="{}"'.format(Time[-4:])
+                                RUAValues[Value] = TimeOffset
+                            else:
+                                RUAValues[Value] = str(RUA.properties[Value].value).replace('\\', '/')
+                        except KeyError:
+                            RUAValues[Value] = ""
+                    ret_items.append(RUAValues)
+            return ret_items  
+        except IndexError:
+            raise RuntimeError("CCM Software Metering Agent path 'root\\\\ccm\\\\SoftwareMeteringAgent' not found.")
 
 
 class RFC(base.job.BaseModule):
