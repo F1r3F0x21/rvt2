@@ -109,12 +109,18 @@ class Unback(plugins.ios.IOSModule):
 
         Returns:
             An empty array, always.
+
+        Raises:
+            base.job.RVTError if the file can't be unbacked, for whatever reason
         """
         self.check_params(path, check_path=True, check_path_exists=True)
         self.logger().debug('Unback: %s', path)
         # check unzip path
         if base.utils.check_directory(self.myconfig('unzip_path')):
-            shutil.rmtree(self.myconfig('unzip_path'))
+            try:
+                shutil.rmtree(self.myconfig('unzip_path'))
+            except PermissionError:
+                self.logger().warning('Can\'t remove: {}. I will try to continue'.format(self.myconfig('unzip_path')))
         extract_path = self.myconfig('extract_path')
         # check extract_path
         if base.utils.check_directory(extract_path):
