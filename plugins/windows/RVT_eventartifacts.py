@@ -247,6 +247,69 @@ class Logon_rdp(base.job.BaseModule):
         writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp.md'), ['Login', 'SubjecUser', 'IP', 'Logoff', 'User', 'Reason'], results)
 
 
+class Logon_rdp2(base.job.BaseModule):
+    """ Extracts logon and rdp artifacts """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed Security.xml
+        """
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        sID = {}
+
+        for event in self.from_module.run(path):
+            ev = dict()
+            ev['TimeCreated'] = event.get('event.created', '')
+            ev['EventID'] = event.get('event.code', '')
+            ev['Description'] = event.get('event.action', '')
+            ev['User'] = event.get('destination.user.name', '')
+            ev['SessionID'] = event.get('data.SessionID', '')
+            ev['SourceAddress'] = event.get('source.address', '')
+            if ev['SessionID'] not in sID.keys():
+                sID[ev['SessionID']] = []
+            sID[ev['SessionID']].append(ev)
+            self.logger().debug(ev)
+            yield ev
+        self.extractRDP(sID)
+
+    def extractRDP(self, sID):
+
+        results = []
+
+        for eventlist in sID.values():
+            act = dict()
+            writted = True
+            act['LoginDate'] = '-'
+            act['LogoffDate'] = '-'
+            act['User'] = ''
+            act['SourceAddress'] = ''
+
+            for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
+                self.logger().debug("%s %s" % (v['TimeCreated'], v['EventID']))
+
+                if v['EventID'] in ('21', '22', '25'):
+                    if act['SourceAddress'] == '':
+                        act['SourceAddress'] = v.get('SourceAddress', '')
+                    act['User'] = v.get('User', '')
+                    act['LoginDate'] = v['TimeCreated']
+                    writted = False
+                elif v['EventID'] in ('23', '24') and act['LoginDate'] != '-':
+                    act['LogoffDate'] = v['TimeCreated']
+                    results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('User', ''), act.get('SourceAddress', '')])
+                    self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
+                    act['LoginDate'] = '-'
+                    act['LogoffDate'] = '-'
+                    act['User'] = ''
+                    act['SourceAddress'] = ''
+                    writted = True
+            if not writted:
+                results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('User', ''), act.get('SourceAddress', '')])
+        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp2.md'), ['LoginDate', 'LogoffDate', 'User', 'SourceAddress'], results)
+
+
 class Logon_rdp_out(base.job.BaseModule):
     """ Extracts logon and rdp artifacts """
 
