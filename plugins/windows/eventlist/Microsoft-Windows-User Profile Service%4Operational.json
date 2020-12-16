@@ -1,0 +1,87 @@
+{
+  "1":{
+    "description": "Received user logon notification on session X",
+    "provider": "Microsoft-Windows-User Profiles Service",
+    "category": ["authentication"],
+    "type": ["start"],
+    "action": "Received user logon notification on session X",
+    "path": {
+      "EventData":{
+        "Name": ["Session"]
+      },
+      "System":{
+        "Security": ["UserID"]
+      }
+    }
+  },
+  "2":{
+    "description": "Finished processing user logon notification on session X",
+    "provider": "Microsoft-Windows-User Profiles Service",
+    "category": ["authentication"],
+    "type": ["start"],
+    "path": {
+      "EventData":{
+        "Name": ["Session"]
+      },
+      "System":{
+        "Security": ["UserID"]
+      }
+    }
+  },
+  "3":{
+    "description": "Received user logoff notification on session X",
+    "provider": "Microsoft-Windows-User Profiles Service",
+    "category": ["authentication"],
+    "type": ["end"],
+    "path": {
+      "EventData":{
+        "Name": ["Session"]
+      },
+      "System":{
+        "Security": ["UserID"]
+      }
+    }
+  },
+  "4":{
+    "description": "Finished processing user logoff notification on session X",
+    "provider": "Microsoft-Windows-User Profiles Service",
+    "category": ["authentication"],
+    "type": ["end"],
+    "path": {
+      "EventData":{
+        "Name": ["Session"]
+      },
+      "System":{
+        "Security": ["UserID"]
+      }
+    }
+  },
+  "5":{
+    "description": "Registry file X is loaded at Z",
+    "provider": "Microsoft-Windows-User Profiles Service",
+    "category": ["authentication"],
+    "type": ["end"],
+    "path": {
+      "EventData":{
+        "Name": ["File", "Key"]
+      }
+    }
+  },
+  "67":{
+    "description": "-",
+    "provider": "Microsoft-Windows-User Profiles Service",
+    "category": ["authentication"],
+    "type": ["info"],
+    "path": {
+      "System/Correlation/#attributes":{
+        "Name": ["ActivityID"]
+      },
+      "EventData":{
+        "Name": ["LocalPath", "LogonType", "ProfileType"]
+      },
+      "System":{
+        "Security": ["UserID"]
+      }
+    }
+  }
+}
