@@ -121,11 +121,15 @@ class Unback(plugins.ios.IOSModule):
                 shutil.rmtree(self.myconfig('unzip_path'))
             except PermissionError:
                 self.logger().warning('Can\'t remove: {}. I will try to continue'.format(self.myconfig('unzip_path')))
+            except OSError:
+                # for example: directory is busy
+                self.logger().warning('Can\'t remove: {}. I will try to continue'.format(self.myconfig('unzip_path')))
         extract_path = self.myconfig('extract_path')
         # check extract_path
         if base.utils.check_directory(extract_path):
             # If already unbacked, exit
-            return []
+            #return []
+            pass
         # create the extract_path directory, if it does not exist
         base.utils.check_directory(extract_path, create=True, delete_exists=True)
         self.logger().debug('Extracting to: %s', extract_path)
@@ -164,6 +168,12 @@ class Unback(plugins.ios.IOSModule):
 
         # finally, if the unzip path exists, remove it
         if self.myflag('remove_unzip_path') and base.utils.check_directory(self.myconfig('unzip_path')):
-            shutil.rmtree(self.myconfig('unzip_path'))
+            try:
+                shutil.rmtree(self.myconfig('unzip_path'))
+            except PermissionError:
+                self.logger().warning('Can\'t remove: {}'.format(self.myconfig('unzip_path')))
+            except OSError:
+                # for example: directory is busy
+                self.logger().warning('Can\'t remove: {}'.format(self.myconfig('unzip_path')))
 
         return []
