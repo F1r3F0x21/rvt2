@@ -383,7 +383,7 @@ class ReportSearch(base.job.BaseModule):
                             line = line.replace(r[0], r[1])
 
                         if line.startswith('Pt: p'):  # Block information
-                            foutput.write("\\end{Verbatim}\n\n" if not initial else "")
+                            foutput.write("\n\\end{Verbatim}\n\n" if not initial else "")
                             foutput.write("\\newpage\n" if not initial else "")
                             initial = False
                             foutput.write("\\begin{lstlisting}\n")
@@ -394,12 +394,16 @@ class ReportSearch(base.job.BaseModule):
 
                         line = re.sub("[\x00-\x09\x0B-\x1F\x7F-\xFF]", ".", line)
                         # Write by chuncks. Note: Some hits may be missed this way
+                        back_slash_end_line = False
                         for chunk_line in [line[i:i + line_width] for i in range(0, len(line), line_width)]:
+                            if back_slash_end_line:
+                                chunk_line = '\\' + chunk_line
+                            back_slash_end_line = chunk_line[-1] == '\\'
                             chunk_line = re.sub('({})'.format(regex), r"\\colorbox{green}{" + r'\1' + r"}", chunk_line, flags=re.I | re.M)
                             chunk_line = re.sub('({})'.format(kw_utf8), r"\\colorbox{green}{" + r'\1' + r"}", chunk_line, flags=re.I | re.M)
                             foutput.write(chunk_line + "\n")
 
-                foutput.write("\\end{Verbatim}\n")
+                foutput.write("\n\\end{Verbatim}\n")
                 foutput.write("\\end{document}\n")
 
             run_command([pdflatex, "-output-directory", report_path, file + ".tex"], logger=self.logger())
