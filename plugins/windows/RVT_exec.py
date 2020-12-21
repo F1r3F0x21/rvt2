@@ -247,7 +247,7 @@ class CCM(base.job.BaseModule):
                         except KeyError:
                             RUAValues[Value] = ""
                     ret_items.append(RUAValues)
-            return ret_items
+            return ret_items  
         except IndexError:
             raise RuntimeError("CCM Software Metering Agent path 'root\\\\ccm\\\\SoftwareMeteringAgent' not found.")
 

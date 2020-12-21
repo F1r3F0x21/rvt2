@@ -30,7 +30,7 @@ import base.job
 class Skype(base.job.BaseModule):
     """ Parse Skype databases leveldb """
     def run(self, path=''):
-        if not (path.endswith('leveldb') or path.endswith('main.db')):
+        if (not path.endswith('leveldb')) and (not path.endswith('main.db')):
             raise base.job.RVTError('Expected a db file or leveldb folder. Path: {}'.format(path))
         temp_dir = tempfile.mkdtemp('skype')
         temp_path = os.path.join(temp_dir, 'Default')
@@ -48,7 +48,7 @@ class Skype(base.job.BaseModule):
 class Teams(base.job.BaseModule):
     """ Parse Teams databases leveldb """
     def run(self, path=''):
-        if not (path.endswith('leveldb') or path.endswith('main.db')):
+        if not path.endswith('leveldb') or not path.endswith('main.db'):
             raise base.job.RVTError('Expected a db file or leveldb folder. Path: {}'.format(path))
         temp_dir = tempfile.mkdtemp('teams')
         temp_path = os.path.join(temp_dir, 'Default')

@@ -27,6 +27,8 @@ from contextlib import closing
 import plugins.ios
 import base.utils
 
+# TODO: change reference to 'ME' by the actual whatsapp owner name
+
 
 class WhatsApp(plugins.ios.IOSModule):
     """
@@ -68,7 +70,6 @@ class WhatsApp(plugins.ios.IOSModule):
         self.set_default_config('message_group', '')
         self.set_default_config('start_date', '')
         self.set_default_config('end_date', '')
-        self.set_default_config('username', '')
 
     def run(self, path):
         """
@@ -78,19 +79,7 @@ class WhatsApp(plugins.ios.IOSModule):
         # Check existance of backup and database
         self.check_params(path, check_path=True, check_path_exists=True)
         self.backup_dir = path
-
-        # Obtain username
-        if self.myconfig('username', ''):
-            self.owner_name = self.myconfig('username')
-        else:
-            try:
-                shared_plist = biplist.readPlist(os.path.join(path, 'AppDomainGroup-group.net.whatsapp.WhatsApp.shared/Library/Preferences/group.net.whatsapp.WhatsApp.shared.plist'))
-                self.owner_name = shared_plist.get('FullUserName', 'Me')
-            except Exception:
-                self.owner_name = 'Me'
-
         chatstorage_file = os.path.join(os.path.join(path, 'AppDomainGroup-group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite'))
-
         if not base.utils.check_file(chatstorage_file):
             self.logger().warning("The file %s do not exists", chatstorage_file)
             return []
@@ -124,8 +113,8 @@ class WhatsApp(plugins.ios.IOSModule):
                                 ZWAMESSAGE.ZPUSHNAME,
                                 ZWAMESSAGE.ZTOJID,
                                 ZWAMESSAGE.ZCHATSESSION,
-                                DATETIME(ZMESSAGEDATE + 978307200, 'unixepoch', 'localtime') AS ZMESSAGEDATE,
-                                DATETIME(ZSENTDATE + 978307200, 'unixepoch', 'localtime') AS ZSENTDATE,
+                                DATETIME(ZMESSAGEDATE + 978307200, 'unixepoch') AS ZMESSAGEDATE,
+                                DATETIME(ZSENTDATE + 978307200, 'unixepoch') AS ZSENTDATE,
                                 ZWAMESSAGE.ZTEXT,
                                 ZWAMESSAGEINFO.ZRECEIPTINFO,
                                 ZWAMESSAGE.ZMESSAGETYPE,
@@ -134,10 +123,7 @@ class WhatsApp(plugins.ios.IOSModule):
                                 ZWAMEDIAITEM.ZMEDIALOCALPATH,
                                 ZWAMEDIAITEM.ZVCARDNAME,
                                 ZWAMEDIAITEM.ZLATITUDE,
-                                ZWAMEDIAITEM.ZLONGITUDE,
-                                ZWAMEDIAITEM.ZTITLE,
-                                ZWAMEDIAITEM.ZMETADATA,
-                                ZWACHATSESSION.ZCONTACTJID
+                                ZWAMEDIAITEM.ZLONGITUDE
                             FROM ZWAMESSAGE
                             INNER JOIN ZWAMESSAGEINFO ON ZWAMESSAGEINFO.ZMESSAGE = ZWAMESSAGE.Z_PK
                             INNER JOIN ZWACHATSESSION ON ZWACHATSESSION.Z_PK = ZWAMESSAGE.ZCHATSESSION
@@ -151,8 +137,8 @@ class WhatsApp(plugins.ios.IOSModule):
                                 ZWAMESSAGE.ZPUSHNAME,
                                 ZWAMESSAGE.ZTOJID,
                                 ZWAMESSAGE.ZCHATSESSION,
-                                DATETIME(ZMESSAGEDATE + 978307200, 'unixepoch', 'localtime') AS ZMESSAGEDATE,
-                                DATETIME(ZSENTDATE + 978307200, 'unixepoch', 'localtime') AS ZSENTDATE,
+                                DATETIME(ZMESSAGEDATE + 978307200, 'unixepoch') AS ZMESSAGEDATE,
+                                DATETIME(ZSENTDATE + 978307200, 'unixepoch') AS ZSENTDATE,
                                 ZTEXT,
                                 NULL,
                                 ZMESSAGETYPE,
@@ -161,10 +147,7 @@ class WhatsApp(plugins.ios.IOSModule):
                                 ZWAMEDIAITEM.ZMEDIALOCALPATH,
                                 ZWAMEDIAITEM.ZVCARDNAME,
                                 ZWAMEDIAITEM.ZLATITUDE,
-                                ZWAMEDIAITEM.ZLONGITUDE,
-                                ZWAMEDIAITEM.ZTITLE,
-                                ZWAMEDIAITEM.ZMETADATA,
-                                ZWACHATSESSION.ZCONTACTJID
+                                ZWAMEDIAITEM.ZLONGITUDE
                             FROM ZWAMESSAGE
                             INNER JOIN ZWACHATSESSION ON ZWACHATSESSION.Z_PK = ZWAMESSAGE.ZCHATSESSION
                             LEFT JOIN ZWAMEDIAITEM ON ZWAMESSAGE.Z_PK = ZWAMEDIAITEM.ZMESSAGE
@@ -216,11 +199,10 @@ class WhatsApp(plugins.ios.IOSModule):
         # 0: Pk, 1: isfrome, 2:partnername, 3:pushname, 4:tojid, 5:chatsession(group)
         # 6: date_creation, 7:date_sent, 8:text(message), 9: receiptinfo, 10: message_type
         # 11: status, 12: spotlight_status, 13: media_location, 14: contact_name
-        # 15: latitude, 16: longitude, 17: media_title, 18:media_metadata, 19: group_id
+        # 15: latitude, 16: longitude
 
         # Origin and destination
-        partner_name = line[2] if line[19][-4:] != 'g.us' else line[3]  # Group chats end with g.us
-        origin, destination = (self.owner_name, partner_name) if line[1] == 1 else (partner_name, self.owner_name)
+        origin, destination = ('ME', line[2]) if line[1] == 1 else (line[2], 'ME')
 
         # Read and delivered dates
         blob = line[9]
@@ -250,11 +232,6 @@ class WhatsApp(plugins.ios.IOSModule):
         if line[8] is not None:
             message = line[8].replace("\n", " ")
 
-        # Text quoting previous messages
-        quote_message = ''
-        if line[18] and line[10] == 0:
-            quote_sender, quote_message = self.parse_quoting(line[18])
-
         # Basename of media file related to message
         media_filename = self.get_media_filename(media_location=line[13], message_type=line[10], message_group=line[5])
 
@@ -270,7 +247,6 @@ class WhatsApp(plugins.ios.IOSModule):
             message_id=line[0],
             message_from=origin,
             message_to=destination,
-            is_from_me=line[1],
             message_phonenumber=phone_number,
             date_creation=line[6],
             date_sent=line[7],
@@ -280,11 +256,9 @@ class WhatsApp(plugins.ios.IOSModule):
             message_type=readable_type,
             status=status,
             message_media_location=media_filename,
-            message_media_title=line[17],
             message_group=line[5],
             lon_lat=lon_lat,
-            contact=contact_name,
-            quote=quote_message
+            contact=contact_name
         )
 
     def get_media_filename(self, media_location, message_type, message_group):
@@ -310,34 +284,6 @@ class WhatsApp(plugins.ios.IOSModule):
                     shutil.copy2(os.path.join(mediafolder, media_location), os.path.join(media_outdir, media_filename))
 
         return media_filename
-
-    def parse_quoting(self, metadata):
-        """ Extract the quoted text from mediaitem metadata.
-            This blob field may contain a plist or a different type of binary data.
-        """
-
-        # When it's a plist:
-        try:
-            plist = biplist.readPlistFromString(metadata)
-            contact = plist['$objects'][3]
-            if contact.find('@s.whatsapp.net') > 0:
-                message = plist['$objects'][4][2:].decode()  # first bit is ommited
-                return contact, message
-            else:
-                return '', ''
-        except Exception:
-            pass
-
-        # Otherwise
-        try:
-            recipient, message = metadata.split(b'@s.whatsapp.net')
-            contact = recipient.split(b'\x1a')[-1] + b'@s.whatsapp.net'
-            index = message.find(b'\n')
-            if message[index + 2:].find(b'\x00') > -1:  # Some mistakes avoided
-                return '', ''
-            return contact.decode(), message[index + 2:].decode()
-        except Exception:
-            return '', ''
 
 
 class WhatsAppChatSessions(base.job.BaseModule):
