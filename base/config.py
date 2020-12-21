@@ -174,6 +174,9 @@ def configure_logging(config, basic=False):
                 },
                 'urllib3.connectionpool': {
                     'level': 'ERROR'
+                },
+                'elasticsearch': {
+                    'level': 'ERROR'
                 }
             }
         })
