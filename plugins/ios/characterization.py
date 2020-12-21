@@ -15,12 +15,14 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+"""
+
+"""
+
 import os
 import sqlite3
 import csv
 import biplist
-import datetime
-
 import base.job
 import base.utils
 
@@ -53,44 +55,12 @@ class Characterization(base.job.BaseModule):
         if not base.utils.check_file(os.path.join(path, 'Manifest.plist')):
             raise base.job.RVTError('Manifest.plist not found. Is the source a (decrypted) iOS backup?')
 
-        ios_conf_files = {
-            'Manifest.plist': self.parse_manifest,
-            'Info.plist': self.parse_info,
-            'Status.plist': self.parse_status,
-            'RootDomain/Library/Preferences/com.apple.MobileBackup.plist': self.parse_mobile_backup,
-            'HomeDomain/Library/Preferences/com.apple.mobile.ldbackup.plist': self.parse_ldbackup,
-            'HomeDomain/Library/Accounts/Accounts3.sqlite': self.parse_accounts
-        }
-
         data = dict()
-        self.lockdown = False
-        self.path = path
-
-        for file, parsing_function in ios_conf_files.items():
-            try:
-                base.utils.check_file(os.path.join(path, 'Manifest.plist'), error_missing=True)
-                parsing_function(data)
-            except Exception:
-                pass
-
-        base.utils.check_file(self.myconfig('outfile'), delete_exists=True, create_parent=True)
-        with open(self.myconfig('outfile'), "w") as outfile:
-            writer = csv.writer(outfile)
-            writer.writerow(("Characteristic", "Value"))
-            for k, v in data.items():
-                writer.writerow([k, v])
-
-        self.logger().info("iPhone's characterization exported at %s", self.myconfig('outfile'))
-
-        return [data]
-
-    def parse_manifest(self, data):
-        manifest = biplist.readPlist(os.path.join(self.path, 'Manifest.plist'))
+        manifest = biplist.readPlist(os.path.join(path, 'Manifest.plist'))
         data['Version'] = manifest.get('Version', 'None')
         data['IsEncrypted'] = manifest.get('IsEncrypted', 'None')
-        data['LastBackupDate_Manifest.plist'] = manifest.get('Date', 'None')
+        data['LastBackupDate'] = manifest.get('Date', 'None')
         if 'Lockdown' in manifest:
-            self.lockdown = True
             data['DeviceName'] = manifest['Lockdown'].get('DeviceName', 'None')
             data['UniqueDeviceID'] = manifest['Lockdown'].get('UniqueDeviceID', 'None')
             data['SerialNumber'] = manifest['Lockdown'].get('SerialNumber', 'None')
@@ -99,79 +69,49 @@ class Characterization(base.job.BaseModule):
             data['BuildVersion'] = manifest['Lockdown'].get('BuildVersion', 'None')
         data['WasPasscodeSet'] = manifest.get('WasPasscodeSet', 'None')
 
-    def parse_info(self, data):
-        info = biplist.readPlist(os.path.join(self.path, 'Info.plist'))
+        info = biplist.readPlist(os.path.join(path, 'Info.plist'))
         data['GUID'] = info.get('GUID', 'None')
         data['ICCID'] = info.get('ICCID', 'None')
-        data['IMEI'] = info.get('IMEI', 'None')
-        data['MEID'] = info.get('MEID', 'None')
         data['PhoneNumber'] = info.get('Phone Number', 'None')
-        data['ProductName'] = info.get('Product Name', 'None')
-        data['macOSVersion'] = info.get('macOS Version', 'None')
-        data['macOS Build Version'] = info.get('macOS Build Version', 'None')
-        data['LastBackupDate_Info.plist'] = info.get('Last Backup Date', 'None')
-        # check some data, they must be the same as the one in Manifest.plist
-        if self.lockdown:
-            assert data['UniqueDeviceID'].lower() == info['Target Identifier'].lower()
+        data['MEID'] = info.get('MEID', 'None')
+        # check some data, they must be the same
+        if 'Lockdown' in manifest:
+            assert data['UniqueDeviceID'] == info['Target Identifier']
+            assert data['UniqueDeviceID'] == info['Target Identifier'].lower()
             assert data['DeviceName'] == info['Device Name']
             assert data['DeviceName'] == info['Display Name']
-            assert data['SerialNumber'] == info['Serial Number']
             assert data['ProductVersion'] == info['Product Version']
-            assert data['ProductType'] == info['Product Type']
             assert data['BuildVersion'] == info['Build Version']
 
-    def parse_status(self, data):
-        status = biplist.readPlist(os.path.join(self.path, 'Status.plist'))
+        status = biplist.readPlist(os.path.join(path, 'Status.plist'))
         data['UUID'] = status['UUID']
-        data['BackupDate_Status.plist'] = status.get('Date', 'None')
 
-    def parse_mobile_backup(self, data):
-        mobileBackup = biplist.readPlist(os.path.join(self.path, 'RootDomain/Library/Preferences/com.apple.MobileBackup.plist'))
-        data['AccountEnabledDate'] = mobileBackup.get('AccountEnabledDate', 'None')
-        if 'BackupStateInfo' in mobileBackup:
-            data['BackupStateInfoIscloud'] = mobileBackup['BackupStateInfo'].get('isCloud', 'None')
-            data['BackupStateInfoDate'] = mobileBackup['BackupStateInfo'].get('date', 'None')
-        if 'RestoreInfo' in mobileBackup:
-            data['RestoreDate'] = mobileBackup['RestoreInfo'].get('RestoreDate', 'None')
-            data['WasCloudRestore'] = mobileBackup['RestoreInfo'].get('WasCloudRestore', 'None')
-            data['BackupBuildVersion'] = mobileBackup['RestoreInfo'].get('BackupBuildVersion', 'None')
-            data['DeviceBuildVersion'] = mobileBackup['RestoreInfo'].get('DeviceBuildVersion', 'None')
-
-    def parse_ldbackup(self, data):
-        ldBackup = biplist.readPlist(os.path.join(self.path, 'HomeDomain/Library/Preferences/com.apple.mobile.ldbackup.plist'))
-        macOSFormatDate = ldBackup.get('LastiTunesBackupDate', None)
-        if macOSFormatDate:
-            data['LastiTunesBackupDate'] = datetime.datetime.utcfromtimestamp(int(macOSFormatDate) + 978307200).strftime("%Y-%m-%d %H:%M:%S")
-        data['LastiTunesBackupTZ'] = ldBackup.get('LastiTunesBackupTZ', 'None')
-        data['RequiresEncryption'] = str(ldBackup.get('RequiresEncryption', '')) or str(ldBackup.get('WillEncrypt', '')) or 'Undefined'
-
-    def parse_accounts(self, data):
-        conn = sqlite3.connect('file://{}/HomeDomain/Library/Accounts/Accounts3.sqlite?mode=ro'.format(self.path), uri=True)
+        conn = sqlite3.connect('file://{}/HomeDomain/Library/Accounts/Accounts3.sqlite?mode=ro'.format(path), uri=True)
         c = conn.cursor()
-        query = """
-            SELECT a.ZACCOUNTTYPEDESCRIPTION, a.ZCREDENTIALTYPE,
-            c.ZACCOUNTDESCRIPTION, c.ZUSERNAME, c.ZACCOUNTTYPE,
-            DATETIME(ZDATE+978307200, 'unixepoch')
-            FROM ZACCOUNT c JOIN ZACCOUNTTYPE a ON c.ZACCOUNTTYPE == a.Z_PK;
-        """
+        for row in c.execute('SELECT * FROM ZACCOUNT'):
+            if row[7] is not None:
+                switcher = {
+                    33: "iCloud Account",
+                    27: "Hotmail Account",
+                    38: "Jabber Account",
+                    16: "Gmail Account",
+                    13: "Yahoo Account",
+                    11: "Facebook Account",
+                    10: "LinkedIn Account",
+                    4: "Twitter Account",
+                    8: "Flickr Account",
+                }
+                tmp = switcher.get(row[7], "nothing")
+                if tmp != "nothing":
+                    data[tmp] = row[16]
 
-        for row in c.execute(query):
-            if row[3] is not None:
-                account = ' '.join([row[0], 'Account'])
-                if row[2]:
-                    account = ' - '.join([account, row[2]])
-                user_and_date = ' - '.join([row[3], row[5]])
-                data[account] = user_and_date
+        base.utils.check_file(self.myconfig('outfile'), delete_exists=True, create_parent=True)
+        with open(self.myconfig('outfile'), "w") as outfile:
+            writer = csv.writer(outfile)
+            writer.writerow(("Characteristic", "Value"))
+            for k, v in data.items():
+                writer.writerow([k, v])
 
-                # Outdated references:
-                # switcher = {
-                #     33: "iCloud Account",
-                #     27: "Hotmail Account",
-                #     38: "Jabber Account",
-                #     16: "Gmail Account",
-                #     13: "Yahoo Account",
-                #     11: "Facebook Account",
-                #     10: "LinkedIn Account",
-                #     4: "Twitter Account",
-                #     8: "Flickr Account",
-                # }
+        self.logger().debug("iPhone's characterization exported at %s", self.myconfig('outfile'))
+
+        return [data]

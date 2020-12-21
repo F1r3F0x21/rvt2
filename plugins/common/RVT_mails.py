@@ -303,11 +303,8 @@ class FilterMails(base.job.BaseModule):
         for f, var, cond, v in zip(pre_function, variables, conditions, values):
             if var in ['client_submit_time', 'delivery_time', 'creation_time', 'modification_time']:
                 is_time = True
-                try:
-                    t = dateutil.parser.parse(row[var]).replace(tzinfo=None)
-                    v = dateutil.parser.parse(v).replace(tzinfo=None)
-                except ValueError:
-                    return False
+                t = dateutil.parser.parse(row[var]).replace(tzinfo=None)
+                v = dateutil.parser.parse(v).replace(tzinfo=None)
             else:
                 is_time = False
                 try:
