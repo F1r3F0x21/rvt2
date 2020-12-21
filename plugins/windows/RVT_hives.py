@@ -176,7 +176,7 @@ class ShimCache(base.job.BaseModule):
             matches = re.search(date_regex, line)
             if matches:
                 path = line[:matches.span()[0] - 2]
-                date = str(datetime.datetime.strptime(matches.group(), '%a %b %d %H:%M:%S %Y Z'))
+                date = str(datetime.datetime.strptime(matches.group(), '%Y-%m-%d %H:%M:%S'))
                 executed = bool(len(line[matches.span()[1]:]))
                 yield OrderedDict([('LastModified', date), ('AppPath', path), ('Executed', executed)])
 

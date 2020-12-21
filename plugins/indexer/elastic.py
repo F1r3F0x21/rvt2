@@ -105,7 +105,7 @@ def get_esclient(config, config_section='indexer', logger=logging):
         logger.error('ElasticSearch hosts are not reacheable: %s', hosts)
         raise base.job.RVTError('ElasticSearch hosts are not reacheable: {}'.format(hosts))
 
-    logger.info('Connecting to %s', hosts)
+    logger.debug('Connecting to %s', hosts)
     return Elasticsearch(
         hosts,
         serializer=_CustomSerializer(), retry_on_timeout=retry_on_timeout, timeout=30,
@@ -119,7 +119,15 @@ def _actions(origin, tag_fields=[], logger=logging):
     Attrs:
         origin: a source of data, such as a file or a generator.
         tag_fields: an array with the name of the fields to be managed as tags.
-            If one of these fields is ingected, add a special operation named "tag".
+            These fields are assumed to be arrays that need to be updated.
+            For example, to update array "blindsearches", data must have
+            a field name "blindsearches-new" with the new tags. The existing
+            "blindsearches" array will be updated with the new tags.
+            In this case, tag_fields=["blindsearches"] and "blindsearches-new"
+            will be removed from data before injecting.
+
+            If one of these tag fields is injected, the function yields
+            a special operation named "tag".
             This operation will be managed by _expand_action()
 
     Returns:
@@ -208,7 +216,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
         Returns:
             An iterator with the adapted JSON.
         """
-        self.logger().info('Indexing: %s', path)
+        self.logger().debug('Indexing: %s', path)
         self.check_params(path, check_from_module=True)
 
         name = self.myconfig('name').lower()
@@ -382,7 +390,7 @@ class ElasticSearchBulkSender(base.job.BaseModule):
                 You MUST use this module if the operation from ElasticSearchAdapter
                 is "update", since `elasticdump` always overwrites data.
         """
-        self.logger().info('Running on: %s', path)
+        self.logger().debug('Running on: %s', path)
         self.check_params(path, check_path=True, check_path_exists=True)
 
         esclient = get_esclient(self.config, logger=self.logger())
@@ -401,7 +409,7 @@ class ElasticSearchBulkSender(base.job.BaseModule):
             else:
                 self.logger().warning('No mapping defined for index: %s', name)
             # create the index
-            self.logger().info('Creating index %s', name)
+            self.logger().debug('Creating index %s', name)
             esclient.indices.create(index=name, body=mapping, include_type_name=False)
         else:
             self.logger().warning('The index already exists: %s', name)

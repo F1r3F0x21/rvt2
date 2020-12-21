@@ -38,7 +38,7 @@ def load_plugin(config):
     # Don't ask me why, but importing nudenet resets the logging system. Configure it again
     base.config.configure_logging(config)
     import logging
-    logging.getLogger(__name__).info('Logging system reseted')
+    logging.getLogger(__name__).warning('Logging system reseted')
 
 
 class NudeNetClassify(base.job.BaseModule):

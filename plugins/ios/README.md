@@ -17,9 +17,11 @@ The *path* to the main job is the path to the folder containing the backup, or a
 
 Save the backup as the folder `%(imagedir)s/CASE_NAME/SOURCE_NAME` or zip file `%(imagedir)s/images/CASE_NAME/SOURCE_NAME.zip`.
 
-If the backup is encrypted, and additinal step to decrypt the backup is needed. Currently, the RVT2 does not include directly the tools to decrypt an iOS backup and you must install an external tool such as <https://github.com/dinosec/iphone-dataprotection>. Once installed, add this configuration to the RVT2:
+If the backup is encrypted, an additinal step to decrypt the backup is needed. Currently, the RVT2 does not include directly the tools to decrypt an iOS backup and you must install or clone an external tool such as <https://github.com/dinosec/iphone-dataprotection>. Once installed, add this configuration to the RVT2:
 
 ```ini
 [ios.unback]
-unback_command: PATH_TO_BACKUPTOOL//backup_tool.py {bk_path} {extract_path}
+unback_command: PATH_TO_IOS_DATAPROTECTION/python_scripts/backup_tool.py {bk_path} {extract_path}
 ```
+
+If ios_dataprotection is used, the password will be asked during the job `ios.unback`.

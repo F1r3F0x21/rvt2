@@ -96,8 +96,8 @@ class TikaParser(base.job.BaseModule):
         # check if the tika server is available, or raise an error
         tika_server = self.myconfig('tika_server')
         if not base.config.check_server(tika_server):
-            self.logger().error('Tika server is not reacheable: %s', tika_server)
-            raise base.job.RVTError('Tika server is not reacheable: {}'.format(tika_server))
+            self.logger().error('Tika server is not reacheable: tika_server="%s"', tika_server)
+            raise base.job.RVTError('Tika server is not reacheable: tika_server="{}"'.format(tika_server))
 
     def read_config(self):
         super().read_config()
@@ -121,7 +121,7 @@ class TikaParser(base.job.BaseModule):
         This is useful to discover new metadata fields not yet mapped."""
         base.job.BaseModule.shutdown(self)
         if self.myflag('save_mapping'):
-            self.logger().info('Shutdown: writing mapping in file %s', self.myconfig('mapping'))
+            self.logger().debug('Shutdown: writing mapping in file %s', self.myconfig('mapping'))
             with open(self.myconfig('mapping'), 'w') as fmapping:
                 self._mapping.write(fmapping)
 

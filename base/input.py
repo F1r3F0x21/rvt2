@@ -244,7 +244,7 @@ class SQLiteReader(base.job.BaseModule):
             path = "file://{}?mode=ro&immutable=1".format(path)
             connect_args = {'database': path, 'uri': True}
 
-        self.logger().info('Query: %s', query)
+        self.logger().debug('Query: %s', query)
 
         with sqlite3.connect(**connect_args) as conn:
             conn.row_factory = _dict_factory

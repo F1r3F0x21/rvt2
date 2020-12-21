@@ -114,7 +114,7 @@ class Partition(object):
             aux = re.search(r"Number of stores:\s*(\d+)", str(linea))
             if aux:
                 nstores = aux.group(1)
-                self.logger.info("Partition {} has {} mounting points".format(self.partition, nstores))
+                self.logger.debug("Partition {} has {} mounting points".format(self.partition, nstores))
                 for i in range(1, int(nstores) + 1):
                     self.vss["v{}p{}".format(i, self.partition)] = ""
 
@@ -129,7 +129,7 @@ class Partition(object):
         self.refreshMountedImages()
 
         if self.loop != "" and not self.vss:
-            self.logger.info("Partition partition={} is already mounted".format(self.partition))
+            self.logger.debug("Partition partition={} is already mounted".format(self.partition))
             return 0
 
         try:
@@ -179,7 +179,7 @@ class Partition(object):
 
     def mount_bitlocker(self):
         if 'dislocker' in self.fuse.keys():
-            self.logger.info("Bitlocker partition p{} already mounted".format(self.partition))
+            self.logger.debug("Bitlocker partition p{} already mounted".format(self.partition))
             return
         rec_key = self.myconfig('recovery_keys')
         dislocker = self.myconfig('dislocker', '/usr/bin/dislocker')
@@ -199,7 +199,7 @@ class Partition(object):
                 self.logger.error("Problems mounting partition p%s" % self.partition)
                 return -1
         else:
-            self.logger.info("Trying to mount with recovery keys at {}".format(self.mountaux))
+            self.logger.debug("Trying to mount with recovery keys at {}".format(self.mountaux))
             mountauxpath = os.path.join(self.mountaux, "p%s" % self.partition)
             for rk in rec_key.split(','):  # loop wih different recovery keys, comma separated
                 try:
@@ -307,16 +307,16 @@ class Partition(object):
 
         for v, mp in self.vss.items():
             if mp != "":
-                self.logger.info("Unmounting vss partition {}".format(v))
+                self.logger.debug("Unmounting vss partition {}".format(v))
                 self.umountPartition(mp)
 
         for f, mp in self.fuse.items():
             if mp != "" and f != "dislocker":
-                self.logger.info("Unmounting fuse partition {}".format(mp))
+                self.logger.debug("Unmounting fuse partition {}".format(mp))
                 self.umountPartition(mp)
 
         if self.loop != "":
-            self.logger.info("Unmounting partition p{}".format(self.partition))
+            self.logger.debug("Unmounting partition p{}".format(self.partition))
             self.umountPartition(self.loop)
         if 'dislocker' in self.fuse.keys():
             self.umountPartition(self.fuse['dislocker'])
@@ -389,7 +389,7 @@ class Partition(object):
             a = f.read(11)
             if a == initBitlocker:
                 self.encrypted = True
-                self.logger.info("Partition {} is encrypted".format(self.partition))
+                self.logger.debug("Partition {} is encrypted".format(self.partition))
 
     def save_partition(self):
         """ Write partition variables in a JSON file """

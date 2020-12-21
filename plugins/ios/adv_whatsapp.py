@@ -171,7 +171,7 @@ class AdvWhatsapps(plugins.ios.IOSModule):
             pl = biplist.readPlist(os.path.join(self.myconfig('extract_path'), 'Info.plist'))
             item = pl.get("Last Backup Date", '')
         except Exception as exc:
-            self.logger().info('Unable to parse Info.plist. Err: {}'.format(exc))
+            self.logger().warning('Unable to parse Info.plist. Err: {}'.format(exc))
         out.write("\n{}\n".format('=' * 60))
         out.write("Last Backup Date: \t\t{}\n{}\n".format(str(item), '=' * 60))
 
@@ -181,7 +181,7 @@ class AdvWhatsapps(plugins.ios.IOSModule):
             item = pl2.get("AutoBackupCustom", '')
             item2 = pl2.get('lastAutoBackupDate', '')
         except Exception as exc:
-            self.logger().info('Unable to parse WhatsApp.shared.plist. Err: {}'.format(exc))
+            self.logger().warning('Unable to parse WhatsApp.shared.plist. Err: {}'.format(exc))
         out.write("Last Whatsapp CustomBakup Date: {}\n{}\n".format(str(item), '=' * 60))
         out.write("Last Whatsapp AutoBakup Date: \t{}\n{}\n".format(str(item2), '=' * 60))
 
@@ -238,7 +238,7 @@ class AdvWhatsapps(plugins.ios.IOSModule):
         out.close()
         con_storage.close()
         con_search.close()
-        logging.info('WhatsApp\'s coherence analysis exported at %s', outfilename)
+        logging.debug('WhatsApp\'s coherence analysis exported at %s', outfilename)
 
     def run(self, path):
         self.adv_whatsapp()

@@ -1,0 +1,50 @@
+{
+  "9705": {
+    "description": "Started enumeration of commands for registry key",
+    "provider": "Microsoft-Windows-Shell-Core",
+    "path": {
+      "EventData": {
+         "Name": ["KeyName"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"]
+      }
+    }
+  },
+  "9706": {
+    "description": "Finished enumeration of commands for registry key",
+    "provider": "Microsoft-Windows-Shell-Core",
+    "path": {
+      "EventData": {
+         "Name": ["KeyName"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"]
+      }
+    }
+  },
+  "9707": {
+    "description": "Started execution of command",
+    "provider": "Microsoft-Windows-Shell-Core",
+    "path": {
+      "EventData": {
+         "Name": ["Command"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"]
+      }
+    }
+  },
+  "9708": {
+    "description": "Started execution of command",
+    "provider": "Microsoft-Windows-Shell-Core",
+    "path": {
+      "EventData": {
+         "Name": ["Command", "PID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"]
+      }
+    }
+  }
+}

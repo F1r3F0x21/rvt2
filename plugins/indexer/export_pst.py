@@ -130,7 +130,7 @@ class ExportPstEml(base.job.BaseModule):
         Parameters:
             path (str): path to item to export (Message, Task, Appointment, Activity, Meeting, Note, Contact)
         """
-        self.logger().info('Running on %s', path)
+        self.logger().debug('Running on %s', path)
         self.path = path
         self.msg = EmailMessage()
         self.path = path
@@ -342,7 +342,7 @@ class CreatePstHtml(base.job.BaseModule):
         Parameters:
             path (str): path to pff-n.export folder
         """
-        self.logger().info('Running on %s', path)
+        self.logger().debug('Running on %s', path)
         self.casedir = self.myconfig('casedir')
 
         self.tika_parser = base.job.load_module(self.config, 'indexer.tikaparser.TikaParser')

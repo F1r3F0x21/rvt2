@@ -35,7 +35,7 @@ def load_plugin(config):
     # Importing nudenet resets the logging system. Configure it again
     base.config.configure_logging(config)
     import logging
-    logging.getLogger(__name__).info('Logging system reseted')
+    logging.getLogger(__name__).debug('Logging system reseted')
 
 
 class AIClassify(base.job.BaseModule):
@@ -63,7 +63,7 @@ class AIClassify(base.job.BaseModule):
             try:
                 r, acc = self.predict(self.classifier, img)
             except Exception as exc:
-                self.logger().info(exc)
+                self.logger().warning(exc)
                 continue
 
             result = dict(path=image['path'], aiclassify=dict(classifier=self.model, classification=r, prob=acc), preview=image['path'])

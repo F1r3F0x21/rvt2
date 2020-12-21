@@ -35,17 +35,28 @@ import shutil
 __maintainer__ = 'Juan Vera'
 
 
-def getSourceImage(myconfig):
-    # Try to scan 'imagefile' first if supplied
-    imagefile = myconfig('imagefile')
+def getSourceImage(myconfig, imagefile=None):
+    """ Returns the path to the image file.
+
+    imagegile is the absolute path to the image file or devide.
+    If not provided, search in imagedir for files as "source.ext"
+
+    Known images are in the KNOWN_IMAGETYPES directory.
+    """
     if imagefile:
+        # check for device files
+        if imagefile.startswith('/dev'):
+            return KNOWN_IMAGETYPES['/dev']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['/dev']['type'], params=myconfig)
         check_file(imagefile, error_missing=True)
+        # check for known extensions
         try:
             ext = os.path.basename(imagefile).split('.')[-1]
             return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
         except KeyError:
-            raise base.job.RVTError('Image file {} has unrecognized image extension format: {}'.format(imagefile, ext))
+            # not a know extension: assume RAW image
+            return BaseImage(imagefile=imagefile, imagetype='raw', params=myconfig)
 
+    # No imagefile is provided. Search in imagedir files with known extensions
     source = myconfig('source')
     imagedir = myconfig('imagedir')
     for ext in KNOWN_IMAGETYPES.keys():
@@ -129,7 +140,7 @@ class BaseImage(object):
             volume = pytsk3.Volume_Info(img)
             self.sectorsize = volume.info.block_size
         except Exception:
-            pass
+            volume = None
 
         if not volume:
             self.logger.warning("File imagefile=%s has not a partition table or is malformed. Trying to manage as a single partition" % self.imagefile)
@@ -304,13 +315,42 @@ class EncaseImage(BaseImage):
             run_command(["sudo", umount, '-l', mp])
 
 
+class VHDXImage(BaseImage):
+    """ Manages a VHDX image (VmWare)
+    
+    Params:
+        - nbd-device: the device to mount. Defaults to /dev/ndb0 """
+
+    def _getRawImagefile(self):
+        device = self.params('nbd_device', '/dev/nbd0')
+        qemu_nbd = self.params('qemu_nbd', 'qemu-nbd')
+        try:
+            # TODO: check if this needs sudo
+            run_command(["sudo", qemu_nbd, "-c", device, "-r", self.imagefile])
+        except Exception:
+            self.logger.error("Cannot mount VHDX imagefile=%s", self.imagefile)
+            raise base.job.RVTError("Cannot mount VHDX imagefile={}".format(self.imagefile))
+        return device
+
+    def umount(self, unzip_path=None):
+        super().umount()
+        device = self.params('ndb-device', '/dev/nbd0')
+        qemu_nbd = self.params('qemu_nbd', '/usr/bin/qemu_nbd')
+        # TODO: check if this needs sudo
+        run_command(["sudo", qemu_nbd, "-d", device])
+
+
+# name: type, imageclass
+# The order is important: zip must be the last option (an image maybe already unzipped)
 KNOWN_IMAGETYPES = {
+    "/dev": dict(type='raw', imgclass=BaseImage),
     "001": dict(type='raw', imgclass=BaseImage),
     "dd": dict(type='raw', imgclass=BaseImage),
     "raw": dict(type='raw', imgclass=BaseImage),
     "aff": dict(type='aff', imgclass=AFFImage),
     "aff4": dict(type='aff4', imgclass=AFFImage),
     "E01": dict(type='encase', imgclass=EncaseImage),
+    "vhdx": dict(type='vhdx', imgclass=VHDXImage),
     "zip": dict(type='zip', imgclass=ZipImage),
 }
 # NOT_MOUNTABLE_PARTITIONS = ("Primary Table", "GPT Header", "Safety Table", "Partition Table", "Unallocated")

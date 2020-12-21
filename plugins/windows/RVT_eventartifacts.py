@@ -82,6 +82,8 @@ class Logon_rdp(base.job.BaseModule):
             ev['ConnType'] = event.get('data.ConnType', '')
             ev['LogonType'] = event.get('data.LogonType', '')
             ev['ProcessName'] = event.get('process.name', '')
+            ev['Logon.ProcessName'] = event.get('data.LogonProcessName', '')
+            ev['AuthenticationPackageName'] = event.get('data.AuthenticationPackageName', '')
 
             if "client.ip" in event.keys():
                 ev['source.ip'] = event['client.ip']
@@ -243,6 +245,133 @@ class Logon_rdp(base.job.BaseModule):
             if ('t0' in act.keys() and act['t0'] not in ('', '-')) or ('t1' in act.keys() and act['t1'] not in ('', '-')):  # for writing unclosed event
                 results.append([act.get('t0', '-'), act.get('subjectUser', ''), act.get('ip', ''), act.get('t1', '-'), act.get('TargetUser', ''), act.get('reason', '')])
         writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp.md'), ['Login', 'SubjecUser', 'IP', 'Logoff', 'User', 'Reason'], results)
+
+
+class Logon_rdp2(base.job.BaseModule):
+    """ Extracts logon and rdp artifacts """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed Security.xml
+        """
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        sID = {}
+
+        for event in self.from_module.run(path):
+            ev = dict()
+            ev['TimeCreated'] = event.get('event.created', '')
+            ev['EventID'] = event.get('event.code', '')
+            ev['Description'] = event.get('event.action', '')
+            ev['User'] = event.get('destination.user.name', '')
+            ev['SessionID'] = event.get('data.SessionID', '')
+            ev['SourceAddress'] = event.get('source.address', '')
+            if ev['SessionID'] not in sID.keys():
+                sID[ev['SessionID']] = []
+            sID[ev['SessionID']].append(ev)
+            self.logger().debug(ev)
+            yield ev
+        self.extractRDP(sID)
+
+    def extractRDP(self, sID):
+
+        results = []
+
+        for eventlist in sID.values():
+            act = dict()
+            writted = True
+            act['LoginDate'] = '-'
+            act['LogoffDate'] = '-'
+            act['User'] = ''
+            act['SourceAddress'] = ''
+
+            for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
+                self.logger().debug("%s %s" % (v['TimeCreated'], v['EventID']))
+
+                if v['EventID'] in ('21', '22', '25'):
+                    if act['SourceAddress'] == '':
+                        act['SourceAddress'] = v.get('SourceAddress', '')
+                    act['User'] = v.get('User', '')
+                    act['LoginDate'] = v['TimeCreated']
+                    writted = False
+                elif v['EventID'] in ('23', '24') and act['LoginDate'] != '-':
+                    act['LogoffDate'] = v['TimeCreated']
+                    results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('User', ''), act.get('SourceAddress', '')])
+                    self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
+                    act['LoginDate'] = '-'
+                    act['LogoffDate'] = '-'
+                    act['User'] = ''
+                    act['SourceAddress'] = ''
+                    writted = True
+            if not writted:
+                results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('User', ''), act.get('SourceAddress', '')])
+        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp2.md'), ['LoginDate', 'LogoffDate', 'User', 'SourceAddress'], results)
+
+
+class Logon_rdp_out(base.job.BaseModule):
+    """ Extracts logon and rdp artifacts """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed Security.xml
+        """
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        actID = {}
+
+        for event in self.from_module.run(path):
+            ev = dict()
+            ev['TimeCreated'] = event.get('event.created', '')
+            ev['EventID'] = event.get('event.code', '')
+            ev['Description'] = event.get('event.action', '')
+            ev['ActivityID'] = event.get('data.ActivityID', )
+            ev['Address'] = event.get('data.Value', '')
+            ev['Base64Hash'] = event.get('Base64Hash', '')
+            if ev['Address'] == '':
+                ev['Address'] = event.get('destination.address', '')
+            ev['user.id'] = event.get('user.id', '')
+
+            if ev['ActivityID'] not in actID.keys():
+                actID[ev['ActivityID']] = []
+            actID[ev['ActivityID']].append(ev)
+            yield ev
+        self.extractRDP(actID)
+
+    def extractRDP(self, actID):
+
+        results = []
+
+        for eventlist in actID.values():
+            act = dict()
+            writted = True
+            act['LoginDate'] = '-'
+            act['LogoffDate'] = '-'
+
+            for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
+                self.logger().debug("%s %s %s" % (v['TimeCreated'], v['EventID'], v['ActivityID']))
+                if 'SID' not in act.keys() and 'user.id' in v.keys():
+                    act['SID'] = v['user.id']
+                if v['EventID'] in ('1024', '1102'):
+                    act['Address'] = v['Address']
+                elif v['EventID'] == '1025':
+                    act['LoginDate'] = v['TimeCreated']
+                    writted = False
+                elif v['EventID'] == '1026' and act['LoginDate'] != '-':
+                    act['LogoffDate'] = v['TimeCreated']
+                    results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('Address', ''), act.get('SID', '-'), act.get('B64Hash', '')])
+                    self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
+                    act['LoginDate'] = '-'
+                    act['LogoffDate'] = '-'
+                    writted = True
+                elif v['EventID'] == '1029' and 'B64Hash' not in act.keys():
+                    act['B64Hash'] = v.get('Base64Hash', '')
+            if not writted:
+                results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('Address', ''), act.get('SID', '-'), act.get('B64Hash', '')])
+        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp_out.md'), ['LoginDate', 'LogoffDate', 'Address', 'SID', 'B64Hash'], results)
 
 
 class Poweron(base.job.BaseModule):
