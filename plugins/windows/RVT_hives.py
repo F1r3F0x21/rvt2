@@ -143,8 +143,8 @@ class ShimCache(base.job.BaseModule):
     # TODO: .sdb shim database files (ex: Windows/AppPatch/sysmain.sdb)
 
     def run(self, path=""):
-        self.search = GetFiles(self.config, vss=self.myflag("vss"))
         self.vss = self.myflag('vss')
+        self.search = GetFiles(self.config, vss=self.vss)
         self.logger().info("Parsing ShimCache from registry")
 
         outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
@@ -186,7 +186,7 @@ class ScheduledTasks(base.job.BaseModule):
 
     def run(self, path=""):
         self.vss = self.myflag('vss')
-        self.search = GetFiles(self.config, vss=self.myflag("vss"))
+        self.search = GetFiles(self.config, vss=self.vss)
         self.outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
         check_directory(self.outfolder, create=True)
 
