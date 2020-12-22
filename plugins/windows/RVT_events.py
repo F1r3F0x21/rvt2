@@ -531,3 +531,41 @@ class OAlerts(EventJob):
                 ev['data.message_alert'] = content[1].strip()
                 ev.pop('#text')
             yield ev
+
+
+class PartitionDiagnostic(EventJob):
+    """ Extracts events of parsed Microsoft-Windows-Partition%4Diagnostic.evtx """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to Microsoft-Windows-Partition%4Diagnostic.evtx
+        """
+        path = self.get_evtx(path, r"/Microsoft-Windows-Partition%4Diagnostic.evtx$")
+        if not path:
+            return []
+
+        json_file = self.config.config[self.config.job_name]['json_conf']
+
+        for ev in GetEvents(path, json_file).parse():
+            if ev['data.ParentId'].startswith('USB'):
+                _, ev['data.vid_pid'], ev['data.device_sn'] = ev.pop('data.ParentId').split('\\')
+            else:
+                ev['data.device_data'] = ev.pop('data.ParentId')
+            if ev['data.Capacity'] != 0 and ev['data.PartitionTableBytes'] != 0:
+                ev['event.action'] = "device-connected"
+            elif ev['data.PartitionTableBytes'] == 0:
+                ev['event.action'] = "device-disconnected"
+            else:
+                ev['event.action'] = "device-unknown-action"
+            ev.pop('data.PartitionTableBytes')
+            capacity = ev.pop('data.Capacity')
+            if capacity != 0:
+                ev['data.capacity'] = capacity
+            if ev['data.Manufacturer']:
+                ev['data.device_model'] = ' '.join([ev.pop('data.Manufacturer'), ev.pop('data.Model')])
+            else:
+                ev['data.device_model'] = ev.pop('data.Model')
+            ev['data.device_registry_id'] = ev.pop('data.RegistryId')
+            ev['data.device_guid'] = ev.pop('data.DiskId')
+            yield ev

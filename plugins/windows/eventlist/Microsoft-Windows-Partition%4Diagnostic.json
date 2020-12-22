@@ -1,0 +1,16 @@
+{
+  "1006":{
+    "description": "Device inserted or removed from the system",
+    "provider": "Microsoft-Windows-Partition",
+    "category": ["driver"],
+    "type": ["connection"],
+    "path": {
+      "EventData":{
+        "Name": ["Manufacturer", "Capacity", "Model", "DiskId", "ParentId", "RegistryId", "PartitionTableBytes"]
+      },
+      "System/Correlation/#attributes":{
+        "Name": ["UserID"]
+      }
+    }
+  }
+}

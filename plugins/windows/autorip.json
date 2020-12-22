@@ -81,6 +81,7 @@
         "file": "05_storage_information",
         "description": "Storage Information",
         "plugins": [
+            "usb",
             "mountdev2",
             "usbdevices",
             "usbstor",
