@@ -50,7 +50,7 @@ class RegistryDump(base.job.BaseModule):
                 for i in self.parse_hive(regfiles[hive], hive):
                     yield i
 
-        self.logger().info('Registry parsed')
+        self.logger().debug('Registry parsed')
         return []
 
     def parse_hive(self, hive_file, hive_name, user=''):

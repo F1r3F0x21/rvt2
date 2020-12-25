@@ -169,7 +169,7 @@ class Autorip(base.job.BaseModule):
         errorlog = self.myconfig('errorfile')
         with open(errorlog, 'a') as logfile:
             for ar in tqdm(ripplugins, total=len(ripplugins), desc=self.section):
-                self.logger().info('Writing {}_{}.txt'.format(ar['file'], p))
+                self.logger().debug('Writing {}_{}.txt'.format(ar['file'], p))
                 write_registry_file(os.path.join(output_path, '{}_{}.txt'.format(ar['file'], p)), ar['plugins'], hivedict, ar['description'],
                                     regfiles, rip, logger=self.logger(), logfile=logfile)
 

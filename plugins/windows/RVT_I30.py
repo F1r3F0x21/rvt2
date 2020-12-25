@@ -125,11 +125,11 @@ class ParseINDX(base.job.BaseModule):
         # Yield INDX_ROOT records (with at least one INDX entry) for all directories in a partition.
         rootRecordsFound = 0
         if self.parseINDX_ROOTFiles:
-            self.logger().info('Processing INDX_ROOT records of partition {}'.format(partition.partition))
+            self.logger().debug('Processing INDX_ROOT records of partition {}'.format(partition.partition))
             for rec in self.parse_INDX_ROOT_records(partition):
                 rootRecordsFound += 1
                 yield rec
-            self.logger().info('Done with INDX_ROOT records of partition {}'.format(partition.partition))
+            self.logger().debug('Done with INDX_ROOT records of partition {}'.format(partition.partition))
 
         # Yield INDX_ALLOC records at INDEX_NODE_BLOCK_SIZE (default is 4096) offset from the start of a partition
         self.allocRecordsFound = 0
@@ -137,7 +137,7 @@ class ParseINDX(base.job.BaseModule):
         for rec in self.parse_INDX_ALLOC_records(partition):
             yield rec
 
-        self.logger().info('Root records found: {}\nAlloc records found: {}\nAlloc slack records found: {}'.format(rootRecordsFound, self.allocRecordsFound, self.slackRecordsFound))
+        self.logger().debug('Root records found: {}\nAlloc records found: {}\nAlloc slack records found: {}'.format(rootRecordsFound, self.allocRecordsFound, self.slackRecordsFound))
 
     def parse_INDX_ROOT_records(self, partition=None):
         """ Yield dicts of parsed INDX_ROOT entries for a partition. """

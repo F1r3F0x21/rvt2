@@ -55,7 +55,7 @@ class CharacterizeDisk(base.job.BaseModule):
 
         disk_info = self.get_image_information(disk)
         os_info = self.characterize_Windows()
-        self.logger().info('Disk characterization finished')
+        self.logger().debug('Disk characterization finished')
 
         return [
             dict(disk_info=disk_info, os_info=os_info, source=self.myconfig('source'))

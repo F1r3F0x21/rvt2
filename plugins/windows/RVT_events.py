@@ -150,7 +150,7 @@ class EventJob(base.job.BaseModule):
 
         evtx_files = alloc_files.search(regex_search)
         if len(evtx_files) < 1:
-            self.logger().info("{} matches not found in filesystem".format(regex_search))
+            self.logger().debug("{} matches not found in filesystem".format(regex_search))
             return ''
         if len(evtx_files) > 1:
             self.logger().warning("More than one file matches {}. Only parsing the file {}".format(regex_search, evtx_files[0]))

@@ -41,14 +41,14 @@ class Srum(base.job.BaseModule):
         check_directory(out_folder, create=True)
 
         if not SRUDB:
-            self.logger().info("SRUDB.dat not found in any partition of the disk")
+            self.logger().debug("SRUDB.dat not found in any partition of the disk")
             return []
 
         for soft in SOFTWARE:
             partition = soft.split('/')[2]
             for srudb in SRUDB:
                 if srudb.split('/')[2] == partition:
-                    self.logger().info("Parsing SRUDB from partition {}".format(partition))
+                    self.logger().debug("Parsing SRUDB from partition {}".format(partition))
                     out_file = os.path.join(out_folder, 'srum_{}.xlsx'.format(partition))
                     run_command([python3, srum, "-i", os.path.join(self.myconfig('casedir'), srudb), "-t", SRUM_TEMPLATE,
                                 "-r", os.path.join(self.myconfig('casedir'), soft), "-o", out_file], logger=self.logger())
@@ -57,7 +57,7 @@ class Srum(base.job.BaseModule):
                     os.remove(out_file)
                     break
             else:
-                self.logger().info("SRUDB.dat not found in partition: {}".format(partition))
+                self.logger().debug("SRUDB.dat not found in partition: {}".format(partition))
 
         return []
 

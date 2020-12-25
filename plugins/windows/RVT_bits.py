@@ -28,7 +28,7 @@ class Bits(base.job.BaseModule):
     def run(self, path=""):
         self.search = GetFiles(self.config, vss=self.myflag("vss"))
         self.vss = self.myflag('vss')
-        self.logger().info("Parsing Bits database")
+        self.logger().debug("Parsing Bits database")
         self.parse_BITS()
         return []
 

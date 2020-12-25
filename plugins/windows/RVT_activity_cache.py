@@ -30,7 +30,7 @@ class ActivitiesCache(base.job.BaseModule):
         """
 
         self.search = GetFiles(self.config, vss=self.myflag("vss"))
-        self.logger().info("Parsing Activities Cache files")
+        self.logger().debug("Parsing Activities Cache files")
         vss = self.myflag('vss')
 
         if vss:

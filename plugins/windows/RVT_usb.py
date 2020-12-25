@@ -36,7 +36,7 @@ class USBSetupAPI(base.job.BaseModule):
             return []
 
         for setupapi_file in setupapi:
-            self.logger().info('Extracting USB devices information from {}'.format(setupapi_file))
+            self.logger().debug('Extracting USB devices information from {}'.format(setupapi_file))
             folders = setupapi_file.split('/')
             partition = folders[2]
             if not vss:
@@ -69,7 +69,7 @@ class USBSetupAPI(base.job.BaseModule):
             setupapi_file (str): path to setupapi.dev.log file
             partition (str): partition identifier (ex: 'p05')
         """
-        self.logger().info("Parsing setupapi.dev.log for partiton {}".format(partition))
+        self.logger().debug("Parsing setupapi.dev.log for partiton {}".format(partition))
 
         with open(setupapi_file, "r", encoding="cp1252") as file:
             regex = re.compile(r'>>>\s\s\[Device\sInstall\s\(Hardware\sinitiated\) - (.*USBSTOR.*)\]', re.I)
@@ -108,7 +108,7 @@ class USBSetupAPI(base.job.BaseModule):
                             break
                     yield a
 
-        self.logger().info("Done parsing setupapi_file for partiton {}".format(partition))
+        self.logger().debug("Done parsing setupapi_file for partiton {}".format(partition))
 
 
 class USBAnalysis(base.job.BaseModule):

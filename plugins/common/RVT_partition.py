@@ -195,8 +195,8 @@ class Partition(object):
                 time.sleep(4)
                 self.refreshMountedImages()
                 self.mount_NTFS(os.path.join(mountauxpath, "dislocker-file"), offset=False)
-            except Exception:
-                self.logger.error("Problems mounting partition p%s" % self.partition)
+            except Exception as exc:
+                self.logger.error("Problems mounting bitlocker partition p%s: %s", self.partition, str(exc))
                 return -1
         else:
             self.logger.debug("Trying to mount with recovery keys at {}".format(self.mountaux))
@@ -209,8 +209,9 @@ class Partition(object):
                     self.refreshMountedImages()
                     self.mount_NTFS(os.path.join(mountauxpath, "dislocker-file"), offset=False)
                     break
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self.logger.error("Problems mounting bitlocker partition p%s: %s", self.partition, str(exc))
+                    return -1
 
     def mount_fat(self, imagefile=None, mountpath=None, offset=True):
         args = self.myconfig('fat_args').format(gid=grp.getgrgid(os.getegid())[0])
