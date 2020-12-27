@@ -415,7 +415,7 @@ class NTATTR_INDEX_ROOT_HEADER(Block):
         e = NTATTR_DIRECTORY_INDEX_ENTRY(self._buf, 0x10 + self.entry_offset(), self, blk_offset=self.blk_offset())
 
         if not e.is_valid():
-            self.logger.info('First ROOT allocated entry not valid at inode {}'.format(self._blk_offset))
+            self.logger.debug('First ROOT allocated entry not valid at inode {}'.format(self._blk_offset))
             return
 
         yield e
@@ -523,11 +523,11 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         inode = first_entry.get_inode('refParentDirectory')
         if not inode:
-            self.logger.info('Directory inode is 0 at block {}'.format(self.blk_offset()))
+            self.logger.debug('Directory inode is 0 at block {}'.format(self.blk_offset()))
             self._directory_inode = 0
             return
         if str(inode) not in self._inode_fls:
-            self.logger.info('Directory inode is invalid at block {}'.format(self.blk_offset()))
+            self.logger.debug('Directory inode is invalid at block {}'.format(self.blk_offset()))
             self._directory_inode = 0
             return
 
@@ -560,7 +560,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         # It seems that next regular entries are also invalid if the first is not valid
         if not e.is_valid():
-            self.logger.info('First allocated entry not valid at block offset {}'.format(self._blk_offset))
+            self.logger.debug('First allocated entry not valid at block offset {}'.format(self._blk_offset))
             self._valid_fixups = False  # That's not exact but it's used in slack_entries method
             return
 
@@ -868,10 +868,10 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
             return parse_windows_timestamp(timestamp)
         try:
             if timestamp < 1e17:
-                self.logger.info('timestamp too small: {}. Using Epoch timestamp'.format(timestamp))
+                self.logger.debug('timestamp too small: {}. Using Epoch timestamp'.format(timestamp))
                 return datetime(1970, 1, 1, 0, 0, 0)
             elif timestamp > 1e18:
-                self.logger.info('timestamp too big: {}. Using Epoch timestamp'.format(timestamp))
+                self.logger.debug('timestamp too big: {}. Using Epoch timestamp'.format(timestamp))
                 return datetime(1970, 1, 1, 0, 0, 0)
             else:
                 # Standard WIndows timestamp value

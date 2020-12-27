@@ -74,7 +74,7 @@ def parse_prefetch_file(pf_file):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    logger.info("Parsing {}".format(pf_file))
+    logger.debug("Parsing {}".format(pf_file))
     item = {}
 
     try:
