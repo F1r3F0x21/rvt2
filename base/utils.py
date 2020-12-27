@@ -186,3 +186,28 @@ def generate_id(data=None):
     else:
         # not enough information: random ID
         return uuid.uuid4()
+
+
+class MirrorOptions(base.job.BaseModule):
+    """ Return the value of the local options.
+    
+        Configuration:
+        - **include_section**: If true, include also the configuration in the section.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('include_section', 'False')
+        
+    def run(self, path=None):
+        params = dict(path=base.utils.relative_path(path, self.myconfig('casedir')))
+        if self.local_config:
+            params.update(self.local_config)
+        if self.myflag('include_section') and hasattr(self, 'section') and hasattr(self, 'config'):
+            if self.config.has_section(self.section):
+                for option in self.config.options(self.section):
+                    params[option] = self.config.get(self.section, option)
+        # Remove two not useful parameters
+        params.pop('logger_name')
+        params.pop('include_section')
+        return [params]
