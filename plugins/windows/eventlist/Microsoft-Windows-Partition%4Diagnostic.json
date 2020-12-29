@@ -6,10 +6,8 @@
     "type": ["connection"],
     "path": {
       "EventData":{
-        "Name": ["Manufacturer", "Capacity", "Model", "DiskId", "ParentId", "RegistryId", "PartitionTableBytes"]
-      },
-      "System/Correlation/#attributes":{
-        "Name": ["UserID"]
+        "Name": ["Manufacturer", "Capacity", "Model", "DiskId", "ParentId", "RegistryId", "PartitionTableBytes", "SerialNumber"],
+        "transform": {"ParentId": "data.device_id", "DiskID": "data.device_guid", "Manufacturer": "data.device_vendor", "Model": "data.device_model", "SerialNumber": "data.device_serial_number"}
       }
     }
   }

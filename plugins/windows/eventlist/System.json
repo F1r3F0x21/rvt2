@@ -158,29 +158,36 @@
   "10000":{
     "description": "driver package is being installed",
     "provider": "Microsoft-Windows-DriverFrameworks-UserMode",
+    "category": ["driver"],
+    "type": ["install"],
     "path": {
-      "UserData": {
-         "Name": ["UMDFDeviceInstallBegin"],
-         "transform": {"UMDFDeviceInstallBegin": "DeviceId"}
+      "UserData/UMDFDeviceInstallBegin": {
+         "Name": ["DeviceId"],
+         "transform": {"DeviceId": "data.device_id"}
       }
     }
   },
   "20001":{
-    "description": "Installation or Update",
+    "description": "Driver Management concluded the process to install driver",
     "provider": "Microsoft-Windows-UserPnp",
+    "category": ["driver"],
+    "type": ["install"],
     "path": {
-      "UserData": {
-        "Name": ["DeviceInstanceID"]
+      "UserData/InstallDeviceID":{
+        "Name": ["DeviceInstanceID", "DriverDescription"],
+        "transform": {"DeviceInstanceId": "data.device_id"}
       }
     }
   },
   "20003":{
-    "description": "Service Installation or Update",
+    "description": "Driver Management concluded the process to add service",
     "provider": "Microsoft-Windows-UserPnp",
+    "category": ["driver"],
+    "type": ["info"],
     "path": {
-      "UserData": {
-        "Name": ["AddServiceID"],
-        "transform": {"AddServiceID": "DeviceInstanceID"}
+      "UserData/AddServiceID":{
+        "Name": ["DeviceInstanceID", "ServiceName", "DriverFileName"],
+        "transform": {"DeviceInstanceId": "data.device_id", "ServiceName": "data.service_name"}
       }
     }
   }
