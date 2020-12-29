@@ -195,6 +195,8 @@ class FileParser(base.job.BaseModule):
                 for fileinfo in base.job.run_job(self.config.copy(), parser, path=[path]):
                     yield fileinfo
 
+        return []
+
 
 class GlobFilter(base.job.BaseModule):
     """
@@ -216,6 +218,7 @@ class GlobFilter(base.job.BaseModule):
         super().read_config()
         self.set_default_config('recursive', 'True')
         self.set_default_config('ftype', 'all')
+        self.set_default_config('path', None)
 
     def run(self, path=None):
         """ Parses objects matching a glob pattern.
@@ -226,6 +229,10 @@ class GlobFilter(base.job.BaseModule):
             path(str): the glob pattern. It will be recursive. See https://docs.python.org/3.6/library/glob.html
 
         """
+        custom_path = self.myconfig('path')
+        if custom_path is not None:
+            path = custom_path
+
         self.check_params(path, check_from_module=True, check_path=True)
         ftype = self.myconfig('ftype').lower()
 
@@ -235,12 +242,16 @@ class GlobFilter(base.job.BaseModule):
                 if ftype == 'all' or \
                         (ftype == 'file' and os.path.isfile(filepath)) or \
                         (ftype == 'directory' and os.path.isdir(filepath)):
-                    for info in self.from_module.run(filepath):
-                        yield info
+                    results = self.from_module.run(filepath)
+                    if results is not None:
+                        for info in results:
+                            yield info
             except Exception as exc:
                 if self.myflag('stop_on_error'):
                     raise
                 self.logger().warning(exc)
+
+        return []
 
 
 class FileClassifier(base.job.BaseModule):

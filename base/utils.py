@@ -115,6 +115,26 @@ def relative_path(path, start):
         return None
 
 
+def save_output(data, config=None, output_module='base.output.CSVSink', **kwargs):
+    """
+    Save data in some standard output format file. This is a convenient function to run a ``base.output`` modules from inside another module.
+
+    Parameters:
+        data: The data to be saved. It can be a generator (such as list or tuple) or a `base.job.BaseModule`. In the last case, the module is run and saved.
+        config (base.config.Config): The global configuration object, or None to use default configuration.
+        output_module (str): Name of the output module. Ex: 'base.output.CSVSink'
+        kwargs (dict): The extra configuration for the `base.output` module. You'd want to set, at least, `outfile`.
+    """
+    if config is None:
+        config = base.config.Config()
+    m = base.job.load_module(
+        config, output_module,
+        extra_config=kwargs,
+        from_module=data
+    )
+    list(m.run())
+
+
 def save_csv(data, config=None, **kwargs):
     """
     Save data in a CSV file. This is a convenient function to run a ``base.output.CSVSink`` module from inside another module.
@@ -124,14 +144,7 @@ def save_csv(data, config=None, **kwargs):
         config (base.config.Config): The global configuration object, or None to use default configuration.
         kwargs (dict): The extra configuration for the `base.output.CSVSink` module. You'd want to set, at least, `outfile`.
     """
-    if config is None:
-        config = base.config.Config()
-    m = base.job.load_module(
-        config, 'base.output.CSVSink',
-        extra_config=kwargs,
-        from_module=data
-    )
-    list(m.run())
+    save_output(data, config, 'base.output.CSVSink', **kwargs)
 
 
 def save_json(data, config=None, **kwargs):
@@ -143,14 +156,19 @@ def save_json(data, config=None, **kwargs):
         config (base.config.Config): The global configuration object, or None to use default configuration.
         kwargs (dict): The extra configuration for the `base.output.JSONSink` module. You'd want to set, at least, `outfile`.
     """
-    if config is None:
-        config = base.config.Config()
-    m = base.job.load_module(
-        config, 'base.output.JSONSink',
-        extra_config=kwargs,
-        from_module=data
-    )
-    list(m.run())
+    save_output(data, config, 'base.output.JSONSink', **kwargs)
+
+
+def save_md_table(data, config=None, **kwargs):
+    """
+    Save data in a markdown file. This is a convenient function to run a ``base.output.MDTableSink`` module from inside another module.
+
+    Parameters:
+        data: The data to be saved. It can be a generator (such as list or tuple) or a `base.job.BaseModule`. In the last case, the module is run and saved.
+        config (base.config.Config): The global configuration object, or None to use default configuration.
+        kwargs (dict): The extra configuration for the `base.output.CSVSink` module. You'd want to set, at least, `outfile`.
+    """
+    save_output(data, config, 'base.output.MDTableSink', **kwargs)
 
 
 def generate_id(data=None):
@@ -186,3 +204,33 @@ def generate_id(data=None):
     else:
         # not enough information: random ID
         return uuid.uuid4()
+
+
+class MirrorOptions(base.job.BaseModule):
+    """ Return the value of the local options.
+
+        Configuration:
+        - **include_section**: If true, include also the configuration in the section.
+        - **relative_path**: If true, return the path relative to casedir.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('include_section', 'False')
+        self.set_default_config('relative_path', 'True')
+
+    def run(self, path=None):
+        if self.myflag('relative_path'):
+            params = dict(path=base.utils.relative_path(path, self.myconfig('casedir')))
+        else:
+            params = dict(path=path)
+        if self.local_config:
+            params.update(self.local_config)
+        if self.myflag('include_section') and hasattr(self, 'section') and hasattr(self, 'config'):
+            if self.config.has_section(self.section):
+                for option in self.config.options(self.section):
+                    params[option] = self.config.get(self.section, option)
+        # Remove two not useful parameters
+        params.pop('logger_name')
+        params.pop('include_section')
+        return [params]

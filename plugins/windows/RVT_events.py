@@ -548,26 +548,30 @@ class PartitionDiagnostic(EventJob):
         json_file = self.config.config[self.config.job_name]['json_conf']
 
         for ev in GetEvents(path, json_file).parse():
-            # if ev['data.device_id'].startswith('USB'):
-            #     _, ev['data.vid_pid'], ev['data.device_sn'] = ev.pop('data.ParentId').split('\\')
-            # else:
-            #     ev['data.device_id'] = ev.pop('data.ParentId')
-            if int(ev['data.Capacity']) != 0 and int(ev['data.PartitionTableBytes']) != 0:
-                ev['event.action'] = "device-connected"
-            elif int(ev['data.PartitionTableBytes']) == 0:
-                ev['event.action'] = "device-disconnected"
-            else:
-                ev['event.action'] = "device-unknown-action"
-            ev.pop('data.PartitionTableBytes')
-            capacity = ev.pop('data.Capacity')
-            if capacity != 0:
-                ev['data.capacity'] = capacity
-            # if ev['data.Manufacturer']:
-            #     ev['data.device_model'] = ' '.join([ev.pop('data.Manufacturer'), ev.pop('data.Model')])
-            # else:
-            #     ev['data.device_model'] = ev.pop('data.Model')
-            ev['data.device_registry_id'] = ev.pop('data.RegistryId')
-            yield ev
+            try:
+                # if ev['data.device_id'].startswith('USB'):
+                #     _, ev['data.vid_pid'], ev['data.device_sn'] = ev.pop('data.ParentId').split('\\')
+                # else:
+                #     ev['data.device_id'] = ev.pop('data.ParentId')
+                if int(ev['data.Capacity']) != 0 and int(ev['data.PartitionTableBytes']) != 0:
+                    ev['event.action'] = "device-connected"
+                elif int(ev['data.PartitionTableBytes']) == 0:
+                    ev['event.action'] = "device-disconnected"
+                else:
+                    ev['event.action'] = "device-unknown-action"
+                ev.pop('data.PartitionTableBytes')
+                capacity = ev.pop('data.Capacity')
+                if capacity != 0:
+                    ev['data.capacity'] = capacity
+                # if ev['data.Manufacturer']:
+                #     ev['data.device_model'] = ' '.join([ev.pop('data.Manufacturer'), ev.pop('data.Model')])
+                # else:
+                #     ev['data.device_model'] = ev.pop('data.Model')
+                ev['data.device_registry_id'] = ev.pop('data.RegistryId')
+                yield ev
+            except Exception:
+                self.logger().warning("Skipping {} event due to error".format(self.config.job_name))
+                continue
 
 
 class StorageClassPnp(EventJob):
@@ -585,9 +589,14 @@ class StorageClassPnp(EventJob):
         json_file = self.config.config[self.config.job_name]['json_conf']
 
         for ev in GetEvents(path, json_file).parse():
-            if int(ev['data.ScsiStatus']) != 0:
-                ev['event.action'] = "device-connected"
-            else:
-                ev['event.action'] = "device-disconnected"
-            ev.pop('data.ScsiStatus')
-            yield ev
+            try:
+                if ev['event.code'] == "507":
+                    if int(ev['data.ScsiStatus']) != 0:
+                        ev['event.action'] = "device-connected"
+                    else:
+                        ev['event.action'] = "device-disconnected"
+                    ev.pop('data.ScsiStatus')
+                    yield ev
+            except Exception:
+                self.logger().warning("Skipping {} event due to error".format(self.config.job_name))
+                continue
