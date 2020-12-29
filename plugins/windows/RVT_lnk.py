@@ -190,7 +190,7 @@ class LnkExtract(base.job.BaseModule):
         """ Parses lnk files, jumlists and customdestinations
 
         """
-        self.logger().info("Extraction of lnk files")
+        self.logger().debug("Extraction of lnk files")
 
         self.Files = GetFiles(self.config, vss=self.myflag("vss"))
         self.filesystem = FileSystem(self.config)
@@ -210,12 +210,11 @@ class LnkExtract(base.job.BaseModule):
             for a_name, artifact in artifacts.items():
                 out_file = os.path.join(lnk_path, artifact['filename'].format(usr))
                 files_list = list(self.Files.search(artifact['regex'].format(user)))
-                self.logger().info("Founded {} {} files for user {} at {}".format(len(files_list), a_name, user.split("/")[-1], user.split("/")[0]))
+                self.logger().debug("Founded {} {} files for user {} at {}".format(len(files_list), a_name, user.split("/")[-1], user.split("/")[0]))
                 if len(files_list) > 0:
                     save_csv(artifact['function'](files_list), config=self.config, outfile=out_file, quoting=0, file_exists='OVERWRITE')
-                    self.logger().info("{} extraction done for user {} at {}".format(a_name, user.split("/")[-1], user.split("/")[0]))
+                    self.logger().debug("{} extraction done for user {} at {}".format(a_name, user.split("/")[-1], user.split("/")[0]))
 
-        self.logger().info("RecentFiles extraction done")
         return []
 
     def lnk_parser(self, files_list):
@@ -264,7 +263,7 @@ class LnkExtract(base.job.BaseModule):
                 data = ole.openstream('DestList').read()
                 header_version, = struct.unpack('<L', data[0:4])
                 version = 'w10' if header_version >= 3 else 'w7'
-                self.logger().info("Windows version of Jumplists: {}".format(version))
+                self.logger().debug("Windows version of Jumplists: {}".format(version))
                 break
             except Exception:
                 continue
@@ -285,7 +284,7 @@ class LnkExtract(base.job.BaseModule):
 
         # Main loop
         for jl in files_list:
-            self.logger().info("Processing Jump list : {}".format(jl.split('/')[-1]))
+            self.logger().debug("Processing Jump list : {}".format(jl.split('/')[-1]))
             try:
                 ole = olefile.OleFileIO(os.path.join(self.myconfig('casedir'), jl))
             except Exception as exc:
@@ -325,12 +324,12 @@ class LnkExtract(base.job.BaseModule):
                     try:
                         name = stream[72:88].decode()
                     except Exception:
-                        self.logger().info("utf-8 decoding failed")
+                        self.logger().debug("utf-8 decoding failed")
                         try:
                             name = stream[72:88].decode("cp1252")
                         except Exception as exc:
-                            self.logger().info("cp1252 decoding failed")
-                            self.logger().warning("Problems decoding name with file {}\n{}".format(jl, exc))
+                            self.logger().debug("cp1252 decoding failed")
+                            self.logger().warning("Problems decoding name with file=%s exc=%s", jl, str(exc))
 
                     name = name.replace("\00", "")
 
@@ -338,7 +337,7 @@ class LnkExtract(base.job.BaseModule):
                     try:
                         id_entry, = struct.unpack(id_entry_ofs[version][0], stream[id_entry_ofs[version][1]:id_entry_ofs[version][2]])
                     except Exception as exc:
-                        self.logger().warning("Problems unpacking id_entry with file {}\n{}".format(jl, exc))
+                        self.logger().warning("Problems unpacking id_entry with file=%s exc=%s", jl, str(exc))
                         # self.logger().debug(stream[id_entry_ofs[version][1]:id_entry_ofs[version][2]])
                         break
                     id_entry = format(id_entry, '0x')
@@ -403,7 +402,6 @@ class LnkExtract(base.job.BaseModule):
 
             ole.close()
 
-        self.logger().info("Jumlists parsed")
 
     def customDest_parser(self, files_list):
         """ Parses customDest files
@@ -436,7 +434,6 @@ class LnkExtract(base.job.BaseModule):
                 else:
                     yield OrderedDict(zip(headers, [self.dicID.get(n_hash, n_hash)] + lnk + [jl]))
 
-        self.logger().info("customDestinations parsed")
 
 
 class LnkExtractAnalysis(base.job.BaseModule):
@@ -446,7 +443,7 @@ class LnkExtractAnalysis(base.job.BaseModule):
 
         """
         vss = self.myflag('vss')
-        self.logger().info("Generating lnk files report")
+        self.logger().debug("Generating lnk files report")
 
         self.mountdir = self.myconfig('mountdir')
 

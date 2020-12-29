@@ -180,7 +180,7 @@ class FileSystem(base.job.BaseModule):
             f = fs.open_meta(inode=inode)
             size = f.info.meta.size
         except Exception as exc:
-            self.logger().info('Content not extracted. Error: {}'.format(exc))
+            self.logger().debug('Content not extracted. Error: {}'.format(exc))
             return -1
 
         attrId = ""
@@ -349,7 +349,7 @@ class FileSystem(base.job.BaseModule):
                 for v, device in p.vss.items():
                     if device:
                         cmd = 'fls -{}pr -b {} {}'.format('d' if deleted else 'u', sectorsize, device)
-                        self.logger().info('Generating inode-paths association for {} files of device {}'.format('deleted' if deleted else 'allocated', device))
+                        self.logger().debug('Generating inode-paths association for {} files of device {}'.format('deleted' if deleted else 'allocated', device))
                         self.save_inode_path_files(*self._process_fls(cmd, deleted=deleted), partition=v, deleted=deleted)
                 continue
 
@@ -359,7 +359,7 @@ class FileSystem(base.job.BaseModule):
             else:
                 cmd = 'fls -{}pr -o {} -b {} {}'.format('d' if deleted else 'u', int(p.obytes / int(sectorsize)), sectorsize, self.disk.imagefile)
 
-            self.logger().info('Generating inode-paths association for {} files of partition {}'.format('deleted' if deleted else 'allocated', p_name))
+            self.logger().debug('Generating inode-paths association for {} files of partition {}'.format('deleted' if deleted else 'allocated', p_name))
             self.save_inode_path_files(*self._process_fls(cmd, deleted=deleted), partition=p_name, deleted=deleted)
 
     def _process_fls(self, cmd, deleted=False):
@@ -413,7 +413,7 @@ class FileSystem(base.job.BaseModule):
             cmd = "{} -e -o {} {} | cut -d'|' -f1,2".format(ils, str(p.osects), self.disk.imagefile)
             if p.encrypted:
                 cmd = "sudo {} -e {} | cut -d'|' -f1,2".format(ils, p.loop)
-            self.logger().info('Creating inode status for partition p{}'.format(p.partition))
+            self.logger().debug('Creating inode status for partition p{}'.format(p.partition))
             self._process_ils(cmd, p.partition)
 
     def _process_ils(self, cmd, partition):
@@ -512,9 +512,9 @@ class FileSystem(base.job.BaseModule):
         CAUTION: This method is VERY slow. Use self.inode_path instead
         """
         if partition:
-            self.logger().info('Generating inode-paths association for partition {}'.format(partition.partition))
+            self.logger().debug('Generating inode-paths association for partition {}'.format(partition.partition))
         elif device:
-            self.logger().info('Generating inode-paths association for device {}'.format(device))
+            self.logger().debug('Generating inode-paths association for device {}'.format(device))
         result = defaultdict(OrderedDict)
 
         if self.vss:

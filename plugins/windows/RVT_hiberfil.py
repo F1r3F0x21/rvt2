@@ -45,12 +45,12 @@ class Hiberfil(base.job.BaseModule):
             with open(os.path.join(hiber_path, "hiberinfo_{}.txt".format(partition)), 'w') as pf:
                 pf.write("Profile: %s\nVersion: %s" % (profile, version))
             if version.startswith("5") or version.startswith("6.0") or version.startswith("6.1"):
-                self.logger().info("Uncompressing {}".format(h))
+                self.logger().debug("Uncompressing {}".format(h))
                 run_command([volatility, "--profile={}".format(profile), "-f", os.path.join(self.myconfig('casedir'), h), "imagecopy", "-O", hiber_raw], logger=self.logger())
             else:
-                self.logger().info("{} files could not be descompressed with a linux distro".format(h))
-                self.logger().info("Descompress with Windows 8 o higher hiberfil.sys file using https://arsenalrecon.com/weapons/hibernation-recon/")
-                self.logger().info("save output at {}".format(hiber_raw))
+                self.logger().debug("{} files could not be descompressed with a linux distro".format(h))
+                self.logger().debug("Descompress with Windows 8 o higher hiberfil.sys file using https://arsenalrecon.com/weapons/hibernation-recon/")
+                self.logger().debug("save output at {}".format(hiber_raw))
             self.vol_extract(hiber_raw, profile, version)
         return []
 
@@ -77,11 +77,11 @@ class Hiberfil(base.job.BaseModule):
         partition = partition.group(1)
         hiber_output = os.path.join(self.myconfig('outdir'), "data_{}.txt".format(partition))
 
-        self.logger().info("Extracting information from {}".format(archive.split(self.myconfig('outputdir'))[-1]))
+        self.logger().debug("Extracting information from {}".format(archive.split(self.myconfig('outputdir'))[-1]))
 
         with open(hiber_output, "w") as f:
             for plugin in plugins:
-                self.logger().info("Plugin {}".format(plugin))
+                self.logger().debug("Plugin {}".format(plugin))
                 output = subprocess.check_output([vol, "--profile={}".format(profile), "-f", archive, plugin]).decode()
                 f.write("*********** {} ************\n{}\n".format(plugin, output))
 
@@ -147,7 +147,7 @@ class Hiberfil(base.job.BaseModule):
                     prof[aux.group(1)] = aux.group(2)
 
         if prof == {}:
-            self.logger().info("Information about Windows version cannot be extracted from {}".format(info_file))
+            self.logger().debug("Information about Windows version cannot be extracted from {}".format(info_file))
             return -2
 
         if "amd64" in prof["BuildLabEx"]:

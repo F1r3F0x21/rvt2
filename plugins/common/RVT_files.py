@@ -95,12 +95,12 @@ class GetFiles(object):
             auxdir = self.config.get(files_instance.section, 'outdir')
             alloc_txt_files.append(os.path.join(auxdir, "alloc_files.txt"))
             if not os.path.isfile(alloc_txt_files[0]):
-                self.logger.info("Alloc files not yet created. Proceeding to generate them")
+                self.logger.debug("Alloc files not yet created. Proceeding to generate them")
                 files_instance._generate_allocfiles()
         else:
             auxdir = self.config.get(files_instance.section, 'voutdir')
             if not os.path.isdir(auxdir):
-                self.logger.info("Alloc files from Volume Snapshots not yet created. Proceeding to generate them.")
+                self.logger.debug("Alloc files from Volume Snapshots not yet created. Proceeding to generate them.")
                 files_instance._generate_allocfiles_vss()
             for file in os.listdir(auxdir):
                 if file.startswith("alloc"):

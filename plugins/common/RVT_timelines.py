@@ -47,7 +47,7 @@ class Timelines(base.job.BaseModule):
         check_folder(tl_path)
 
         if not vss:
-            self.logger().info("Generating BODY file for %s", disk.disknumber)
+            self.logger().debug("Generating BODY file for %s", disk.disknumber)
             body = os.path.join(tl_path, "{}_BODY.csv".format(disk.disknumber))
 
             # create the body file
@@ -75,7 +75,7 @@ class Timelines(base.job.BaseModule):
                             run_command([fls, "-s", "0", "-m", mountpath, "-r", "-o", str(p.osects), "-b", str(disk.sectorsize), disk.imagefile], stdout=f, logger=self.logger())
 
             # create the timeline using mactime
-            self.logger().info("Creating timeline of {}".format(disk.disknumber))
+            self.logger().debug("Creating timeline of {}".format(disk.disknumber))
             hsum = os.path.join(tl_path, "%s_hour_sum.csv" % disk.disknumber)
             fcsv = os.path.join(tl_path, "%s_TL.csv" % disk.disknumber)
             with open(fcsv, "wb") as f:
@@ -86,19 +86,19 @@ class Timelines(base.job.BaseModule):
             for p in disk.partitions:
                 for v, dev in p.vss.items():
                     if dev != "":
-                        self.logger().info("Generating BODY file for {}".format(v))
+                        self.logger().debug("Generating BODY file for {}".format(v))
                         body = os.path.join(tl_path, "{}_BODY.csv".format(v))
 
                         with open(body, "wb") as f:
                             mountpath = base.utils.relative_path(p.mountpath, self.myconfig('casedir'))
                             run_command([fls, "-s", "0", "-m", "%s" % mountpath, "-r", dev], stdout=f, logger=self.logger())
 
-                        self.logger().info("Creating timeline for {}".format(v))
+                        self.logger().debug("Creating timeline for {}".format(v))
                         hsum = os.path.join(tl_path, "%s_hour_sum.csv" % v)
                         fcsv = os.path.join(tl_path, "%s_TL.csv" % v)
                         with open(fcsv, "wb") as f:
                             run_command([mactime, "-b", body, "-m", "-y", "-d", "-i", "hour", hsum], stdout=f, logger=self.logger())
                         run_command(['sed', '-i', '1,2d', hsum])  # Delete header because full path is included
 
-        self.logger().info("Timelines generation done!")
+        self.logger().debug("Timelines generation done!")
         return []

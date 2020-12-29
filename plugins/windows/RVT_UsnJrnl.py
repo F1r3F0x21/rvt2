@@ -190,14 +190,14 @@ class UsnJrnl(base.job.BaseModule):
             return
 
         # Dumps UsnJrnl file from the data stream $J
-        self.logger().info("Dumping journal file of partition {}".format(pname))
+        self.logger().debug("Dumping journal file of partition {}".format(pname))
         if self.vss:
             self.filesystem.icat(inode, pname, output_filename=self.usn_jrnl_file, attribute="$J", vss=True)
         else:
             self.filesystem.icat(inode, pname, output_filename=self.usn_jrnl_file, attribute="$J")
-        self.logger().info("Extraction of journal file completed for partition {}".format(pname))
+        self.logger().debug("Extraction of journal file completed for partition {}".format(pname))
 
-        self.logger().info("Creating file {}".format(os.path.join(self.usn_path, "UsnJrnl_{}.csv".format(pname))))
+        self.logger().debug("Creating file {}".format(os.path.join(self.usn_path, "UsnJrnl_{}.csv".format(pname))))
         if os.stat(self.usn_jrnl_file).st_size > 0:
             # Create dump file
             records = self.parseUsn(infile=self.usn_jrnl_file, partition=pname)
@@ -252,7 +252,7 @@ class UsnJrnl(base.job.BaseModule):
                                           ('File Attributes', u.fileAttributes),
                                           ('Reason', u.reason)])
                     pbar.update()
-                self.logger().info('{} journal entries found in partition {}'.format(total_entries_found, partition))
+                self.logger().debug('{} journal entries found in partition {}'.format(total_entries_found, partition))
 
     def summaryUsn(self, infile, partition):
         """ Return the relevant records from the UsnJrnl, adding full_path to filename """

@@ -87,11 +87,11 @@ class DeletedStats(base.job.BaseModule):
         df_indx = self.get_deleted_in_INDX(df_all_timeline, df_indx)
 
         # Create a global dataframe with all artifacts
-        self.logger().info('Combining artifacts to create a full list of deleted files')
+        self.logger().debug('Combining artifacts to create a full list of deleted files')
         df_global = self.combine_artifacts([df_usnjrnl, df_recycle, df_timeline, df_indx])
         print(df_global.shape, df_global.columns)
         duplicated_bin = df_global.duplicated('Filename', keep='first')  # First sources have precedence
-        self.logger().info('Found {} duplicated files merging sources'.format(duplicated_bin.sum()))
+        self.logger().debug('Found {} duplicated files merging sources'.format(duplicated_bin.sum()))
         print('before dropping', df_global.shape)
         df_global = df_global[~duplicated_bin]
         # df_global.drop_duplicates('Filename', keep='first', inplace=True)
@@ -128,7 +128,7 @@ class DeletedStats(base.job.BaseModule):
             'timeline_all': {'columns': ['Filename'], 'sep': '|', 'date': False},
         }
 
-        self.logger().info("Parsing artifact {}{}".format(artifact, ' for partition {}'.format(self.partName) if artifact in ['usnjrnl', 'indx'] else ''))
+        self.logger().debug("Parsing artifact {}{}".format(artifact, ' for partition {}'.format(self.partName) if artifact in ['usnjrnl', 'indx'] else ''))
 
         try:  # file is a file_object
             df = pd.read_csv(file, **options_csv[artifact], parse_dates=True, infer_datetime_format=True)
@@ -303,7 +303,7 @@ class DeletedStats(base.job.BaseModule):
             return
         self.firstDate = min(self.firstDate, index[0].date())
         self.lastDate = max(self.lastDate, index[-1].date())
-        self.logger().info('Initial date: {}\tEnd Date: {}'.format(
+        self.logger().debug('Initial date: {}\tEnd Date: {}'.format(
             self.firstDate.strftime('%Y-%m-%d'), self.firstDate.strftime('%Y-%m-%d')))
 
     def add_file_type_cols(self, df, types=['Office', 'System', 'Images', 'TempFiles']):

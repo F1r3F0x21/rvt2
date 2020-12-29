@@ -54,7 +54,7 @@ class AmCache(base.job.BaseModule):
         for am_file in amcache_hives:
             self.amcache_path = os.path.join(self.myconfig('casedir'), am_file)
             partition = am_file.split("/")[2]
-            self.logger().info("Parsing {}".format(am_file))
+            self.logger().debug("Parsing {}".format(am_file))
             self.outfile = os.path.join(outfolder, "amcache_{}.csv".format(partition))
 
             try:
@@ -66,7 +66,7 @@ class AmCache(base.job.BaseModule):
             except Exception as exc:
                 self.logger().warning("Problems parsing: {}. Error: {}".format(am_file, exc))
 
-        self.logger().info("Amcache.hve parsing finished")
+        self.logger().debug("Amcache.hve parsing finished")
         return []
 
     def parse_amcache_entries(self, registry):
@@ -92,7 +92,7 @@ class AmCache(base.job.BaseModule):
                 for app in func(volumes):
                     yield app
             except Registry.RegistryKeyNotFoundException:
-                self.logger().info('Key "Root\\{}" not found'.format(key))
+                self.logger().debug('Key "Root\\{}" not found'.format(key))
 
         if not found_key:
             raise KeyError
@@ -145,7 +145,7 @@ class ShimCache(base.job.BaseModule):
     def run(self, path=""):
         self.vss = self.myflag('vss')
         self.search = GetFiles(self.config, vss=self.vss)
-        self.logger().info("Parsing ShimCache from registry")
+        self.logger().debug("Parsing ShimCache from registry")
 
         outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
         SYSTEM = list(self.search.search(r"windows/System32/config/SYSTEM$"))
@@ -161,7 +161,7 @@ class ShimCache(base.job.BaseModule):
         for f in SYSTEM:
             save_csv(self.parse_ShimCache_hive(f), outfile=output_files[f.split("/")[2]], file_exists='OVERWRITE', quoting=0)
 
-        self.logger().info("Finished extraction from ShimCache")
+        self.logger().debug("Finished extraction from ShimCache")
         return []
 
     def parse_ShimCache_hive(self, sysfile):
@@ -190,9 +190,9 @@ class ScheduledTasks(base.job.BaseModule):
         self.outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
         check_directory(self.outfolder, create=True)
 
-        self.logger().info("Parsing artifacts from scheduled tasks files (.job)")
+        self.logger().debug("Parsing artifacts from scheduled tasks files (.job)")
         self.parse_Task()
-        self.logger().info("Parsing artifacts from Task Scheduler Service log files (schedlgu.txt)")
+        self.logger().debug("Parsing artifacts from Task Scheduler Service log files (schedlgu.txt)")
         self.parse_schedlgu()
         return []
 
@@ -222,7 +222,7 @@ class ScheduledTasks(base.job.BaseModule):
         for csv_file in csv_files.values():
             csv_file.close()
 
-        self.logger().info("Finished extraction from scheduled tasks .job")
+        self.logger().debug("Finished extraction from scheduled tasks .job")
 
     def parse_schedlgu(self):
         sched_files = list(self.search.search(r"schedlgu\.txt$"))
@@ -230,7 +230,7 @@ class ScheduledTasks(base.job.BaseModule):
             partition = file.split("/")[2]
             save_csv(self._parse_schedlgu(os.path.join(self.myconfig('casedir'), file)),
                      outfile=os.path.join(self.outfolder, 'schedlgu_{}.csv'.format(partition)), file_exists='OVERWRITE', quoting=0)
-        self.logger().info("Finished extraction from schedlgu.txt")
+        self.logger().debug("Finished extraction from schedlgu.txt")
 
     def _parse_schedlgu(self, file):
         with open(file, 'r', encoding='utf16') as sched:
@@ -262,7 +262,7 @@ class SysCache(base.job.BaseModule):
     def run(self, path=""):
         self.search = GetFiles(self.config, vss=self.myflag("vss"))
         self.vss = self.myflag('vss')
-        self.logger().info("Parsing Syscache from registry")
+        self.logger().debug("Parsing Syscache from registry")
         self.parse_SysCache_hive()
         return []
 
@@ -283,7 +283,7 @@ class SysCache(base.job.BaseModule):
 
             save_csv(self.parse_syscache_csv(p, output_text), outfile=output_file, file_exists='OVERWRITE')
 
-        self.logger().info("Finished extraction from SysCache")
+        self.logger().debug("Finished extraction from SysCache")
 
     def parse_syscache_csv(self, partition, text):
         for line in text.split('\n')[:-1]:

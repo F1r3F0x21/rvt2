@@ -49,11 +49,11 @@ class CharacterizeMails(base.job.BaseModule):
         self.n = int(self.myconfig('n'))
         assert self.n > 0
 
-        self.logger().info("Creating mail counts for source {}".format(self.myconfig('source')))
+        self.logger().debug("Creating mail counts for source {}".format(self.myconfig('source')))
         for r in self.process_mails(path):
             yield r
 
-        self.logger().info("Creating summary mail report for source {}".format(self.myconfig('source')))
+        self.logger().debug("Creating summary mail report for source {}".format(self.myconfig('source')))
         self.summary(out_summary, self.n)
 
     def process_mails(self, infile):

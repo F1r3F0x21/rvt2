@@ -113,7 +113,7 @@ def parse_modules_chain(job_name, myparams, config):
     return modules
 
 
-def run_job(config, job_name_with_params, path=None, extra_config=None, from_module=None):
+def run_job(config, job_name_with_params, path=None, extra_config=None, from_module=None, nested_logs=2):
     """
     Runs a job from the configuration. This jobs has 'jobs', 'modules' or 'cascade'
 
@@ -124,6 +124,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
         path (:obj:`list` of :obj:`str`): Run the job on this paths.
         extra_config (dict): extra local configuration for all the modules in the job. Default: None
         from_module (base.job.BaseModule): use this as the from_module of the last module (only in single jobs)
+        nested_logs (int): number of nested jobs to log the execution
 
     Returns:
         If the job is sinble (it has 'modules' or 'cascade'), a generator with the result of the execution.
@@ -139,7 +140,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     myconfig.update(myparams)
     if jobs is None:
         # no jobs: run as a single job
-        results = run_single_job(config, job_name_with_params, default_path=path, extra_config=myconfig, from_module=from_module)
+        results = run_single_job(config, job_name_with_params, default_path=path, extra_config=myconfig, from_module=from_module, log_execution=(nested_logs>0))
         # return the resulting generatos
         if results is None:
             logging.warning('Job job=%s returned None instead of generator. You probably want to change this.', job_name)
@@ -148,7 +149,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     else:
         # multiple jobs: run each job separately
         for job in parse_modules_chain(job_name, myconfig, config):
-            results = run_job(config, job, path=path, extra_config=myconfig)
+            results = run_job(config, job, path=path, extra_config=myconfig, nested_logs=nested_logs-1)
             if results:
                 # run the generator without caring about the results.
                 # Check: https://stackoverflow.com/questions/47456631/simpler-way-to-run-a-generator-function-without-caring-about-items
@@ -174,7 +175,7 @@ def get_path_array(job_name, myparams, extra_config, default_path, config):
     return path
 
 
-def run_single_job(config, job_name_with_params, default_path=None, extra_config=None, from_module=None):
+def run_single_job(config, job_name_with_params, default_path=None, extra_config=None, from_module=None, log_execution=False):
     """
     Runs a job from the configuration. This job has only 'modules', it does not include 'jobs'.
 
@@ -183,9 +184,10 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
         job_name_with_params (str): The name of the job to run. It must be a section in the configuration.
            This string will be parsed using parse_modules_params() and it may include additional parameters.
         default_path (:obj:`list` of :obj:`str`): Run the job on this paths. The order to read paths for a job is:
-            1. job_with_params (single path); 2. extra_config; 3. this paramter 4. config
+            1. job_with_params (single path); 2. extra_config; 3. this parameter 4. config
         extra_config (dict): extra local configuration for all the modules in the job. Default: None
         from_module (base.job.BaseModule): use this as the from_module of the last module in the chain.
+        log_execution (boolean): if True, log the start and finish of the job in the root logger
 
     Returns:
         A generator that yields each of the results of the execution.
@@ -215,8 +217,8 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
 
     for each_path in path:
         abspath = os.path.abspath(each_path) if each_path is not None else None
-        logging.info('STARTED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
-        logging.debug('STARTED job=%s on path=%s params=%s modules=%s', job_name, abspath, myparams, modules)
+        if log_execution:
+            logging.info('STARTED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
         try:
             # notice we manage exceptions, and then we cannot return the generator: it must be run by us
             results = mymodule.run(abspath)
@@ -239,7 +241,8 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
                 logging.error('EXCEPTION job=%s on path=%s casename=%s source=%s. %s. %s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc())
         finally:
             mymodule.shutdown()
-            logging.info('FINISHED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
+            if log_execution:
+                logging.info('FINISHED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
 
 
 def load_module(config, confsection, from_module=None, extra_config=None):
@@ -352,8 +355,7 @@ class BaseModule(object):
             return self.local_config[option]
         if hasattr(self, 'config'):
             return self.config.get(self.section, option, default)
-        else:
-            return default
+        return default
 
     def options(self):
         """ Return a dictionary with the available options to this job """

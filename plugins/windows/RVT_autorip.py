@@ -87,7 +87,6 @@ class Autorip(base.job.BaseModule):
     def run(self, path=""):
         """ Main function to generate report files """
 
-        print('PATH in AUTORIP', path)
         regfiles = self.get_hives(path)
         id = self.myconfig('volume_id', None)
         self.generate_registry_output(regfiles, id)
@@ -170,7 +169,7 @@ class Autorip(base.job.BaseModule):
         with open(errorlog, 'a') as logfile:
             for ar in tqdm(ripplugins, total=len(ripplugins), desc=self.section):
                 output_filename = os.path.join(output_path, '{}{}.txt'.format(ar['file'], '_{}'.format(id) if id else ''))
-                self.logger().debug(output_filename)
+                self.logger().debug('Writing {}'.format(output_filename))
                 write_registry_file(output_filename, ar['plugins'], hivedict,
                                     regfiles, rip, logger=self.logger(), logfile=logfile)
 

@@ -135,7 +135,7 @@ class StringSearch(base.job.BaseModule):
         # Generate 'all_' files
         self.get_cluster()
 
-        self.logger().info("StringSearch done")
+        self.logger().debug("StringSearch done")
         return []
 
     def get_blocks(self, kw, regex):
@@ -159,7 +159,7 @@ class StringSearch(base.job.BaseModule):
                 self.blocks[kw][part].append(int(blk.strip('"').rstrip('\n')))
             self.save_blocks_file(self.blocks[kw], kw)
         else:
-            self.logger().info('Loading {} file'.format("blocks_%s" % kw))
+            self.logger().debug('Loading {} file'.format("blocks_%s" % kw))
             try:
                 with open(self.blocks_file_path, "r") as block_file:
                     self.blocks[kw] = json.load(block_file)
@@ -177,7 +177,7 @@ class StringSearch(base.job.BaseModule):
         Yields:
             Dictionaries containing partition, block, offset and string match
         """
-        self.logger().info('Searching keyword {} with regex {}'.format(kw, regex))
+        self.logger().debug('Searching keyword {} with regex {}'.format(kw, regex))
 
         partitions = {p.partition: [p.loop if p.loop != "" else "", p.clustersize] for p in self.disk.partitions}
         blocks = {}
@@ -223,7 +223,7 @@ class StringSearch(base.job.BaseModule):
             self.save_blocks_file(blocks, kw)
 
     def save_blocks_file(self, blocks, kw):
-        self.logger().info('Creating {} file'.format("blocks_%s" % kw))
+        self.logger().debug('Creating {} file'.format("blocks_%s" % kw))
         blocks = {p: list(b) for p, b in blocks.items()}  # json does not accept set structure
         outfile = os.path.join(self.search_path, "blocks_%s" % kw)
         save_json((lambda: (yield blocks))(), config=self.config, outfile=outfile, file_exists='OVERWRITE')
@@ -263,7 +263,7 @@ class StringSearch(base.job.BaseModule):
         for kw in self.blocks:
             all_file = os.path.join(self.search_path, "all_{}".format(kw))
             if check_file(all_file) and os.path.getsize(all_file) != 0:
-                self.logger().info('File {} already generated'.format(all_file))
+                self.logger().debug('File {} already generated'.format(all_file))
                 continue
             with open(all_file, "wb") as all_stream:
                 for entry in self.all_info(self.blocks[kw], kw):
@@ -355,7 +355,7 @@ class ReportSearch(base.job.BaseModule):
         for file in os.listdir(search_path):
             if not file.startswith("all_{}".format(keyword)):
                 continue
-            self.logger().info('Creating file {}'.format(file + '.pdf'))
+            self.logger().debug('Creating file {}'.format(file + '.pdf'))
 
             with open(os.path.join(report_path, file + ".tex"), "w") as foutput:
 
@@ -424,7 +424,7 @@ class SearchEmailAddresses(base.job.BaseModule):
 
         regex = r"[a-z0-9._-]{2,25}@[a-z0-9.-]{3,35}\.[a-z]{2,8}"
 
-        self.logger().info("Searching email addresses")
+        self.logger().debug("Searching email addresses")
         string_path = self.config.get('plugins.common.RVT_string.StringGenerate', 'outdir')
 
         counts = searchCountRegex(regex, string_path, grep=self.myconfig('grep', '/bin/grep'), logger=self.logger())
@@ -432,7 +432,7 @@ class SearchEmailAddresses(base.job.BaseModule):
         with open(os.path.join(self.myconfig('outdir'), "count_emails.txt"), "w") as f:
             for e, n in counts.most_common():
                 f.write("{}\t{}\n".format(n, e))
-        self.logger().info("SearchEmailAddresses done")
+        self.logger().debug("SearchEmailAddresses done")
         return []
 
 
@@ -449,7 +449,7 @@ class SearchAccounts(base.job.BaseModule):
 
         regex = r"(ES\d{2}[.\s-]+\d{4}[.\s-]+\d{4}[.\s-]+\d{4}[.\s-]+\d{4}[.\s-]+\d{4}|ES\d{2}[.\s-]+\d{4}[.\s-]+\d{4}[.\s-]+\d{2}[.\s-]+\d{10}|\d{4}[.\s-]+\d{4}[.\s-]+\d{2}[.\s-]+\d{10})"
 
-        self.logger().info("Finding accounts")
+        self.logger().debug("Finding accounts")
         string_path = self.config.get('plugins.common.RVT_string.StringGenerate', 'outdir')
         counts = searchCountRegex(regex, string_path, grep=self.myconfig('grep', '/bin/grep'))
 
@@ -472,7 +472,7 @@ class SearchAccounts(base.job.BaseModule):
         with open(os.path.join(self.myconfig('outdir'), "valid_count_accounts.txt"), "w") as f:
             for e, n in valids.most_common():
                 f.write("{}\t{}\n".format(n, e))
-        self.logger().info("SearchAccounts done")
+        self.logger().debug("SearchAccounts done")
         return []
 
     def remove_separators(self, texto):
@@ -540,7 +540,7 @@ class OutSearch(base.job.BaseModule):
         """
         Searche contents of regex in output dir except in strings, searches and parser folders
         """
-        self.logger().info("Searching at output folder")
+        self.logger().debug("Searching at output folder")
         if not keyfile:
             keyfile = self.myconfig('keyfile')
         check_file(keyfile, error_missing=True)
@@ -549,7 +549,7 @@ class OutSearch(base.job.BaseModule):
 
         skip_folders = ("strings", "parser", "searches")
 
-        self.logger().info("Getting key list from {}".format(keyfile))
+        self.logger().debug("Getting key list from {}".format(keyfile))
         keywords = getSearchItems(keyfile)
 
         temp_dir = tempfile.mkdtemp('outsearch')
@@ -573,5 +573,5 @@ class OutSearch(base.job.BaseModule):
         finally:
             shutil.rmtree(temp_dir)
 
-        self.logger().info("OutSearch done")
+        self.logger().debug("OutSearch done")
         return []

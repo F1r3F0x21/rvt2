@@ -74,7 +74,7 @@ def parse_prefetch_file(pf_file):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    logger.info("Parsing {}".format(pf_file))
+    logger.debug("Parsing {}".format(pf_file))
     item = {}
 
     try:
@@ -130,14 +130,14 @@ class Prefetch(base.job.BaseModule):
         return []
 
     def parse_Prefetch(self):
-        self.logger().info("Parsing prefetch files")
+        self.logger().debug("Parsing prefetch files")
 
         base_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
         check_directory(base_path, create=True)
         prefetch_dir = self.search.search(r"Windows/Prefetch$")
 
         if not prefetch_dir:
-            self.logger().info('Prefetch file not found')
+            self.logger().debug('Prefetch file not found')
             return []
 
         for pdir in prefetch_dir:
@@ -197,7 +197,7 @@ class Prefetch(base.job.BaseModule):
             pf_output1.close()
             csv_file.close()
 
-        self.logger().info("Parsing prefetch files finished")
+        self.logger().debug("Parsing prefetch files finished")
 
 
 class CCM(base.job.BaseModule):
@@ -257,7 +257,7 @@ class RFC(base.job.BaseModule):
 
     def run(self, path=""):
         self.search = GetFiles(self.config, vss=self.myflag("vss"))
-        self.logger().info("Parsing RecentFileCache.bcf")
+        self.logger().debug("Parsing RecentFileCache.bcf")
         self.parse_RFC()
         return []
 
@@ -267,11 +267,11 @@ class RFC(base.job.BaseModule):
 
         rfc_list = list(self.search.search("RecentFileCache.bcf$"))
         if len(rfc_list) == 0:
-            self.logger().info("No RecentFileCache.bcf files founded in disk")
+            self.logger().debug("No RecentFileCache.bcf files founded in disk")
             return
 
         for file in rfc_list:
-            self.logger().info("Parsing {}".format(file))
+            self.logger().debug("Parsing {}".format(file))
             partition = file.split("/")[2]
             outfile = os.path.join(base_path, "rfc_{}.csv".format(partition))
             try:
@@ -280,7 +280,7 @@ class RFC(base.job.BaseModule):
             except Exception:
                 self.logger().warning("Problems parsing {}".format(file))
 
-        self.logger().info("Parsing RecentFileCache.bcf finished")
+        self.logger().debug("Parsing RecentFileCache.bcf finished")
 
 
 class BAM(base.job.BaseModule):
@@ -288,7 +288,7 @@ class BAM(base.job.BaseModule):
     def run(self, path=""):
         self.search = GetFiles(self.config, vss=self.myflag("vss"))
         self.vss = self.myflag('vss')
-        self.logger().info("Parsing BAM from registry")
+        self.logger().debug("Parsing BAM from registry")
         self.parse_BAM()
         return []
 
@@ -311,4 +311,4 @@ class BAM(base.job.BaseModule):
                 of.write(run_command([ripcmd, "-r", os.path.join(self.myconfig('casedir'), f), "-p", "bam"], logger=self.logger()))
                 of.write("\n\n")
 
-        self.logger().info("Finished extraction of Background Activity Moderator (BAM)")
+        self.logger().debug("Finished extraction of Background Activity Moderator (BAM)")

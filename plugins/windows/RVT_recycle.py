@@ -106,12 +106,12 @@ class Recycle(base.job.BaseModule):
             for p in self.partitions:
                 self.sid_user[p] = self.generate_SID_user(p)
 
-        self.logger().info('Starting to parse RecycleBin')
+        self.logger().debug('Starting to parse RecycleBin')
         # RB_codes relates a a six digit recyclebin code with a path for a file. Are updated for each partition or vss?
         self.RB_codes = {}
         if self.vss:
             for partition in self.vss_partitions:
-                self.logger().info('Processing Recycle Bin in partition {}'.format(partition))
+                self.logger().debug('Processing Recycle Bin in partition {}'.format(partition))
                 try:
                     self.parse_RecycleBin(partition)
                 except Exception as exc:
@@ -129,7 +129,7 @@ class Recycle(base.job.BaseModule):
                 return []
             output_file = os.path.join(output_path, "recycle_bin.csv")
             self.save_recycle_files(output_file, sorting=True)
-        self.logger().info("Done parsing Recycle Bin!")
+        self.logger().debug("Done parsing Recycle Bin!")
 
         return []
 
@@ -152,7 +152,7 @@ class Recycle(base.job.BaseModule):
         search_command = 'grep -P "{regex}" "{path}"'
 
         # Parse $I files in RecycleBin:
-        self.logger().info('Searching RecycleBin $I files')
+        self.logger().debug('Searching RecycleBin $I files')
         # Realloc files have metadata pointing to new allocated data that does not match the filename.
         # They cannot be recovered, but the reference to an older name can give some usefull information, so they are included
         regex = [r'\$Recycle\.Bin.*\$I', r'\$RECYCLE\.BIN.*\$I']
@@ -166,7 +166,7 @@ class Recycle(base.job.BaseModule):
             self._process_I_file(line['match'], partition)
 
         # Parse $R files in RecycleBin:
-        self.logger().info('Searching RecycleBin $R files')
+        self.logger().debug('Searching RecycleBin $R files')
         regex = [r'\$Recycle\.Bin.*\$R', r'\$RECYCLE\.BIN.*\$R']
         module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=regex))
 
@@ -368,13 +368,13 @@ class Recycle(base.job.BaseModule):
                                 ('File', filepath),
                                 ('OriginalName', file_name)])
         except Exception:
-            self.logger().info('Wrong $I format or missing field: {}'.format(filepath))
+            self.logger().debug('Wrong $I format or missing field: {}'.format(filepath))
             return {}
 
     def save_recycle_files(self, output_file, partition=None, sorting=True):
         """ Sort recycle bin files by date and save to 'output_file' csv. """
         if not (len(self.i_files) or len(self.r_files)):
-            self.logger().info('No RecycleBin files found{}.'.format(' in partition {}'.format(partition if partition else '')))
+            self.logger().debug('No RecycleBin files found{}.'.format(' in partition {}'.format(partition if partition else '')))
             return
         if sorting:
             self.RB_files = list(self.i_files.values()) + self.r_files
@@ -444,7 +444,7 @@ class Recycle(base.job.BaseModule):
             if os.path.exists(config_dir):
                 break
         else:   # Config folder not found
-            self.logger().info('No config directory found for partition {}'.format(partition))
+            self.logger().debug('No config directory found for partition {}'.format(partition))
             return
 
         hives = {}

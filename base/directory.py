@@ -212,6 +212,7 @@ class GlobFilter(base.job.BaseModule):
     Configuration:
         - **recursive**: Passes this parameters to ``glob.iglob``: whether the path must run recursively or not.
         - **ftype**: either "file", "directory" or "all".
+        - **path**: path can be also provided as a configuration. If provided, run() will ignore the path
     """
 
     def read_config(self):
@@ -227,6 +228,7 @@ class GlobFilter(base.job.BaseModule):
 
         Parameters:
             path(str): the glob pattern. It will be recursive. See https://docs.python.org/3.6/library/glob.html
+                If the module has a path configured in its configration, this parameter is ignored.
 
         """
         custom_path = self.myconfig('path')
@@ -385,15 +387,3 @@ class DirectoryClear(base.job.BaseModule):
         self.logger().debug('{} not recognized as file or directory'.format(target_path))
         return []
         # raise base.job.RVTError('{} not recognized as file or directory'.format(target_path))
-
-
-class MirrorOptions(base.job.BaseModule):
-    """ Return the value of the local options """
-    def run(self, path=None):
-        params = dict(path=base.utils.relative_path(path, self.myconfig('casedir')))
-        if self.local_config:
-            params.update(self.local_config)
-        if hasattr(self, 'section') and hasattr(self, 'config'):
-            if self.config.has_section(self.section):
-                params.update(self.config.options(self.section))
-        return [params]

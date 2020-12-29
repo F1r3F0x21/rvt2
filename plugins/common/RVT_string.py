@@ -60,7 +60,7 @@ class StringGenerate(base.job.BaseModule):
 
             srch_params = {"ASCII": "-a -t d", "UNICODE": "-a -t d -e l"}
 
-            self.logger().info("Generating ASCII and UNICODE for {}, partition p{}".format(self.disk.disknumber, p.partition))
+            self.logger().debug("Generating ASCII and UNICODE for {}, partition p{}".format(self.disk.disknumber, p.partition))
             if p.isMountable:
                 output_file_name = os.path.join(self.string_path, "p{}_strings".format(p.partition))
             else:
