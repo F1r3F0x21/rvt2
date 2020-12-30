@@ -238,12 +238,14 @@ class GlobFilter(base.job.BaseModule):
         self.check_params(path, check_from_module=True, check_path=True)
         ftype = self.myconfig('ftype').lower()
 
+        self.logger().debug('Searching glob pattern: {}'.format(path))
         # parse all files matching the glob
         for filepath in glob.iglob(path, recursive=self.myflag('recursive')):
             try:
                 if ftype == 'all' or \
                         (ftype == 'file' and os.path.isfile(filepath)) or \
                         (ftype == 'directory' and os.path.isdir(filepath)):
+                    self.logger().debug('Matching glob file: {}'.format(filepath))
                     results = self.from_module.run(filepath)
                     if results is not None:
                         for info in results:

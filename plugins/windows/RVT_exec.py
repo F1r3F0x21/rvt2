@@ -14,23 +14,17 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
-# Uses an adapted version of Windows Prefetch Parser Based in 505Forensics (http://www.505forensics.com)
-
 import csv
 import os
-import re
 import logging
 import struct
 import pyscca
 from cim import CIM
 from cim.objects import Namespace
-import json
 
 import base.job
-from plugins.common.RVT_filesystem import FileSystem
-from base.utils import check_folder, check_directory, save_csv
-from base.commands import run_command
-from plugins.common.RVT_files import GetFiles
+from base.utils import check_folder, check_directory, save_csv, relative_path
+from plugins.common.RVT_files import GetFiles, GetTimeline
 
 
 def parse_RFC_file(fname):
@@ -64,6 +58,7 @@ def parse_RFC_file(fname):
 
 
 def parse_prefetch_file(pf_file):
+    # Uses an adapted version of Windows Prefetch Parser Based in 505Forensics (http://www.505forensics.com)
     """ Parse individual file. Output is placed in 'output' dictionary
 
     Args:
@@ -122,82 +117,123 @@ def parse_prefetch_file(pf_file):
 class Prefetch(base.job.BaseModule):
     """ Parse prefetch """
 
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('volume_id', None)
+
     def run(self, path=""):
-        self.search = GetFiles(self.config, vss=self.myflag("vss"))
         self.vss = self.myflag('vss')
-        self.filesystem = FileSystem(self.config)
-        self.parse_Prefetch()
+        self.volume_id = self.myconfig('volume_id', None)
+        print('Before', self.volume_id)
+        if self.volume_id is None:
+            self.volume_id = relative_path(path, self.myconfig('casedir')).split("/")[-3]
+        print('After', self.volume_id)
+
+        if not os.path.isdir(path):
+            raise base.job.RVTError('Provided path {} is not a directory'.format(path))
+
+        self.parse_Prefetch(path)
         return []
 
-    def parse_Prefetch(self):
+    def parse_Prefetch(self, path):
         self.logger().debug("Parsing prefetch files")
 
         base_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
         check_directory(base_path, create=True)
-        prefetch_dir = self.search.search(r"Windows/Prefetch$")
+        # prefetch_dir = self.search.search(r"Windows/Prefetch$")
 
-        if not prefetch_dir:
-            self.logger().debug('Prefetch file not found')
+        try:
+            file_list = [os.path.join(path, file) for file in os.listdir(path) if file.endswith(".pf")]
+            rel_path_list = [relative_path(os.path.join(path, file), self.myconfig('casedir')) for file in os.listdir(path) if file.endswith(".pf")]
+        except IOError:
+            raise base.job.RVTError('Unable to list files in directory {}'.format(path))
+        except Exception as exc:
+            raise base.job.RVTError(exc)
+
+        if len(file_list) == 0:
+            self.logger().warning('No prefetch files found in {}'.format(path))
             return []
 
-        for pdir in prefetch_dir:
-            partition = pdir.split("/")[-3]
-            csv_file = open(os.path.join(base_path, "prefetch_%s.csv" % partition), "w")
-            writer = csv.writer(csv_file, delimiter=";", quotechar='"')
-            pf_output1 = open(os.path.join(base_path, "prefetch_dump_%s.txt" % partition), "w")
-            pdir_path = os.path.join(self.myconfig('casedir'), pdir)
-            try:
-                file_list = [os.path.join(pdir, file) for file in os.listdir(pdir_path) if file.endswith(".pf")]
-            except IOError:
-                self.logger().error('Unable to list files in directory {}'.format(pdir_path))
-                continue
-            except Exception as exc:
-                self.logger().error(exc)
-                continue
+        out_file_id = '' if not self.volume_id else '_{}'.format(self.volume_id)
+        csv_file_path = os.path.join(base_path, "prefetch{}.csv".format(out_file_id))
+        pf_output1_path = os.path.join(base_path, "prefetch_dump{}.txt".format(out_file_id))
+        self.logger().debug('Saving output to file {}'.format(csv_file_path))
+        self.logger().debug('Saving output to file {}'.format(pf_output1_path))
 
-            if len(file_list) == 0:
-                continue
+        timeline_exists = True
+        try:
+            tl_files = GetTimeline(config=self.config).get_macb(rel_path_list)
+        except IOError:
+            timeline_exists = False
 
-            tl_files = self.filesystem.get_macb(file_list, self.vss)
+        with open(pf_output1_path, "w") as pf_output1:
+            with open(csv_file_path, "w") as csv_file:
+                writer = csv.writer(csv_file, delimiter=";", quotechar='"')
+                flag = True
+                for prefetch_file in file_list:
+                    prefetch_rel_path = relative_path(prefetch_file, self.myconfig('casedir'))
+                    file = relative_path(prefetch_file, path)
 
-            flag = True
-            for file in os.listdir(pdir_path):
-                prefetch_file = os.path.join(pdir_path, file)
-                prefetch_rel_path = os.path.join(pdir, file)
-                if file.endswith(".pf") and os.path.getsize(prefetch_file) > 0:  # Parse only non empty .pf files
+                    if os.path.getsize(prefetch_file) == 0:  # Parse only non empty .pf files
+                        continue
+
                     item = parse_prefetch_file(prefetch_file)
-                else:
-                    continue
 
-                if item == -1:
-                    self.logger().error("Problems parsing {}".format(file))
-                    pf_output1.write("Filename:\t\t{}\nBirth time:\t\t{}\nPrefetch Hash:\t\t\nExecutable Filename:\t\nRun count:\t\t\n".format(
-                        file, tl_files[prefetch_rel_path][3]))
-                    writer.writerow([file, "", "", tl_files[prefetch_rel_path][3], tl_files[prefetch_rel_path][0]] + [""] * 7)
-                    continue
+                    # If timeline has been generated, take prefetch file birth date from there
+                    birth_date = ''
+                    mod_date = ''
+                    if timeline_exists and prefetch_rel_path in tl_files:
+                        birth_date = tl_files[prefetch_rel_path]['b']
+                        mod_date = tl_files[prefetch_rel_path]['m']
 
-                if flag:
-                    headers = ["Filename", "Executable", "Run count", "Birth time"] + ["Run time {}".format(str(i)) for i in range(len(item["last run times"]))]
-                    writer.writerow(headers)
-                    flag = False
+                    if item == -1:
+                        self.logger().error("Problems parsing {}".format(prefetch_file))
+                        pf_output1.write("Filename:\t\t{}\nBirth date:\t\t{}\nPrefetch Hash:\t\t\nExecutable Filename:\t\nRun count:\t\t\n".format(
+                            file, birth_date))
+                        writer.writerow([file, "", "", birth_date, mod_date] + [""] * 7)
+                        continue
 
-                pf_output1.write("Filename:\t\t{}\nCreation time:\t\t{}\nPrefetch Hash:\t\t{}\nExecutable Filename:\t{}\nRun count:\t\t{}\n".format(
-                    file, tl_files[prefetch_rel_path][3], item["prefetch hash"], item["filename"], item["run count"]))
-                for i, fecha in enumerate(item["last run times"]):
-                    pf_output1.write("\tRun time {}:\t\t{}\n".format(str(i), fecha))
-                pf_output1.write("\nFilenames\nNumber of Filenames:\t{}\n".format(str(len(item["resources loaded"]))))
-                for i in item["resources loaded"]:
-                    pf_output1.write("\t{}\n".format(i))
-                pf_output1.write("\nVolumes\nNumber of Volumes:\t{}\n".format(str(len(item["Volumes"]))))
-                for v in item["Volumes"]:
-                    pf_output1.write("\tDevice path:\t{}\n\tCreation time:\t{}\n\tSerial Number:\t{}\n\n".format(v[0], v[1], v[2]))
-                pf_output1.write("################################################\n")
+                    if flag:
+                        headers = ["Filename", "Executable", "Run count", "Birth time"] + ["Run time {}".format(str(i)) for i in range(len(item["last run times"]))]
+                        writer.writerow(headers)
+                        flag = False
 
-                writer.writerow([file, item["filename"], item["run count"], tl_files[prefetch_rel_path][3]] + [i for i in item["last run times"]])
-            pf_output1.close()
-            csv_file.close()
+                    pf_output1.write("Filename:\t\t{}\nBirth date:\t\t{}\nPrefetch Hash:\t\t{}\nExecutable Filename:\t{}\nRun count:\t\t{}\n".format(
+                        file, birth_date, item["prefetch hash"], item["filename"], item["run count"]))
+                    for i, run_date in enumerate(item["last run times"]):
+                        pf_output1.write("\tRun time {}:\t\t{}\n".format(str(i), run_date))
+                    pf_output1.write("\nFilenames\nNumber of Filenames:\t{}\n".format(str(len(item["resources loaded"]))))
+                    for i in item["resources loaded"]:
+                        pf_output1.write("\t{}\n".format(i))
+                    pf_output1.write("\nVolumes\nNumber of Volumes:\t{}\n".format(str(len(item["Volumes"]))))
+                    for v in item["Volumes"]:
+                        pf_output1.write("\tDevice path:\t{}\n\tCreation time:\t{}\n\tSerial Number:\t{}\n\n".format(v[0], v[1], v[2]))
+                    pf_output1.write("################################################\n")
 
-        self.logger().debug("Parsing prefetch files finished")
+                    writer.writerow([file, item["filename"], item["run count"], birth_date] + [i for i in item["last run times"]])
+
+        self.logger().debug("Prefetch parsing for {} finished".format(path))
+
+
+class RFC(base.job.BaseModule):
+    """ Parses RecentFileCache.bcf """
+
+    def run(self, path=""):
+        base_path = self.myconfig('outdir')
+        check_folder(base_path)
+
+        self.logger().debug("Parsing {}".format(path))
+        partition = relative_path(path, self.myconfig('casedir')).split("/")[2]
+        outfile = os.path.join(base_path, "rfc_{}.csv".format(partition))
+        try:
+            rfc = ({'Application': i} for i in parse_RFC_file(path))
+            save_csv(rfc, config=self.config, outfile=outfile, quoting=0, file_exists='OVERWRITE')
+        except Exception:
+            self.logger().warning("Problems parsing {}".format(path))
+
+        self.logger().debug("Parsing RecentFileCache.bcf finished")
+
+        return []
 
 
 class CCM(base.job.BaseModule):
@@ -247,68 +283,6 @@ class CCM(base.job.BaseModule):
                         except KeyError:
                             RUAValues[Value] = ""
                     ret_items.append(RUAValues)
-            return ret_items  
+            return ret_items
         except IndexError:
             raise RuntimeError("CCM Software Metering Agent path 'root\\\\ccm\\\\SoftwareMeteringAgent' not found.")
-
-
-class RFC(base.job.BaseModule):
-    """ Parses RecentFileCache.bcf """
-
-    def run(self, path=""):
-        self.search = GetFiles(self.config, vss=self.myflag("vss"))
-        self.logger().debug("Parsing RecentFileCache.bcf")
-        self.parse_RFC()
-        return []
-
-    def parse_RFC(self):
-        base_path = self.myconfig('outdir')
-        check_folder(base_path)
-
-        rfc_list = list(self.search.search("RecentFileCache.bcf$"))
-        if len(rfc_list) == 0:
-            self.logger().debug("No RecentFileCache.bcf files founded in disk")
-            return
-
-        for file in rfc_list:
-            self.logger().debug("Parsing {}".format(file))
-            partition = file.split("/")[2]
-            outfile = os.path.join(base_path, "rfc_{}.csv".format(partition))
-            try:
-                rfc = ({'Application': i} for i in parse_RFC_file(os.path.join(self.myconfig('casedir'), file)))
-                save_csv(rfc, config=self.config, outfile=outfile, quoting=0, file_exists='OVERWRITE')
-            except Exception:
-                self.logger().warning("Problems parsing {}".format(file))
-
-        self.logger().debug("Parsing RecentFileCache.bcf finished")
-
-
-class BAM(base.job.BaseModule):
-
-    def run(self, path=""):
-        self.search = GetFiles(self.config, vss=self.myflag("vss"))
-        self.vss = self.myflag('vss')
-        self.logger().debug("Parsing BAM from registry")
-        self.parse_BAM()
-        return []
-
-    def parse_BAM(self):
-        base_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
-        check_folder(base_path)
-        SYSTEM = list(self.search.search(r"windows/System32/config/SYSTEM$"))
-
-        partition_list = set()
-        for f in SYSTEM:
-            aux = re.search(r"([vp\d]*)/windows/System32/config", f, re.I)
-            partition_list.add(aux.group(1))
-
-        bam_file = {p: os.path.join(base_path, "bam_%s.txt" % p) for p in partition_list}
-        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
-
-        for f in SYSTEM:
-            with open(bam_file[f.split("/")[2]], 'w') as of:
-                of.write("-----------------------------------------------------------------------\n{}\n-----------------------------------------------------------------------\n\n".format(f))
-                of.write(run_command([ripcmd, "-r", os.path.join(self.myconfig('casedir'), f), "-p", "bam"], logger=self.logger()))
-                of.write("\n\n")
-
-        self.logger().debug("Finished extraction of Background Activity Moderator (BAM)")
