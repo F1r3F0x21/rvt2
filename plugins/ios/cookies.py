@@ -123,11 +123,10 @@ class Cookies(base.job.BaseModule):
                 date_creation_epoch = unpack('<d', cookie.read(8))[0] + 978307200           # Cookies creation time
                 date_creation = datetime.datetime.utcfromtimestamp(date_creation_epoch).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-                cookie.seek(domainoffset - 4)                            # fetch domaain value from domain offset
+                cookie.seek(domainoffset - 4)                            # fetch domain value from domain offset
                 domain = " "
                 u = cookie.read(1)
                 while unpack('<b', u)[0] != 0:
-                    # print(type(domain), type(u))
                     domain = domain + u.decode()
                     u = cookie.read(1)
 

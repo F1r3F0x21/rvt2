@@ -30,7 +30,6 @@ def writemd(outfile, fields, eventlist, sorted=True):
         fields (list): list of fields
         eventlist(list of lists): list of rows of table
     """
-    print('fields', fields)
     fields_len = len(fields) - 1
 
     act = [''] * fields_len  # init variable
@@ -40,7 +39,6 @@ def writemd(outfile, fields, eventlist, sorted=True):
         fout.write("|".join(["-"] * fields_len))
         fout.write("\n")
         for e in eventlist:
-            print(e)
             repeated = True
             for i in range(fields_len):
                 if e[i] != act[i]:

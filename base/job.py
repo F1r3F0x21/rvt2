@@ -409,10 +409,10 @@ class BaseModule(object):
                 raise RVTError('from_module not defined')
         if check_path:
             if path is None:
-                raise RVTError('path is not provided')
+                raise RVTErrorNonePath('path is not provided')
             if check_path_exists:
                 if not os.path.exists(path):
-                    raise RVTError('path {} does not exist'.format(path))
+                    raise RVTErrorNotExistingPath('path {} does not exist'.format(path))
 
     def run(self, path=None):
         """ Run the job on a path
@@ -443,4 +443,14 @@ class RVTError(Exception):
 
 class RVTCritical(Exception):
     """ A special class for Exceptions inside the RVT. The rvt2 cannot continue. """
+    pass
+
+
+class RVTErrorNonePath(Exception):
+    """ A special class for Exceptions inside the RVT. The module or job cannot continue. """
+    pass
+
+
+class RVTErrorNotExistingPath(Exception):
+    """ A special class for Exceptions inside the RVT. The module or job cannot continue. """
     pass

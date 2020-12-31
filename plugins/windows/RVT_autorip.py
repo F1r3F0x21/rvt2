@@ -128,7 +128,7 @@ class Autorip(base.job.BaseModule):
                 for hve, hve_name in zip(['ntuser.dat', 'usrclass.dat'], ['ntuser', 'usrclass']):
                     if file.lower() == hve:
                         user = relative_path(root, path).split('/')[0]
-                        if user not in usr:
+                        if user not in regfiles[hve_name]:
                             regfiles[hve_name][user] = os.path.join(root, file)
                             usr.append(user)
 

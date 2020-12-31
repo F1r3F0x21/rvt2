@@ -124,10 +124,8 @@ class Prefetch(base.job.BaseModule):
     def run(self, path=""):
         self.vss = self.myflag('vss')
         self.volume_id = self.myconfig('volume_id', None)
-        print('Before', self.volume_id)
         if self.volume_id is None:
             self.volume_id = relative_path(path, self.myconfig('casedir')).split("/")[-3]
-        print('After', self.volume_id)
 
         if not os.path.isdir(path):
             raise base.job.RVTError('Provided path {} is not a directory'.format(path))
@@ -240,18 +238,17 @@ class CCM(base.job.BaseModule):
     """ Module based on https://github.com/fireeye/flare-wmi/blob/master/python-cim/samples/show_CCM_RecentlyUsedApps.py """
 
     def run(self, path=""):
-        search = GetFiles(self.config, vss=self.myflag("vss"))
-        self.dir_path = search.search('Windows/System32/wbem/Repository$')
+        # search = GetFiles(self.config, vss=self.myflag("vss"))
+        # self.dir_path = search.search('Windows/System32/wbem/Repository$')
 
         self.vss = self.myflag('vss')
         self.type_ = 'win7'
 
-        for p in self.dir_path:
-            r = self.show_CCM_RecentlyUsedApps(p)
-            for a in r:
-                yield a
+        result = self.show_CCM_RecentlyUsedApps(path)
+        for a in result:
+            yield a
 
-    def show_CCM_RecentlyUsedApps(self, dir_path):
+    def show_CCM_RecentlyUsedApps(self, path):
         if self.type_ not in ("xp", "win7"):
             raise RuntimeError("Invalid mapping type: {:s}".format(self.type_))
 
@@ -260,7 +257,7 @@ class CCM(base.job.BaseModule):
                   "FileVersion", "AdditionalProductCodes", "msiVersion", "msiDisplayName", "ProductCode",
                   "SoftwarePropertiesHash", "ProductLanguage", "FilePropertiesHash", "msiPublisher"]
 
-        path = os.path.join(self.myconfig('casedir'), dir_path)
+        # path = os.path.join(self.myconfig('casedir'), dir_path)
         c = CIM(self.type_, path)
         try:
             ret_items = []
