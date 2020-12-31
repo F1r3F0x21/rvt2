@@ -16,11 +16,15 @@
 import os
 import os.path
 import re
+import datetime
+import logging
+from collections import defaultdict
+from tqdm import tqdm
+
 import base.utils
 from plugins.common.RVT_disk import getSourceImage
 import base.job
 import base.commands
-import logging
 
 
 class Files(base.job.BaseModule):
@@ -171,6 +175,61 @@ class SendAllocFiles(base.job.BaseModule):
             filename = os.path.join(self.myconfig('casedir'), filename.rstrip('\n'))
             for data in self.from_module.run(filename):
                 yield data
+
+
+class GetTimeline(base.job.BaseModule):
+    """
+    Reads timeline BODY file and returns entries that match an expression.
+    """
+
+    def run(self, path=None):
+        """ To be implemented if used as a module"""
+        return []
+
+    def get_macb(self, file_list, timeline_body_file=None):
+        """Get macb times from timeline BODY file.
+        Warning: Slow function. Use only with short or moderate list of files.
+
+        Parameters:
+            file_list (list): List of files, relative to sourcedir, to be searched for
+            timeline_body_file (str): Path to timeline BODY file
+
+        Returns:
+            Dictionary 'filename':'dates' for each match. Values are dcitionaries where keys are:
+            "m": modification date
+            "a": access date
+            "b": birth date
+            "c": metadata change date
+
+        Raises:
+            IOError if timeline BODY file not found or empty
+        """
+        # Expected file format: sourcename/mnt/p0X/full_path'
+        filename_list = ['/'.join(f.split('/')[3:]) for f in file_list]
+
+        if not timeline_body_file:
+            timeline_body_file = os.path.join(self.config.config['plugins.windows']['timelinesdir'], '{}_BODY.csv'.format(self.myconfig('source')))
+
+        if not (os.path.exists(timeline_body_file) and os.path.getsize(timeline_body_file) > 0):
+            raise IOError
+
+        search_command = 'grep "{regex}" "{path}"'  # Note that option -P is ommited. We are searching literal matches
+        module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=filename_list))
+        dates = defaultdict(dict)
+
+        # In case tqdm is not needed: for line in module.run(timeline_body_file):
+        # usually 2 matches per file. That's why 2 * len(filename_list). Later FILE_NAME is skipped
+        for line in tqdm(module.run(timeline_body_file), total=2 * len(filename_list), desc='Getting macb times'):
+            line = line['match'].split('|')
+            filename = line[1]
+            if filename.endswith(' ($FILE_NAME)'):  # Skip all FILE_NAME
+                continue
+            # WARNING: Current documentation for tsk at https://wiki.sleuthkit.org/index.php?title=Body_file is wrong.
+            # The actual order for dates is 'amcb'.
+            for date_index, date_type in zip([8, 7, 9, 10], ['m', 'a', 'c', 'b']):
+                dates[filename][date_type] = datetime.datetime.utcfromtimestamp(int(line[date_index])).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        return dates
 
 
 class ExtractPathTerms(base.job.BaseModule):

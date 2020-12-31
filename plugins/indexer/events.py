@@ -476,7 +476,6 @@ class EventLogs(SuperTimeline):
             })
 
             common['message'] = d.get('description', "Event Code: {} ({})".format(d['event.code'], d['event.dataset']))
-            # print(d['description'], common['message'])
             parsed_fields = set(['event.created', 'event.code', 'event.dataset', 'event.provider', 'description'])
 
             # Optional fields
@@ -566,7 +565,6 @@ class UsnJrnl(SuperTimeline):
                                     'file-renamed-old-name': (['change'], 'File renamed. Old name'),
                                     'file-renamed-new-name': (['change'], 'File renamed. New name')}
             common['event.type'] = event_types_messages.get(common['event.action'], [''])[0]
-            # print(event_types_messages.get(common['event.action'], ['', ''])[1])
             common['message'] = "{}: {}".format(event_types_messages.get(common['event.action'], ['', ''])[1], d['Full Path'])
 
             yield common

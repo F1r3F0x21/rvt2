@@ -625,11 +625,10 @@ class ParseMacMailbox(PffExportParseObject):
         filetype_modules = {
             'Messages': EmlxParseMessage(self.config)
         }
-        # print('path', path)
         if os.path.basename(path) in filetype_modules:
             # parse the main object
             rootid = None
-            print('thepath:', path)
+            self.logger().debug('Parsing mails in path {}'.format(path))
             for file in os.listdir(path):
                 for m in filetype_modules[os.path.basename(path)].run(os.path.join(path, file), containerid):
                     if not containerid and not rootid:
@@ -638,8 +637,6 @@ class ParseMacMailbox(PffExportParseObject):
             # parse attachments inside the object
             # if "Attachments" in os.listdir(path):
             #     for root, dirs, files in os.walk(mailbox_directory):
-            #     for name in files:
-            #         print(os.path.join(root, name))
             #     for attachment in self._parse_attachments(path, rootid):
             #         yield attachment
 
@@ -673,5 +670,4 @@ class EmlxParseMessage(PffExportParseObject):
         info['path'] = os.path.join(info['dirname'], email_body)
         info['filename'] = os.path.basename(path)
         containerid = self._setContainerID(info, containerid)
-        # print(info)
         yield info

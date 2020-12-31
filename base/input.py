@@ -129,9 +129,19 @@ class ForAllLinesInFile(base.job.BaseModule):
 class JSONReader(AllLinesInFile):
     """ Load every line in a file as a JSON dictionary and yields it."""
 
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('check_path_exists', True)
+
     def run(self, path):
         """ Read JSON file in the path. from_module is ignored """
-        self.check_params(path, check_path=True, check_path_exists=True)
+        try:
+            self.check_params(path, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            if not self.myflag('check_path_exists'):
+                self.logger().warning(exc)
+                return []
+            raise exc
         for line in super().run(path):
             try:
                 data = json.loads(line.strip())
