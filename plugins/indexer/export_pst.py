@@ -348,7 +348,7 @@ class CreatePstHtml(base.job.BaseModule):
         self.tika_parser = base.job.load_module(self.config, 'indexer.tikaparser.TikaParser')
 
         for item in self.from_module.run(path):
-            if item['content_type'] in ("pst/Message", "pst/Appointment", "pst/Activity", "pst/Contact", "pst/Meeting", "pst/Note", "pst/Task"):
+            if 'content_type' in item and item['content_type'] in ("pst/Message", "pst/Appointment", "pst/Activity", "pst/Contact", "pst/Meeting", "pst/Note", "pst/Task"):
                 self._export_item(item)
             yield item
         return []

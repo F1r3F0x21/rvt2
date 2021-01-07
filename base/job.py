@@ -446,11 +446,11 @@ class RVTCritical(Exception):
     pass
 
 
-class RVTErrorNonePath(Exception):
+class RVTErrorNonePath(RVTError):
     """ A special class for Exceptions inside the RVT. The module or job cannot continue. """
     pass
 
 
-class RVTErrorNotExistingPath(Exception):
+class RVTErrorNotExistingPath(RVTError):
     """ A special class for Exceptions inside the RVT. The module or job cannot continue. """
     pass
