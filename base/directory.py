@@ -229,11 +229,9 @@ class GlobFilter(base.job.BaseModule):
                 If the module has a path configured in its configration, this parameter is ignored.
 
         """
-        print(path)
         custom_path = self.myconfig('path')
         if custom_path is not None:
             path = custom_path
-        print(path)
         self.check_params(path, check_from_module=True, check_path=True)
         ftype = self.myconfig('ftype').lower()
 
