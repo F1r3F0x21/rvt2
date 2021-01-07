@@ -18,16 +18,15 @@ import struct
 import time
 import pylnk
 import olefile
-import collections
+import re
 import logging
 import tempfile
 import datetime
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import base.job
-from plugins.common.RVT_filesystem import FileSystem
 from plugins.common.RVT_files import GetFiles
-from base.utils import check_folder, check_directory, save_csv
+from base.utils import check_folder, check_directory, save_csv, relative_path
 
 # TODO: do not use tempfiles
 
@@ -41,7 +40,7 @@ class Lnk(object):
     def __init__(self, infile, encoding='cp1252', logger=''):
         self.archive = infile
         self.encoding = encoding
-        self.attributes = collections.OrderedDict()
+        self.attributes = OrderedDict()
         self.attributes[0x1] = "DATA_OVERWRITE"
         self.attributes[0x2] = "FILE_ATTRIBUTE_HIDDEN"
         self.attributes[0x4] = "FILE_ATTRIBUTE_SYSTEM"
@@ -173,47 +172,45 @@ class Lnk(object):
         return data
 
 
-class LnkExtract(base.job.BaseModule):
+class LnkParser(base.job.BaseModule):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.dicID = load_appID(myconfig=self.myconfig)
-        self.vss = self.myflag('vss')
         self.encoding = self.myconfig('encoding', 'cp1252')
 
     def read_config(self):
         super().read_config()
         # appid is a file relating applications id with names. https://github.com/EricZimmerman/JumpList/blob/master/JumpList/Resources/AppIDs.txt
         self.set_default_config('appid', os.path.join(self.config.config['windows']['plugindir'], 'appID.txt'))
+        self.set_default_config('volume_id', '')
+        self.set_default_config('username', '')
 
     def run(self, path=""):
-        """ Parses lnk files, jumlists and customdestinations
+        self.volume_id = self.myconfig('volume_id')
+        self.username = self.myconfig('username')
+        artifacts = {'lnk': {'filename': "{}_lnk.csv", 'ending': "lnk", 'function': self.lnk_parser},
+                     'autodest': {'filename': "{}_jl.csv", 'ending': ".automaticdestinations-ms", 'function': self.automaticDest_parser},
+                     'customdest': {'filename': "{}_jlcustom.csv", 'ending': ".customdestinations-ms", 'function': self.customDest_parser}}
+        files = {'lnk': [], 'autodest': [], 'customdest': []}
 
-        """
-        self.logger().debug("Extraction of lnk files")
+        if not os.path.isdir(path):
+            raise base.job.RVTError('Provided path {} is not a directory'.format(path))
 
-        self.Files = GetFiles(self.config, vss=self.myflag("vss"))
-        self.filesystem = FileSystem(self.config)
-        self.mountdir = self.myconfig('mountdir')
-
-        lnk_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
-        check_folder(lnk_path)
-
-        users = get_user_list(self.mountdir, self.vss)
-        artifacts = {'lnk': {'filename': "{}_lnk.csv", 'regex': r"{}/.*\.lnk$", 'function': self.lnk_parser},
-                     'autodest': {'filename': "{}_jl.csv", 'regex': r"{}/.*\.automaticDestinations-ms$", 'function': self.automaticDest_parser},
-                     'customdest': {'filename': "{}_jlcustom.csv", 'regex': r"{}/.*\.customDestinations-ms$", 'function': self.customDest_parser}}
-
-        for user in users:
-            usr = "{}_{}".format(user.split("/")[0], user.split("/")[2])
-
-            for a_name, artifact in artifacts.items():
-                out_file = os.path.join(lnk_path, artifact['filename'].format(usr))
-                files_list = list(self.Files.search(artifact['regex'].format(user)))
-                self.logger().debug("Founded {} {} files for user {} at {}".format(len(files_list), a_name, user.split("/")[-1], user.split("/")[0]))
-                if len(files_list) > 0:
-                    save_csv(artifact['function'](files_list), config=self.config, outfile=out_file, quoting=0, file_exists='OVERWRITE')
-                    self.logger().debug("{} extraction done for user {} at {}".format(a_name, user.split("/")[-1], user.split("/")[0]))
+        for artifact, properties in artifacts.items():
+            for file in os.listdir(path):
+                if file.lower().endswith(properties['ending']):
+                    files[artifact].append(os.path.abspath(os.path.join(path, file)))
+            out_file = os.path.join(self.myconfig('outdir'), "{}{}{}.csv".format(
+                '{}_'.format(self.volume_id) if self.volume_id else '',
+                '{}_'.format(self.username) if self.username else '',
+                artifact))
+            if len(files[artifact]) > 0:
+                self.logger().info("Founded {} {} files".format(len(files[artifact]), artifact))
+                save_csv(properties['function'](files[artifact]), config=self.config, outfile=out_file, quoting=0, file_exists='APPEND')
+                self.logger().info("{} extraction done".format(artifact))
+            else:
+                self.logger().debug('No {} files found'.format(artifact))
 
         return []
 
@@ -221,41 +218,54 @@ class LnkExtract(base.job.BaseModule):
         """ Parses all '.lnk' files found for a user.
 
         Parameters:
-            files_list (list): list of automaticDestinations-ms files to parse (relative to casedir)
+            files_list (list): list of absolute paths to automaticDestinations-ms files to parse
         """
 
         headers = ["mtime", "atime", "ctime", "btime", "drive_type", "drive_sn", "machine_id", "path", "network_path", "size", "atributes", "description",
                    "command line arguments", "file_id", "volume_id", "birth_file_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file"]
 
-        data = self.filesystem.get_macb(files_list, vss=self.vss)
+        relative_files_list = files_list
+        if files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
+            relative_files_list = [relative_path(file, self.myconfig('casedir')) for file in files_list]
 
-        for file in files_list:
-            lnk = Lnk(os.path.join(self.myconfig('casedir'), file), self.encoding, logger=self.logger())
+        body_file = os.path.join(self.config.get('plugins.common', '{}timelinesdir'.format('v' * self.myflag('vss'))), '{}_BODY.csv'.format(self.config.config['DEFAULT']['source']))
+        data = {}
+        if not (os.path.exists(body_file) and os.path.getsize(body_file) > 0):
+            data = {file: ['1601-01-01T00:00:00Z'] * 4 for file in relative_files_list}
+        else:
+            data = get_macb_from_body(body_file, relative_files_list)
+
+        for abs_file, rel_file in zip(files_list, relative_files_list):
+            lnk = Lnk(abs_file, self.encoding, logger=self.logger())
 
             lnk = lnk.get_lnk_info()
 
             if lnk == -1:
-                self.logger().warning("Problems with file {}".format(file))
-                yield OrderedDict(zip(headers, data[file] + ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", file]))
+                self.logger().warning("Problems with file {}".format(abs_file))
+                yield OrderedDict(zip(headers, data[rel_file] + ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", rel_file]))
             else:
-                yield OrderedDict(zip(headers, data[file] + lnk + [file]))
+                yield OrderedDict(zip(headers, data[rel_file] + lnk + [rel_file]))
 
     def automaticDest_parser(self, files_list):
         """ Parses automaticDest files
 
         Parameters:
-            files_list (list): list of automaticDestinations-ms files to parse
+            files_list (list): list of absolute paths to automaticDestinations-ms files to parse
         """
 
         # TODO: Get the default Windows encoding and avoid trying many
         # TODO: Parse the files without DestList
+
+        relative_files_list = files_list
+        if files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
+            relative_files_list = [relative_path(file, self.myconfig('casedir')) for file in files_list]
 
         # Differences in DestList between versions at:
         # https://cyberforensicator.com/wp-content/uploads/2017/01/1-s2.0-S1742287616300202-main.2-14.pdf
         # Obtain the JumpList version from the header of DestList entry
         for jl in files_list:
             try:
-                ole = olefile.OleFileIO(os.path.join(self.myconfig('casedir'), jl))
+                ole = olefile.OleFileIO(jl)
             except Exception as exc:
                 self.logger().warning("Problems creating OleFileIO with file {}\n{}".format(jl, exc))
                 continue
@@ -283,28 +293,28 @@ class LnkExtract(base.job.BaseModule):
                    "command line arguments", "file_id", "volume_id", "birth_file_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file"]
 
         # Main loop
-        for jl in files_list:
-            self.logger().debug("Processing Jump list : {}".format(jl.split('/')[-1]))
+        for abs_jl, jl in zip(files_list, relative_files_list):
+            self.logger().debug("Processing Jump list : {}".format(os.path.basename(jl)))
             try:
-                ole = olefile.OleFileIO(os.path.join(self.myconfig('casedir'), jl))
+                ole = olefile.OleFileIO(abs_jl)
             except Exception as exc:
-                self.logger().warning("Problems creating OleFileIO with file {}\n{}".format(jl, exc))
+                self.logger().warning("Problems creating OleFileIO with file {}\n{}".format(abs_jl, exc))
                 continue
 
             if not ole.exists('DestList'):
-                self.logger().warning("File {} does not have a DestList entry and can't be parsed".format(jl))
+                self.logger().warning("File {} does not have a DestList entry and can't be parsed".format(abs_jl))
                 ole.close()
                 continue
             else:
                 if not (len(ole.listdir()) - 1):
-                    self.logger().warning("Olefile has detected 0 entries in file {}\nFile will be skipped".format(jl))
+                    self.logger().warning("Olefile has detected 0 entries in file {}\nFile will be skipped".format(abs_jl))
                     ole.close()
                     continue
 
                 dest = ole.openstream('DestList')
                 data = dest.read()
                 if len(data) == 0:
-                    self.logger().warning("No DestList data in file {}\nFile will be skipped".format(jl))
+                    self.logger().warning("No DestList data in file {}\nFile will be skipped".format(abs_jl))
                     ole.close()
                     continue
                 self.logger().debug("DestList lenght: {}".format(ole.get_size("DestList")))
@@ -314,7 +324,7 @@ class LnkExtract(base.job.BaseModule):
                     current_entries, pinned_entries = struct.unpack("<LL", data[4:12])
                     self.logger().debug("Current entries: {}".format(current_entries))
                 except Exception as exc:
-                    self.logger().warning("Problems unpacking header Destlist with file {}\n{}".format(jl, exc))
+                    self.logger().warning("Problems unpacking header Destlist with file {}\n{}".format(abs_jl, exc))
                     # continue
 
                 ofs = 32  # Header offset
@@ -324,12 +334,12 @@ class LnkExtract(base.job.BaseModule):
                     try:
                         name = stream[72:88].decode()
                     except Exception:
-                        self.logger().debug("utf-8 decoding failed")
+                        self.logger().info("utf-8 decoding failed")
                         try:
                             name = stream[72:88].decode("cp1252")
                         except Exception as exc:
-                            self.logger().debug("cp1252 decoding failed")
-                            self.logger().warning("Problems decoding name with file=%s exc=%s", jl, str(exc))
+                            self.logger().info("cp1252 decoding failed")
+                            self.logger().warning("Problems decoding name with file {}\n{}".format(abs_jl, exc))
 
                     name = name.replace("\00", "")
 
@@ -337,7 +347,7 @@ class LnkExtract(base.job.BaseModule):
                     try:
                         id_entry, = struct.unpack(id_entry_ofs[version][0], stream[id_entry_ofs[version][1]:id_entry_ofs[version][2]])
                     except Exception as exc:
-                        self.logger().warning("Problems unpacking id_entry with file=%s exc=%s", jl, str(exc))
+                        self.logger().warning("Problems unpacking id_entry with file {}\n{}".format(abs_jl, exc))
                         # self.logger().debug(stream[id_entry_ofs[version][1]:id_entry_ofs[version][2]])
                         break
                     id_entry = format(id_entry, '0x')
@@ -346,7 +356,7 @@ class LnkExtract(base.job.BaseModule):
                     try:
                         time0, time1 = struct.unpack("II", stream[100:108])
                     except Exception as exc:
-                        self.logger().warning("Problems unpacking MSFILETIME with file {}\n{}".format(jl, exc))
+                        self.logger().warning("Problems unpacking MSFILETIME with file {}\n{}".format(abs_jl, exc))
                         break
 
                     timestamp = getFileTime(time0, time1)
@@ -356,7 +366,7 @@ class LnkExtract(base.job.BaseModule):
                         sz, = struct.unpack("h", stream[sz_ofs[version][0]:sz_ofs[version][1]])
                         # self.logger().debug("sz: {}".format(sz))
                     except Exception as exc:
-                        self.logger().warning("Problems unpaking unicode string size with file {}\n{}".format(jl, exc))
+                        self.logger().warning("Problems unpaking unicode string size with file {}\n{}".format(abs_jl, exc))
                         # self.logger().debug(stream[sz_ofs[version][0]:sz_ofs[version][1]])
                         break
 
@@ -371,7 +381,7 @@ class LnkExtract(base.job.BaseModule):
                         try:
                             path = data[ofs:ofs + sz2].decode("iso8859-15")
                         except Exception as exc:
-                            self.logger().warning("Problems decoding path with file {}\n{}".format(jl, exc))
+                            self.logger().warning("Problems decoding path with file {}\n{}".format(abs_jl, exc))
                     path = path.replace("\00", "")
 
                     temp = tempfile.NamedTemporaryFile()
@@ -380,7 +390,7 @@ class LnkExtract(base.job.BaseModule):
                     try:
                         aux = ole.openstream(id_entry)
                     except Exception as exc:
-                        self.logger().warning("Problems with file {}\n{}".format(jl, exc))
+                        self.logger().warning("Problems with file {}\n{}".format(abs_jl, exc))
                         self.logger().warning("ole.openstream failed")
                         temp.close()
                         break
@@ -402,7 +412,6 @@ class LnkExtract(base.job.BaseModule):
 
             ole.close()
 
-
     def customDest_parser(self, files_list):
         """ Parses customDest files
 
@@ -415,8 +424,12 @@ class LnkExtract(base.job.BaseModule):
         headers = ["Application", "drive_type", "drive_sn", "machine_id", "path", "network_path", "size", "atributes", "description",
                    "command line arguments", "file_id", "volume_id", "birth_file_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file"]
 
-        for jl in files_list:
-            with open(os.path.join(self.myconfig('casedir'), jl), "rb") as f:
+        relative_files_list = files_list
+        if files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
+            relative_files_list = [relative_path(file, self.myconfig('casedir')) for file in files_list]
+
+        for abs_jl, jl in zip(files_list, relative_files_list):
+            with open(abs_jl, "rb") as f:
                 data = f.read()
 
             lnks = data.split(split_str)
@@ -435,6 +448,76 @@ class LnkExtract(base.job.BaseModule):
                     yield OrderedDict(zip(headers, [self.dicID.get(n_hash, n_hash)] + lnk + [jl]))
 
 
+class LnkExtract(base.job.BaseModule):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dicID = load_appID(myconfig=self.myconfig)
+        self.vss = self.myflag('vss')
+        self.encoding = self.myconfig('encoding', 'cp1252')
+
+    def read_config(self):
+        super().read_config()
+        # appid is a file relating applications id with names. https://github.com/EricZimmerman/JumpList/blob/master/JumpList/Resources/AppIDs.txt
+        self.set_default_config('appid', os.path.join(self.config.config['windows']['plugindir'], 'appID.txt'))
+
+    def run(self, path=""):
+        """ Parses lnk files, jumlists and customdestinations
+
+        """
+        self.logger().info("Extraction of lnk files")
+
+        self.Files = GetFiles(self.config, vss=self.myflag("vss"))
+        # self.filesystem = FileSystem(self.config)
+        self.mountdir = self.myconfig('mountdir')
+
+        lnk_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
+        check_folder(lnk_path)
+
+        self.users = get_user_list(self.mountdir, self.vss)
+        all_recentfiles = self.sort_recent_allocated_files()
+
+        base_class = LnkParser(config=self.config)
+
+        artifacts_funcs = {'lnk': base_class.lnk_parser, 'autodest': base_class.automaticDest_parser, 'customdest': base_class.customDest_parser}
+
+        for sort_values, files in all_recentfiles.items():
+            partition, user, artifact = sort_values
+            self.logger().debug("Founded {} {} files for user {} at {}".format(len(files), artifact, user, partition))
+            out_file = os.path.join(lnk_path, "{}_{}_{}.csv".format(partition, user, artifact))
+            if len(files) > 0:
+                save_csv(artifacts_funcs[artifact](files), config=self.config, outfile=out_file, quoting=0, file_exists='OVERWRITE')
+                self.logger().info("{} extraction done for user {} at {}".format(artifact, user, partition))
+
+        self.logger().info("RecentFiles extraction done")
+        return []
+
+    def sort_recent_allocated_files(self):
+        """ Get and sort all recentfiles allocated in disk by type, partition and user """
+
+        all_recentfiles = defaultdict(list)
+        artifacts = {'lnk': {'filename': "{}_lnk.csv", 'regex': r"\.lnk$"},
+                     'autodest': {'filename': "{}_jl.csv", 'regex': r"\.automaticDestinations-ms$"},
+                     'customdest': {'filename': "{}_jlcustom.csv", 'regex': r"\.customDestinations-ms$"}}
+
+        for artifact_name, artifact in artifacts.items():
+            files_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(artifact['regex'])]
+            files_set = set(files_list)
+
+            # Format in files_list items: '1231456-01-1/mnt/p0X/Users/Default_User/file.lnk'
+            for user_path in self.users:
+                partition, user = (user_path.split("/")[0], user_path.split("/")[2])
+                for file in files_list:
+                    if re.search(user_path, file):
+                        all_recentfiles[(partition, user, artifact_name)].append(file)
+                        files_set.discard(file)
+
+            for file in files_set:  # Remaining recentfiles not under Users
+                partition = relative_path(file, self.myconfig('casedir')).split('/')[2]
+                all_recentfiles[(partition, 'NO_USER', artifact_name)].append(file)
+
+        return all_recentfiles
+
 
 class LnkExtractAnalysis(base.job.BaseModule):
 
@@ -443,11 +526,12 @@ class LnkExtractAnalysis(base.job.BaseModule):
 
         """
         vss = self.myflag('vss')
-        self.logger().debug("Generating lnk files report")
+        self.logger().info("Generating lnk files report")
 
         self.mountdir = self.myconfig('mountdir')
 
-        lnk_path = self.config.get('plugins.windows.RVT_lnk.LnkExtract', '{}outdir'.format('v' * vss))
+        # lnk_path = self.config.get('plugins.windows.RVT_lnk.LnkExtract', '{}outdir'.format('v' * vss))
+        lnk_path = self.myconfig('lnk_dir')
         report_lnk_path = self.myconfig('{}outdir'.format('v' * vss))
 
         check_directory(lnk_path, error_missing=True)
@@ -461,7 +545,7 @@ class LnkExtractAnalysis(base.job.BaseModule):
     def report_recent(self, path):
         """ Create a unique csv combining output from lnk and jumplists """
 
-        file_types = {'lnk': '_lnk.csv', 'jlauto': '_jl.csv', 'jlcustom': '_jlcustom.csv'}
+        file_types = {'lnk': '_lnk.csv', 'jlauto': '_autodest.csv', 'jlcustom': '_customdest.csv'}
         headers = ["last_open_date", "first_open_date", "application", "path", "network_path", "drive_type", "drive_sn", "machine_id", "size", "file"]
         transform_name = {'lnk': {"last_open_date": "mtime", "first_open_date": "btime"},
                           'jlauto': {"last_open_date": "Open date", "application": "Application"}, 'jlcustom': {"application": "Application"}}
@@ -532,7 +616,9 @@ def getFileTime(data0, data1):
 
 
 def get_user_list(mount_path, vss=False):
-
+    """ Get a set of paths to 'User' folders in every partition.
+        Example of a value: 'p01/Documents and Settings/Default_User'
+    """
     users = set()
     for p in sorted(os.listdir(mount_path)):
         if (vss and p.startswith("v")) or (not vss and p.startswith("p")):
@@ -544,3 +630,26 @@ def get_user_list(mount_path, vss=False):
                     if os.path.isdir(os.path.join(user_path, u)):
                         users.add(os.path.join(user_path, u).split("%s/" % mount_path)[-1])
     return users
+
+
+def get_macb_from_body(bodyfile, file_list):
+    with open(bodyfile, 'r') as f:
+        import csv
+        # fieldnames = ['md5', 'path', 'inode', 'mode_as_string', 'UID', 'GID', 'size', 'atime', 'mtime', 'ctime', 'crtime']
+        r = csv.reader(f, delimiter="|")
+        dates = {}
+        # reduced_files_list = ['/' + '/'.join(file.split('/')[3:]) for file in file_list]
+        files_set = set(file_list)
+        for row in r:
+            file = row[1]
+            if file in files_set:
+                dates[file] = [datetime.datetime.utcfromtimestamp(int(row[8])).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.utcfromtimestamp(int(row[7])).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.utcfromtimestamp(int(row[9])).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.utcfromtimestamp(int(row[10])).strftime("%Y-%m-%dT%H:%M:%SZ")]
+
+        for file in file_list:
+            if file not in dates:
+                dates[file] = ['1601-01-01T00:00:00Z'] * 4
+
+        return dates

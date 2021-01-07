@@ -16,8 +16,11 @@
 
 import os
 import ast
-import base.job
+import datetime
 import dateutil.parser
+
+import base.job
+from base.utils import save_md_table
 
 
 def writemd(outfile, fields, eventlist, sorted=True):
@@ -522,3 +525,54 @@ class USB(base.job.BaseModule):
                 if event['event.created'] == e['event.created'] and event["instance"] == e["instance"] and event["lifetime"] == e["lifetime"]:
                     return False  # same time, does not used
         return True
+
+
+class USBConnections(base.job.BaseModule):
+    """ Extracts events related with usb plugs
+
+    Events should be sorted"""
+
+    def run(self, path=None):
+        """ Extracts USB sticks' plugins and plugoffs data """
+        # TODO: filter only USB devices on event 507
+
+        plugins = []
+        plugoffs = []
+        results = []
+
+        for event in self.from_module.run(path):
+            if event['event.code'] == '1006' and not event['data.device_id'].startswith('USB'):
+                continue
+            yield event
+
+            if event['event.action'] == "device-connected":
+                plugins.append(event)
+            else:
+                plugoffs.append(event)
+
+        # Delete unnecessary close events
+        for plug_list in [plugins, plugoffs]:
+            plug_list.sort(key=lambda k: k['event.created'])
+            self.del_close_events(plug_list)
+
+        all_plugs = plugins + plugoffs
+        all_plugs.sort(key=lambda k: k['event.created'])
+        for e in all_plugs:
+            if 'data.device_id' not in e:
+                e['data.device_id'] = ''
+            results.append(e)
+        save_md_table(results, config=None,
+                      outfile=os.path.join(self.config.config[self.config.job_name]['outdir'], 'usb_new.md'),
+                      fieldnames=['event.created', 'event.code', 'event.action', 'data.device_id'],
+                      file_exists='OVERWRITE')
+        # writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'usb_new.md'), ['event.created', 'event.code', 'event.action', 'data.device_id'], results)
+
+    def del_close_events(self, ev_list, threshold=1000):
+        # Delete unnecessary close events (threshold in milliseconds)
+        previous_datetime = datetime.datetime.fromtimestamp(3333333333)
+        total_plugins = len(ev_list)
+        for index, e in enumerate(reversed(ev_list)):  # List is reversed so deleting an item does not skip the next iteration
+            if e['event.code'] == '1006':
+                continue
+            if previous_datetime - datetime.datetime.strptime(e['event.created'], "%Y-%m-%d %H:%M:%S.%f %Z") < datetime.timedelta(milliseconds=1000):
+                del ev_list[total_plugins - index - 1]

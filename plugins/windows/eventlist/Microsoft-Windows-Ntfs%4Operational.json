@@ -1,0 +1,14 @@
+{
+  "142":{
+    "description": "Summary of disk space usage, since last event",
+    "provider": "Microsoft-Windows-Ntfs",
+    "category": ["driver"],
+    "type": ["start"],
+    "path": {
+      "EventData":{
+        "Name": ["VolumeGuid", "VolumeName", "IsBootVolume"],
+        "transform": {"VolumeName": "data.device_volume_name"}
+      }
+    }
+  }
+}

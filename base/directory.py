@@ -195,6 +195,8 @@ class FileParser(base.job.BaseModule):
                 for fileinfo in base.job.run_job(self.config.copy(), parser, path=[path]):
                     yield fileinfo
 
+        return []
+
 
 class GlobFilter(base.job.BaseModule):
     """
@@ -232,15 +234,18 @@ class GlobFilter(base.job.BaseModule):
         custom_path = self.myconfig('path')
         if custom_path is not None:
             path = custom_path
+
         self.check_params(path, check_from_module=True, check_path=True)
         ftype = self.myconfig('ftype').lower()
 
+        self.logger().debug('Searching glob pattern: {}'.format(path))
         # parse all files matching the glob
         for filepath in glob.iglob(path, recursive=self.myflag('recursive')):
             try:
                 if ftype == 'all' or \
                         (ftype == 'file' and os.path.isfile(filepath)) or \
                         (ftype == 'directory' and os.path.isdir(filepath)):
+                    self.logger().debug('Matching glob file: {}'.format(filepath))
                     results = self.from_module.run(filepath)
                     if results is not None:
                         for info in results:
@@ -249,6 +254,8 @@ class GlobFilter(base.job.BaseModule):
                 if self.myflag('stop_on_error'):
                     raise
                 self.logger().warning(exc)
+
+        return []
 
 
 class FileClassifier(base.job.BaseModule):
@@ -382,5 +389,3 @@ class DirectoryClear(base.job.BaseModule):
         self.logger().debug('{} not recognized as file or directory'.format(target_path))
         return []
         # raise base.job.RVTError('{} not recognized as file or directory'.format(target_path))
-
-

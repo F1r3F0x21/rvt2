@@ -225,6 +225,56 @@ class CSVSink(BaseSink):
             self.logger().warning('Exception while closing the file: %s', exc)
 
 
+class MDTableSink(BaseSink):
+    """ A module that prints the results from other modules to a file or standard output as an markdown file with table output. Removes repeated entries.
+
+    Configuration:
+        - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
+        - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
+        - **fieldnames**: Use these field names as columns. Use this option to order the fields
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('fieldnames', [])
+        # self.set_default_config('sorted', True)
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+        outputfile = self._outputfile()
+
+        fields = self.myconfig('fieldnames')
+        act = {field: '' for field in fields}
+
+        outputfile.write("|".join(fields))
+        outputfile.write("\n")
+        outputfile.write("|".join(["--"] * len(fields)))
+        outputfile.write("\n")
+        for fileinfo in self._source(path):
+            try:
+                repeated = True
+                for i in fields:
+                    if fileinfo[i] != act[i]:
+                        repeated = False
+                    act[i] = fileinfo[i]
+                if repeated:
+                    continue
+                outputfile.write("|".join([fileinfo[field] for field in fields]))
+                outputfile.write("\n")
+                yield fileinfo
+            except TypeError as exc:
+                if self.myflag('stop_on_error'):
+                    raise
+                else:
+                    self.logger().warning('%s: %s', exc, fileinfo.get('path', ''))
+
+        try:
+            if not outputfile == sys.stdout:
+                outputfile.close()
+        except Exception as exc:
+            self.logger().warning('Exception while closing the file: %s', exc)
+
+
 class MirrorPath(base.job.BaseModule):
     """ A basic module that yields the path. """
     def run(self, path):

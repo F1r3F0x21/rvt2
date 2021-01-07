@@ -1,0 +1,38 @@
+{
+  "400":{
+    "description": "Device was configured",
+    "provider": "Microsoft-Windows-Kernel-PnP",
+    "category": ["driver"],
+    "type": ["info"],
+    "path": {
+      "EventData":{
+        "Name": ["DeviceInstanceId", "ClassGuid", "ParentDeviceInstanceId"],
+        "transform": {"DeviceInstanceId": "data.device_id", "ParentDeviceInstanceId": "data.parent_device_id"}
+      }
+    }
+  },
+  "410":{
+    "description": "Device was configured",
+    "provider": "Microsoft-Windows-Kernel-PnP",
+    "category": ["driver"],
+    "type": ["info"],
+    "path": {
+      "EventData":{
+        "Name": ["DeviceInstanceId", "ClassGuid", "ServiceName"],
+        "transform": {"DeviceInstanceId": "data.device_id", "ServiceName": "data.service_name"}
+      }
+    }
+  },
+  "430":{
+    "description": "Device was configured",
+    "provider": "Microsoft-Windows-Kernel-PnP",
+    "category": ["driver"],
+    "type": ["info"],
+    "path": {
+      "EventData":{
+        "Name": ["DeviceInstanceId"],
+        "transform": {"DeviceInstanceId": "data.device_id"}
+      }
+    }
+  }
+}
