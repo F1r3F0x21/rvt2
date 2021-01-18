@@ -126,7 +126,7 @@
     }
   },
   "7036":{
-    "description": "The service entered the state.",
+    "description": "The service entered the state {EventData[param2]}",
     "provider": "Service Control Manager",
     "path": {
       "EventData": {

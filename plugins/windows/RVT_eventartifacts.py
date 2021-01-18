@@ -250,8 +250,8 @@ class Logon_rdp(base.job.BaseModule):
         writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp.md'), ['Login', 'SubjecUser', 'IP', 'Logoff', 'User', 'Reason'], results)
 
 
-class Logon_rdp2(base.job.BaseModule):
-    """ Extracts logon and rdp artifacts """
+class RDPIncoming(base.job.BaseModule):
+    """ Extracts events related to incoming RDP connections """
 
     def run(self, path=None):
         """
@@ -265,8 +265,10 @@ class Logon_rdp2(base.job.BaseModule):
 
         for event in self.from_module.run(path):
             ev = dict()
-            ev['TimeCreated'] = event.get('event.created', '')
             ev['EventID'] = event.get('event.code', '')
+            if ev['EventID'] in ['39', '40']:  # only events 23 and 24 are considered as termination
+                continue
+            ev['TimeCreated'] = event.get('event.created', '')
             ev['Description'] = event.get('event.action', '')
             ev['User'] = event.get('destination.user.name', '')
             ev['SessionID'] = event.get('data.SessionID', '')
@@ -274,17 +276,15 @@ class Logon_rdp2(base.job.BaseModule):
             if ev['SessionID'] not in sID.keys():
                 sID[ev['SessionID']] = []
             sID[ev['SessionID']].append(ev)
-            self.logger().debug(ev)
-            yield ev
-        self.extractRDP(sID)
+
+        for result in self.extractRDP(sID):
+            yield result
 
     def extractRDP(self, sID):
 
-        results = []
-
         for eventlist in sID.values():
             act = dict()
-            writted = True
+            written = True
             act['LoginDate'] = '-'
             act['LogoffDate'] = '-'
             act['User'] = ''
@@ -298,23 +298,32 @@ class Logon_rdp2(base.job.BaseModule):
                         act['SourceAddress'] = v.get('SourceAddress', '')
                     act['User'] = v.get('User', '')
                     act['LoginDate'] = v['TimeCreated']
-                    writted = False
+                    written = False
                 elif v['EventID'] in ('23', '24') and act['LoginDate'] != '-':
                     act['LogoffDate'] = v['TimeCreated']
-                    results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('User', ''), act.get('SourceAddress', '')])
+                    yield {
+                        'LoginDate': act.get('LoginDate', '-'),
+                        'LogoffDate': act.get('LogoffDate', '-'),
+                        'User': act.get('User', ''),
+                        'SourceAddress': act.get('SourceAddress', '')
+                    }
                     self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
                     act['LoginDate'] = '-'
                     act['LogoffDate'] = '-'
                     act['User'] = ''
                     act['SourceAddress'] = ''
-                    writted = True
-            if not writted:
-                results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('User', ''), act.get('SourceAddress', '')])
-        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp2.md'), ['LoginDate', 'LogoffDate', 'User', 'SourceAddress'], results)
+                    written = True
+            if not written:
+                yield {
+                    'LoginDate': act.get('LoginDate', '-'),
+                    'LogoffDate': act.get('LogoffDate', '-'),
+                    'User': act.get('User', ''),
+                    'SourceAddress': act.get('SourceAddress', '')
+                }
 
 
-class Logon_rdp_out(base.job.BaseModule):
-    """ Extracts logon and rdp artifacts """
+class RDPOutgoing(base.job.BaseModule):
+    """ Extracts events related to outgoing RDP connections """
 
     def run(self, path=None):
         """
@@ -341,12 +350,11 @@ class Logon_rdp_out(base.job.BaseModule):
             if ev['ActivityID'] not in actID.keys():
                 actID[ev['ActivityID']] = []
             actID[ev['ActivityID']].append(ev)
-            yield ev
-        self.extractRDP(actID)
+
+        for result in self.extractRDP(actID):
+            yield result
 
     def extractRDP(self, actID):
-
-        results = []
 
         for eventlist in actID.values():
             act = dict()
@@ -365,7 +373,13 @@ class Logon_rdp_out(base.job.BaseModule):
                     writted = False
                 elif v['EventID'] == '1026' and act['LoginDate'] != '-':
                     act['LogoffDate'] = v['TimeCreated']
-                    results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('Address', ''), act.get('SID', '-'), act.get('B64Hash', '')])
+                    yield {
+                        'LoginDate': act.get('LoginDate', '-'),
+                        'LogoffDate': act.get('LogoffDate', '-'),
+                        'Address': act.get('Address', ''),
+                        'SID': act.get('SID', '-'),
+                        'B64Hash': act.get('B64Hash', '')
+                    }
                     self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
                     act['LoginDate'] = '-'
                     act['LogoffDate'] = '-'
@@ -373,8 +387,13 @@ class Logon_rdp_out(base.job.BaseModule):
                 elif v['EventID'] == '1029' and 'B64Hash' not in act.keys():
                     act['B64Hash'] = v.get('Base64Hash', '')
             if not writted:
-                results.append([act.get('LoginDate', '-'), act.get('LogoffDate', '-'), act.get('Address', ''), act.get('SID', '-'), act.get('B64Hash', '')])
-        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp_out.md'), ['LoginDate', 'LogoffDate', 'Address', 'SID', 'B64Hash'], results)
+                yield {
+                    'LoginDate': act.get('LoginDate', '-'),
+                    'LogoffDate': act.get('LogoffDate', '-'),
+                    'Address': act.get('Address', ''),
+                    'SID': act.get('SID', '-'),
+                    'B64Hash': act.get('B64Hash', '')
+                }
 
 
 class Poweron(base.job.BaseModule):

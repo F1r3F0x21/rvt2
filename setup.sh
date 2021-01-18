@@ -44,7 +44,7 @@ install_debian_buildtools() {
 # Install Debian useful tools
 install_debian_utils() {
     apt-get install -y \
-        sudo curl vim less procps \
+        sudo curl vim less procps jq \
         silversearcher-ag fd-find tree \
         p7zip bzip2 libbz2-dev \
         gnupg dirmngr

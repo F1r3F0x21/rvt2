@@ -25,7 +25,7 @@ from Registry.RegistryParse import parse_windows_timestamp as _parse_windows_tim
 from plugins.external import jobparser
 import base.job
 from base.utils import check_directory, save_csv
-from base.commands import run_command
+from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetFiles
 from plugins.common.RVT_filesystem import FileSystem
 
@@ -40,7 +40,7 @@ def parse_windows_timestamp(value):
 WINDOWS_TIMESTAMP_ZERO = parse_windows_timestamp(0).strftime("%Y-%m-%d %H:%M:%S")
 
 
-class AmCache(base.job.BaseModule):
+class Amcache(base.job.BaseModule):
     """ Parses Amcache.hve registry hive. """
 
     def run(self, path=""):
@@ -77,6 +77,8 @@ class AmCache(base.job.BaseModule):
             * AppPath: application path inside the volume
             * AppName: friendly name for application, if any
             * Sha1Hash: binary file SHA-1 hash value
+            * Created: file creation time
+            * LastModified: file modificatin time
             * GUID: Volume GUID the application was executed from
         """
         # Hive subkeys may have two different subkeys
@@ -99,11 +101,11 @@ class AmCache(base.job.BaseModule):
 
     def _parse_File_entries(self, volumes):
         """ Parses File subkey entries for amcache hive """
-        fields = {'LastModified': "17", 'AppPath': "15", 'AppName': "0", 'Sha1Hash': "101"}
+        fields = {'LastModified': "17", 'Created': "12", 'AppPath': "15", 'AppName': "0", 'Sha1Hash': "101"}
         for volumekey in volumes.subkeys():
             for filekey in volumekey.subkeys():
                 app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppPath', ''), ('AppName', ''),
-                                   ('Sha1Hash', ''), ('LastModified', WINDOWS_TIMESTAMP_ZERO), ('GUID', '')])
+                                   ('Sha1Hash', ''), ('Created', WINDOWS_TIMESTAMP_ZERO), ('LastModified', WINDOWS_TIMESTAMP_ZERO), ('GUID', '')])
                 app['GUID'] = volumekey.path().split('}')[0][1:]
                 app['KeyLastWrite'] = filekey.timestamp()
                 for f in fields:
@@ -111,7 +113,7 @@ class AmCache(base.job.BaseModule):
                         val = filekey.value(fields[f]).value()
                         if f == 'Sha1Hash':
                             val = val[4:]
-                        elif f == 'LastModified':
+                        elif f == 'LastModified' or f == 'Created':
                             val = parse_windows_timestamp(val).strftime("%Y-%m-%d %H:%M:%S")
                         app.update({f: val})
                     except Registry.RegistryValueNotFoundException:
@@ -297,6 +299,36 @@ class SysCache(base.job.BaseModule):
             except Exception:
                 yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M%SZ")),
                                    ("Name", name), ("FileID", fileID), ("Sha1", "")])
+
+
+class AppCompat(base.job.BaseModule):
+    """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time """
+    # TODO, obtain the executed flag
+    def run(self, path=""):
+
+        if not path:
+            self.search = GetFiles(self.config)
+            SYSTEM = self.search.search(r"/windows/system32/config/system$")[0]
+            path = os.path.join(self.myconfig('casedir'), SYSTEM)
+
+        self.logger().debug("Parsing appcompatcache on registry hive {}".format(path))
+
+        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        line_number = 0
+        start = 1000
+        result = {}
+        for line in yield_command([ripcmd, "-r", path, "-p", "appcompatcache"], logger=self.logger()):
+            line_number += 1
+            if line_number < 5:
+                continue
+            if line.startswith('LastWrite Time'):
+                start = line_number + 2
+            if line_number > start:
+                result['Time'] = line[-20:].strip()
+                result['Application'] = line[:-22].replace('\\', '/')
+                yield result
+
+        return []
 
 
 class TaskFolder(base.job.BaseModule):

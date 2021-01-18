@@ -24,13 +24,13 @@ echo '## Incomming'
 echo
 echo 'Login|Logoff|User|IP'
 echo '--|--|--|--'
-rg -v '^[^0-9]' analysis/events/rdp2.md | sed -e 's/\\/\//g' -e 's/\.[0-9][0-9]* UTC//g' | sort -u
+rg -v '^[^0-9]' analysis/events/rdp_incoming.md | sed -e 's/\\/\//g' -e 's/\.[0-9][0-9]* UTC//g' | sort -u
 echo
 echo '## Outgoing'
 echo
 echo 'LoginDate|LogoffDate|Address|SID'
 echo '--|--|--|--'
-rg -v '^[^0-9]' analysis/events/rdp_out.md |cut -d'|' -f1-4 | sed -e 's/\\/\//g' -e 's/\.[0-9][0-9]* UTC/Z/g' | sort -u
+rg -v '^[^0-9]' analysis/events/rdp_outgoing.md |cut -d'|' -f1-4 | sed -e 's/\\/\//g' -e 's/\.[0-9][0-9]* UTC/Z/g' | sort -u
 echo
 echo '# Executions'
 echo '## CCM'
@@ -81,4 +81,3 @@ do
     cut -d";" -f1,6,7 output/windows/recentfiles/*${USER}_jl.csv|grep -v Open|grep -v ";;$" | sed -e 's/\\/\//g' -e 's/;/|/g' |sort -u
 done
 echo
-

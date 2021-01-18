@@ -20,7 +20,6 @@ import re
 import ast
 from evtx import PyEvtxParser
 import base.job
-from plugins.common.RVT_files import GetFiles
 
 
 class GetEvents(object):
@@ -77,7 +76,12 @@ class GetEvents(object):
                 continue
 
             # Selected events
-            data['event.action'] = self.data_json[data['event.code']]["description"]
+            try:
+                description = self.data_json[data['event.code']]["description"].format(**rec)
+            except Exception:
+                description = re.sub(r'{.*?}', '<>', self.data_json[data['event.code']]["description"])
+
+            data['message'] = description
             for field in ['category', 'type', 'action']:
                 if field in self.data_json[data['event.code']]:
                     data['event.{}'.format(field)] = self.data_json[data['event.code']][field]
@@ -131,31 +135,22 @@ class EventJob(base.job.BaseModule):
     """ Base class to parse event log sources """
 
     def get_evtx(self, path, regex_search):
-        """ Retrieve the evtx file to parse.
-        Take 'path' if is defined and exists.
-        Otherwise take first coincidence of the corresponding evtx file in the filesystem
+        """ Retrieve the evtx file to parse, looking for specific filenames inside a directory.
 
         Attrs:
-            path: path to evtx as defined in job
-            regex_search: regex expression to search in file system allocated files
-
+            path: path to directory containing evtx files
+            regex_search: regex expression to search for the precise evtx file log
         """
-        if path:
-            if os.path.exists(path):
-                return path
-            else:
-                raise base.job.RVTError('path {} does not exist'.format(path))
 
-        alloc_files = GetFiles(self.config, vss=self.myflag("vss"))
+        self.check_params(path, check_path=True, check_path_exists=True)
 
-        evtx_files = alloc_files.search(regex_search)
-        if len(evtx_files) < 1:
-            self.logger().debug("{} matches not found in filesystem".format(regex_search))
-            return ''
-        if len(evtx_files) > 1:
-            self.logger().warning("More than one file matches {}. Only parsing the file {}".format(regex_search, evtx_files[0]))
+        rgx = re.compile(regex_search, re.I)
+        for evtx_file in os.listdir(path):
+            if rgx.search('/' + evtx_file):  # some regex patterns assume '/' to determine start
+                return os.path.join(path, evtx_file)
 
-        return os.path.join(self.myconfig('casedir'), evtx_files[0])
+        self.logger().debug('No evtx file found in {} with name expression {}'.format(path, regex_search))
+        return
 
 
 class ParseEvents(EventJob):
@@ -170,6 +165,7 @@ class ParseEvents(EventJob):
         json_file = self.config.config[self.config.job_name]['json_conf']
 
         path = self.get_evtx(path, os.path.basename(json_file).replace('json', 'evtx'))
+        self.logger().debug('Parsing event log {}'.format(path))
         if not path:
             return []
 
@@ -288,12 +284,12 @@ class Security(EventJob):
         LogonTypeStr = {'0': 'Unknown (0)',
                         '1': 'Unknown (empty)',
                         '2': 'Local',
-                        '3': 'SMB',
+                        '3': 'Network',
                         '5': 'Service',
                         '7': 'Unlock',
                         '8': 'NetworkCleartext',
                         '9': 'NewCredentials',
-                        '10': 'Remote',
+                        '10': 'RemoteInteractive',
                         '11': 'CachedInteractive',
                         '12': 'Cached remote interactive',
                         '13': 'Cached unlock'}
@@ -358,6 +354,7 @@ class RDPLocal(EventJob):
         Attrs:
             path (str): Absolute path to Microsoft-Windows-TerminalServices-LocalSessionManager%4Operational.evtx
         """
+
         path = self.get_evtx(path, r"/Microsoft-Windows-TerminalServices-LocalSessionManager%4Operational.evtx$")
         if not path:
             return []

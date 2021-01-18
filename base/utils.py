@@ -206,6 +206,16 @@ def generate_id(data=None):
         return uuid.uuid4()
 
 
+def human_readable_size(num):
+    """ Converts bytes to human readable magnitudes """
+
+    for unit in ['', 'K', 'M', 'G', 'T', 'P']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s" % (num, unit)
+        num /= 1024.0
+    return "%.1f%s" % (num, 'Yi')
+
+
 class MirrorOptions(base.job.BaseModule):
     """ Return the value of the local options.
 

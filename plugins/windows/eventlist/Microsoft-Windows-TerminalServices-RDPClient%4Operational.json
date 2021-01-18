@@ -34,11 +34,11 @@
     }
   },
   "1027": {
-    "description": "Connected to domain X with sessionRDP Y",
+    "description": "Connected to domain {EventData[DomainName]} with sessionRDP {EventData[SessionId]}",
     "provider": "Microsoft-Windows-TerminalServices-ClientActiveXCore",
     "path": {
       "EventData": {
-        "Name": ["DomainName", "SessionID"],
+        "Name": ["DomainName", "SessionId"],
         "transform": {"DomainName": "destination.domain"}
       },
       "System/Correlation/#attributes":{
@@ -47,7 +47,7 @@
     }
   },
   "1029": {
-    "description": "Base64(SHA256(UserName)) is",
+    "description": "Base64(SHA256(UserName)) is {EventData[TraceMessage]}",
     "provider": "Microsoft-Windows-TerminalServices-ClientActiveXCore",
     "path": {
       "EventData": {
@@ -82,7 +82,7 @@
     }
   },
   "1105": {
-    "description": "The multi-transport connection has been disconnected.",
+    "description": "The multi-transport connection has been disconnected",
     "provider": "Microsoft-Windows-TerminalServices-ClientActiveXCore",
     "path": {
       "EventData": {
