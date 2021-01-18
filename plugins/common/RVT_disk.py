@@ -317,7 +317,7 @@ class EncaseImage(BaseImage):
 
 class VHDXImage(BaseImage):
     """ Manages a VHDX image (VmWare)
-    
+
     Params:
         - nbd-device: the device to mount. Defaults to /dev/ndb0 """
 

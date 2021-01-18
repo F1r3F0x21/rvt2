@@ -68,7 +68,7 @@ def get_esclient(config, config_section='indexer', logger=logging):
 
     Returns:
         An elasticsearch.Elasticsearch object
-        
+
     Configuration section:
         :es_hosts:
         :es_sslverify:
@@ -80,8 +80,8 @@ def get_esclient(config, config_section='indexer', logger=logging):
     Raises:
         base.job.RVTError if any of the server is available
     """
-    
-    es_sslverify = config.get_boolean(config_section, 'es_sslverify', False)
+
+    es_sslverify = config.get_boolean(config_section, 'es_sslverify', True)
     es_username = config.get(config_section, 'es_username', '')
     es_password = config.get(config_section, 'es_password', '')
     es_hosts = config.get(config_section, 'es_hosts', 'http://localhost:9200')

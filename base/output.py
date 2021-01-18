@@ -237,13 +237,13 @@ class MDTableSink(BaseSink):
     def read_config(self):
         super().read_config()
         self.set_default_config('fieldnames', [])
-        # self.set_default_config('sorted', True)
+        self.set_default_config('file_exists', 'APPEND')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
         outputfile = self._outputfile()
 
-        fields = self.myconfig('fieldnames')
+        fields = self.myarray('fieldnames')
         act = {field: '' for field in fields}
 
         outputfile.write("|".join(fields))
@@ -268,6 +268,7 @@ class MDTableSink(BaseSink):
                 else:
                     self.logger().warning('%s: %s', exc, fileinfo.get('path', ''))
 
+        outputfile.write("\n")  # Prepare room for next table in case appending outputs
         try:
             if not outputfile == sys.stdout:
                 outputfile.close()

@@ -4,7 +4,6 @@
     "provider": "Microsoft-Windows-User Profiles Service",
     "category": ["authentication"],
     "type": ["start"],
-    "action": "Received user logon notification on session X",
     "path": {
       "EventData":{
         "Name": ["Session"]

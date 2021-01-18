@@ -22,7 +22,6 @@ import urllib.parse
 from os.path import splitext
 import base.job
 
-
 # ECS Reference: https://www.elastic.co/guide/en/ecs/current/ecs-field-reference.html
 # There are 4 categorization fields for events: event.kind, event.category, event.type, event.outcome
 # At least the first 3 should be defined for every event
@@ -105,9 +104,25 @@ def decompose_url(full_url):
     return new_fields
 
 
-def sanitize_dashes(value):
-    """ Some Elastic fields format do not accept '-' as value """
-    return (value if value != '-' else None)
+def sanitize_ip(value):
+    """ Adapt IP fields to Elastic IPv4 or IPv6 addresses format (see https://www.elastic.co/guide/en/elasticsearch/reference/current/ip.html)
+
+    Possible inputs to convert:
+    - `-` --> Retrun empty
+    - [123.123.123.123]  --> Remove brackets
+    - 123.123.123.123::1980 --> Ports are treated as separated field
+
+    Returns tuple (ip, port)
+    """
+
+    if value == '-':
+        return (None, None)
+    value.replace('[', '').replace(']', '')
+    if value.find(':') != -1:
+        ip = value.split(':')[0]
+        port = value.split(':')[-1]
+        return ip, port
+    return value, None
 
 
 class SuperTimeline(base.job.BaseModule):
@@ -475,8 +490,8 @@ class EventLogs(SuperTimeline):
                 'event.provider': d['event.provider']
             })
 
-            common['message'] = d.get('description', "Event Code: {} ({})".format(d['event.code'], d['event.dataset']))
-            parsed_fields = set(['event.created', 'event.code', 'event.dataset', 'event.provider', 'description'])
+            common['message'] = d.get('message', "Event Code: {} ({})".format(d['event.code'], d['event.dataset']))
+            parsed_fields = set(['event.created', 'event.code', 'event.dataset', 'event.provider', 'message'])
 
             # Optional fields
             for field in ['event.category', 'event.type', 'event.action', 'process.pid', 'process.thread.id']:
@@ -491,8 +506,13 @@ class EventLogs(SuperTimeline):
             for field in [f for f in d if f not in parsed_fields]:
                 if field == 'url':  # in conflict with ECS
                     field = 'url.full'
-                elif field.endswith('ip') or field.endswith('port'):
-                    d[field] = sanitize_dashes(d[field])
+                elif field.endswith('ip'):
+                    ip, port = sanitize_ip(d[field])
+                    d[field] = ip
+                    if port:
+                        d[field[:-2] + 'port'] = port
+                elif field.endswith('port'):
+                    d[field] = d[field] if d[field] != '-' else None
                 if field.startswith('data.'):
                     common.update({'event.{}'.format(field): d[field]})
                 else:
@@ -530,6 +550,78 @@ class Prefetch(SuperTimeline):
                     common['@timestamp'] = common['process.start'] = to_iso_format(d[field])
                     common['executable.run_time'] = t
                     yield common
+
+
+class Amcache(SuperTimeline):
+    """ Converts amcache execution times to events. After this, you can save this file using events.save.
+    """
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                'tags': ['execution'],
+                'event.category': ['package'],
+                'event.module': 'registry',
+                'event.dataset': 'amcache',
+                'registry.hive': 'amcache',
+                'process.executable': d['AppPath'],
+                'file.hash.sha1': d['Sha1Hash'],
+                'event.data.volume_GUID': d['GUID']
+            })
+
+            for time_field, action, message, ev_type in zip(
+                    ['KeyLastWrite', 'Created', 'LastModified'],
+                    ['application-first-executed', 'application-created', 'application-last-modified'],
+                    ['First execution of process: {}', 'Creation of executable file {}', 'Last modification of executable file {}'],
+                    ['start', 'creation', 'change']):
+                if d[time_field] == '1601-01-01 00:00:00':
+                    continue
+                common.update({
+                    '@timestamp': to_iso_format(d['KeyLastWrite']),
+                    'event.action': action,
+                    'message': message.format(d['AppPath']),
+                    'event.type': [ev_type]
+                })
+                yield common
+
+
+class AppCompatCache(SuperTimeline):
+    """ Converts AppCompatCache/Shimcache to events. After this, you can save this file using events.save.
+
+    Configuration section:
+        - **classify**: If True, categorize the files in the output.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('classify', 'False')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        for d in self.from_module.run(path):
+            common = self.common_fields()
+            common.update({
+                '@timestamp': to_iso_format(d['Time']),
+                'tags': ['appcompat'],
+                'event.category': ['file'],
+                'event.type': ['start'],
+                'event.module': 'registry',
+                'event.dataset': 'appcompat',
+                'registry.hive': 'system',
+                'event.action': 'file-modified',
+                'message': 'File modified: ' + d['Application'],
+                'process.executable': d['Application']
+            })
+
+            if d.get('Executed', ''):
+                common['process.executed'] = d['Executed']
+
+            yield common
 
 
 class UsnJrnl(SuperTimeline):
