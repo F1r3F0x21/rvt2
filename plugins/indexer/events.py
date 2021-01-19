@@ -500,6 +500,7 @@ class EventLogs(SuperTimeline):
                     parsed_fields.add(field)
 
             # EventData and UserData only exist in parsed event_logs when are not specific event codes
+            # All this fields aren't indexed due to Elastic total field limitations per index
             parsed_fields.update(['EventData', 'UserData'])
 
             # Selected data fields

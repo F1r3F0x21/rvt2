@@ -4,8 +4,8 @@
     "provider": "Microsoft-Windows-Bits-Client",
     "path": {
       "EventData":{
-        "Name": ["string", "string2", "string3"],
-        "transform": {"string": "Name", "string2": "Owner"}
+        "Name": ["string", "string2"],
+        "transform": {"string": "service.name", "string2": "user.name"}
       }
     }
   },
@@ -14,7 +14,8 @@
     "provider": "Microsoft-Windows-Bits-Client",
     "path": {
       "EventData":{
-        "Name": ["name", "url", "peer", "fileTime", "fileLength", "bytesTotal", "bytesTransferred"]
+        "Name": ["name", "url", "peer", "fileTime", "fileLength", "bytesTotal", "bytesTransferred"],
+        "transform": {"name": "service.name"}
       }
     }
   },
@@ -24,6 +25,7 @@
     "path": {
       "EventData":{
         "Name": ["name", "url", "peer", "fileTime", "fileLength", "bytesTotal", "bytesTransferred", "proxy"]
+        "transform": {"name": "service.name"}
       }
     }
   }

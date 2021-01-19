@@ -7,7 +7,8 @@
          "Name": ["KeyName"]
       },
       "System/Security/#attributes": {
-         "Name": ["UserID"]
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
       }
     }
   },
@@ -19,7 +20,8 @@
          "Name": ["KeyName"]
       },
       "System/Security/#attributes": {
-         "Name": ["UserID"]
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
       }
     }
   },
@@ -31,7 +33,8 @@
          "Name": ["Command"]
       },
       "System/Security/#attributes": {
-         "Name": ["UserID"]
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
       }
     }
   },
@@ -43,7 +46,8 @@
          "Name": ["Command", "PID"]
       },
       "System/Security/#attributes": {
-         "Name": ["UserID"]
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
       }
     }
   }

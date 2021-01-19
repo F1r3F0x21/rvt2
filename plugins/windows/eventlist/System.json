@@ -86,12 +86,14 @@
     }
   },
   "104":{
-    "description": "The X log file was cleared.",
+    "description": "The {UserData[LogFileCleared][Channel]} log file was cleared.",
     "provider": "Microsoft-Windows-Eventlog",
+    "type": ["deletion"],
+    "action": "file-deleted",
     "path": {
       "UserData/LogFileCleared": {
          "Name": ["SubjectUserName", "SubjectDomainName", "Channel"],
-         "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "Channel": "LogCleared"}
+         "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "Channel": "log.file.path"}
       }
     }
   },
@@ -103,11 +105,13 @@
   "6005":{
     "description": "Event log service was started",
     "provider": "EventLog",
+    "type": ["start"],
     "path": {"EventData": {"Name": ["Binary"]}}
   },
   "6006":{
     "description": "Event log service was stopped",
     "provider": "EventLog",
+    "type": ["end"],
     "path": {"EventData": {"Name": ["Binary"]}}
   },
   "6008":{
@@ -115,19 +119,32 @@
     "provider": "EventLog",
     "path": {"EventData": {"Name": ["Data"]}}
   },
-  "7034":{
-    "description": "Service crashed unexpectedly",
+  "7031":{
+    "description": "The {EventData[param1]} service terminated unexpectedly. It has done this {EventData[param2]} time(s). The following corrective action will be taken in {EventData[param3]} milliseconds. {EventData[param5]}",
     "provider": "Service Control Manager",
+    "type": ["error"],
+    "path": {
+      "EventData": {
+        "Name": ["param1", "param2", "param5"],
+        "transform": {"param1": "service.name", "param5": "event_data.following_action"}
+      }
+    }
+  },
+  "7034":{
+    "description": "{EventData[param1]} service terminated unexpectedly. It has done this {EventData[param2]} time(s).",
+    "provider": "Service Control Manager",
+    "type": ["error"],
     "path": {
       "EventData": {
         "Name": ["param1","param2"],
-        "transform": {"param1":"service.name", " param2":"n"}
+        "transform": {"param1":"service.name"}
       }
     }
   },
   "7036":{
-    "description": "The service entered the state {EventData[param2]}",
+    "description": "The {EventData[param1]} service entered the state {EventData[param2]}",
     "provider": "Service Control Manager",
+    "category": ["configuration"],
     "path": {
       "EventData": {
         "Name": ["param1", "param2"],
@@ -136,18 +153,22 @@
     }
   },
   "7040":{
-    "description": "The start type of the service was changed from disabled to auto start.",
+    "description": "The start type of the {EventData[param1]} service was changed from {EventData[param2]} to {EventData[param3]}",
     "provider": "Service Control Manager",
+    "category": ["configuration"],
     "path": {
       "EventData": {
         "Name": ["param1", "param2", "param3", "param4"],
-        "transform": {"param1": "service.name", "param2": "Old_Status", "param3": "New_Status"}
+        "transform": {"param1": "service.name", "param2": "service.previous_state", "param3": "service.state", "param4": "service.short_name"}
       }
     }
   },
   "7045":{
-    "description": "A service was installed in the system",
+    "description": "A new service was installed in the system",
     "provider": "Service Control Manager",
+    "category": ["configuration"],
+    "type": ["installation"],
+    "action": "service-installed",
     "path": {
       "EventData": {
         "Name": ["ServiceName", "ImagePath", "ServiceType", "StartType"],
@@ -159,7 +180,7 @@
     "description": "driver package is being installed",
     "provider": "Microsoft-Windows-DriverFrameworks-UserMode",
     "category": ["driver"],
-    "type": ["install"],
+    "type": ["installation"],
     "path": {
       "UserData/UMDFDeviceInstallBegin": {
          "Name": ["DeviceId"],
@@ -171,7 +192,7 @@
     "description": "Driver Management concluded the process to install driver",
     "provider": "Microsoft-Windows-UserPnp",
     "category": ["driver"],
-    "type": ["install"],
+    "type": ["installation"],
     "path": {
       "UserData/InstallDeviceID":{
         "Name": ["DeviceInstanceID", "DriverDescription"],
