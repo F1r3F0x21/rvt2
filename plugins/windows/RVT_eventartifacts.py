@@ -23,33 +23,6 @@ import base.job
 from base.utils import save_md_table
 
 
-def writemd(outfile, fields, eventlist, sorted=True):
-    """ writes md table sorting by first item and removing repeated rows
-    Args:
-        outfile (str): output filename
-        fields (list): list of fields
-        eventlist(list of lists): list of rows of table
-    """
-    fields_len = len(fields) - 1
-
-    act = [''] * fields_len  # init variable
-    with open(outfile, 'w') as fout:
-        fout.write("|".join(fields))
-        fout.write("\n")
-        fout.write("|".join(["-"] * fields_len))
-        fout.write("\n")
-        for e in eventlist:
-            repeated = True
-            for i in range(fields_len):
-                if e[i] != act[i]:
-                    repeated = False
-                act[i] = e[i]
-            if repeated:
-                continue
-            fout.write("|".join(e))
-            fout.write("\n")
-
-
 class Filter_Events(base.job.BaseModule):
     """ Filters events for generating a csv file """
 
@@ -61,7 +34,7 @@ class Filter_Events(base.job.BaseModule):
                 yield event
 
 
-class Logon_rdp(base.job.BaseModule):
+class LogonRDP(base.job.BaseModule):
     """ Extracts logon and rdp artifacts """
 
     def run(self, path=None):
@@ -79,7 +52,7 @@ class Logon_rdp(base.job.BaseModule):
             ev = dict()
             ev['TimeCreated'] = event.get('event.created', '')
             ev['EventID'] = event.get('event.code', '')
-            ev['Description'] = event.get('event.action', '')
+            ev['Description'] = event.get('message', '')
             ev['ActivityID'] = event.get('data.ActivityID', )
             ev['SessionID'] = event.get('data.SessionID', '')
             ev['ConnType'] = event.get('data.ConnType', '')
@@ -101,8 +74,8 @@ class Logon_rdp(base.job.BaseModule):
                 ev['ConnectionName'] = event.get('data.SessionName')
             if 'data.reasonStr' in event.keys():
                 ev['reasonStr'] = event['data.reasonStr']
-            elif 'data.Error' in event.keys():
-                ev['reasonStr'] = event['data.Error']
+            elif 'data.DisconnectReason' in event.keys():
+                ev['reasonStr'] = event['data.DisconnectReason']
             else:
                 ev['reasonStr'] = event.get('data.Reason', '')
             if 'source.user.name' in event.keys():
@@ -152,8 +125,8 @@ class Logon_rdp(base.job.BaseModule):
         Args;
             d0 (str): date 1
             d1 (str); date 2
-        Returs:
-            int: absolute values of d1 -d0
+        Returns:
+            int: absolute value of d1 - d0
         """
 
         if d1 == '-' or d0 in ('', '-'):
@@ -191,7 +164,7 @@ class Logon_rdp(base.job.BaseModule):
                 if v['LogonType'] in ("3", "4", "5"):
                     continue
                 if v['EventID'] == '4634':
-                    results.append([logon, ip, v['TimeCreated'], v['TargetUser']])
+                    results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser']})
                     logon = ''
                     ip = ''
                     continue
@@ -199,9 +172,12 @@ class Logon_rdp(base.job.BaseModule):
                     logon = v['TimeCreated']
                     ip = v['source.ip']
                 if e == ln:
-                    results.append([logon, ip, v['TimeCreated'], v['TargetUser']])
+                    results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser']})
 
-        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'logon_offs.md'), ['Login', 'IP', 'Logoff', 'User', 'Reason'], results)
+        save_md_table(results, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logon_offs.md'),
+                      fieldnames='Login IP Logoff User',
+                      file_exists='OVERWRITE')
 
     def extractRDP(self, actID):
 
@@ -220,7 +196,7 @@ class Logon_rdp(base.job.BaseModule):
                         act['reason'] = 'logoff succeeded'
                     insession = False
                     act['TargetUser'] = v['TargetUser']
-                    results.append([act.get('t0', '-'), act.get('subjectUser', ''), act.get('ip', ''), v['TimeCreated'], act.get('TargetUser', ''), act.get('reason', '')])
+                    results.append({'Login': act.get('t0', '-'), 'SubjectUser': act.get('subjectUser', ''), 'IP': act.get('ip', ''), 'Logoff': v['TimeCreated'], 'User': act.get('TargetUser', ''), 'Reason': act.get('reason', '')})
                     act = dict()
                     auxtime2 = v['TimeCreated']
                 elif v['EventID'] in ('39', '40'):
@@ -230,7 +206,7 @@ class Logon_rdp(base.job.BaseModule):
                         if self.__difTimestamp__(v["TimeCreated"], act['t0']) < 1:  # login event repeated
                             continue
                         else:  # unfinished event
-                            results.append([act.get('t0', '-'), act.get('subjectUser', ''), act.get('ip', ''), act.get('t1', ''), act.get('TargetUser', ''), act.get('reason', '')])
+                            results.append({'Login': act.get('t0', '-'), 'SubjectUser': act.get('subjectUser', ''), 'IP': act.get('ip', ''), 'Logoff': act.get('t1', ''), 'User': act.get('TargetUser', ''), 'Reason': act.get('reason', '')})
                     insession = True
                     act['t1'] = '-'
                     act['reason'] = ''
@@ -246,8 +222,11 @@ class Logon_rdp(base.job.BaseModule):
                     auxtime = v['TimeCreated']
 
             if ('t0' in act.keys() and act['t0'] not in ('', '-')) or ('t1' in act.keys() and act['t1'] not in ('', '-')):  # for writing unclosed event
-                results.append([act.get('t0', '-'), act.get('subjectUser', ''), act.get('ip', ''), act.get('t1', '-'), act.get('TargetUser', ''), act.get('reason', '')])
-        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'rdp.md'), ['Login', 'SubjecUser', 'IP', 'Logoff', 'User', 'Reason'], results)
+                results.append({'Login': act.get('t0', '-'), 'SubjectUser': act.get('subjectUser', ''), 'IP': act.get('ip', ''), 'Logoff': act.get('t1', '-'), 'User': act.get('TargetUser', ''), 'Reason': act.get('reason', '')})
+        save_md_table(results, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'rdp.md'),
+                      fieldnames='Login SubjectUser IP Logoff User Reason',
+                      file_exists='OVERWRITE')
 
 
 class RDPIncoming(base.job.BaseModule):
@@ -266,10 +245,8 @@ class RDPIncoming(base.job.BaseModule):
         for event in self.from_module.run(path):
             ev = dict()
             ev['EventID'] = event.get('event.code', '')
-            if ev['EventID'] in ['39', '40']:  # only events 23 and 24 are considered as termination
-                continue
             ev['TimeCreated'] = event.get('event.created', '')
-            ev['Description'] = event.get('event.action', '')
+            ev['Description'] = event.get('message', '')
             ev['User'] = event.get('destination.user.name', '')
             ev['SessionID'] = event.get('data.SessionID', '')
             ev['SourceAddress'] = event.get('source.address', '')
@@ -339,13 +316,11 @@ class RDPOutgoing(base.job.BaseModule):
             ev = dict()
             ev['TimeCreated'] = event.get('event.created', '')
             ev['EventID'] = event.get('event.code', '')
-            ev['Description'] = event.get('event.action', '')
-            ev['ActivityID'] = event.get('data.ActivityID', )
-            ev['Address'] = event.get('data.Value', '')
-            ev['Base64Hash'] = event.get('Base64Hash', '')
-            if ev['Address'] == '':
-                ev['Address'] = event.get('destination.address', '')
+            ev['Description'] = event.get('message', '')
+            ev['ActivityID'] = event.get('data.ActivityID', '')
+            ev['Address'] = event.get('destination.address', '')
             ev['user.id'] = event.get('user.id', '')
+            ev['Base64Hash'] = event.get('data.Base64Hash', '')
 
             if ev['ActivityID'] not in actID.keys():
                 actID[ev['ActivityID']] = []
@@ -385,7 +360,7 @@ class RDPOutgoing(base.job.BaseModule):
                     act['LogoffDate'] = '-'
                     writted = True
                 elif v['EventID'] == '1029' and 'B64Hash' not in act.keys():
-                    act['B64Hash'] = v.get('Base64Hash', '')
+                    act['B64Hash'] = v.get('data.Base64Hash', '')
             if not writted:
                 yield {
                     'LoginDate': act.get('LoginDate', '-'),
@@ -415,7 +390,7 @@ class Poweron(base.job.BaseModule):
             ev = dict()
             ev['TimeCreated'] = event.get('event.created', '')
             ev['EventID'] = event.get('event.code', '')
-            ev['Description'] = event.get('event.action', '')
+            ev['message'] = event.get('message', '')
             ev['reason'] = event.get('reasonStr', '')
             eventlist.append(ev)
 
@@ -487,12 +462,15 @@ class Network(base.job.BaseModule):
             flag = True
             for ev in net_down:
                 if ev['data.ConnectionId'] == e['data.ConnectionId'] and ev['event.created'] > e['event.created']:
-                    results.append([e['event.created'], ev['event.created'], e['data.SSID'], e['data.BSSID'], ev['data.Reason']])
+                    results.append({'WirelessUp': e['event.created'], 'WirelessDown': ev['event.created'], 'SSID': e['data.SSID'], 'MAC': e['data.BSSID'], 'Reason': ev['data.Reason']})
                     flag = False
                     break
             if flag:
-                results.append([e['event.created'], e['data.SSID'], e['data.BSSID']])
-        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'network.md'), ['Wireless Up', 'Wireless Down', 'SSID', 'MAC', 'Reason'], results)
+                results.append({'WirelessUp': e['event.created'], 'WirelessDown': '', 'SSID': e['data.SSID'], 'MAC': e['data.BSSID'], 'Reason': ''})
+        save_md_table(results, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'network.md'),
+                      fieldnames='WirelessUp WirelessDown SSID MAC Reason',
+                      file_exists='OVERWRITE')
 
 
 class USB(base.job.BaseModule):
@@ -521,12 +499,16 @@ class USB(base.job.BaseModule):
             flag = True
             for ev in plugoffs:
                 if ev['lifetime'] == e['lifetime'] and ev['instance'] == e['instance'] and ev['event.created'] > e['event.created']:
-                    results.append([e['event.created'], ev['event.created'], e['instance']])
+                    results.append({'Plugin': e['event.created'], 'Plugoff': ev['event.created'], 'Device': e['instance']})
                     flag = False
                     break
             if flag:
+                results.append({'Plugin': e['event.created'], 'Plugoff': '', 'Device': e['instance']})
                 results.append([e['event.created'], '', e['instance']])
-        writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'usb_plug.md'), ['Plugin', 'Plugoff', 'Device'], results)
+        save_md_table(results, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plug.md'),
+                      fieldnames='Plugin Plugoff Device',
+                      file_exists='OVERWRITE')
 
     def check(self, e, flag, plugins, plugoffs):
         """
@@ -581,10 +563,9 @@ class USBConnections(base.job.BaseModule):
                 e['data.device_id'] = ''
             results.append(e)
         save_md_table(results, config=None,
-                      outfile=os.path.join(self.config.config[self.config.job_name]['outdir'], 'usb_new.md'),
-                      fieldnames=['event.created', 'event.code', 'event.action', 'data.device_id'],
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_connections.md'),
+                      fieldnames='event.created event.code event.action data.device_id',
                       file_exists='OVERWRITE')
-        # writemd(os.path.join(self.config.config[self.config.job_name]['outdir'], 'usb_new.md'), ['event.created', 'event.code', 'event.action', 'data.device_id'], results)
 
     def del_close_events(self, ev_list, threshold=1000):
         # Delete unnecessary close events (threshold in milliseconds)
