@@ -19,6 +19,7 @@ import os
 import re
 import ast
 from evtx import PyEvtxParser
+
 import base.job
 
 
@@ -343,6 +344,12 @@ class System(EventJob):
                 ev["data.BootTypeStr"] = boot_type.get(ev["data.BootType"], "Unknown")
             if "data.Reason" in ev.keys():
                 ev["data.reasonStr"] = reason_sleep.get(ev.get('data.Reason'), 'Unknown')
+            if ev['event.code'] == '45058':
+                aux_var = ev.get('user_date', '').split(',')
+                ev['destination.user.name'] = aux_var[0][2:-1]
+                ev['data.lastLoginLocalTime'] = aux_var[1][:-1]
+                ev['message'] = 'A logon cache entry for user {} was the oldest entry and was removed. The timestamp of this entry was {}'.format(ev['destination.user.name'], ev['data.lastLoginLocalTime'])
+                ev.pop('user_date')
             yield ev
 
 

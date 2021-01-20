@@ -211,5 +211,15 @@
         "transform": {"DeviceInstanceId": "data.device_id", "ServiceName": "data.service_name"}
       }
     }
+  },
+  "45058":{
+    "description": "A logon cache entry for user X was the oldest entry and was removed. The timestamp of this entry was Y.",
+    "provider": "LsaSrv",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "user_date"}
+      }
+    }
   }
 }
