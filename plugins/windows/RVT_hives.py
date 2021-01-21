@@ -21,10 +21,11 @@ import dateutil.parser
 from collections import OrderedDict
 from Registry import Registry
 from Registry.RegistryParse import parse_windows_timestamp as _parse_windows_timestamp
+from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, save_csv
+from base.utils import check_directory, save_csv, relative_path
 from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetFiles
 from plugins.common.RVT_filesystem import FileSystem
@@ -38,6 +39,58 @@ def parse_windows_timestamp(value):
 
 
 WINDOWS_TIMESTAMP_ZERO = parse_windows_timestamp(0).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def get_hives(path):
+    """ Obtain the paths to all registry hives files present in a directory specified by `path`.
+
+    Arguments:
+        path (str): Hives location directory. Expected inputs:
+            - Directory where registry hive files are stored, such as 'Windows/System32/config/' or 'Windows/AppCompat/Programs/'
+            - Main volume directory --> Root directory, where 'Documents and Settings' or 'Users' folders are expected
+            - Custom folder containing hives. Warning: 'ntuser.dat' are expected to be stored in a username folder.
+
+    Returns:
+        regfiles (dict): Dictionary where keys are hive related names and values are the absolute paths to those hives.
+            In case of ntuser and usrclass hives, they are organized by username
+    """
+    regfiles = {}
+
+    # Common Hives
+    hive_names = {
+        'system': 'system',
+        'software': 'software',
+        'sam': 'sam',
+        'security': 'security',
+        'amcache.hve': 'amcache',
+        'syscache.hve': 'syscache'}
+
+    # Search only first level, not subfolders. File nams MUST BE the expected Windows hives names. If names had been changed, they will be ommited
+    for file in os.listdir(path):
+        for hive_file, hive_name in hive_names.items():
+            if file.lower() == hive_file:
+                regfiles[hive_name] = os.path.join(path, file)
+
+    # User hives
+    usr = []
+    regfiles["ntuser"] = {}
+    regfiles["usrclass"] = {}
+
+    # Recursive search in subdirectories. Username will be taken from the directory name where hive is found
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            for hve, hve_name in zip(['ntuser.dat', 'usrclass.dat'], ['ntuser', 'usrclass']):
+                if file.lower() == hve:
+                    user = relative_path(root, path).split('/')[0]
+                    if user not in regfiles[hve_name]:
+                        regfiles[hve_name][user] = os.path.join(root, file)
+                        usr.append(user)
+
+    if not regfiles['ntuser'] and not regfiles['usrclass']:
+        del regfiles['ntuser']
+        del regfiles['usrclass']
+
+    return regfiles
 
 
 class Amcache(base.job.BaseModule):
@@ -329,6 +382,77 @@ class AppCompat(base.job.BaseModule):
                 yield result
 
         return []
+
+
+class UserAssist(base.job.BaseModule):
+    """ Parses UserAssist registry key in NTUSER.DAT hive.
+
+    Configuration section:
+        - **wine_docker**: path to docker instance running wine
+        - **executable**: path to executable app to parse timeline. By default is using RECmd.exe in a dockerized Windows environment. See (https://ericzimmerman.github.io/#!index.md)
+        - **batch_file**: configuration file that settles the registry keys to be parsed
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('wine_docker', os.path.join(self.myconfig('rvthome'), 'somewhere_else', 'wine-docker'))
+        self.set_default_config('executable', os.path.join(self.myconfig('rvthome'), 'somewhere', 'RECmd.exe'))
+        self.set_default_config('batch_file', os.path.join(self.myconfig('rvthome'), 'somewhere', 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
+
+    def run(self, path=""):
+
+        # Take path from params if not provided as an argument
+        if not path:
+            path = self.myconfig('path')
+
+        regfiles = get_hives(path)
+
+        id = self.myconfig('volume_id', None)  # Volume identifier
+        if not regfiles:
+            self.logger().warning('No valid registry hives provided')
+            return []
+
+        output_path = self.myconfig('outdir')
+        check_directory(output_path, create=True)
+        for user in tqdm(regfiles['ntuser'], total=len(regfiles['ntuser']), desc=self.section):
+            output_filename = 'userassist_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
+
+            hive = regfiles['ntuser'][user]
+            cmd_args = (self.myconfig('winedocker'), 'wine', self.myconfig('executable'), '--bn', self.myconfig('batch_file'), '-f', hive, '--nl', '--csv', self.myconfig('outdir'), '--csvf', output_filename)
+            run_command(*cmd_args)
+
+        return []
+
+
+class UserAssistAnalysis(base.job.BaseModule):
+
+    def run(self, path=""):
+        """ Creates a report based on the output of UserAssist.
+
+            Arguments:
+                - ** path **: Path to directory where output files from UserAssist are stored
+        """
+        check_directory(path, error_missing=True)
+        outfile = self.myconfig('outfile')
+        check_directory(os.path.basename(outfile), create=True)
+
+        save_csv(self.report_userassist(path), config=self.config, outfile=outfile, quoting=0)
+
+        return []
+
+    def report_userassist(self, path):
+        """ Create a unique csv combining output from lnk and jumplists """
+
+        fields = ["LastExecuted", "ProgramName", "RunCounter", "FocusCount", "FocusTime"]
+
+        for file in sorted(os.listdir(path)):
+            # Expected file format: `userassist_user_partition.csv`
+            partition = file.split('_')[-1].split('.')[0]
+            user = file[11:-(len(partition) + 5)]
+            for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
+                res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                res.update({'User': user, 'Partition': partition})
+                yield res
 
 
 class TaskFolder(base.job.BaseModule):

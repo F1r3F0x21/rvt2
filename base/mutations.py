@@ -190,7 +190,7 @@ class ForEach(base.job.BaseModule):
 
 
 class SetFields(base.job.BaseModule):
-    """ Get data from from_module, set or update some if its fields and yield again.
+    """ Get data from from_module, set or update some of its fields and yield again.
 
     Module description:
         - **path**: not used, passed to *from_module*.
