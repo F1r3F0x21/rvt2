@@ -30,15 +30,15 @@ ${subtitle}# Users
 
 User|Creation date (UTC)|Last login/logoff (UTC)
 --|--|--
-% for u in os_info[p].get("users", []):
-${u[0]}|${u[1]}|${u[2]}
+% for u, user_data in os_info[p].get("users", {}).items():
+${u}|${user_data['creation_time']}|${user_data['last_write']}
 % endfor
 
 ${subtitle}# User profiles
 User|Creation date (UTC)|Last login/logoff (UTC)|SID
 --|--|--|--
-% for u in os_info[p].get("user_profiles", []):
-${u[0]}|${u[1]}|${u[2]}|${u[3]}
+% for u, user_data in os_info[p].get("user_profiles", {}).items():
+${u}|${user_data['creation_time']}|${user_data['last_write']}|${user_data['sid']}
 % endfor
 
 
