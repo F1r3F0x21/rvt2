@@ -174,13 +174,13 @@ class CharacterizeWindows(base.job.BaseModule):
                         line = f_in.readline()
                         aux = re.search(r"Account Created\s*:\s*(.*)\n", line)
                         if aux:
-                            date = datetime.datetime.strptime(aux.group(1), '%Y-%m-%d %H:%M:%SZ')
+                            date = self._parse_dates(aux.group(1))
                             users[username]['creation_time'] = date.strftime('%Y-%m-%d %H:%M:%S')
                             continue
                         aux = re.search(r"Last Login Date\s*:\s*(.*)\n", line)  # TODO: check this field is reliable
                         if aux:
                             if aux.group(1).find("Never") == -1:
-                                date = datetime.datetime.strptime(aux.group(1), '%Y-%m-%d %H:%M:%SZ')
+                                date = self._parse_dates(aux.group(1))
                                 users[username]['last_write'] = date.strftime('%Y-%m-%d %H:%M:%S')
                             else:
                                 users[username]['last_write'] = "Never"
@@ -206,7 +206,7 @@ class CharacterizeWindows(base.job.BaseModule):
                         if sid_search:
                             user_profiles[username]['sid'] = sid_search.group(1)
                         elif last_write_search:
-                            date = datetime.datetime.strptime(last_write_search.group(1), '%Y-%m-%d %H:%M:%SZ')
+                            date = self._parse_dates(last_write_search.group(1))
                             user_profiles[username]['last_write'] = date.strftime("%Y-%m-%d %H:%M:%S")
 
         # Get creation date from NTUSER.DAT if not found in profilelist
@@ -247,6 +247,19 @@ class CharacterizeWindows(base.job.BaseModule):
             ntusers[part].append([user, dates['b']])
 
         self.ntusers = ntusers
+
+    def _parse_dates(self, date_string):
+        """ Try different expected formats to get datetime object """
+        date_string = date_string.rstrip('Z').rstrip('(UTC)').strip()
+        possible_date_formats = ['%Y-%m-%d %H:%M:%S', '%a %b %d %H:%M:%S %Y']
+        for date_format in possible_date_formats:
+            try:
+                return datetime.datetime.strptime(date_string, date_format)
+            except ValueError:
+                pass
+        # Default answer
+        self.logger().debug('No correct date format found for {}'.format(date_string))
+        return datetime.datetime.min
 
     def get_information(self, item, partition='p01'):
         """ Get selected OS or user information by reading a previously defined json file where information is stored """

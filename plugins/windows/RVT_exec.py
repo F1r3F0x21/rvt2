@@ -213,7 +213,7 @@ class Prefetch(base.job.BaseModule):
 
 
 class RFC(base.job.BaseModule):
-    """ Parses RecentFileCache.bcf """
+    """ Parses RecentFileCache.bcf. It contains the path of binaries executed between the last execution date of ProgramDataUpdater and the current time"""
 
     def run(self, path=""):
         base_path = self.myconfig('outdir')

@@ -136,7 +136,8 @@ class Amcache(base.job.BaseModule):
             * GUID: Volume GUID the application was executed from
         """
 
-        # Hive subkeys may have different relevant subkeys depending on OS version
+        # Hive subkeys may have different relevant subkeys depending on OS version.
+        # File amcache.hve appears on Windows 8. Previous versions used the RecentFileCache.bcf. Use job windows.execution for parsing this file
         #   * {GUID}\\Root\\File
         #   * {GUID}\\Root\\Programs
         #   * {GUID}\\Root\\InventoryApplication
@@ -162,7 +163,8 @@ class Amcache(base.job.BaseModule):
             },
             'Windows Server 2019': {'1809': ['InventoryApplication', 'InventoryApplicationFile']},
             'Windows 8': {'': ['File']},
-            'Windows 8.1': {'': ['File']}
+            'Windows 8.1': {'': ['File']},
+            'Windows 7': {'default': ['InventoryApplication', 'InventoryApplicationFile']}
         }
         structures = {
             'File': self._parse_File_entries,
@@ -178,6 +180,9 @@ class Amcache(base.job.BaseModule):
             keys_to_search = version_to_search[os_version['SubVersion']]
         else:
             keys_to_search = version_to_search['default']
+        if not keys_to_search:
+            self.logger().info('Version {} has no known amcache keys'.format(os_version['Name']))
+            raise KeyError
 
         # Parse every relevant key
         found_key = None
