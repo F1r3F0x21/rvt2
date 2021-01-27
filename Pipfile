@@ -34,9 +34,10 @@ chardet = "*"
 pyyaml = "*"
 yara-python = "*"
 leveldb = "*"
-evtx = "*"
+evtx = "0.6.5"
 regipy = "*"
 python-cim = "*"
+setuptools-rust = "*"
 
 [dev-packages]
 sphinx = "*"
