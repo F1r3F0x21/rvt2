@@ -20,6 +20,7 @@ import json
 from collections import defaultdict
 import base.job
 from base.utils import check_directory, check_file
+from plugins.common.RVT_files import GetTimeline
 
 # TODO: Obtain last login from events instead of registry
 
@@ -47,7 +48,7 @@ class CharacterizeWindows(base.job.BaseModule):
         used_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'samparse', 'profilelist']
         self.plugin_files = {plug: p['file'] for plug in used_plugins for p in self.ripplugins if plug in p['plugins']}
         # Define self.ntusers, that gets the creation date of NTUSER.DAT for every user and partition
-        self.make_ntuser_timeline()
+        self.make_usrclass_timeline()
         self.os_info = defaultdict(dict)
         # Get OS and users information
         for part in self.partitions:
@@ -55,6 +56,10 @@ class CharacterizeWindows(base.job.BaseModule):
             self.users_information(part)
 
         self.logger().debug('Windows OS characterization finished')
+
+        # Save information in auxiliar file to be used by other modules
+        with open(os.path.join(self.config.config['plugins.windows']['auxdir'], 'os_info.json'), 'w') as outfile:
+            json.dump(self.os_info, outfile, indent=4)
 
         return [
             dict(os_info=self.os_info, source=self.myconfig('source'))
@@ -129,9 +134,9 @@ class CharacterizeWindows(base.job.BaseModule):
                     for line in f_in:
                         if line.startswith(field):
                             if plug == 'compname':
-                                self.os_info[part][field_names[field]] = line.split('= ')[1].rstrip('\n')
+                                self.os_info[part][field_names[field]] = line.split('= ')[1].rstrip('\n').strip()
                             else:
-                                self.os_info[part][field_names[field]] = line[len(field) + 3:].rstrip('\n')
+                                self.os_info[part][field_names[field]] = line[len(field) + 3:].rstrip('\n').strip()
                             break
 
     def users_information(self, part):
@@ -143,8 +148,10 @@ class CharacterizeWindows(base.job.BaseModule):
             return
 
         line = '  '
-        users = []
-        user_profiles = []
+        users = {'username': '', 'creation_time': '', 'last_log': ''}
+        users = {}
+        user_profiles = {'username': '', 'creation_time': '', 'last_log': '', 'sid': ''}
+        user_profiles = {}
         samparse_hivefile = os.path.join(self.hives_dir, '{}_{}.txt'.format(self.plugin_files['samparse'], part))
         profilelist_hivefile = os.path.join(self.hives_dir, '{}_{}.txt'.format(self.plugin_files['profilelist'], part))
 
@@ -154,7 +161,6 @@ class CharacterizeWindows(base.job.BaseModule):
 
         # Parse samparse
         with open(samparse_hivefile) as f_in:
-            # while not line.startswith('profilelist') and line != "":  ### NOOOO
             while not line.startswith('samparse'):  # anything before samparse uotput is ignored
                 line = f_in.readline()
 
@@ -162,22 +168,22 @@ class CharacterizeWindows(base.job.BaseModule):
                 line = f_in.readline()
                 aux = re.search(r"Username\s*:\s*(.*)\n", line)
                 if aux:
-                    user = [aux.group(1), "", ""]
+                    username = aux.group(1)
+                    users[username] = {'creation_time': '', 'last_write': ''}
                     while line != "\n":
                         line = f_in.readline()
                         aux = re.search(r"Account Created\s*:\s*(.*)\n", line)
                         if aux:
-                            date = datetime.datetime.strptime(aux.group(1), '%Y-%m-%d %H:%M:%SZ')
-                            user[1] = date.strftime('%Y-%m-%d %H:%M:%S')
+                            date = self._parse_dates(aux.group(1))
+                            users[username]['creation_time'] = date.strftime('%Y-%m-%d %H:%M:%S')
                             continue
                         aux = re.search(r"Last Login Date\s*:\s*(.*)\n", line)  # TODO: check this field is reliable
                         if aux:
                             if aux.group(1).find("Never") == -1:
-                                date = datetime.datetime.strptime(aux.group(1), '%Y-%m-%d %H:%M:%SZ')
-                                user[2] = date.strftime('%Y-%m-%d %H:%M:%S')
+                                date = self._parse_dates(aux.group(1))
+                                users[username]['last_write'] = date.strftime('%Y-%m-%d %H:%M:%S')
                             else:
-                                user[2] = "Never"
-                            users.append(user)
+                                users[username]['last_write'] = "Never"
                             break
 
         # Parse profilelist
@@ -189,52 +195,110 @@ class CharacterizeWindows(base.job.BaseModule):
             while not line.startswith('.' * 20):   # a large line of points marks the end of the plugin output
                 line = f_in.readline()
 
-            # while not line.startswith('....................') and line != "":   ### NOOOO
-                # line = f_in.readline()
                 aux = re.match(r"Path\s*:\s*.:.Users.(.*)", line.strip())
                 if aux:
-                    user = [aux.group(1), "", "", ""]  # username, creation_time, last_write, SID
+                    username = aux.group(1)
+                    user_profiles[username] = {'creation_time': '', 'last_write': '', 'sid': ''}
                     while line != "\n":
                         line = f_in.readline()
                         sid_search = re.search(r"SID\s*:\s*(.*)", line.strip())
                         last_write_search = re.search(r"LastWrite\s*:\s*(.*)", line.strip())
                         if sid_search:
-                            user[3] = sid_search.group(1)
+                            user_profiles[username]['sid'] = sid_search.group(1)
                         elif last_write_search:
-                            date = datetime.datetime.strptime(last_write_search.group(1), '%Y-%m-%d %H:%M:%SZ')
-                            user[2] = date.strftime("%Y-%m-%d %H:%M:%S")
-                            user_profiles.append(user)
+                            date = self._parse_dates(last_write_search.group(1))
+                            user_profiles[username]['last_write'] = date.strftime("%Y-%m-%d %H:%M:%S")
 
         # Get creation date from NTUSER.DAT if not found in profilelist
-        for i in user_profiles:
-            for j in self.ntusers[part]:
-                if i[0] == j[0] and i[1] == "":
-                    i[1] = j[1].strftime('%Y-%m-%d %H:%M:%S')
+        for user, data in user_profiles.items():
+            for ntusers_info in self.ntusers[part]:
+                if user == ntusers_info[0] and data['creation_time'] == "":
+                    data['creation_time'] = ntusers_info[1]
         self.os_info[part]["users"] = users
         self.os_info[part]["user_profiles"] = user_profiles
 
-    def make_ntuser_timeline(self):
-        """ Get user creation date from the birth time of NTUSER.dat """
+    def make_usrclass_timeline(self):
+        """ Get user creation date from the birth time of UsrClass.dat"""
 
+        # Check timeline existance. Is needed to determine user account creation time
         timeline_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), '{}_TL.csv'.format(self.myconfig('source')))
         if not check_file(timeline_file):
             self.logger().warning('Timeline file not found: {}'.format(timeline_file))
             self.ntusers = {}
             return
+
         ntusers = defaultdict(list)
-        with open(timeline_file, "r", encoding="iso8859-15") as tl_f:
-            for line in tl_f:
-                mo = re.search(r"mnt/(p\d+)/(?:Documents and settings|Users)/([^/]*)/(?:NTUSER|UsrClass)\.dat\"", line, re.IGNORECASE)
-                if mo is not None:
-                    part, user = mo.group(1), mo.group(2)
-                    line = line.split(',')
-                    if line[2][3] != 'b':
-                        continue
-                    if line[0].endswith("Z"):
-                        date = datetime.datetime.strptime(line[0], '%Y-%m-%dT%H:%M:%SZ')
-                    else:
-                        date = datetime.datetime.strptime(line[0], '%Y %m %d %a %H:%M:%S')
-                    if user not in ntusers[part]:
-                        ntusers[part].append((user, date))
+        # Get macb times of allUsrClass
+        ntuser_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:UsrClass)\.dat[\"\|]"], regex=True)
+        # ntuser_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:NTUSER|UsrClass)\.dat[\"\|]"], regex=True)
+
+        # Determine birth time
+        for filename, dates in ntuser_files.items():
+            # Expected file format: sourcename/mnt/p0X/full_path'
+            fn_parts = re.search(r"mnt/(p\d+)/(?:Documents and settings|Users)/([^/]*)(.*)/(?:NTUSER|UsrClass)\.dat", filename, re.IGNORECASE)
+            if fn_parts is None:
+                continue
+            part, user, middle_path = fn_parts.groups()
+            # Additional UsrClass.dat outside common locations will be ommited
+            if middle_path.lower() not in ('', '/appdata/local/microsoft/windows'):
+                self.logger().warning('Found extra user hive at {}. Consider analyzing this file separately'.format(filename))
+                continue
+
+            ntusers[part].append([user, dates['b']])
 
         self.ntusers = ntusers
+
+    def _parse_dates(self, date_string):
+        """ Try different expected formats to get datetime object """
+        date_string = date_string.rstrip('Z').rstrip('(UTC)').strip()
+        possible_date_formats = ['%Y-%m-%d %H:%M:%S', '%a %b %d %H:%M:%S %Y']
+        for date_format in possible_date_formats:
+            try:
+                return datetime.datetime.strptime(date_string, date_format)
+            except ValueError:
+                pass
+        # Default answer
+        self.logger().debug('No correct date format found for {}'.format(date_string))
+        return datetime.datetime.min
+
+    def get_information(self, item, partition='p01'):
+        """ Get selected OS or user information by reading a previously defined json file where information is stored """
+
+        self.logger().debug('Getting {} information about partition {}'.format(item, partition))
+        os_info_keys = ["productname", "currentversion", "installationtype", "editionid", "currentbuild", "productid", "registeredowner", "registeredorganization", "installdate", "shutdowntime", "timezone", "lastloggedon", "processorarchitecture", "computername"]
+        users_info_keys = ["users", "user_profiles"]
+        if item.lower() in os_info_keys:
+            default_output = ''
+        elif item.lower() in users_info_keys:
+            default_output = defaultdict(dict)
+        else:
+            raise base.job.RVTError('Selected item <{}> is not a recognized OS attribute'.format(item))
+
+        expected_auxfile = os.path.join(self.config.config['plugins.windows']['auxdir'], 'os_info.json')
+        if os.path.exists(expected_auxfile) and os.path.getsize(expected_auxfile) > 0:
+            with open(expected_auxfile, 'r') as infile:
+                info = json.load(infile)
+                return info.get(partition, defaultdict(dict)).get(item, default_output)
+        # return self.info.get(partition, defaultdict(dict)).get(item, default_output)
+        return default_output
+
+    def get_windows_version(self, partition='p01'):
+        """ Get general version information about partition OS.
+        It may be used in other modules to parse results according to OS version.
+
+        Returns:
+            versions (dict): Basic characterization of Windows version. Example: {'Name': 'Windows 10', 'SubVersion': '1809', 'Version': '10.0', 'BuildNumber': '17763', 'PublicRelease': '2018-11-13', 'RTMRelease': ''}
+        """
+        product = self.get_information("ProductName", partition)
+        server = True if product.find('Server') != -1 else False
+        # version = self.get_information("CurrentVersion", partition)
+        build = self.get_information("CurrentBuild", partition)
+
+        versions_file = os.path.join(self.config.config['windows']['plugindir'], 'windows_versions.json')
+        with open(versions_file, 'r') as infile:
+            info = json.load(infile)
+        for version in info:
+            if build == version['BuildNumber']:
+                is_server = True if version['Name'].find('Server') != -1 else False
+                if server == is_server:
+                    return version

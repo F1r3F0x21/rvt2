@@ -186,12 +186,14 @@ class GetTimeline(base.job.BaseModule):
         """ To be implemented if used as a module"""
         return []
 
-    def get_macb(self, file_list, timeline_body_file=None):
-        """Get macb times from timeline BODY file.
+    def get_macb(self, file_list, regex=False, timeline_body_file=None):
+        """Get macb times from timeline BODY file given filenames defined in 'file_list'
+        Admits regular expressions for the file search.
         Warning: Slow function. Use only with short or moderate list of files.
 
         Parameters:
-            file_list (list): List of files, relative to sourcedir, to be searched for
+            file_list (list): List of files, relative to sourcedir, to be searched for. Expected file format: sourcename/mnt/p0X/full_path'
+            regex (boolean)): If True, consider the file_list as regular expressions
             timeline_body_file (str): Path to timeline BODY file
 
         Returns:
@@ -204,8 +206,12 @@ class GetTimeline(base.job.BaseModule):
         Raises:
             IOError if timeline BODY file not found or empty
         """
-        # Expected file format: sourcename/mnt/p0X/full_path'
-        filename_list = ['/'.join(f.split('/')[3:]) for f in file_list]
+
+        if not regex:
+            search_command = 'grep "{regex}" "{path}"'  # Note that option -P is ommited. We are searching literal matches
+        else:
+            search_command = 'grep -iP "{regex}" "{path}"'
+            # filename_list = ['/'.join(f.split('/')[3:]) for f in file_list]
 
         if not timeline_body_file:
             timeline_body_file = os.path.join(self.config.config['plugins.windows']['timelinesdir'], '{}_BODY.csv'.format(self.myconfig('source')))
@@ -213,13 +219,12 @@ class GetTimeline(base.job.BaseModule):
         if not (os.path.exists(timeline_body_file) and os.path.getsize(timeline_body_file) > 0):
             raise IOError
 
-        search_command = 'grep "{regex}" "{path}"'  # Note that option -P is ommited. We are searching literal matches
-        module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=filename_list))
+        module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=file_list))
         dates = defaultdict(dict)
 
         # In case tqdm is not needed: for line in module.run(timeline_body_file):
-        # usually 2 matches per file. That's why 2 * len(filename_list). Later FILE_NAME is skipped
-        for line in tqdm(module.run(timeline_body_file), total=2 * len(filename_list), desc='Getting macb times'):
+        # usually 2 matches per file. That's why 2 * len(file_list). Later FILE_NAME is skipped
+        for line in tqdm(module.run(timeline_body_file), total=2 * len(file_list), desc='Getting macb times'):
             line = line['match'].split('|')
             filename = line[1]
             if filename.endswith(' ($FILE_NAME)'):  # Skip all FILE_NAME

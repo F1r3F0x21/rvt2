@@ -625,6 +625,38 @@ class AppCompatCache(SuperTimeline):
             yield common
 
 
+class CCM(SuperTimeline):
+    """ Converts SCCM Software Metering last executed applications to events. After this, you can save this file using events.save.
+    """
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                'tags': ['execution'],
+                'event.category': ['package'],
+                'event.module': 'ccm',
+                'event.dataset': 'cim',
+                'event.action': 'application-executed',
+                'event.type': ['start'],
+                'message': "Executed process: {}".format(d['ExplorerFileName']),
+            })
+
+            if not d['LastUsedTime']:
+                continue
+            common['@timestamp'] = to_iso_format(d['LastUsedTime'])
+
+            original_fields = ["FolderPath", "ExplorerFileName", "FileSize", "LastUserName", "LaunchCount", "OriginalFileName", "FileDescription", "ProductName", "ProductVersion"]
+            translations = ['package.path', 'process.executable', 'package.size', 'user.name', 'executable.run_count', 'package.original_file_name', 'package.description', 'package.name', 'package.version']
+            for original_field, translation in zip(original_fields, translations):
+                common[translation] = d[original_field]
+
+            yield common
+
+
 class UsnJrnl(SuperTimeline):
     """ Adapts windows usnjrnl to Elastic. After this, you can save this file using events.save.
     """

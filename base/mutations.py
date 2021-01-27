@@ -190,7 +190,7 @@ class ForEach(base.job.BaseModule):
 
 
 class SetFields(base.job.BaseModule):
-    """ Get data from from_module, set or update some if its fields and yield again.
+    """ Get data from from_module, set or update some of its fields and yield again.
 
     Module description:
         - **path**: not used, passed to *from_module*.
@@ -318,8 +318,4 @@ class GetFields(base.job.BaseModule):
         fields = ast.literal_eval(self.myconfig('fields'))
 
         for data in self.from_module.run(path):
-            newdata = {}
-            for item, val in data.items():
-                if item in fields:
-                    newdata[item] = val
-            yield newdata
+            yield {k: data.get(k, '') for k in fields}

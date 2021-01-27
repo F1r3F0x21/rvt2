@@ -227,11 +227,9 @@ class RegexFilter(base.job.BaseModule):
                     keyword_tag = keyword_regex = keyword_line.strip()
                 if not keyword_regex:
                     continue
-                self.logger().debug('Searching for keyword %s on file: %s', keyword_regex, path)
-
+                self.logger().debug('Searching for keyword {} on file: {}'.format(keyword_regex, path))
                 command = self.myconfig('cmd').format(regex=keyword_regex, path=relative_path(path, from_dir))
-                self.logger().debug("Running: cmd='%s', from_dir='%s'", command, from_dir if from_dir else os.getcwd())
-
+                self.logger().debug("Running: cmd='{}', from_dir='{}'".format(command, from_dir if from_dir else os.getcwd()))
                 with subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE) as proc:
                     for line in proc.stdout:
                         line = line.strip().decode(encoding)

@@ -23,8 +23,8 @@ from cim import CIM
 from cim.objects import Namespace
 
 import base.job
-from base.utils import check_folder, check_directory, save_csv, relative_path
-from plugins.common.RVT_files import GetFiles, GetTimeline
+from base.utils import check_directory, save_csv, relative_path
+from plugins.common.RVT_files import GetTimeline
 
 
 def parse_RFC_file(fname):
@@ -115,14 +115,13 @@ def parse_prefetch_file(pf_file):
 
 
 class Prefetch(base.job.BaseModule):
-    """ Parse prefetch """
+    """ Parse all prefetch files inside a directory"""
 
     def read_config(self):
         super().read_config()
         self.set_default_config('volume_id', None)
 
     def run(self, path=""):
-        self.vss = self.myflag('vss')
         self.volume_id = self.myconfig('volume_id', None)
         if self.volume_id is None:
             self.volume_id = relative_path(path, self.myconfig('casedir')).split("/")[-3]
@@ -136,7 +135,7 @@ class Prefetch(base.job.BaseModule):
     def parse_Prefetch(self, path):
         self.logger().debug("Parsing prefetch files")
 
-        base_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
+        base_path = self.myconfig('outdir')
         check_directory(base_path, create=True)
         # prefetch_dir = self.search.search(r"Windows/Prefetch$")
 
@@ -214,15 +213,18 @@ class Prefetch(base.job.BaseModule):
 
 
 class RFC(base.job.BaseModule):
-    """ Parses RecentFileCache.bcf """
+    """ Parses RecentFileCache.bcf. It contains the path of binaries executed between the last execution date of ProgramDataUpdater and the current time"""
 
     def run(self, path=""):
         base_path = self.myconfig('outdir')
-        check_folder(base_path)
+        check_directory(base_path, create=True)
+        volume_id = self.myconfig('volume_id', None)
+        if volume_id is None:
+            volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
 
         self.logger().debug("Parsing {}".format(path))
-        partition = relative_path(path, self.myconfig('casedir')).split("/")[2]
-        outfile = os.path.join(base_path, "rfc_{}.csv".format(partition))
+        out_file_id = '' if not volume_id else '_{}'.format(volume_id)
+        outfile = os.path.join(base_path, "rfc{}.csv".format(out_file_id))
         try:
             rfc = ({'Application': i} for i in parse_RFC_file(path))
             save_csv(rfc, config=self.config, outfile=outfile, quoting=0, file_exists='OVERWRITE')
@@ -235,18 +237,30 @@ class RFC(base.job.BaseModule):
 
 
 class CCM(base.job.BaseModule):
-    """ Module based on https://github.com/fireeye/flare-wmi/blob/master/python-cim/samples/show_CCM_RecentlyUsedApps.py """
+    """ Parses SCCM Software Metering history.
+        Module based on https://github.com/fireeye/flare-wmi/blob/master/python-cim/samples/show_CCM_RecentlyUsedApps.py
+    """
 
     def run(self, path=""):
-        # search = GetFiles(self.config, vss=self.myflag("vss"))
-        # self.dir_path = search.search('Windows/System32/wbem/Repository$')
 
-        self.vss = self.myflag('vss')
         self.type_ = 'win7'
 
-        result = self.show_CCM_RecentlyUsedApps(path)
-        for a in result:
-            yield a
+        # Parse CCM for recently used apps
+        results = self.show_CCM_RecentlyUsedApps(path)
+
+        # Organize output by volume
+        volume_id = self.myconfig('volume_id', None)
+        if volume_id is None:
+            volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
+        out_file_id = '' if not volume_id else '_{}'.format(volume_id)
+        csv_out = os.path.join(self.myconfig('outdir'), 'CCM{}.csv'.format(out_file_id))
+
+        # Write output files
+        if not results:
+            self.logger().info('No results obtained while parsing {}'.format(path))
+            return []
+        self.logger().debug('Saving output to file {}'.format(csv_out))
+        save_csv(results, config=self.config, outfile=csv_out, quoting=0, file_exists='OVERWRITE')
 
     def show_CCM_RecentlyUsedApps(self, path):
         if self.type_ not in ("xp", "win7"):
@@ -257,7 +271,6 @@ class CCM(base.job.BaseModule):
                   "FileVersion", "AdditionalProductCodes", "msiVersion", "msiDisplayName", "ProductCode",
                   "SoftwarePropertiesHash", "ProductLanguage", "FilePropertiesHash", "msiPublisher"]
 
-        # path = os.path.join(self.myconfig('casedir'), dir_path)
         c = CIM(self.type_, path)
         try:
             ret_items = []

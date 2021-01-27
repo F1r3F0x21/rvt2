@@ -21,13 +21,15 @@ import dateutil.parser
 from collections import OrderedDict
 from Registry import Registry
 from Registry.RegistryParse import parse_windows_timestamp as _parse_windows_timestamp
+from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, save_csv
+from base.utils import check_directory, save_csv, relative_path
 from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetFiles
 from plugins.common.RVT_filesystem import FileSystem
+from plugins.windows.RVT_os_info import CharacterizeWindows
 
 
 def parse_windows_timestamp(value):
@@ -38,6 +40,58 @@ def parse_windows_timestamp(value):
 
 
 WINDOWS_TIMESTAMP_ZERO = parse_windows_timestamp(0).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def get_hives(path):
+    """ Obtain the paths to all registry hives files present in a directory specified by `path`.
+
+    Arguments:
+        path (str): Hives location directory. Expected inputs:
+            - Directory where registry hive files are stored, such as 'Windows/System32/config/' or 'Windows/AppCompat/Programs/'
+            - Main volume directory --> Root directory, where 'Documents and Settings' or 'Users' folders are expected
+            - Custom folder containing hives. Warning: 'ntuser.dat' are expected to be stored in a username folder.
+
+    Returns:
+        regfiles (dict): Dictionary where keys are hive related names and values are the absolute paths to those hives.
+            In case of ntuser and usrclass hives, they are organized by username
+    """
+    regfiles = {}
+
+    # Common Hives
+    hive_names = {
+        'system': 'system',
+        'software': 'software',
+        'sam': 'sam',
+        'security': 'security',
+        'amcache.hve': 'amcache',
+        'syscache.hve': 'syscache'}
+
+    # Search only first level, not subfolders. File nams MUST BE the expected Windows hives names. If names had been changed, they will be ommited
+    for file in os.listdir(path):
+        for hive_file, hive_name in hive_names.items():
+            if file.lower() == hive_file:
+                regfiles[hive_name] = os.path.join(path, file)
+
+    # User hives
+    usr = []
+    regfiles["ntuser"] = {}
+    regfiles["usrclass"] = {}
+
+    # Recursive search in subdirectories. Username will be taken from the directory name where hive is found
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            for hve, hve_name in zip(['ntuser.dat', 'usrclass.dat'], ['ntuser', 'usrclass']):
+                if file.lower() == hve:
+                    user = relative_path(root, path).split('/')[0]
+                    if user not in regfiles[hve_name]:
+                        regfiles[hve_name][user] = os.path.join(root, file)
+                        usr.append(user)
+
+    if not regfiles['ntuser'] and not regfiles['usrclass']:
+        del regfiles['ntuser']
+        del regfiles['usrclass']
+
+    return regfiles
 
 
 class Amcache(base.job.BaseModule):
@@ -53,9 +107,9 @@ class Amcache(base.job.BaseModule):
         amcache_hives = [path] if path else self.search.search("Amcache.hve$")
         for am_file in amcache_hives:
             self.amcache_path = os.path.join(self.myconfig('casedir'), am_file)
-            partition = am_file.split("/")[2]
+            self.partition = am_file.split("/")[2]
             self.logger().debug("Parsing {}".format(am_file))
-            self.outfile = os.path.join(outfolder, "amcache_{}.csv".format(partition))
+            self.outfile = os.path.join(outfolder, "amcache_{}.csv".format(self.partition))
 
             try:
                 reg = Registry.Registry(os.path.join(self.myconfig('casedir'), am_file))
@@ -81,17 +135,63 @@ class Amcache(base.job.BaseModule):
             * LastModified: file modificatin time
             * GUID: Volume GUID the application was executed from
         """
-        # Hive subkeys may have two different subkeys
+
+        # Hive subkeys may have different relevant subkeys depending on OS version.
+        # File amcache.hve appears on Windows 8. Previous versions used the RecentFileCache.bcf. Use job windows.execution for parsing this file
         #   * {GUID}\\Root\\File
+        #   * {GUID}\\Root\\Programs
+        #   * {GUID}\\Root\\InventoryApplication
         #   * {GUID}\\Root\\InventoryApplicationFile
-        found_key = ''
-        structures = {'File': self._parse_File_entries, 'InventoryApplicationFile': self._parse_IAF_entries}
-        for key, func in structures.items():
+        entries_by_version = {
+            'Windows 10': {
+                '1507': ['Programs', 'File'],
+                '1511': ['Programs', 'File'],
+                '1607': ['InventoryApplication', 'InventoryApplicationFile'],
+                '1703': ['InventoryApplication', 'InventoryApplicationFile'],
+                '1709': ['InventoryApplication', 'InventoryApplicationFile'],
+                '1803': ['InventoryApplication', 'InventoryApplicationFile'],
+                '1809': ['InventoryApplication', 'InventoryApplicationFile'],
+                'default': ['InventoryApplication', 'InventoryApplicationFile'],
+            },
+            'Windows Server 2012': {
+                '': ['File'],
+                'R2': ['File']
+            },
+            'Windows Server 2016': {
+                '1607': ['InventoryApplication', 'InventoryApplicationFile'],
+                '1709': ['InventoryApplication', 'InventoryApplicationFile']
+            },
+            'Windows Server 2019': {'1809': ['InventoryApplication', 'InventoryApplicationFile']},
+            'Windows 8': {'': ['File']},
+            'Windows 8.1': {'': ['File']},
+            'Windows 7': {'default': ['InventoryApplication', 'InventoryApplicationFile']}
+        }
+        structures = {
+            'File': self._parse_File_entries,
+            'Programs': self._parse_Programs_entries,
+            'InventoryApplication': self._parse_IA_entries,
+            'InventoryApplicationFile': self._parse_IAF_entries
+        }
+
+        os_version = CharacterizeWindows(config=self.config).get_windows_version(partition=self.partition)
+        self.logger().debug('Detected OS version {} {} {}'.format(os_version['Name'], os_version['SubVersion'], os_version['BuildNumber']))
+        version_to_search = entries_by_version.get(os_version['Name'], {'default': []})
+        if os_version['SubVersion'] in version_to_search:
+            keys_to_search = version_to_search[os_version['SubVersion']]
+        else:
+            keys_to_search = version_to_search['default']
+        if not keys_to_search:
+            self.logger().info('Version {} has no known amcache keys'.format(os_version['Name']))
+            raise KeyError
+
+        # Parse every relevant key
+        found_key = None
+        for key in keys_to_search:
             try:
                 volumes = registry.open("Root\\{}".format(key))
                 found_key = key
                 self.logger().debug('Parsing entries in key: Root\\{}'.format(key))
-                for app in func(volumes):
+                for app in structures[key](volumes):
                     yield app
             except Registry.RegistryKeyNotFoundException:
                 self.logger().debug('Key "Root\\{}" not found'.format(key))
@@ -101,11 +201,14 @@ class Amcache(base.job.BaseModule):
 
     def _parse_File_entries(self, volumes):
         """ Parses File subkey entries for amcache hive """
+
         fields = {'LastModified': "17", 'Created': "12", 'AppPath': "15", 'AppName': "0", 'Sha1Hash': "101"}
         for volumekey in volumes.subkeys():
             for filekey in volumekey.subkeys():
-                app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppPath', ''), ('AppName', ''),
-                                   ('Sha1Hash', ''), ('Created', WINDOWS_TIMESTAMP_ZERO), ('LastModified', WINDOWS_TIMESTAMP_ZERO), ('GUID', '')])
+                app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppName', ''), ('AppPath', ''),
+                                   ('ProgramId', ''), ('Sha1Hash', ''), ('Version', ''), ('Size', ''),
+                                   ('Created', ''), ('LastModified', ''), ('Installed', ''), ('Uninstalled', ''), ('LinkDate', ''),
+                                   ('GUID', ''), ('Subkey', 'File')])
                 app['GUID'] = volumekey.path().split('}')[0][1:]
                 app['KeyLastWrite'] = filekey.timestamp()
                 for f in fields:
@@ -113,29 +216,94 @@ class Amcache(base.job.BaseModule):
                         val = filekey.value(fields[f]).value()
                         if f == 'Sha1Hash':
                             val = val[4:]
-                        elif f == 'LastModified' or f == 'Created':
+                        elif f in ['LastModified', 'Created']:
                             val = parse_windows_timestamp(val).strftime("%Y-%m-%d %H:%M:%S")
                         app.update({f: val})
                     except Registry.RegistryValueNotFoundException:
                         pass
                 yield app
 
-    def _parse_IAF_entries(self, volumes):
-        """ Parses InventoryApplicationFile subkey entries for amcache hive.
+    def _parse_Programs_entries(self, volumes):
+        """ Parses Programs subkey entries for amcache hive """
 
-        Yields: dict with keys'FirstRun','AppPath') """
-        names = {'LowerCaseLongPath': 'AppPath', 'FileId': 'Sha1Hash', 'ProductName': 'AppName'}
+        fields = {'AppName': "0", 'AppPath': "d", 'Version': "1", 'Installed': "a", 'Uninstalled': "b"}
         for volumekey in volumes.subkeys():
-            app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppPath', ''), ('AppName', ''),
-                               ('Sha1Hash', ''), ('LastModified', WINDOWS_TIMESTAMP_ZERO), ('GUID', '')])
+            for filekey in volumekey.subkeys():
+                app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppName', ''), ('AppPath', ''),
+                                   ('ProgramId', ''), ('Sha1Hash', ''), ('Version', ''), ('Size', ''),
+                                   ('Created', ''), ('LastModified', ''), ('Installed', ''), ('Uninstalled', ''), ('LinkDate', ''),
+                                   ('GUID', ''), ('Subkey', 'Programs')])
+                app['GUID'] = volumekey.path().split('}')[0][1:]
+                app['KeyLastWrite'] = filekey.timestamp()
+                for f in fields:
+                    try:
+                        val = filekey.value(fields[f]).value()
+                        if f in ['Installed', 'Uninstalled']:
+                            val = datetime.datetime.fromtimestamp(int(val)).strftime("%Y-%m-%d %H:%M:%S")
+                        app.update({f: val})
+                    except Registry.RegistryValueNotFoundException:
+                        pass
+                yield app
+
+    def _parse_IA_entries(self, volumes):
+        """ Parses InventoryApplication subkey entries for amcache hive """
+
+        names = {'RootDirPath': 'AppPath',
+                 'InstallDate': 'Installed',
+                 'ProgramId': 'ProgramId',
+                 'ProgramInstanceId': 'Sha1Hash',
+                 'Name': 'AppName',
+                 'Version': 'Version'}
+
+        for volumekey in volumes.subkeys():
+            app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppName', ''), ('AppPath', ''),
+                               ('ProgramId', ''), ('Sha1Hash', ''), ('Version', ''), ('Size', ''),
+                               ('Created', ''), ('LastModified', ''), ('Installed', ''), ('Uninstalled', ''), ('LinkDate', ''),
+                               ('GUID', ''), ('Subkey', 'InventoryApplication')])
             app['GUID'] = volumekey.path().split('}')[0][1:]
             app['KeyLastWrite'] = volumekey.timestamp()
             for v in volumekey.values():
-                if v.name() in ['LowerCaseLongPath', 'ProductName']:
+                if v.name() in ['RootDirPath', 'Name', 'Version']:
                     app.update({names.get(v.name(), v.name()): v.value()})
-                elif v.name() == 'FileId':
+                elif v.name() in ['ProgramID', 'ProgramInstanceId']:
                     sha = v.value()[4:]  # SHA-1 hash is registered 4 0's padded
                     app.update({names.get(v.name(), v.name()): sha})
+                elif v.name() == 'InstallDate':
+                    install_date = ''
+                    if v.value():
+                        install_date = datetime.datetime.strptime(v.value(), "%m/%d/%Y %H:%M:%S").strftime("%Y-%m-%dT%H:%M:%SZ")
+                    app.update({names.get(v.name(), v.name()): install_date})
+            yield app
+
+    def _parse_IAF_entries(self, volumes):
+        """ Parses InventoryApplicationFile subkey entries for amcache hive."""
+
+        names = {'LowerCaseLongPath': 'AppPath',
+                 'FileId': 'Sha1Hash',
+                 'ProductName': 'AppName',
+                 'Size': 'Size',
+                 'ProgramId': 'ProgramId',
+                 'LinkDate': 'LinkDate',
+                 'Version': 'Version'}
+
+        for volumekey in volumes.subkeys():
+            app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppName', ''), ('AppPath', ''),
+                               ('ProgramId', ''), ('Sha1Hash', ''), ('Version', ''), ('Size', ''),
+                               ('Created', ''), ('LastModified', ''), ('Installed', ''), ('Uninstalled', ''), ('LinkDate', ''),
+                               ('GUID', ''), ('Subkey', 'InventoryApplicationFile')])
+            app['GUID'] = volumekey.path().split('}')[0][1:]
+            app['KeyLastWrite'] = volumekey.timestamp()
+            for v in volumekey.values():
+                if v.name() in ['LowerCaseLongPath', 'ProductName', 'Size']:
+                    app.update({names.get(v.name(), v.name()): v.value()})
+                elif v.name() in ['FileId', 'ProgramId']:
+                    sha = v.value()[4:]  # SHA-1 hash is registered 4 0's padded
+                    app.update({names.get(v.name(), v.name()): sha})
+                elif v.name() == 'LinkDate':
+                    link_date = ''
+                    if v.value():
+                        link_date = datetime.datetime.strptime(v.value(), "%m/%d/%Y %H:%M:%S").strftime("%Y-%m-%dT%H:%M:%SZ")
+                    app.update({names.get(v.name(), v.name()): link_date})
             yield app
 
 
@@ -294,10 +462,10 @@ class SysCache(base.job.BaseModule):
             inode = line[1].split('/')[0]
             name = self.path_from_inode.get(inode, [''])[0]
             try:
-                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M%SZ")),
+                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
                                    ("Name", name), ("FileID", fileID), ("Sha1", line[2])])
             except Exception:
-                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M%SZ")),
+                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
                                    ("Name", name), ("FileID", fileID), ("Sha1", "")])
 
 
@@ -329,6 +497,77 @@ class AppCompat(base.job.BaseModule):
                 yield result
 
         return []
+
+
+class UserAssist(base.job.BaseModule):
+    """ Parses UserAssist registry key in NTUSER.DAT hive.
+
+    Configuration section:
+        - **wine_docker**: path to docker instance running wine
+        - **executable**: path to executable app to parse timeline. By default is using RECmd.exe in a dockerized Windows environment. See (https://ericzimmerman.github.io/#!index.md)
+        - **batch_file**: configuration file that settles the registry keys to be parsed
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('wine_docker', os.path.join(self.myconfig('rvthome'), 'somewhere_else', 'wine-docker'))
+        self.set_default_config('executable', os.path.join(self.myconfig('rvthome'), 'somewhere', 'RECmd.exe'))
+        self.set_default_config('batch_file', os.path.join(self.myconfig('rvthome'), 'somewhere', 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
+
+    def run(self, path=""):
+
+        # Take path from params if not provided as an argument
+        if not path:
+            path = self.myconfig('path')
+
+        regfiles = get_hives(path)
+
+        id = self.myconfig('volume_id', None)  # Volume identifier
+        if not regfiles:
+            self.logger().warning('No valid registry hives provided')
+            return []
+
+        output_path = self.myconfig('outdir')
+        check_directory(output_path, create=True)
+        for user in tqdm(regfiles['ntuser'], total=len(regfiles['ntuser']), desc=self.section):
+            output_filename = 'userassist_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
+
+            hive = regfiles['ntuser'][user]
+            cmd_args = (self.myconfig('winedocker'), 'wine', self.myconfig('executable'), '--bn', self.myconfig('batch_file'), '-f', hive, '--nl', '--csv', self.myconfig('outdir'), '--csvf', output_filename)
+            run_command(*cmd_args)
+
+        return []
+
+
+class UserAssistAnalysis(base.job.BaseModule):
+
+    def run(self, path=""):
+        """ Creates a report based on the output of UserAssist.
+
+            Arguments:
+                - ** path **: Path to directory where output files from UserAssist are stored
+        """
+        check_directory(path, error_missing=True)
+        outfile = self.myconfig('outfile')
+        check_directory(os.path.basename(outfile), create=True)
+
+        save_csv(self.report_userassist(path), config=self.config, outfile=outfile, quoting=0)
+
+        return []
+
+    def report_userassist(self, path):
+        """ Create a unique csv combining output from lnk and jumplists """
+
+        fields = ["LastExecuted", "ProgramName", "RunCounter", "FocusCount", "FocusTime"]
+
+        for file in sorted(os.listdir(path)):
+            # Expected file format: `userassist_user_partition.csv`
+            partition = file.split('_')[-1].split('.')[0]
+            user = file[11:-(len(partition) + 5)]
+            for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
+                res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                res.update({'User': user, 'Partition': partition})
+                yield res
 
 
 class TaskFolder(base.job.BaseModule):

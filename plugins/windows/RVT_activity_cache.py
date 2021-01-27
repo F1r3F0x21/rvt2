@@ -15,14 +15,45 @@
 
 
 import os
-from base.commands import run_command
-
-from base.utils import check_folder
-from plugins.common.RVT_files import GetFiles
 import base.job
+from base.utils import save_csv, relative_path, check_directory
+from base.commands import run_command
+from plugins.common.RVT_files import GetFiles
 
 
 class ActivitiesCache(base.job.BaseModule):
+
+    def run(self, path=""):
+        """ Parses activitiesCache.db
+        """
+
+        # Known folder GUIDs
+        # "https://docs.microsoft.com/en-us/dotnet/framework/winforms/controls/known-folder-guids-for-file-dialog-custom-places"
+        # Duration or totalEngagementTime += e.EndTime.Value.Ticks - e.StartTime.Ticks)
+        # https://docs.microsoft.com/en-us/uwp/api/windows.applicationmodel.useractivities
+        # StartTime: The start time for the UserActivity
+        # EndTime: The time when the user stopped engaging with the UserActivity
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+        base_path = self.myconfig('outdir')
+        check_directory(base_path, create=True)
+
+        # Load query
+        query_file = self.myconfig('query_file')
+        with open(query_file, 'r') as qf:
+            query = qf.read()
+
+        # Query db and create csv
+        rel_path = relative_path(os.path.abspath(path), self.myconfig('casedir'))
+        self.logger().debug("Parsing Activities Cache file {}".format(rel_path))
+        module = base.job.load_module(self.config, 'base.input.SQLiteReader', extra_config=dict(query=query))
+        outfile = os.path.join(base_path, 'activitycache_{}_{}.csv'.format(rel_path.split('/')[-2], rel_path.split('/')[2]))
+        save_csv(module.run(path), outfile=outfile, file_exists='OVERWRITE', quoting=1)
+
+        return []
+
+
+class ActivitiesCacheOld(base.job.BaseModule):
 
     def run(self, path=""):
         """ Parses activities cache
@@ -37,7 +68,7 @@ class ActivitiesCache(base.job.BaseModule):
             base_path = self.myconfig('voutdir')
         else:
             base_path = self.myconfig('outdir')
-        check_folder(base_path)
+        check_directory(base_path, create=True)
 
         activities = self.search.search("/ConnectedDevicesPlatform/.*/ActivitiesCache.db$")
 
