@@ -102,18 +102,18 @@ class Lnk(object):
             lnk.open(self.archive)
             lnk.set_ascii_codepage(self.encoding)
         except Exception as exc:
-            self.logger.warning("pylnk can't open file {}. {}".format(self.archive, exc))
+            self.logger.debug("pylnk can't open filename=%s error=%s", self.archive, exc)
             return -1
 
         try:
             drive = self.drive_type[str(lnk.get_drive_type())]
         except Exception as exc:
-            self.logger.debug("pylnk can't determine drive type for file {}. {}".format(self.archive, exc))
+            self.logger.debug("pylnk can't determine drive type for filename=%s error=%s", self.archive, exc)
             drive = ""
         try:
             machine_id = lnk.get_machine_identifier().rstrip('\x00')
         except Exception as exc:
-            self.logger.debug("pylnk can't get machine identifier for file {}. {}".format(self.archive, exc))
+            self.logger.debug("pylnk can't get machine identifier for filename=%s error=%s", self.archive, exc)
             machine_id = ""
 
         path = lnk.get_local_path()
@@ -137,12 +137,12 @@ class Lnk(object):
         try:
             network_path = lnk.get_network_path()
         except Exception as exc:
-            self.logger.debug("pylnk can't get network path. {}".format(exc))
+            self.logger.debug("pylnk can't get network path. error={}".format(exc))
             network_path = ""
         try:
             file_size = lnk.get_file_size()
         except Exception as exc:
-            self.logger.debug("pylnk can't get file size. {}".format(exc))
+            self.logger.debug("pylnk can't get file size. error={}".format(exc))
             file_size = -1
 
         try:
@@ -151,7 +151,7 @@ class Lnk(object):
             vol_objectID = lnk.get_droid_volume_identifier()
             b_vol_objectID = lnk.get_birth_droid_volume_identifier()
         except Exception as exc:
-            self.logger.debug("pylnk can't get file identifier. {}".format(exc))
+            self.logger.debug("pylnk can't get file identifier. error={}".format(exc))
             file_objectID, b_file_objectID, vol_objectID, b_vol_objectID = ['', '', '', '']
 
         file_times = [lnk.get_file_modification_time(), lnk.get_file_access_time(), lnk.get_file_creation_time()]
@@ -166,7 +166,7 @@ class Lnk(object):
             data = [drive, sn, machine_id, path, network_path, file_size, self.convertAttributes(lnk.get_file_attribute_flags()), lnk.get_description(),
                     lnk.get_command_line_arguments(), file_objectID, b_file_objectID, vol_objectID, b_vol_objectID, *file_times]
         except Exception as exc:
-            self.logger.warning("Lnk Error. {}".format(exc))
+            self.logger.debug("Lnk Error. error=%s", exc)
             return -1
         lnk.close()
         return data
@@ -241,7 +241,7 @@ class LnkParser(base.job.BaseModule):
             lnk = lnk.get_lnk_info()
 
             if lnk == -1:
-                self.logger().warning("Problems with file {}".format(abs_file))
+                self.logger().debug("Problems with file {}".format(abs_file))
                 yield OrderedDict(zip(headers, data[rel_file] + ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", rel_file]))
             else:
                 yield OrderedDict(zip(headers, data[rel_file] + lnk + [rel_file]))
@@ -267,7 +267,7 @@ class LnkParser(base.job.BaseModule):
             try:
                 ole = olefile.OleFileIO(jl)
             except Exception as exc:
-                self.logger().warning("Problems creating OleFileIO with file {}\n{}".format(jl, exc))
+                self.logger().debug("Problems creating OleFileIO with file {}\n{}".format(jl, exc))
                 continue
             try:
                 data = ole.openstream('DestList').read()
@@ -298,23 +298,23 @@ class LnkParser(base.job.BaseModule):
             try:
                 ole = olefile.OleFileIO(abs_jl)
             except Exception as exc:
-                self.logger().warning("Problems creating OleFileIO with file {}\n{}".format(abs_jl, exc))
+                self.logger().debug("Problems creating OleFileIO with filename={} error={}".format(abs_jl, exc))
                 continue
 
             if not ole.exists('DestList'):
-                self.logger().warning("File {} does not have a DestList entry and can't be parsed".format(abs_jl))
+                self.logger().debug("File {} does not have a DestList entry and can't be parsed".format(abs_jl))
                 ole.close()
                 continue
             else:
                 if not (len(ole.listdir()) - 1):
-                    self.logger().warning("Olefile has detected 0 entries in file {}\nFile will be skipped".format(abs_jl))
+                    self.logger().debug("Olefile has detected 0 entries in filename={}. File will be skipped".format(abs_jl))
                     ole.close()
                     continue
 
                 dest = ole.openstream('DestList')
                 data = dest.read()
                 if len(data) == 0:
-                    self.logger().warning("No DestList data in file {}\nFile will be skipped".format(abs_jl))
+                    self.logger().debug("No DestList data in filename={}. File will be skipped".format(abs_jl))
                     ole.close()
                     continue
                 self.logger().debug("DestList lenght: {}".format(ole.get_size("DestList")))
@@ -324,7 +324,7 @@ class LnkParser(base.job.BaseModule):
                     current_entries, pinned_entries = struct.unpack("<LL", data[4:12])
                     self.logger().debug("Current entries: {}".format(current_entries))
                 except Exception as exc:
-                    self.logger().warning("Problems unpacking header Destlist with file {}\n{}".format(abs_jl, exc))
+                    self.logger().debug("Problems unpacking header Destlist with filename={} error={}".format(abs_jl, exc))
                     # continue
 
                 ofs = 32  # Header offset
@@ -338,8 +338,8 @@ class LnkParser(base.job.BaseModule):
                         try:
                             name = stream[72:88].decode("cp1252")
                         except Exception as exc:
-                            self.logger().info("cp1252 decoding failed")
-                            self.logger().warning("Problems decoding name with file {}\n{}".format(abs_jl, exc))
+                            self.logger().debug("cp1252 decoding failed")
+                            self.logger().debug("Problems decoding name with filename={} error={}".format(abs_jl, exc))
 
                     name = name.replace("\00", "")
 
@@ -347,7 +347,7 @@ class LnkParser(base.job.BaseModule):
                     try:
                         id_entry, = struct.unpack(id_entry_ofs[version][0], stream[id_entry_ofs[version][1]:id_entry_ofs[version][2]])
                     except Exception as exc:
-                        self.logger().warning("Problems unpacking id_entry with file {}\n{}".format(abs_jl, exc))
+                        self.logger().debug("Problems unpacking id_entry with filename={} error={}".format(abs_jl, exc))
                         # self.logger().debug(stream[id_entry_ofs[version][1]:id_entry_ofs[version][2]])
                         break
                     id_entry = format(id_entry, '0x')
@@ -356,7 +356,7 @@ class LnkParser(base.job.BaseModule):
                     try:
                         time0, time1 = struct.unpack("II", stream[100:108])
                     except Exception as exc:
-                        self.logger().warning("Problems unpacking MSFILETIME with file {}\n{}".format(abs_jl, exc))
+                        self.logger().debug("Problems unpacking MSFILETIME with filename={} error={}".format(abs_jl, exc))
                         break
 
                     timestamp = getFileTime(time0, time1)
@@ -366,7 +366,7 @@ class LnkParser(base.job.BaseModule):
                         sz, = struct.unpack("h", stream[sz_ofs[version][0]:sz_ofs[version][1]])
                         # self.logger().debug("sz: {}".format(sz))
                     except Exception as exc:
-                        self.logger().warning("Problems unpaking unicode string size with file {}\n{}".format(abs_jl, exc))
+                        self.logger().debug("Problems unpaking unicode string size with filename={} error={}".format(abs_jl, exc))
                         # self.logger().debug(stream[sz_ofs[version][0]:sz_ofs[version][1]])
                         break
 
@@ -381,7 +381,7 @@ class LnkParser(base.job.BaseModule):
                         try:
                             path = data[ofs:ofs + sz2].decode("iso8859-15")
                         except Exception as exc:
-                            self.logger().warning("Problems decoding path with file {}\n{}".format(abs_jl, exc))
+                            self.logger().debug("Problems decoding path with filename=%s error=%s", abs_jl, exc)
                     path = path.replace("\00", "")
 
                     temp = tempfile.NamedTemporaryFile()
@@ -390,8 +390,8 @@ class LnkParser(base.job.BaseModule):
                     try:
                         aux = ole.openstream(id_entry)
                     except Exception as exc:
-                        self.logger().warning("Problems with file {}\n{}".format(abs_jl, exc))
-                        self.logger().warning("ole.openstream failed")
+                        self.logger().debug("Problems with file filename=%s error=%s", abs_jl, exc)
+                        self.logger().debug("ole.openstream failed")
                         temp.close()
                         break
                     datos = aux.read()
@@ -574,7 +574,7 @@ class LnkExtractFolder(base.job.BaseModule):
             path (string): path with lnk files
         """
         if not os.path.isdir(path):
-            self.logger().warning("%s folder not exists" % path)
+            self.logger().debug("%s folder not exists", path)
             return
 
         print("drive_type|drive_sn|machine_id|path|network_path|size|atributes|description|command line arguments|f_mtime|f_atime|f_ctime|file")
@@ -586,7 +586,7 @@ class LnkExtractFolder(base.job.BaseModule):
 
             lnk = lnk.get_lnk_info()
             if lnk == -1:
-                self.logger().warning("Problems with file {}".format(f))
+                self.logger().debug("Problems with file {}".format(f))
                 print("|".join(["", "", "", "", "", "", "", "", "", "", "", "", f]))
                 print("|".join(["", "", "", "", "", ""]))
             else:
