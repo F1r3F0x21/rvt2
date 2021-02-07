@@ -69,6 +69,7 @@ class WhatsApp(plugins.ios.IOSModule):
         self.set_default_config('start_date', '')
         self.set_default_config('end_date', '')
         self.set_default_config('username', '')
+        self.set_default_config('localtime', True)
 
     def run(self, path):
         """
@@ -115,8 +116,9 @@ class WhatsApp(plugins.ios.IOSModule):
             Returns a cursor object
         """
 
+        localtime_str = ", 'localtime'" if self.myflag('localtime') else ""
         # Create custom view from tables ZWAMESSAGE, ZWAMESSAGEINFO, ZWACHATSESSION and ZWAMEDIAITEM
-        view_query = '''CREATE TEMPORARY VIEW messages AS
+        view_query = """CREATE TEMPORARY VIEW messages AS
                             SELECT
                                 ZWAMESSAGE.Z_PK,
                                 ZISFROMME,
@@ -124,8 +126,8 @@ class WhatsApp(plugins.ios.IOSModule):
                                 ZWAMESSAGE.ZPUSHNAME,
                                 ZWAMESSAGE.ZTOJID,
                                 ZWAMESSAGE.ZCHATSESSION,
-                                DATETIME(ZMESSAGEDATE + 978307200, 'unixepoch', 'localtime') AS ZMESSAGEDATE,
-                                DATETIME(ZSENTDATE + 978307200, 'unixepoch', 'localtime') AS ZSENTDATE,
+                                DATETIME(ZMESSAGEDATE + 978307200, 'unixepoch'{0}) AS ZMESSAGEDATE,
+                                DATETIME(ZSENTDATE + 978307200, 'unixepoch'{0}) AS ZSENTDATE,
                                 ZWAMESSAGE.ZTEXT,
                                 ZWAMESSAGEINFO.ZRECEIPTINFO,
                                 ZWAMESSAGE.ZMESSAGETYPE,
@@ -151,8 +153,8 @@ class WhatsApp(plugins.ios.IOSModule):
                                 ZWAMESSAGE.ZPUSHNAME,
                                 ZWAMESSAGE.ZTOJID,
                                 ZWAMESSAGE.ZCHATSESSION,
-                                DATETIME(ZMESSAGEDATE + 978307200, 'unixepoch', 'localtime') AS ZMESSAGEDATE,
-                                DATETIME(ZSENTDATE + 978307200, 'unixepoch', 'localtime') AS ZSENTDATE,
+                                DATETIME(ZMESSAGEDATE + 978307200, 'unixepoch'{0}) AS ZMESSAGEDATE,
+                                DATETIME(ZSENTDATE + 978307200, 'unixepoch'{0}) AS ZSENTDATE,
                                 ZTEXT,
                                 NULL,
                                 ZMESSAGETYPE,
@@ -169,7 +171,7 @@ class WhatsApp(plugins.ios.IOSModule):
                             INNER JOIN ZWACHATSESSION ON ZWACHATSESSION.Z_PK = ZWAMESSAGE.ZCHATSESSION
                             LEFT JOIN ZWAMEDIAITEM ON ZWAMESSAGE.Z_PK = ZWAMEDIAITEM.ZMESSAGE
                             WHERE ZWAMESSAGE.ZMESSAGEINFO IS NULL
-                            ORDER BY ZMESSAGEDATE;'''
+                            ORDER BY ZMESSAGEDATE;""".format(localtime_str)
 
         # Filter by dates and group
         query = 'SELECT * FROM messages'
@@ -248,7 +250,7 @@ class WhatsApp(plugins.ios.IOSModule):
         # Message for the several types
         message = "[System message: {}]".format(readable_type)
         if line[8] is not None:
-            message = line[8].replace("\n", " ")
+            message = self._sanitize_message(line[8])
 
         # Text quoting previous messages
         quote_message = ''
@@ -287,6 +289,14 @@ class WhatsApp(plugins.ios.IOSModule):
             quote=quote_message
         )
 
+    def _sanitize_message(self, message):
+        # Line breaks are explicit to avoid breaking the resulting csv. Mako template takes them as '<br '
+        message = message.replace("\n", "\\n")
+        # Unicode Character 'ZERO WIDTH JOINER' (U+200D) is erased to avoid writing problems
+        for unicode_troubling_symbol in ['\u200d', '\u202a', '\u202c']:
+            message = message.replace(unicode_troubling_symbol, '')
+        return message
+
     def get_media_filename(self, media_location, message_type, message_group):
         """ Get basename of media file related to message """
 
@@ -299,15 +309,21 @@ class WhatsApp(plugins.ios.IOSModule):
         if message_type in [1, 2, 3, 8, 11] and media_location is None:
             media_filename = '[System message: {}]: not found'.format(self.type_switcher[message_type])
 
+        media_outdir = self.myconfig('media_outdir').format(message_group=message_group)
+        base.utils.check_directory(media_outdir, create=True)
+
         if media_location is not None:
             for mediafolder in mediafolders:
-                if base.utils.check_file(os.path.join(mediafolder, media_location)):
-                    media_location = os.path.join(self.backup_dir, mediafolder, media_location)
-                    media_outdir = self.myconfig('media_outdir').format(message_group=message_group)
-                    base.utils.check_folder(media_outdir)
-                    media_filename = os.path.basename(media_location)
-                    # Copy media files in order to reference them in the same directory only by its basename
-                    shutil.copy2(os.path.join(mediafolder, media_location), os.path.join(media_outdir, media_filename))
+                resource_path = os.path.join(mediafolder, media_location)
+                # Sometimes only a thumbnail version is present:
+                resource_path_thumbnail = '.'.join(resource_path.split('.')[:-1]) + '.thumb'
+                # Copy media files in order to reference them in the same directory only by its basename
+                if base.utils.check_file(resource_path):
+                    media_filename = os.path.basename(resource_path)
+                    shutil.copy2(resource_path, os.path.join(media_outdir, media_filename))
+                elif base.utils.check_file(resource_path_thumbnail):
+                    media_filename = os.path.basename(resource_path_thumbnail)
+                    shutil.copy2(resource_path_thumbnail, os.path.join(media_outdir, media_filename))
 
         return media_filename
 
@@ -320,9 +336,11 @@ class WhatsApp(plugins.ios.IOSModule):
         try:
             plist = biplist.readPlistFromString(metadata)
             contact = plist['$objects'][3]
+
             if contact.find('@s.whatsapp.net') > 0:
                 message = plist['$objects'][4][2:].decode()  # first bit is ommited
-                return contact, message
+
+                return contact, self._sanitize_message(message)
             else:
                 return '', ''
         except Exception:
@@ -332,10 +350,11 @@ class WhatsApp(plugins.ios.IOSModule):
         try:
             recipient, message = metadata.split(b'@s.whatsapp.net')
             contact = recipient.split(b'\x1a')[-1] + b'@s.whatsapp.net'
+
             index = message.find(b'\n')
             if message[index + 2:].find(b'\x00') > -1:  # Some mistakes avoided
                 return '', ''
-            return contact.decode(), message[index + 2:].decode()
+            return contact.decode(), self._sanitize_message(message[index + 2:].decode())
         except Exception:
             return '', ''
 
