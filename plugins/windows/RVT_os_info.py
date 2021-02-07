@@ -209,7 +209,7 @@ class CharacterizeWindows(base.job.BaseModule):
                             date = self._parse_dates(last_write_search.group(1))
                             user_profiles[username]['last_write'] = date.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Get creation date from NTUSER.DAT if not found in profilelist
+        # Get creation date from usrclass.DAT if not found in profilelist
         for user, data in user_profiles.items():
             for ntusers_info in self.ntusers[part]:
                 if user == ntusers_info[0] and data['creation_time'] == "":
@@ -220,20 +220,17 @@ class CharacterizeWindows(base.job.BaseModule):
     def make_usrclass_timeline(self):
         """ Get user creation date from the birth time of UsrClass.dat"""
 
-        # Check timeline existance. Is needed to determine user account creation time
-        timeline_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), '{}_TL.csv'.format(self.myconfig('source')))
-        if not check_file(timeline_file):
-            self.logger().warning('Timeline file not found: {}'.format(timeline_file))
-            self.ntusers = {}
-            return
+        # Get macb times of all UsrClass. Used to determine user account creation time
+        try:
+            usrclass_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:UsrClass)\.dat[\"\|]"], regex=True)
+            # ntuser_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:NTUSER|UsrClass)\.dat[\"\|]"], regex=True)
+        except IOError:
+            self.ntusers = defaultdict(list)
+            return []
 
         ntusers = defaultdict(list)
-        # Get macb times of allUsrClass
-        ntuser_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:UsrClass)\.dat[\"\|]"], regex=True)
-        # ntuser_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:NTUSER|UsrClass)\.dat[\"\|]"], regex=True)
-
         # Determine birth time
-        for filename, dates in ntuser_files.items():
+        for filename, dates in usrclass_files.items():
             # Expected file format: sourcename/mnt/p0X/full_path'
             fn_parts = re.search(r"mnt/(p\d+)/(?:Documents and settings|Users)/([^/]*)(.*)/(?:NTUSER|UsrClass)\.dat", filename, re.IGNORECASE)
             if fn_parts is None:
@@ -291,7 +288,7 @@ class CharacterizeWindows(base.job.BaseModule):
         """
         product = self.get_information("ProductName", partition)
         server = True if product.find('Server') != -1 else False
-        # version = self.get_information("CurrentVersion", partition)
+        version = self.get_information("CurrentVersion", partition)
         build = self.get_information("CurrentBuild", partition)
 
         versions_file = os.path.join(self.config.config['windows']['plugindir'], 'windows_versions.json')
@@ -302,3 +299,7 @@ class CharacterizeWindows(base.job.BaseModule):
                 is_server = True if version['Name'].find('Server') != -1 else False
                 if server == is_server:
                     return version
+
+        # Default answer if version not in predefined list
+        self.logger().warning('OS Version not recognized. Run windows.characterize or update list of Windows versions')
+        return {'Name': product, 'SubVersion': '', 'Version': version, 'BuildNumber': build, 'PublicRelease': '', 'RTMRelease': ''}

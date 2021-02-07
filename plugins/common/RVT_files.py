@@ -207,17 +207,18 @@ class GetTimeline(base.job.BaseModule):
             IOError if timeline BODY file not found or empty
         """
 
+        if not timeline_body_file:
+            timeline_body_file = os.path.join(self.config.config['plugins.windows']['timelinesdir'], '{}_BODY.csv'.format(self.myconfig('source')))
+
+        if not (os.path.exists(timeline_body_file) and os.path.getsize(timeline_body_file) > 0):
+            self.logger().warning('Timeline file not found: {}'.format(timeline_body_file))
+            raise IOError
+
         if not regex:
             search_command = 'grep "{regex}" "{path}"'  # Note that option -P is ommited. We are searching literal matches
         else:
             search_command = 'grep -iP "{regex}" "{path}"'
             # filename_list = ['/'.join(f.split('/')[3:]) for f in file_list]
-
-        if not timeline_body_file:
-            timeline_body_file = os.path.join(self.config.config['plugins.windows']['timelinesdir'], '{}_BODY.csv'.format(self.myconfig('source')))
-
-        if not (os.path.exists(timeline_body_file) and os.path.getsize(timeline_body_file) > 0):
-            raise IOError
 
         module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=file_list))
         dates = defaultdict(dict)
