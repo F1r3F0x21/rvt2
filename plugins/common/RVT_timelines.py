@@ -14,8 +14,9 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
+import shlex
 from plugins.common.RVT_disk import getSourceImage
-from base.utils import check_directory
+from base.utils import check_directory, windows_format_path
 from base.commands import run_command
 import base.job
 
@@ -118,14 +119,10 @@ class MFTTimeline(base.job.BaseModule):
     Configuration:
         - **mactime**: Path to the mactime app (TSK)
         - **volume_id**: volume identifier, such as partition number. Ex: 'p03'
-        - **mft_tool**: name of the tool used to parse the MFT. Options: `MFTECmd` and `analyzeMFT`
-        - **wine_docker**: path to docker instance running wine
         - **executable**: path to executable app to parse timeline
         - **summary**: generate a summary of files by `time_range`
         - **time_range**: time range for buckets to split the timeline in the summary. Options: `hour` and `day`
     """
-
-    # TODO: bindings with docker
 
     def read_config(self):
         super().read_config()
@@ -133,50 +130,46 @@ class MFTTimeline(base.job.BaseModule):
         self.set_default_config('volume_id', 'p01')
         self.set_default_config('summary', True)
         self.set_default_config('time_range', 'hour')
-        self.set_default_config('mft_tool', 'MFTECmd')
-        self.set_default_config('wine_docker', self.config.config['plugins.common']['wine_docker'])
-        self.set_default_config('executable', self.config.config['plugins.common']['mftecmd'])
-        # self.set_default_config('wine_docker', os.path.join(self.myconfig('rvthome'), 'somewhere_else', 'wine-docker'))
-        # self.set_default_config('executable', os.path.join(self.myconfig('rvthome'), 'somewhere', 'MFTECmd.exe'))
+        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -f {mft_path} --body {outdir} --bodyf {filename} --bdl c --nl')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.mywindows']['windows_tools_dir'], 'MFTECmd.exe'))
 
     def run(self, path=""):
-
         self.check_params(path, check_from_module=False, check_path=True, check_path_exists=True)
         self.path = path
         tl_dir = self.myconfig('outdir')
-        check_directory(tl_dir)
+        check_directory(tl_dir, create=True)
 
         body_filename = "{}_BODY.csv".format(self.myconfig('source'))
-        if self.myconfig('mft_tool') == 'MFTECmd':
-            executable = self.myconfig('executable') if not self.myconfig('executable').endswith('analyzeMFT.py') else self.config.config['plugins.common']['mftecmd']
-            cmd_args = (self.myconfig('wine_docker'), 'wine', self.myconfig('executable'), '-f', self.path, '--body', tl_dir, '--bodyf', body_filename, '--dbl', 'c')
-            substitution = 'c:'
-        elif self.myconfig('mft_tool') == 'analyzeMFT':
-            executable = self.myconfig('executable') if not self.myconfig('executable').endswith('MFTECmd.exe') else self.config.config['plugins.common']['analyzemft']
-            cmd_args = (executable, '-f', self.path, '--bodystd', '--bodyfull', '-b', os.path.join(tl_dir, body_filename))
-            substitution = ''
-        else:
-            raise base.job.RVTError('Selected tool for parsing RVT not accepted: {}. Options: "MFTECmd" and "analyzeMFT"'.format(self.myconfig('mft_tool')))
 
-        self.logger().debug('Running MFT with params: {}; {}; {}; {}; {}; {}; {}'.format(path, tl_dir, body_filename, self.myconfig('mft_tool'), executable, self.myconfig('volume_id'), cmd_args))
+        # WARNING: Use cmd with caution. Anything can be executed
+        cmd = self.myconfig('cmd')
+        path_conversion = windows_format_path if self.myflag('windows_format') else lambda x, enclosed: '"' + x + '"'
+        cmd_vars = {'executable': path_conversion(self.myconfig('executable'), enclosed=True),
+                    'path': path_conversion(path, enclosed=True),
+                    'outdir': path_conversion(self.myconfig('outdir'), enclosed=True),
+                    'filename': body_filename}
+        cmd_args = shlex.split(cmd.format(**cmd_vars))
+        substitution = self.myconfig('drive_letter')
+
+        self.logger().debug('Running command: {}'.format(str(cmd_args)))
         self.generate_body(cmd_args)
         self.preceding_path(tl_dir, body_filename, substitution)
-        self.timeline_from_body(tl_dir, self.myflag('summary'), self.myconfig('time_range'))
+        self.timeline_from_body(tl_dir, body_filename, self.myflag('summary'), self.myconfig('time_range'))
         return []
 
     def generate_body(self, cmd_args):
-        # Generate body file
+        """ Generate body file """
         self.logger().debug("Generating BODY file for {}".format(self.path))
-        run_command(*cmd_args)
+        run_command(cmd_args)
 
     def preceding_path(self, tl_dir, body_filename, substitution='c:'):
-        # Modify preceding path
+        """ Modify preceding path """
         volume_id = self.myconfig('volume_id')
-        cmd = r"sed -i 's@\(\d*|{}\)\(.*\)@\1{}/mnt/{}\2@g' {}".format(substitution, self.myconfig('source'), volume_id, os.path.join(tl_dir, body_filename))
+        cmd = r"sed -i 's@\(\d*|\){}\(.*\)@\1{}/mnt/{}\2@g' {}".format(substitution, self.myconfig('source'), volume_id, os.path.join(tl_dir, body_filename))
         run_command(cmd)
 
     def timeline_from_body(self, tl_dir, body_filename, summary=True, time_range='hour'):
-        # Generate timeline and hour_sum
+        """ Generate timeline and summary of files by time_range """
         self.logger().debug("Creating timeline for {}".format(self.path))
         fcsv = os.path.join(tl_dir, "%s_TL.csv" % self.myconfig('source'))
         cmd = [self.myconfig('mactime'), "-b", os.path.join(tl_dir, body_filename), "-m", "-y", "-d"]

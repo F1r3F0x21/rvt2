@@ -307,7 +307,7 @@ class LnkParser(base.job.BaseModule):
                 continue
             else:
                 if not (len(ole.listdir()) - 1):
-                    self.logger().warning("Olefile has detected 0 entries in file {}\nFile will be skipped".format(abs_jl))
+                    self.logger().info("Olefile has detected 0 entries in file {}\nFile will be skipped".format(abs_jl))
                     ole.close()
                     continue
 

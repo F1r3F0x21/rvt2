@@ -18,6 +18,8 @@ import os
 import re
 import datetime
 import dateutil.parser
+import shlex
+import shutil
 from collections import OrderedDict
 from Registry import Registry
 from Registry.RegistryParse import parse_windows_timestamp as _parse_windows_timestamp
@@ -25,7 +27,7 @@ from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, save_csv, relative_path
+from base.utils import check_directory, save_csv, relative_path, windows_format_path
 from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetFiles
 from plugins.common.RVT_filesystem import FileSystem
@@ -97,28 +99,33 @@ def get_hives(path):
 class Amcache(base.job.BaseModule):
     """ Parses Amcache.hve registry hive. """
 
-    def run(self, path=""):
-        vss = self.myflag('vss')
-        self.search = GetFiles(self.config, vss=vss)
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
 
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.amcache_path = path
+
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        self.partition = id if id else 'p01'  # needed to get OS info
+        vss = self.myflag('vss')
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'amcache{}.txt'.format('_{}'.format(id) if id else ''))
 
-        amcache_hives = [path] if path else self.search.search("Amcache.hve$")
-        for am_file in amcache_hives:
-            self.amcache_path = os.path.join(self.myconfig('casedir'), am_file)
-            self.partition = am_file.split("/")[2]
-            self.logger().debug("Parsing {}".format(am_file))
-            self.outfile = os.path.join(outfolder, "amcache_{}.csv".format(self.partition))
+        self.logger().debug("Parsing {}".format(self.amcache_path))
 
-            try:
-                reg = Registry.Registry(os.path.join(self.myconfig('casedir'), am_file))
-                entries = self.parse_amcache_entries(reg)
-                save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
-            except KeyError:
-                self.logger().warning("Expected subkeys not found in hive file: {}".format(am_file))
-            except Exception as exc:
-                self.logger().warning("Problems parsing: {}. Error: {}".format(am_file, exc))
+        try:
+            reg = Registry.Registry(self.amcache_path)
+            entries = self.parse_amcache_entries(reg)
+            save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        except KeyError:
+            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+        except Exception as exc:
+            self.logger().warning("Problems parsing: {}. Error: {}".format(self.amcache_path, exc))
 
         self.logger().debug("Amcache.hve parsing finished")
         return []
@@ -174,8 +181,9 @@ class Amcache(base.job.BaseModule):
         }
 
         os_version = CharacterizeWindows(config=self.config).get_windows_version(partition=self.partition)
-        self.logger().debug('Detected OS version {} {} {}'.format(os_version['Name'], os_version['SubVersion'], os_version['BuildNumber']))
-        version_to_search = entries_by_version.get(os_version['Name'], {'default': []})
+        if os_version['Name']:
+            self.logger().debug('Processing OS version {} {} {}'.format(os_version['Name'], os_version['SubVersion'], os_version['BuildNumber']))
+        version_to_search = entries_by_version.get(os_version['Name'], {'default': ['InventoryApplication', 'InventoryApplicationFile', 'Programs', 'File']})
         if os_version['SubVersion'] in version_to_search:
             keys_to_search = version_to_search[os_version['SubVersion']]
         else:
@@ -197,7 +205,7 @@ class Amcache(base.job.BaseModule):
                 self.logger().debug('Key "Root\\{}" not found'.format(key))
 
         if not found_key:
-            raise KeyError
+            raise KeyError('None of the subkeys found in Amcache')
 
     def _parse_File_entries(self, volumes):
         """ Parses File subkey entries for amcache hive """
@@ -312,24 +320,28 @@ class ShimCache(base.job.BaseModule):
 
     # TODO: .sdb shim database files (ex: Windows/AppPatch/sysmain.sdb)
 
-    def run(self, path=""):
-        self.vss = self.myflag('vss')
-        self.search = GetFiles(self.config, vss=self.vss)
-        self.logger().debug("Parsing ShimCache from registry")
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
 
-        outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
-        SYSTEM = list(self.search.search(r"windows/System32/config/SYSTEM$"))
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.shimcache_path = path
+
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        self.partition = id if id else 'p01'  # needed to get OS info
+        vss = self.myflag('vss')
+        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'shimcache2{}.txt'.format('_{}'.format(id) if id else ''))
+
+        self.logger().debug("Parsing shimcache on {}".format(self.shimcache_path))
+
         check_directory(outfolder, create=True)
 
-        partition_list = set()
-        for f in SYSTEM:
-            aux = re.search(r"([vp\d]*)/windows/System32/config", f, re.I)
-            partition_list.add(aux.group(1))
-
-        output_files = {p: os.path.join(outfolder, "shimcache_%s.csv" % p) for p in partition_list}
-
-        for f in SYSTEM:
-            save_csv(self.parse_ShimCache_hive(f), outfile=output_files[f.split("/")[2]], file_exists='OVERWRITE', quoting=0)
+        save_csv(self.parse_ShimCache_hive(self.shimcache_path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
 
         self.logger().debug("Finished extraction from ShimCache")
         return []
@@ -339,7 +351,7 @@ class ShimCache(base.job.BaseModule):
         ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
         date_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
 
-        res = run_command([ripcmd, "-r", os.path.join(self.myconfig('casedir'), sysfile), "-p", "shimcache"], logger=self.logger())
+        res = run_command([ripcmd, "-r", sysfile, "-p", "shimcache"], logger=self.logger())
         for line in res.split('\n'):
             if ':' not in line[:4]:
                 continue
@@ -503,16 +515,17 @@ class UserAssist(base.job.BaseModule):
     """ Parses UserAssist registry key in NTUSER.DAT hive.
 
     Configuration section:
-        - **wine_docker**: path to docker instance running wine
-        - **executable**: path to executable app to parse timeline. By default is using RECmd.exe in a dockerized Windows environment. See (https://ericzimmerman.github.io/#!index.md)
-        - **batch_file**: configuration file that settles the registry keys to be parsed
+        - **cmd**: external command to parse userassist. It is a Python string template accepting variables "executable", "hive", "outdir", "filename" and "batch_file". Variables "hive" and "file
+name" are automatically set by the job. The rest are the same ones specified in parameters
+        - **executable**: path to executable app to parse UserAssist. By default is using RECmd.exe. See (https://ericzimmerman.github.io/#!index.md)
+        - **batch_file**: configuration file that settles the registry keys to be parsed. Relative to `windows_tools_dir`
     """
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('wine_docker', os.path.join(self.myconfig('rvthome'), 'somewhere_else', 'wine-docker'))
-        self.set_default_config('executable', os.path.join(self.myconfig('rvthome'), 'somewhere', 'RECmd.exe'))
-        self.set_default_config('batch_file', os.path.join(self.myconfig('rvthome'), 'somewhere', 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
+        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.mywindows']['windows_tools_dir'], 'RegistryExplorer/RECmd.exe'))
+        self.set_default_config('batch_file', os.path.join(self.config.config['plugins.mywindows']['windows_tools_dir'], 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
 
     def run(self, path=""):
 
@@ -527,14 +540,22 @@ class UserAssist(base.job.BaseModule):
             self.logger().warning('No valid registry hives provided')
             return []
 
-        output_path = self.myconfig('outdir')
-        check_directory(output_path, create=True)
+        check_directory(self.myconfig('outdir'), create=True)
+
+        cmd = self.myconfig('cmd')
+
         for user in tqdm(regfiles['ntuser'], total=len(regfiles['ntuser']), desc=self.section):
             output_filename = 'userassist_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
-
             hive = regfiles['ntuser'][user]
-            cmd_args = (self.myconfig('winedocker'), 'wine', self.myconfig('executable'), '--bn', self.myconfig('batch_file'), '-f', hive, '--nl', '--csv', self.myconfig('outdir'), '--csvf', output_filename)
-            run_command(*cmd_args)
+
+            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
+                        'batch_file': windows_format_path(self.myconfig('batch_file'), enclosed=True),
+                        'hive': windows_format_path(hive, enclosed=True),
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
+                        'filename': output_filename}
+            cmd_args = shlex.split(cmd.format(**cmd_vars))
+
+            run_command(cmd_args)
 
         return []
 
@@ -549,25 +570,111 @@ class UserAssistAnalysis(base.job.BaseModule):
         """
         check_directory(path, error_missing=True)
         outfile = self.myconfig('outfile')
-        check_directory(os.path.basename(outfile), create=True)
+        check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
 
         save_csv(self.report_userassist(path), config=self.config, outfile=outfile, quoting=0)
 
         return []
 
     def report_userassist(self, path):
-        """ Create a unique csv combining output from lnk and jumplists """
+        """ Create a unique userassist csv for all users """
 
         fields = ["LastExecuted", "ProgramName", "RunCounter", "FocusCount", "FocusTime"]
 
         for file in sorted(os.listdir(path)):
-            # Expected file format: `userassist_user_partition.csv`
-            partition = file.split('_')[-1].split('.')[0]
-            user = file[11:-(len(partition) + 5)]
-            for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
-                res = OrderedDict([(field, line.get(field, '')) for field in fields])
-                res.update({'User': user, 'Partition': partition})
-                yield res
+            if file.startswith('userassist'):
+                # Expected file format: `userassist_user_partition.csv`
+                partition = file.split('_')[-1].split('.')[0]
+                user = file[11:-(len(partition) + 5)]
+                for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
+                    res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                    res.update({'User': user, 'Partition': partition})
+                    yield res
+
+
+class Shellbags(base.job.BaseModule):
+    """ Parses Shellbags registry key in NTUSER.DAT and/or usrclass.dat hive.
+
+    Configuration section:
+        - **cmd**: external command to parse shellbags. It is a Python string template accepting variables "executable", "hives_dir" and "outdir". Variable "hives_dir" is deduced by the job from "path". The rest are the same ones specified in parameters
+        - **executable**: path to executable app to parse shellbags. By default is using SBECmd.exe. See (https://ericzimmerman.github.io/#!index.md)
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -d {hives_dir} --csv {outdir} --nl --dedupe')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.mywindows']['windows_tools_dir'], 'ShellBagsExplorer/SBECmd.exe'))
+
+    def run(self, path=""):
+
+        # Take path from params if not provided as an argument
+        if not path:
+            path = self.myconfig('path')
+
+        # Get NTUSER.DAT and UsrClass.dat hives path for every user
+        regfiles = get_hives(path)
+        usr_folders = {}
+        for user_hive in ['ntuser', 'usrclass']:
+            for user, hive in regfiles.get(user_hive, {}).items():
+                usr_folders[os.path.dirname(hive)] = user
+
+        id = self.myconfig('volume_id', None)  # Volume identifier
+        if not regfiles:
+            self.logger().warning('No valid registry hives provided')
+            return []
+
+        check_directory(self.myconfig('outdir'), create=True)
+
+        cmd = self.myconfig('cmd')
+
+        for hives_dir in tqdm(usr_folders, total=len(usr_folders), desc=self.section):
+            user = usr_folders[hives_dir]
+            # Only one user should own a folder with NTUSER.dat or UsrClasss.dat hives. Will overwrite if not.
+            output_filename = 'shellbags_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
+
+            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
+                        'hives_dir': windows_format_path(hives_dir, enclosed=True)}
+            cmd_args = shlex.split(cmd.format(**cmd_vars))
+            run_command(cmd_args)
+
+            # SBECmd.exe saves the output in a file called Deduplicated.csv. Change the name:
+            if os.path.exists(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv'):
+                shutil.move(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv'), output_filename)
+
+        return []
+
+
+class ShellbagsAnalysis(base.job.BaseModule):
+
+    def run(self, path=""):
+        """ Creates a report based on the output of Shellbags.
+
+            Arguments:
+                - ** path **: Path to directory where output files from Shellbags are stored
+        """
+        check_directory(path, error_missing=True)
+        outfile = self.myconfig('outfile')
+        check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
+
+        save_csv(self.report_shellbags(path), config=self.config, outfile=outfile, quoting=0)
+
+        return []
+
+    def report_shellbags(self, path):
+        """ Create a unique shellbags csv getting all users together """
+
+        fields = ["AbsolutePath", "CreatedOn", "ModifiedOn", "AccessedOn", "LastWriteTime", "FirstInteracted", "LastInteracted", "HasExplored"]
+
+        for file in sorted(os.listdir(path)):
+            if file.startswith('shellbags'):
+                # Expected file format: `shellbags_user_partition.csv`
+                partition = file.split('_')[-1].split('.')[0]
+                user = file[11:-(len(partition) + 5)]
+                for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
+                    res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                    res.update({'User': user, 'Partition': partition})
+                    yield res
 
 
 class TaskFolder(base.job.BaseModule):

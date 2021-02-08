@@ -506,7 +506,7 @@ class USB(base.job.BaseModule):
                 results.append({'Plugin': e['event.created'], 'Plugoff': '', 'Device': e['instance']})
                 results.append([e['event.created'], '', e['instance']])
         save_md_table(results, config=None,
-                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plug.md'),
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plugs.md'),
                       fieldnames='Plugin Plugoff Device',
                       file_exists='OVERWRITE')
 
