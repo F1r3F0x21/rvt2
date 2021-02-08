@@ -23,6 +23,7 @@ import base.job
 import base.config
 import shutil
 import uuid
+from pathlib import Path, PureWindowsPath
 
 __maintainer__ = 'Juanvi Vera'
 
@@ -244,3 +245,11 @@ class MirrorOptions(base.job.BaseModule):
         params.pop('logger_name')
         params.pop('include_section')
         return [params]
+
+
+def windows_format_path(path, enclosed=False):
+    """ Return a Windows format path. If 'enclosed', sorround by semicolons so shlex or other functions can process the full path as one """
+    path = str(PureWindowsPath(Path(path)))
+    if enclosed:
+        return '"' + path + '"'
+    return path
