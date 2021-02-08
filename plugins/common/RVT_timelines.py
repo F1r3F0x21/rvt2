@@ -131,7 +131,7 @@ class MFTTimeline(base.job.BaseModule):
         self.set_default_config('summary', True)
         self.set_default_config('time_range', 'hour')
         self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -f {mft_path} --body {outdir} --bodyf {filename} --bdl c --nl')
-        self.set_default_config('executable', os.path.join(self.config.config['plugins.mywindows']['windows_tools_dir'], 'MFTECmd.exe'))
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'MFTECmd.exe'))
 
     def run(self, path=""):
         self.check_params(path, check_from_module=False, check_path=True, check_path_exists=True)

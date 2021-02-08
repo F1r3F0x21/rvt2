@@ -524,8 +524,8 @@ name" are automatically set by the job. The rest are the same ones specified in 
     def read_config(self):
         super().read_config()
         self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
-        self.set_default_config('executable', os.path.join(self.config.config['plugins.mywindows']['windows_tools_dir'], 'RegistryExplorer/RECmd.exe'))
-        self.set_default_config('batch_file', os.path.join(self.config.config['plugins.mywindows']['windows_tools_dir'], 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RegistryExplorer/RECmd.exe'))
+        self.set_default_config('batch_file', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
 
     def run(self, path=""):
 
@@ -603,7 +603,7 @@ class Shellbags(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -d {hives_dir} --csv {outdir} --nl --dedupe')
-        self.set_default_config('executable', os.path.join(self.config.config['plugins.mywindows']['windows_tools_dir'], 'ShellBagsExplorer/SBECmd.exe'))
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'ShellBagsExplorer/SBECmd.exe'))
 
     def run(self, path=""):
 
@@ -639,7 +639,7 @@ class Shellbags(base.job.BaseModule):
             run_command(cmd_args)
 
             # SBECmd.exe saves the output in a file called Deduplicated.csv. Change the name:
-            if os.path.exists(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv'):
+            if os.path.exists(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv')):
                 shutil.move(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv'), output_filename)
 
         return []
