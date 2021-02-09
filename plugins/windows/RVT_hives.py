@@ -29,8 +29,7 @@ from plugins.external import jobparser
 import base.job
 from base.utils import check_directory, save_csv, relative_path, windows_format_path
 from base.commands import run_command, yield_command
-from plugins.common.RVT_files import GetFiles
-from plugins.common.RVT_filesystem import FileSystem
+from plugins.common.RVT_files import GetFiles, GetTimeline
 from plugins.windows.RVT_os_info import CharacterizeWindows
 
 
@@ -331,19 +330,15 @@ class ShimCache(base.job.BaseModule):
 
         # Determine output filename
         id = self.myconfig('volume_id', None)
-        self.partition = id if id else 'p01'  # needed to get OS info
         vss = self.myflag('vss')
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
         self.outfile = os.path.join(outfolder, 'shimcache2{}.txt'.format('_{}'.format(id) if id else ''))
 
         self.logger().debug("Parsing shimcache on {}".format(self.shimcache_path))
-
-        check_directory(outfolder, create=True)
-
         save_csv(self.parse_ShimCache_hive(self.shimcache_path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
-
         self.logger().debug("Finished extraction from ShimCache")
+
         return []
 
     def parse_ShimCache_hive(self, sysfile):
@@ -361,6 +356,102 @@ class ShimCache(base.job.BaseModule):
                 date = str(datetime.datetime.strptime(matches.group(), '%Y-%m-%d %H:%M:%S'))
                 executed = bool(len(line[matches.span()[1]:]))
                 yield OrderedDict([('LastModified', date), ('AppPath', path), ('Executed', executed)])
+
+
+class SysCache(base.job.BaseModule):
+    """ Parse SysCache registry hive """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
+
+    def run(self, path=""):
+        print('path', path)
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        vss = self.myflag('vss')
+        self.partition = id if id else 'p01'  # needed to get OS info
+        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'syscache{}.csv'.format('_{}'.format(id) if id else ''))
+
+        self.logger().debug("Parsing SysCache hive: {}".format(path))
+        save_csv(self.parse_SysCache_hive(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        self.logger().debug("Finished extraction from SysCache")
+
+        return []
+
+    def parse_SysCache_hive(self, path):
+
+        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        output_text = run_command([ripcmd, "-r", path, "-p", "syscache_csv"], logger=self.logger())
+
+        # self.path_from_inode = FileSystem(config=self.config).load_path_from_inode(self.myconfig, self.partition, vss=self.vss)
+        try:
+            timeline = GetTimeline(config=self.config)
+        except IOError:
+            pass
+
+        for line in output_text.split('\n')[:-1]:
+            line = line.split(",")
+            fileID = line[1]
+            inode = line[1].split('/')[0]
+            name = ''
+            name = timeline.get_path_from_inode(inode)
+            try:
+                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
+                                   ("Name", name), ("FileID", fileID), ("Sha1", line[2])])
+            except Exception:
+                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
+                                   ("Name", name), ("FileID", fileID), ("Sha1", "")])
+
+
+class AppCompat(base.job.BaseModule):
+    """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time """
+    # TODO, obtain the executed flag
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
+
+    def run(self, path=""):
+        print('path', path)
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        vss = self.myflag('vss')
+        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'appcompatcache{}.csv'.format('_{}'.format(id) if id else ''))
+
+        self.logger().debug("Parsing appcompatcache on registry hive {}".format(path))
+        save_csv(self.parse_appcompatcache(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        self.logger().debug("Finished extraction from AppCompatCache")
+        return []
+
+    def parse_appcompatcache(self, path):
+
+        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        line_number = 0
+        start = 1000
+        result = {}
+        for line in yield_command([ripcmd, "-r", path, "-p", "appcompatcache"], logger=self.logger()):
+            line_number += 1
+            if line_number < 5:
+                continue
+            if line.startswith('LastWrite Time'):
+                start = line_number + 2
+            if line_number > start:
+                result['Time'] = line[-20:].strip()
+                result['Application'] = line[:-22].replace('\\', '/')
+                yield result
+
+        return []
 
 
 class ScheduledTasks(base.job.BaseModule):
@@ -437,78 +528,6 @@ class ScheduledTasks(base.job.BaseModule):
                             except Exception:
                                 pass
                             break
-
-
-class SysCache(base.job.BaseModule):
-
-    def run(self, path=""):
-        self.search = GetFiles(self.config, vss=self.myflag("vss"))
-        self.vss = self.myflag('vss')
-        self.logger().debug("Parsing Syscache from registry")
-        self.parse_SysCache_hive()
-        return []
-
-    def parse_SysCache_hive(self):
-        outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
-        # self.tl_file = os.path.join(self.myconfig('timelinesdir'), "%s_BODY.csv" % self.myconfig('source'))
-        check_directory(outfolder, create=True)
-        SYSC = self.search.search(r"/System Volume Information/SysCache.hve$")
-
-        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
-
-        for f in SYSC:
-            p = f.split('/')[2]
-            output_text = run_command([ripcmd, "-r", os.path.join(self.myconfig('casedir'), f), "-p", "syscache_csv"], logger=self.logger())
-            output_file = os.path.join(outfolder, "syscache_%s.csv" % p)
-
-            self.path_from_inode = FileSystem(config=self.config).load_path_from_inode(self.myconfig, p, vss=self.vss)
-
-            save_csv(self.parse_syscache_csv(p, output_text), outfile=output_file, file_exists='OVERWRITE')
-
-        self.logger().debug("Finished extraction from SysCache")
-
-    def parse_syscache_csv(self, partition, text):
-        for line in text.split('\n')[:-1]:
-            line = line.split(",")
-            fileID = line[1]
-            inode = line[1].split('/')[0]
-            name = self.path_from_inode.get(inode, [''])[0]
-            try:
-                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                                   ("Name", name), ("FileID", fileID), ("Sha1", line[2])])
-            except Exception:
-                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                                   ("Name", name), ("FileID", fileID), ("Sha1", "")])
-
-
-class AppCompat(base.job.BaseModule):
-    """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time """
-    # TODO, obtain the executed flag
-    def run(self, path=""):
-
-        if not path:
-            self.search = GetFiles(self.config)
-            SYSTEM = self.search.search(r"/windows/system32/config/system$")[0]
-            path = os.path.join(self.myconfig('casedir'), SYSTEM)
-
-        self.logger().debug("Parsing appcompatcache on registry hive {}".format(path))
-
-        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
-        line_number = 0
-        start = 1000
-        result = {}
-        for line in yield_command([ripcmd, "-r", path, "-p", "appcompatcache"], logger=self.logger()):
-            line_number += 1
-            if line_number < 5:
-                continue
-            if line.startswith('LastWrite Time'):
-                start = line_number + 2
-            if line_number > start:
-                result['Time'] = line[-20:].strip()
-                result['Application'] = line[:-22].replace('\\', '/')
-                yield result
-
-        return []
 
 
 class UserAssist(base.job.BaseModule):

@@ -182,19 +182,37 @@ class GetTimeline(base.job.BaseModule):
     Reads timeline BODY file and returns entries that match an expression.
     """
 
+    def __init__(self, *args, timeline_body_file=None, **kwargs):
+        """
+            Parameters:
+                **timeline_body_file** (str): Path to timeline BODY file
+                **config** (config object): RVT config
+
+            Raises:
+                IOError if timeline BODY file not found or empty
+        """
+        super().__init__(*args, **kwargs)
+        if not timeline_body_file:
+            timeline_body_file = os.path.join(self.config.config['plugins.windows']['timelinesdir'], '{}_BODY.csv'.format(self.myconfig('source')))
+
+        if not (os.path.exists(timeline_body_file) and os.path.getsize(timeline_body_file) > 0):
+            self.logger().warning('Timeline file not found: {}'.format(timeline_body_file))
+            raise IOError
+
+        self.timeline_body_file = timeline_body_file
+
     def run(self, path=None):
         """ To be implemented if used as a module"""
         return []
 
-    def get_macb(self, file_list, regex=False, timeline_body_file=None):
-        """Get macb times from timeline BODY file given filenames defined in 'file_list'
+    def get_macb(self, file_list, regex=False):
+        """ Get macb times from timeline BODY file given filenames defined in 'file_list'
         Admits regular expressions for the file search.
         Warning: Slow function. Use only with short or moderate list of files.
 
         Parameters:
             file_list (list): List of files, relative to sourcedir, to be searched for. Expected file format: sourcename/mnt/p0X/full_path'
             regex (boolean)): If True, consider the file_list as regular expressions
-            timeline_body_file (str): Path to timeline BODY file
 
         Returns:
             Dictionary 'filename':'dates' for each match. Values are dcitionaries where keys are:
@@ -202,17 +220,7 @@ class GetTimeline(base.job.BaseModule):
             "a": access date
             "b": birth date
             "c": metadata change date
-
-        Raises:
-            IOError if timeline BODY file not found or empty
         """
-
-        if not timeline_body_file:
-            timeline_body_file = os.path.join(self.config.config['plugins.windows']['timelinesdir'], '{}_BODY.csv'.format(self.myconfig('source')))
-
-        if not (os.path.exists(timeline_body_file) and os.path.getsize(timeline_body_file) > 0):
-            self.logger().warning('Timeline file not found: {}'.format(timeline_body_file))
-            raise IOError
 
         if not regex:
             search_command = 'grep "{regex}" "{path}"'  # Note that option -P is ommited. We are searching literal matches
@@ -223,9 +231,9 @@ class GetTimeline(base.job.BaseModule):
         module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=file_list))
         dates = defaultdict(dict)
 
-        # In case tqdm is not needed: for line in module.run(timeline_body_file):
+        # In case tqdm is not needed: for line in module.run(self.timeline_body_file):
         # usually 2 matches per file. That's why 2 * len(file_list). Later FILE_NAME is skipped
-        for line in tqdm(module.run(timeline_body_file), total=2 * len(file_list), desc='Getting macb times'):
+        for line in tqdm(module.run(self.timeline_body_file), total=2 * len(file_list), desc='Getting macb times'):
             line = line['match'].split('|')
             filename = line[1]
             if filename.endswith(' ($FILE_NAME)'):  # Skip all FILE_NAME
@@ -236,6 +244,23 @@ class GetTimeline(base.job.BaseModule):
                 dates[filename][date_type] = datetime.datetime.utcfromtimestamp(int(line[date_index])).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return dates
+
+    def get_path_from_inode(self, inode, inode_full=False):
+        """ Get File path given an inode searching in timeline BODY file
+        Warning: Slow function. Use only with short or moderate list of inodes.
+
+        Parameters:
+            inode (str): inode number to be searched for
+            inode_full (boolean): if True, search for the 3 numbers. If False, just the base inode
+
+        Returns:
+            filename (str): path relative to casedir
+        """
+        with open(self.timeline_body_file, 'r') as infile:
+            for line in infile:
+                inode_to_compare = line[2] if inode_full else line[2].split('-')[0]
+                if inode_to_compare == inode:
+                    return line[1]
 
 
 class ExtractPathTerms(base.job.BaseModule):
