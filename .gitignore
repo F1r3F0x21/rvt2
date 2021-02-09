@@ -7,6 +7,7 @@ rvt2.log*
 conf/local.cfg
 external_tools/tika/*jar
 external_tools/elastic/data
+external_tools/windows/*
 plugins/ai/models
 log
 tests

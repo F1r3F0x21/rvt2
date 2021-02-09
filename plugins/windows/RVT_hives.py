@@ -556,6 +556,12 @@ name" are automatically set by the job. The rest are the same ones specified in 
             cmd_args = shlex.split(cmd.format(**cmd_vars))
 
             run_command(cmd_args)
+            # RECmd.exe creates two files. We only care about the one ending in `UserAssist.csv`
+            try:
+                shutil.move(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv'),
+                            os.path.join(self.myconfig('outdir'), output_filename))
+            except Exception as exc:
+                raise base.job.RVTError(exc)
 
         return []
 
@@ -572,7 +578,7 @@ class UserAssistAnalysis(base.job.BaseModule):
         outfile = self.myconfig('outfile')
         check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
 
-        save_csv(self.report_userassist(path), config=self.config, outfile=outfile, quoting=0)
+        save_csv(self.report_userassist(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
 
         return []
 
@@ -586,7 +592,11 @@ class UserAssistAnalysis(base.job.BaseModule):
                 # Expected file format: `userassist_user_partition.csv`
                 partition = file.split('_')[-1].split('.')[0]
                 user = file[11:-(len(partition) + 5)]
-                for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
+                for line in base.job.run_job(self.config,
+                                             'base.input.CSVReader',
+                                             path=os.path.join(path, file),
+                                             extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
+                    # print(line)
                     res = OrderedDict([(field, line.get(field, '')) for field in fields])
                     res.update({'User': user, 'Partition': partition})
                     yield res
@@ -640,7 +650,11 @@ class Shellbags(base.job.BaseModule):
 
             # SBECmd.exe saves the output in a file called Deduplicated.csv. Change the name:
             if os.path.exists(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv')):
-                shutil.move(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv'), output_filename)
+                shutil.move(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv'),
+                            os.path.join(self.myconfig('outdir'), output_filename))
+
+        # Remove summary file created by app
+        os.remove(os.path.join(self.myconfig('outdir'), '!SBECmd_Messages.txt'))
 
         return []
 
@@ -657,21 +671,24 @@ class ShellbagsAnalysis(base.job.BaseModule):
         outfile = self.myconfig('outfile')
         check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
 
-        save_csv(self.report_shellbags(path), config=self.config, outfile=outfile, quoting=0)
+        save_csv(self.report_shellbags(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
 
         return []
 
     def report_shellbags(self, path):
         """ Create a unique shellbags csv getting all users together """
 
-        fields = ["AbsolutePath", "CreatedOn", "ModifiedOn", "AccessedOn", "LastWriteTime", "FirstInteracted", "LastInteracted", "HasExplored"]
+        fields = ["LastWriteTime", "AbsolutePath", "FirstInteracted", "LastInteracted", "CreatedOn", "ModifiedOn", "AccessedOn", "HasExplored", "MFTEntry", "MFTSequenceNumber"]
 
         for file in sorted(os.listdir(path)):
             if file.startswith('shellbags'):
                 # Expected file format: `shellbags_user_partition.csv`
                 partition = file.split('_')[-1].split('.')[0]
-                user = file[11:-(len(partition) + 5)]
-                for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
+                user = file[10:-(len(partition) + 5)]
+                for line in base.job.run_job(self.config,
+                                             'base.input.CSVReader',
+                                             path=os.path.join(path, file),
+                                             extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
                     res = OrderedDict([(field, line.get(field, '')) for field in fields])
                     res.update({'User': user, 'Partition': partition})
                     yield res

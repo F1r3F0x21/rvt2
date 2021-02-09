@@ -657,6 +657,91 @@ class CCM(SuperTimeline):
             yield common
 
 
+class UserAssist(SuperTimeline):
+    """ Converts UserAssist key in registry to events. After this, you can save this file using events.save.
+
+    Configuration section:
+        - **classify**: If True, categorize the files in the output.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('classify', 'False')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        for d in self.from_module.run(path):
+            # UserAssist can provide information about aplications without a timestamp.
+            # Although useful, an event requires a timestamp
+            if not d.get('LastExecuted', ''):
+                continue
+
+            common = self.common_fields()
+            common.update({
+                '@timestamp': to_iso_format(d['LastExecuted']),
+                'tags': ['execution'],
+                'event.category': ['package'],
+                'event.module': 'registry',
+                'event.dataset': 'userassist',
+                'event.action': 'application-executed',
+                'event.type': ['start'],
+                'message': "Process last executed: {}".format(d['ProgramName']),
+                'process.executable': d['ProgramName'],
+                'executable.run_count': d['RunCounter'],
+                'executable.focus_count': d['FocusCount'],
+                'executable.focus_time': d['FocusTime'],
+                'user.name': d['User']})
+
+            yield common
+
+
+class Shellbags(SuperTimeline):
+    """ Converts Shellbags to events. After this, you can save this file using events.save.
+
+    Configuration section:
+        - **classify**: If True, categorize the files in the output.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('classify', 'False')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        for d in self.from_module.run(path):
+            common = self.common_fields()
+            common.update({
+                'tags': ['shellbags'],
+                'event.category': ['file'],
+                'event.type': ['access'],
+                'event.module': 'registry',
+                'event.dataset': 'shellbags',
+                'file.directory': d.get('AbsolutePath', ''),
+                'file.accessed': to_iso_format(d.get('AccessedOn', '')),
+                'file.created': to_iso_format(d.get('CreatedOn', '')),
+                'file.mtime': to_iso_format(d.get('ModifiedOn', '')),
+                'file.inode': d.get('MFTEntry', ''),
+                'registry.last_write': to_iso_format(d.get('LastWriteTime', '')),
+                'user.name': d['User']
+            })
+
+            if d.get('FirstInteracted', ''):
+                common.update({
+                    '@timestamp': to_iso_format(d['FirstInteracted']),
+                    'event-action': 'directory-first-interacted',
+                    'message': 'Directory first interacted: {}'.format(d.get('AbsolutePath', ''))})
+                yield common
+
+            if d.get('LastInteracted', ''):
+                common.update({
+                    '@timestamp': to_iso_format(d['LastInteracted']),
+                    'event-action': 'directory-last-interacted',
+                    'message': 'Directory last interacted: {}'.format(d.get('AbsolutePath', ''))})
+                yield common
+
+
 class UsnJrnl(SuperTimeline):
     """ Adapts windows usnjrnl to Elastic. After this, you can save this file using events.save.
     """

@@ -61,6 +61,7 @@ class BaseSink(base.job.BaseModule):
         super().read_config()
         self.set_default_config('outfile', '')
         self.set_default_config('file_exists', 'APPEND')
+        self.set_default_config('encoding', 'utf-8')
 
     def _source(self, path):
         """ Returns the source of the data.
@@ -108,7 +109,7 @@ class BaseSink(base.job.BaseModule):
             if dirname:
                 os.makedirs(dirname, exist_ok=True)
 
-            outputfile = open(outfilename, file_mode)
+            outputfile = open(outfilename, file_mode, encoding=self.myconfig('encoding'))
 
         return outputfile
 
