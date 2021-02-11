@@ -500,7 +500,17 @@ class EventLogs(SuperTimeline):
                     parsed_fields.add(field)
 
             # EventData and UserData only exist in parsed event_logs when are not specific event codes
-            # All this fields aren't indexed due to Elastic total field limitations per index
+            # All this fields are indexed as a single field, even if they contain many subfields, due to Elastic total field limitations per index
+            if 'EventData' in d:
+                common.update({'event.data.Data': d['EventData']})
+            if 'UserData' in d:
+                # Sometimes UserData only contains a dict with key 'EventData' or 'EventXML'
+                if 'EventData' in d['UserData']:
+                    common.update({'event.data.Data': d['UserData']['EventData']})
+                elif 'EventXML' in d['UserData']:
+                    common.update({'event.data.Data': d['UserData']['EventXML']})
+                else:
+                    common.update({'event.data.Data': d['UserData']})
             parsed_fields.update(['EventData', 'UserData'])
 
             # Selected data fields

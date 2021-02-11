@@ -7,7 +7,7 @@
     "path": {
       "EventData":{
         "Name": ["Prop_DeviceName", "Prop_ContainerId"],
-        "transform": {"Prop_DeviceName": "data.device_model", "Prop_ContainerId": "data.device_container"}
+        "transform": {"Prop_DeviceName": "data.DeviceModel", "Prop_ContainerId": "data.DeviceContainer"}
       }
     }
   }

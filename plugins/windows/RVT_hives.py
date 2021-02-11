@@ -333,7 +333,7 @@ class ShimCache(base.job.BaseModule):
         vss = self.myflag('vss')
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'shimcache2{}.txt'.format('_{}'.format(id) if id else ''))
+        self.outfile = os.path.join(outfolder, 'shimcache{}.txt'.format('_{}'.format(id) if id else ''))
 
         self.logger().debug("Parsing shimcache on {}".format(self.shimcache_path))
         save_csv(self.parse_ShimCache_hive(self.shimcache_path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
@@ -367,13 +367,12 @@ class SysCache(base.job.BaseModule):
         self.set_default_config('volume_id', '')
 
     def run(self, path=""):
-        print('path', path)
         self.check_params(path, check_path=True, check_path_exists=True)
 
         # Determine output filename
         id = self.myconfig('volume_id', None)
         vss = self.myflag('vss')
-        self.partition = id if id else 'p01'  # needed to get OS info
+        self.partition = id if id else 'p01'  # needed to get inode information
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
         self.outfile = os.path.join(outfolder, 'syscache{}.csv'.format('_{}'.format(id) if id else ''))
@@ -385,22 +384,21 @@ class SysCache(base.job.BaseModule):
         return []
 
     def parse_SysCache_hive(self, path):
-
+        """ Use syscache_csv plugin from regripper to parse SysCache hive """
         ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
         output_text = run_command([ripcmd, "-r", path, "-p", "syscache_csv"], logger=self.logger())
 
-        # self.path_from_inode = FileSystem(config=self.config).load_path_from_inode(self.myconfig, self.partition, vss=self.vss)
         try:
             timeline = GetTimeline(config=self.config)
         except IOError:
-            pass
+            timeline = None
 
         for line in output_text.split('\n')[:-1]:
             line = line.split(",")
             fileID = line[1]
             inode = line[1].split('/')[0]
-            name = ''
-            name = timeline.get_path_from_inode(inode)
+            # Get filename from inode if timeline is present
+            name = '' if not timeline else timeline.get_path_from_inode(inode, partition=self.partition)
             try:
                 yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
                                    ("Name", name), ("FileID", fileID), ("Sha1", line[2])])
@@ -411,7 +409,7 @@ class SysCache(base.job.BaseModule):
 
 class AppCompat(base.job.BaseModule):
     """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time """
-    # TODO, obtain the executed flag
+    # TODO, obtain the executed flag. appcompatcache plugin does not show it
 
     def read_config(self):
         super().read_config()
@@ -419,7 +417,6 @@ class AppCompat(base.job.BaseModule):
         self.set_default_config('volume_id', '')
 
     def run(self, path=""):
-        print('path', path)
         self.check_params(path, check_path=True, check_path_exists=True)
 
         # Determine output filename
@@ -435,7 +432,7 @@ class AppCompat(base.job.BaseModule):
         return []
 
     def parse_appcompatcache(self, path):
-
+        """ Use appcompatcache plugin from regripper to parse AppCompatCache key in SYSTEM hive """
         ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
         line_number = 0
         start = 1000
@@ -444,14 +441,29 @@ class AppCompat(base.job.BaseModule):
             line_number += 1
             if line_number < 5:
                 continue
-            if line.startswith('LastWrite Time'):
-                start = line_number + 2
             if line_number > start:
-                result['Time'] = line[-20:].strip()
-                result['Application'] = line[:-22].replace('\\', '/')
-                yield result
+                last_modified = line[-20:].strip()
+                # Some entries do not include a time. Process them apart
+                if not self._check_valid_time(last_modified):
+                    result['Time'] = ''
+                    result['Application'] = line.replace('\\', '/').strip()
+                    yield result
+                else:
+                    # The rest have a last modified UTC time
+                    result['Time'] = last_modified
+                    result['Application'] = line[:-22].replace('\\', '/')
+                    yield result
+            if line.startswith('LastWrite Time'):
+                start = line_number + 1
 
         return []
+
+    def _check_valid_time(self, time_str, format="%Y-%m-%d %H:%M:%S"):
+        try:
+            datetime.datetime.strptime(time_str, format)
+            return True
+        except Exception:
+            return False
 
 
 class ScheduledTasks(base.job.BaseModule):
@@ -615,7 +627,6 @@ class UserAssistAnalysis(base.job.BaseModule):
                                              'base.input.CSVReader',
                                              path=os.path.join(path, file),
                                              extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
-                    # print(line)
                     res = OrderedDict([(field, line.get(field, '')) for field in fields])
                     res.update({'User': user, 'Partition': partition})
                     yield res

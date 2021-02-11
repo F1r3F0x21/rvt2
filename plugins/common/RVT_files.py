@@ -245,7 +245,7 @@ class GetTimeline(base.job.BaseModule):
 
         return dates
 
-    def get_path_from_inode(self, inode, inode_full=False):
+    def get_path_from_inode(self, inode, partition='p01', inode_full=False):
         """ Get File path given an inode searching in timeline BODY file
         Warning: Slow function. Use only with short or moderate list of inodes.
 
@@ -260,7 +260,11 @@ class GetTimeline(base.job.BaseModule):
             for line in infile:
                 inode_to_compare = line[2] if inode_full else line[2].split('-')[0]
                 if inode_to_compare == inode:
-                    return line[1]
+                    part = line[1].split('/')[2]
+                    if part == partition:
+                        return line[1]
+
+        return ''
 
 
 class ExtractPathTerms(base.job.BaseModule):

@@ -498,13 +498,13 @@ class USB(base.job.BaseModule):
         for e in plugins:
             flag = True
             for ev in plugoffs:
-                if ev['lifetime'] == e['lifetime'] and ev['instance'] == e['instance'] and ev['event.created'] > e['event.created']:
-                    results.append({'Plugin': e['event.created'], 'Plugoff': ev['event.created'], 'Device': e['instance']})
+                if ev['data.Lifetime'] == e['data.Lifetime'] and ev['data.Instance'] == e['data.Instance'] and ev['event.created'] > e['event.created']:
+                    results.append({'Plugin': e['event.created'], 'Plugoff': ev['event.created'], 'Device': e['data.Instance']})
                     flag = False
                     break
             if flag:
-                results.append({'Plugin': e['event.created'], 'Plugoff': '', 'Device': e['instance']})
-                results.append([e['event.created'], '', e['instance']])
+                results.append({'Plugin': e['event.created'], 'Plugoff': '', 'Device': e['data.Instance']})
+                results.append([e['event.created'], '', e['data.Instance']])
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plugs.md'),
                       fieldnames='Plugin Plugoff Device',
@@ -516,14 +516,14 @@ class USB(base.job.BaseModule):
         """
         if flag == 0:
             for event in plugins:
-                if event['event.created'] == e['event.created'] and event["instance"] == e["instance"] and event["lifetime"] == e["lifetime"]:
+                if event['event.created'] == e['event.created'] and event["data.Instance"] == e["data.Instance"] and event["data.Lifetime"] == e["data.Lifetime"]:
                     return False  # already used
         else:
             for event in plugoffs:
-                if event['event.created'] == e['event.created'] and event["instance"] == e["instance"] and event["lifetime"] == e["lifetime"]:
+                if event['event.created'] == e['event.created'] and event["data.Instance"] == e["data.Instance"] and event["data.Lifetime"] == e["data.Lifetime"]:
                     return False  # already used
             for evento in plugins:
-                if event['event.created'] == e['event.created'] and event["instance"] == e["instance"] and event["lifetime"] == e["lifetime"]:
+                if event['event.created'] == e['event.created'] and event["data.Instance"] == e["data.Instance"] and event["data.Lifetime"] == e["data.Lifetime"]:
                     return False  # same time, does not used
         return True
 
@@ -542,7 +542,7 @@ class USBConnections(base.job.BaseModule):
         results = []
 
         for event in self.from_module.run(path):
-            if event['event.code'] == '1006' and not event['data.device_id'].startswith('USB'):
+            if event['event.code'] == '1006' and not event['data.DeviceID'].startswith('USB'):
                 continue
             yield event
 
@@ -559,12 +559,12 @@ class USBConnections(base.job.BaseModule):
         all_plugs = plugins + plugoffs
         all_plugs.sort(key=lambda k: k['event.created'])
         for e in all_plugs:
-            if 'data.device_id' not in e:
-                e['data.device_id'] = ''
+            if 'data.DeviceID' not in e:
+                e['data.DeviceID'] = ''
             results.append(e)
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_connections.md'),
-                      fieldnames='event.created event.code event.action data.device_id',
+                      fieldnames='event.created event.code event.action data.DeviceID',
                       file_exists='OVERWRITE')
 
     def del_close_events(self, ev_list, threshold=1000):
