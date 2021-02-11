@@ -13,7 +13,6 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import csv
 import os
 import re
 import datetime
@@ -29,7 +28,7 @@ from plugins.external import jobparser
 import base.job
 from base.utils import check_directory, save_csv, relative_path, windows_format_path
 from base.commands import run_command, yield_command
-from plugins.common.RVT_files import GetFiles, GetTimeline
+from plugins.common.RVT_files import GetTimeline
 from plugins.windows.RVT_os_info import CharacterizeWindows
 
 
@@ -470,76 +469,83 @@ class ScheduledTasks(base.job.BaseModule):
     """ Parses job files and schedlgu.txt. """
 
     def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.st_dir = path
+        self.volume_id = self.myconfig('volume_id')
+        # Try to guess volume id/partition from path
+        if not self.volume_id:
+            assumed_location = os.path.join(self.myconfig('casedir'), self.myconfig('source'), 'mnt')
+            if path.find(assumed_location) != -1:
+                self.volume_id = path[len(assumed_location) + 1:].split('/')[0]
+
         self.vss = self.myflag('vss')
-        self.search = GetFiles(self.config, vss=self.vss)
         self.outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
         check_directory(self.outfolder, create=True)
 
         self.logger().debug("Parsing artifacts from scheduled tasks files (.job)")
-        self.parse_Task()
+        outfile_jobs = os.path.join(self.outfolder, "jobs_files_{}.csv".format(self.volume_id))
+        save_csv(self.parse_Task(), outfile=outfile_jobs, file_exists='APPEND', quoting=0)
+
         self.logger().debug("Parsing artifacts from Task Scheduler Service log files (schedlgu.txt)")
+        outfile_sched = os.path.join(self.outfolder, 'schedlgu_{}.csv'.format(self.volume_id))
+        save_csv(self.parse_schedlgu(), config=self.config,
+                 outfile=outfile_sched, file_exists='APPEND', quoting=0)
         self.parse_schedlgu()
         return []
 
     def parse_Task(self):
-        jobs_files = list(self.search.search(r"\.job$"))
-        partition_list = set()
-        for f in jobs_files:
-            partition_list.add(f.split("/")[2])
-
-        f = {}
-        csv_files = {}
-        writers = {}
-
-        for p in partition_list:
-            csv_files[p] = open(os.path.join(self.outfolder, "jobs_files_%s.csv" % p), "w")
-            writers[p] = csv.writer(csv_files[p], delimiter=";", quotechar='"')
-            writers[p].writerow(["Product Info", "File Version", "UUID", "Maximum Run Time", "Exit Code", "Status", "Flags", "Date Run",
-                                 "Running Instances", "Application", "Working Directory", "User", "Comment", "Scheduled Date"])
+        jobs_files = [os.path.join(self.st_dir, file) for file in os.listdir(self.st_dir) if file.endswith('.job')]
 
         for file in jobs_files:
-            partition = file.split("/")[2]
-            with open(os.path.join(self.myconfig('casedir'), file), "rb") as f:
+            with open(file, "rb") as f:
                 data = f.read()
+            # Every .job file is a task
             job = jobparser.Job(data)
-            writers[partition].writerow([jobparser.products.get(job.ProductInfo), job.FileVersion, job.UUID, job.MaxRunTime, job.ExitCode, jobparser.task_status.get(job.Status, "Unknown Status"),
-                                         job.Flags_verbose, job.RunDate, job.RunningInstanceCount, "{} {}".format(job.Name, job.Parameter), job.WorkingDirectory, job.User, job.Comment, job.ScheduledDate])
-        for csv_file in csv_files.values():
-            csv_file.close()
+            yield OrderedDict([("Product Info", jobparser.products.get(job.ProductInfo)),
+                               ("File Version", job.FileVersion),
+                               ("UUID", job.UUID),
+                               ("Maximum Run Time", job.MaxRunTime),
+                               ("Exit Code", job.ExitCode),
+                               ("Status", jobparser.task_status.get(job.Status, "Unknown Status")),
+                               ("Flasgs", job.Flags_verbose),
+                               ("Date Run", job.RunDate),
+                               ("Running Instances", job.RunningInstanceCount),
+                               ("Application", "{} {}".format(job.Name, job.Parameter)),
+                               ("Working Directory", job.WorkingDirectory),
+                               ("User", job.User),
+                               ("Comment", job.Comment),
+                               ("Scheduled Date", job.ScheduledDate)])
 
         self.logger().debug("Finished extraction from scheduled tasks .job")
 
     def parse_schedlgu(self):
-        sched_files = list(self.search.search(r"schedlgu\.txt$"))
-        for file in sched_files:
-            partition = file.split("/")[2]
-            save_csv(self._parse_schedlgu(os.path.join(self.myconfig('casedir'), file)),
-                     outfile=os.path.join(self.outfolder, 'schedlgu_{}.csv'.format(partition)), file_exists='OVERWRITE', quoting=0)
-        self.logger().debug("Finished extraction from schedlgu.txt")
+        sched_files = [os.path.join(self.st_dir, file) for file in os.listdir(self.st_dir) if file.lower().endswith('schedlgu.txt')]
 
-    def _parse_schedlgu(self, file):
-        with open(file, 'r', encoding='utf16') as sched:
-            dates = {'start': WINDOWS_TIMESTAMP_ZERO, 'end': WINDOWS_TIMESTAMP_ZERO}
-            parsed_entry = False
-            for line in sched:
-                if line == '\n':
-                    continue
-                elif line.startswith('"'):
-                    service = line.rstrip('\n').strip('"')
-                    if parsed_entry:
-                        yield OrderedDict([('Service', service), ('Started', dates['start']), ('Finished', dates['end'])])
-                    parsed_entry = False
-                    dates = {'start': WINDOWS_TIMESTAMP_ZERO, 'end': WINDOWS_TIMESTAMP_ZERO}
-                    continue
-                for state, words in {'start': ['Started', 'Iniciado'], 'end': ['Finished', 'Finalizado']}.items():
-                    for word in words:
-                        if line.startswith('\t{}'.format(word)):
-                            try:
-                                dates[state] = dateutil.parser.parse(line[re.search(r'\d', line).span()[0]:].rstrip('\n')).strftime("%Y-%m-%d %H:%M:%S")
-                                parsed_entry = True
-                            except Exception:
-                                pass
-                            break
+        for file in sched_files:
+            with open(file, 'r', encoding='utf16') as sched:
+                dates = {'start': WINDOWS_TIMESTAMP_ZERO, 'end': WINDOWS_TIMESTAMP_ZERO}
+                parsed_entry = False
+                for line in sched:
+                    if line == '\n':
+                        continue
+                    elif line.startswith('"'):
+                        service = line.rstrip('\n').strip('"')
+                        if parsed_entry:
+                            yield OrderedDict([('Service', service), ('Started', dates['start']), ('Finished', dates['end'])])
+                        parsed_entry = False
+                        dates = {'start': WINDOWS_TIMESTAMP_ZERO, 'end': WINDOWS_TIMESTAMP_ZERO}
+                        continue
+                    for state, words in {'start': ['Started', 'Iniciado'], 'end': ['Finished', 'Finalizado']}.items():
+                        for word in words:
+                            if line.startswith('\t{}'.format(word)):
+                                try:
+                                    dates[state] = dateutil.parser.parse(line[re.search(r'\d', line).span()[0]:].rstrip('\n')).strftime("%Y-%m-%d %H:%M:%S")
+                                    parsed_entry = True
+                                except Exception:
+                                    pass
+                                break
+
+        self.logger().debug("Finished extraction from schedlgu.txt")
 
 
 class UserAssist(base.job.BaseModule):
