@@ -201,6 +201,8 @@ class Amcache(base.job.BaseModule):
                     yield app
             except Registry.RegistryKeyNotFoundException:
                 self.logger().debug('Key "Root\\{}" not found'.format(key))
+            except Exception as exc:
+                self.logger().warning(exc)
 
         if not found_key:
             raise KeyError('None of the subkeys found in Amcache')
@@ -414,21 +416,78 @@ class AppCompat(base.job.BaseModule):
         super().read_config()
         self.set_default_config('path', '')
         self.set_default_config('volume_id', '')
+        self.set_default_config('cmd', '')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'AppCompatCacheParser.exe'))
 
     def run(self, path=""):
-        self.check_params(path, check_path=True, check_path_exists=True)
+        # Take path from params if not provided as an argument
+        if not path:
+            path = self.myconfig('path')
+        # self.check_params(path, check_path=True, check_path_exists=True)
 
         # Determine output filename
         id = self.myconfig('volume_id', None)
         vss = self.myflag('vss')
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'appcompatcache{}.csv'.format('_{}'.format(id) if id else ''))
+        self.outfile = os.path.join(outfolder, 'appcompatcache2{}.csv'.format('_{}'.format(id) if id else ''))
 
+        cmd = self.myconfig('cmd', None)
         self.logger().debug("Parsing appcompatcache on registry hive {}".format(path))
-        save_csv(self.parse_appcompatcache(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        if not cmd:
+            # Use regripper appcompatcache plugin to parse
+            save_csv(self.parse_appcompatcache(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        else:
+            # Use the specified command to parse
+            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
+                        'path': windows_format_path(path, enclosed=True),
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
+                        'filename': os.path.basename(self.outfile)}
+            cmd_args = shlex.split(cmd.format(**cmd_vars))
+            run_command(cmd_args)
+
+            # Assuming AppCompatCacheParser is used, rearrange the default output
+            tmp_file = os.path.join(os.path.dirname(self.outfile), 'temp_' + os.path.basename(self.outfile))
+            run_command("rg -v ',True' {} | awk -F, '{{ print $4\";\"$3\";\"$2\";\"$5 }}' > {}".format(self.outfile, tmp_file))
+            run_command('mv {} {}'.format(tmp_file, self.outfile))
+
         self.logger().debug("Finished extraction from AppCompatCache")
+
         return []
+
+    # def rnu2(self, path=""):
+    #     # Take path from params if not provided as an argument
+    #     if not path:
+    #         path = self.myconfig('path')
+    #
+    #     id = self.myconfig('volume_id', None)  # Volume identifier
+    #     check_directory(self.myconfig('outdir'), create=True)
+    #
+    #     cmd = self.myconfig('cmd', None)
+    #
+    #
+    #         output_filename = 'userassist_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
+    #         hive = regfiles['ntuser'][user]
+    #
+    #         cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
+    #                     'batch_file': windows_format_path(self.myconfig('batch_file'), enclosed=True),
+    #                     'hive': windows_format_path(hive, enclosed=True),
+    #                     'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
+    #                     'filename': output_filename}
+    #         cmd_args = shlex.split(cmd.format(**cmd_vars))
+    #
+    #         run_command(cmd_args)
+    #         # RECmd.exe creates two files. We only care about the one ending in `UserAssist.csv`
+    #         try:
+    #             if os.path.exists(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv')):
+    #                 shutil.move(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv'),
+    #                             os.path.join(self.myconfig('outdir'), output_filename))
+    #         except Exception as exc:
+    #             raise base.job.RVTError(exc)
+    #
+    #     return []
+
+
 
     def parse_appcompatcache(self, path):
         """ Use appcompatcache plugin from regripper to parse AppCompatCache key in SYSTEM hive """
@@ -494,6 +553,7 @@ class ScheduledTasks(base.job.BaseModule):
         return []
 
     def parse_Task(self):
+        """ Parse .job files """
         jobs_files = [os.path.join(self.st_dir, file) for file in os.listdir(self.st_dir) if file.endswith('.job')]
 
         for file in jobs_files:
@@ -519,6 +579,7 @@ class ScheduledTasks(base.job.BaseModule):
         self.logger().debug("Finished extraction from scheduled tasks .job")
 
     def parse_schedlgu(self):
+        """ Parse SCHEDLGU.TXT files """
         sched_files = [os.path.join(self.st_dir, file) for file in os.listdir(self.st_dir) if file.lower().endswith('schedlgu.txt')]
 
         for file in sched_files:
@@ -595,8 +656,9 @@ name" are automatically set by the job. The rest are the same ones specified in 
             run_command(cmd_args)
             # RECmd.exe creates two files. We only care about the one ending in `UserAssist.csv`
             try:
-                shutil.move(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv'),
-                            os.path.join(self.myconfig('outdir'), output_filename))
+                if os.path.exists(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv')):
+                    shutil.move(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv'),
+                                os.path.join(self.myconfig('outdir'), output_filename))
             except Exception as exc:
                 raise base.job.RVTError(exc)
 

@@ -232,13 +232,15 @@ class MDTableSink(BaseSink):
     Configuration:
         - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
-        - **fieldnames**: Use these field names as columns. Use this option to order the fields
+        - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. Values are sepparated using spaces or new lines.
+        - **first_line** (str): Write a first line before headers
     """
 
     def read_config(self):
         super().read_config()
         self.set_default_config('fieldnames', [])
         self.set_default_config('file_exists', 'APPEND')
+        self.set_default_config('first_line', '')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
@@ -247,20 +249,29 @@ class MDTableSink(BaseSink):
         fields = self.myarray('fieldnames')
         act = {field: '' for field in fields}
 
+        first_line = self.myconfig('first_line')
+        if first_line:
+            outputfile.write(first_line.replace('\\n', '\n'))
+            outputfile.write("\n")
+
+        # Headers
         outputfile.write("|".join(fields))
         outputfile.write("\n")
         outputfile.write("|".join(["--"] * len(fields)))
         outputfile.write("\n")
+
+        # Items
         for fileinfo in self._source(path):
             try:
+                # Exclude consecutive repeated entries
                 repeated = True
                 for i in fields:
-                    if fileinfo[i] != act[i]:
+                    if fileinfo.get(i, '') != act[i]:
                         repeated = False
-                    act[i] = fileinfo[i]
+                    act[i] = fileinfo.get(i, '')
                 if repeated:
                     continue
-                outputfile.write("|".join([fileinfo[field] for field in fields]))
+                outputfile.write("|".join([fileinfo.get(field, '') for field in fields]))
                 outputfile.write("\n")
                 yield fileinfo
             except TypeError as exc:

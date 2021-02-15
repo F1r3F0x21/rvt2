@@ -614,10 +614,13 @@ class AppCompatCache(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
+        # Column fields depend on which parser is used:
+        #   regripper appcompatcache plugin --> Time;Application;Executed
+        #   AppCompatCacheParser --> LastModifiedTimeUTC;Path;CacheEntryPosition;Executed
         for d in self.from_module.run(path):
             common = self.common_fields()
             common.update({
-                '@timestamp': to_iso_format(d['Time']),
+                '@timestamp': to_iso_format(d.get('LastModifiedTimeUTC', None) or d['Time']),
                 'tags': ['appcompat'],
                 'event.category': ['file'],
                 'event.type': ['start'],
@@ -625,12 +628,14 @@ class AppCompatCache(SuperTimeline):
                 'event.dataset': 'appcompat',
                 'registry.hive': 'system',
                 'event.action': 'file-modified',
-                'message': 'File modified: ' + d['Application'],
+                'message': 'File modified: ' + d.get('Path', None) or d['Application'],
                 'process.executable': d['Application']
             })
 
             if d.get('Executed', ''):
                 common['process.executed'] = d['Executed']
+            if d.get('CacheEntryPosition', ''):
+                common['event.data.CacheEntryPosition'] = d['CacheEntryPosition']
 
             yield common
 

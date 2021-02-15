@@ -140,7 +140,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     myconfig.update(myparams)
     if jobs is None:
         # no jobs: run as a single job
-        results = run_single_job(config, job_name_with_params, default_path=path, extra_config=myconfig, from_module=from_module, log_execution=(nested_logs>0))
+        results = run_single_job(config, job_name_with_params, default_path=path, extra_config=myconfig, from_module=from_module, log_execution=(nested_logs > 0))
         # return the resulting generatos
         if results is None:
             logging.warning('Job job=%s returned None instead of generator. You probably want to change this.', job_name)
@@ -149,7 +149,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     else:
         # multiple jobs: run each job separately
         for job in parse_modules_chain(job_name, myconfig, config):
-            results = run_job(config, job, path=path, extra_config=myconfig, nested_logs=nested_logs-1)
+            results = run_job(config, job, path=path, extra_config=myconfig, nested_logs=nested_logs - 1)
             if results:
                 # run the generator without caring about the results.
                 # Check: https://stackoverflow.com/questions/47456631/simpler-way-to-run-a-generator-function-without-caring-about-items
@@ -434,6 +434,30 @@ class BaseModule(object):
             self.from_module.shutdown()
         # request to save the local store
         self.config.store_set(option=None, save=True)
+
+    def get_job_status(self, job=None, exclude_present_job=True):
+        """ Find if there is any job with provided name running on the same source.
+            Used to determine if the job can run or must wait to other job to finish.
+
+        Args:
+            job (str): name of the job to check. By default it will be the present job name itself.
+            exclude_jobid (str): Exclude the present job id in the search, since it will always be registered before the present functions is executed.
+
+        Returns:
+            The last registered state for a job as such. Options: 'new', 'start', 'end', 'interrupted', 'error'.
+        """
+        if not job:
+            job = self.config.job_name
+        if exclude_present_job:
+            jobid = self.config.get('rvt2', 'jobid')
+        module = load_module(self.config, 'base.input.JSONReader', extra_config={'progress.disable': True})
+        last_status = 'new'
+        for register in module.run(self.config.get('rvt2', 'register', None)):
+            if exclude_present_job and register["_id"] == jobid:
+                continue
+            if register["job"] == job and register["source"] == self.config.get('DEFAULT', 'source'):
+                last_status = register["status"]
+        return last_status
 
 
 class RVTError(Exception):
