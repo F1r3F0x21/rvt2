@@ -217,6 +217,43 @@ def human_readable_size(num):
     return "%.1f%s" % (num, 'Yi')
 
 
+def windows_format_path(path, enclosed=False):
+    """ Return a Windows format path. If 'enclosed', sorround by semicolons so shlex or other functions can process the full path as one """
+    path = str(PureWindowsPath(Path(path)))
+    if enclosed:
+        return '"' + path + '"'
+    return path
+
+
+class WaitForJob(base.job.BaseModule):
+    """ Manages concurrency of repeated jobs.
+        If there is still an instance running of a job that is to be executed, then the new job waits the first one to finish.
+
+        configuration:
+        - **job_name** : name of the job to check it's running. By default it will be the present job name itself.
+        - **exclude_present_job**: Exclude the present job id in the search, since it will always be registered before the present functions is executed.
+        - **step** : time (in seconds) between consecutive state asking.
+        - **timeout** : maximum time (in seconds) to wait. After that, the new job is cancelled.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('job_name', None)
+        self.set_default_config('exclude_present_job', True)
+        self.set_default_config('step', '30')
+        self.set_default_config('timeout', '600')
+
+    def run(self, path=""):
+        base.job.wait_for_job(self.config,
+                              self,
+                              step=int(self.myconfig('step')),
+                              timeout=int(self.myconfig('timeout')),
+                              job_name=self.myconfig('job_name'),
+                              exclude_present_job=self.myflag('exclude_present_job'))
+
+        return []
+
+
 class MirrorOptions(base.job.BaseModule):
     """ Return the value of the local options.
 
@@ -245,11 +282,3 @@ class MirrorOptions(base.job.BaseModule):
         params.pop('logger_name')
         params.pop('include_section')
         return [params]
-
-
-def windows_format_path(path, enclosed=False):
-    """ Return a Windows format path. If 'enclosed', sorround by semicolons so shlex or other functions can process the full path as one """
-    path = str(PureWindowsPath(Path(path)))
-    if enclosed:
-        return '"' + path + '"'
-    return path

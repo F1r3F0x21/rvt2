@@ -42,6 +42,9 @@ class CharacterizeWindows(base.job.BaseModule):
     def run(self, path=None):
         """ The output dictionaries with os information are expected to be sent to a mako template """
 
+        # Check if there's another characterize job running
+        base.job.wait_for_job(self.config, self)
+
         self.partitions = [folder for folder in sorted(os.listdir(self.myconfig('mountdir'))) if folder.startswith('p')]
         # Get the autorip outputfile associated with each necessary plugin. Generate output if necessary
         self.get_ripplugins()
@@ -222,8 +225,8 @@ class CharacterizeWindows(base.job.BaseModule):
 
         # Get macb times of all UsrClass. Used to determine user account creation time
         try:
-            usrclass_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:UsrClass)\.dat[\"\|]"], regex=True)
-            # ntuser_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:NTUSER|UsrClass)\.dat[\"\|]"], regex=True)
+            usrclass_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:UsrClass)\.dat[\"\|]"], regex=True, progress_disable=True)
+            # ntuser_files = GetTimeline(config=self.config).get_macb([r"/(?:Documents and settings|Users)/.*(?:NTUSER|UsrClass)\.dat[\"\|]"], regex=True, progress_disable=True)
         except IOError:
             self.ntusers = defaultdict(list)
             return []

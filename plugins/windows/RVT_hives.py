@@ -94,7 +94,7 @@ def get_hives(path):
     return regfiles
 
 
-class Amcache(base.job.BaseModule):
+class AmCache(base.job.BaseModule):
     """ Parses Amcache.hve registry hive. """
 
     def read_config(self):

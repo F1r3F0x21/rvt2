@@ -462,13 +462,15 @@ class LnkExtract(base.job.BaseModule):
         self.set_default_config('appid', os.path.join(self.config.config['windows']['plugindir'], 'appID.txt'))
 
     def run(self, path=""):
-        """ Parses lnk files, jumlists and customdestinations
+        """ Parses lnk files, jumplists and customdestinations """
 
-        """
-        self.logger().info("Extraction of lnk files")
+        # Check if there's another characterize job running
+        base.job.wait_for_job(self.config, self, job_name='windows.recentfiles')
+        base.job.wait_for_job(self.config, self, job_name='windows.recentfiles_default')
+
+        self.logger().info("Starting extraction of lnk files")
 
         self.Files = GetFiles(self.config, vss=self.myflag("vss"))
-        # self.filesystem = FileSystem(self.config)
         self.mountdir = self.myconfig('mountdir')
 
         lnk_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
@@ -504,7 +506,7 @@ class LnkExtract(base.job.BaseModule):
             files_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(artifact['regex'])]
             files_set = set(files_list)
 
-            # Format in files_list items: '1231456-01-1/mnt/p0X/Users/Default_User/file.lnk'
+            # files_list items format: '1231456-01-1/mnt/p0X/Users/Default_User/file.lnk'
             for user_path in self.users:
                 partition, user = (user_path.split("/")[0], user_path.split("/")[2])
                 for file in files_list:
@@ -521,16 +523,19 @@ class LnkExtract(base.job.BaseModule):
 
 class LnkExtractAnalysis(base.job.BaseModule):
 
-    def run(self, path=""):
-        """ Creates a report based on the output of LnkExtract.
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('vss', False)
+        self.set_default_config('lnk_dir', self.config.get('plugins.windows.RVT_lnk.LnkExtract', '{}outdir'.format('v' * self.myflag('vss'))))
 
-        """
+    def run(self, path=""):
+        """ Creates a report based on the output of LnkExtract """
+
         vss = self.myflag('vss')
         self.logger().info("Generating lnk files report")
 
         self.mountdir = self.myconfig('mountdir')
 
-        # lnk_path = self.config.get('plugins.windows.RVT_lnk.LnkExtract', '{}outdir'.format('v' * vss))
         lnk_path = self.myconfig('lnk_dir')
         report_lnk_path = self.myconfig('{}outdir'.format('v' * vss))
 

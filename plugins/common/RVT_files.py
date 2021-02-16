@@ -206,7 +206,7 @@ class GetTimeline(base.job.BaseModule):
         """ To be implemented if used as a module"""
         return []
 
-    def get_macb(self, file_list, regex=False):
+    def get_macb(self, file_list, regex=False, progress_disable=False):
         """ Get macb times from timeline BODY file given filenames defined in 'file_list'
         Admits regular expressions for the file search.
         Warning: Slow function. Use only with short or moderate list of files.
@@ -214,6 +214,7 @@ class GetTimeline(base.job.BaseModule):
         Parameters:
             file_list (list): List of files, relative to sourcedir, to be searched for. Expected file format: sourcename/mnt/p0X/full_path'
             regex (boolean)): If True, consider the file_list as regular expressions
+            progress_disable (boolean): If True, disable the progress bar.
 
         Returns:
             Dictionary 'filename':'dates' for each match. Values are dcitionaries where keys are:
@@ -234,7 +235,7 @@ class GetTimeline(base.job.BaseModule):
 
         # In case tqdm is not needed: for line in module.run(self.timeline_body_file):
         # usually 2 matches per file. That's why 2 * len(file_list). Later FILE_NAME is skipped
-        for line in tqdm(module.run(self.timeline_body_file), total=2 * len(file_list), desc='Getting macb times'):
+        for line in tqdm(module.run(self.timeline_body_file), total=2 * len(file_list), desc='Getting macb times', disable=progress_disable):
             line = line['match'].split('|')
             filename = line[1]
             if filename.endswith(' ($FILE_NAME)'):  # Skip all FILE_NAME
