@@ -115,7 +115,7 @@ def sanitize_ip(value):
     Returns tuple (ip, port)
     """
 
-    if value == '-':
+    if value == '-' or value == '':
         return (None, None)
     value.replace('[', '').replace(']', '')
     if value.find(':') != -1:
@@ -502,32 +502,40 @@ class EventLogs(SuperTimeline):
             # EventData and UserData only exist in parsed event_logs when are not specific event codes
             # All this fields are indexed as a single field, even if they contain many subfields, due to Elastic total field limitations per index
             if 'EventData' in d:
-                common.update({'event.data.Data': d['EventData']})
+                common.update({'event.data.Data': str(d['EventData'])})
             if 'UserData' in d:
                 # Sometimes UserData only contains a dict with key 'EventData' or 'EventXML'
                 if 'EventData' in d['UserData']:
-                    common.update({'event.data.Data': d['UserData']['EventData']})
+                    common.update({'event.data.Data': str(d['UserData']['EventData'])})
                 elif 'EventXML' in d['UserData']:
-                    common.update({'event.data.Data': d['UserData']['EventXML']})
+                    common.update({'event.data.Data': str(d['UserData']['EventXML'])})
                 else:
-                    common.update({'event.data.Data': d['UserData']})
+                    common.update({'event.data.Data': str(d['UserData'])})
             parsed_fields.update(['EventData', 'UserData'])
 
             # Selected data fields
             for field in [f for f in d if f not in parsed_fields]:
-                if field == 'url':  # in conflict with ECS
-                    field = 'url.full'
-                elif field.endswith('ip'):
-                    ip, port = sanitize_ip(d[field])
-                    d[field] = ip
-                    if port:
-                        d[field[:-2] + 'port'] = port
-                elif field.endswith('port'):
-                    d[field] = d[field] if d[field] != '-' else None
                 if field.startswith('data.'):
                     common.update({'event.{}'.format(field): d[field]})
                 else:
                     common.update({field: d[field]})
+
+            # Make sure some fields adjust the expected type:
+            additional_fields = {}
+            if 'url' in common:  # in conflict with ECS
+                common['url.full'] = common['url']
+                del common['url']
+            for field in common:
+                if field.endswith('ip'):
+                    ip, port = sanitize_ip(common[field])
+                    common[field] = ip
+                    if port:
+                        additional_fields[field[:-2] + 'port'] = port
+                elif field.endswith('port'):
+                    common[field] = common[field] if common[field] != '-' else None
+            for additional_field in additional_fields:
+                common[additional_field] = additional_fields[additional_field]
+
             yield common
 
 
@@ -629,7 +637,7 @@ class AppCompatCache(SuperTimeline):
                 'registry.hive': 'system',
                 'event.action': 'file-modified',
                 'message': 'File modified: ' + d.get('Path', None) or d['Application'],
-                'process.executable': d['Application']
+                'process.executable': d.get('Path', None) or d['Application']
             })
 
             if d.get('Executed', ''):
