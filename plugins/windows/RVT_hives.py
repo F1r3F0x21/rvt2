@@ -430,7 +430,7 @@ class AppCompat(base.job.BaseModule):
         vss = self.myflag('vss')
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'appcompatcache2{}.csv'.format('_{}'.format(id) if id else ''))
+        self.outfile = os.path.join(outfolder, 'appcompatcache{}.csv'.format('_{}'.format(id) if id else ''))
 
         cmd = self.myconfig('cmd', None)
         self.logger().debug("Parsing appcompatcache on registry hive {}".format(path))
@@ -454,39 +454,6 @@ class AppCompat(base.job.BaseModule):
         self.logger().debug("Finished extraction from AppCompatCache")
 
         return []
-
-    # def rnu2(self, path=""):
-    #     # Take path from params if not provided as an argument
-    #     if not path:
-    #         path = self.myconfig('path')
-    #
-    #     id = self.myconfig('volume_id', None)  # Volume identifier
-    #     check_directory(self.myconfig('outdir'), create=True)
-    #
-    #     cmd = self.myconfig('cmd', None)
-    #
-    #
-    #         output_filename = 'userassist_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
-    #         hive = regfiles['ntuser'][user]
-    #
-    #         cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
-    #                     'batch_file': windows_format_path(self.myconfig('batch_file'), enclosed=True),
-    #                     'hive': windows_format_path(hive, enclosed=True),
-    #                     'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
-    #                     'filename': output_filename}
-    #         cmd_args = shlex.split(cmd.format(**cmd_vars))
-    #
-    #         run_command(cmd_args)
-    #         # RECmd.exe creates two files. We only care about the one ending in `UserAssist.csv`
-    #         try:
-    #             if os.path.exists(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv')):
-    #                 shutil.move(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv'),
-    #                             os.path.join(self.myconfig('outdir'), output_filename))
-    #         except Exception as exc:
-    #             raise base.job.RVTError(exc)
-    #
-    #     return []
-
 
     def parse_appcompatcache(self, path):
         """ Use appcompatcache plugin from regripper to parse AppCompatCache key in SYSTEM hive """
@@ -658,6 +625,8 @@ name" are automatically set by the job. The rest are the same ones specified in 
                 if os.path.exists(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv')):
                     shutil.move(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv'),
                                 os.path.join(self.myconfig('outdir'), output_filename))
+                else:
+                    self.logger().warning('Output file {} not found. Either no userassist key for this user or the parsing process went wrong'.format(output_filename[:-4] + '_UserAssist.csv'))
             except Exception as exc:
                 raise base.job.RVTError(exc)
 

@@ -38,6 +38,7 @@ class CharacterizeWindows(base.job.BaseModule):
         super().read_config()
         self.set_default_config('hivesdir', os.path.join(self.myconfig('outputdir'), 'windows', 'hives'))
         self.set_default_config('ripplugins', os.path.join(self.config.config['windows']['plugindir'], 'minimalrip.json'))
+        self.set_default_config('aux_file', os.path.join(self.config.config['plugins.windows']['auxdir'], 'os_info.json'))
 
     def run(self, path=None):
         """ The output dictionaries with os information are expected to be sent to a mako template """
@@ -61,7 +62,9 @@ class CharacterizeWindows(base.job.BaseModule):
         self.logger().debug('Windows OS characterization finished')
 
         # Save information in auxiliar file to be used by other modules
-        with open(os.path.join(self.config.config['plugins.windows']['auxdir'], 'os_info.json'), 'w') as outfile:
+        aux_json_file = self.myconfig('aux_file')
+        check_directory(os.path.dirname(aux_json_file), create=True)
+        with open(aux_json_file, 'w') as outfile:
             json.dump(self.os_info, outfile, indent=4)
 
         return [
