@@ -46,35 +46,51 @@ class DateFields(base.job.BaseModule):
 
     Configuration:
         - **fields**: A space separated list of fields to check to convert
+        - **sep**: Parameter used by datetime.isoformat. One-character separator, placed between the date and time portions of the result
+        - **timespec**: Parameter used by datetime.isoformat. Specifies the number of additional components of the time to include
+        - **ignore_tz**: If True, do not include a timezone offset with the result
     """
     def read_config(self):
         super().read_config()
         self.set_default_config('fields', 'date_creation')
+        self.set_default_config('sep', 'T')
+        self.set_default_config('timespec', 'auto')
+        self.set_default_config('timespec', 'auto')
+        self.set_default_config('ignore_tz', False)
 
     def run(self, path=None):
         """ The path will be passed to the mandatory from_module """
         self.check_params(path, check_from_module=True)
+        sep = self.myconfig('sep')
+        timespec = self.myconfig('timespec')
+        ignore_tz = self.myflag('ignore_tz')
         fields = self.myarray('fields')
+
         for data in self.from_module.run(path):
             for field in fields:
                 if field in data:
-                    converted_date = self.__convert_date(data[field])
+                    converted_date = self.__convert_date(data[field], sep=sep, timespec=timespec, ignore_tz=ignore_tz)
                     if converted_date:
                         data[field] = converted_date
                     else:
                         data.pop(field)
             yield data
 
-    def __convert_date(self, source):
+    def __convert_date(self, source, sep='T', timespec='auto', ignore_tz=False):
         try:
             if type(source) == int:
                 # convert an integer to a date
-                return datetime.datetime.utcfromtimestamp(source).isoformat()
+                dt = datetime.datetime.utcfromtimestamp(source)
             elif type(source) == str and source.isdigit():
                 # convert an string as an integer to a date
-                return datetime.datetime.utcfromtimestamp(int(source)).isoformat()
-            # default: use dateutil
-            return dateutil.parser.parse(source).isoformat()
+                dt = datetime.datetime.utcfromtimestamp(int(source))
+            else:
+                # default: use dateutil
+                dt = dateutil.parser.parse(source)
+
+            # Convert to isoformat and replace timezone if ignore_tz is set
+            return dt.replace(tzinfo=dt.tzinfo if not ignore_tz else None).isoformat(sep=sep, timespec=timespec)
+
         except Exception:
             if self.myflag('stop_on_error'):
                 raise

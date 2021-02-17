@@ -121,7 +121,7 @@ def sanitize_ip(value):
     if value.find(':') != -1:
         ip = value.split(':')[0]
         port = value.split(':')[-1]
-        return ip, port
+        return ip if ip else None, port
     return value, None
 
 

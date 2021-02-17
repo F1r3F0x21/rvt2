@@ -112,7 +112,7 @@ class AmCache(base.job.BaseModule):
         vss = self.myflag('vss')
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'amcache{}.txt'.format('_{}'.format(id) if id else ''))
+        self.outfile = os.path.join(outfolder, 'amcache{}.csv'.format('_{}'.format(id) if id else ''))
 
         self.logger().debug("Parsing {}".format(self.amcache_path))
 
@@ -334,7 +334,7 @@ class ShimCache(base.job.BaseModule):
         vss = self.myflag('vss')
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'shimcache{}.txt'.format('_{}'.format(id) if id else ''))
+        self.outfile = os.path.join(outfolder, 'shimcache{}.csv'.format('_{}'.format(id) if id else ''))
 
         self.logger().debug("Parsing shimcache on {}".format(self.shimcache_path))
         save_csv(self.parse_ShimCache_hive(self.shimcache_path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
@@ -410,7 +410,7 @@ class SysCache(base.job.BaseModule):
 
 class AppCompat(base.job.BaseModule):
     """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time """
-    # TODO, obtain the executed flag. appcompatcache plugin does not show it
+    # appcompatcache regripper plugin doesn't seems to show  executed flag. AppCompatCacheParser.exe does
 
     def read_config(self):
         super().read_config()
@@ -486,7 +486,6 @@ class AppCompat(base.job.BaseModule):
     #             raise base.job.RVTError(exc)
     #
     #     return []
-
 
 
     def parse_appcompatcache(self, path):

@@ -232,13 +232,15 @@ class MDTableSink(BaseSink):
     Configuration:
         - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
-        - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. Values are sepparated using spaces or new lines.
+        - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. Mandatory parameter. Values are sepparated using spaces or new lines.
+        - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct md visualization. Values are sepparated using spaces or new lines.
         - **first_line** (str): Write a first line before headers
     """
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('fieldnames', [])
+        self.set_default_config('fieldnames', '')
+        self.set_default_config('backticks_fields', '')
         self.set_default_config('file_exists', 'APPEND')
         self.set_default_config('first_line', '')
 
@@ -247,6 +249,7 @@ class MDTableSink(BaseSink):
         outputfile = self._outputfile()
 
         fields = self.myarray('fieldnames')
+        backticks_fields = self.myarray('backticks_fields')
         act = {field: '' for field in fields}
 
         first_line = self.myconfig('first_line')
@@ -265,10 +268,12 @@ class MDTableSink(BaseSink):
             try:
                 # Exclude consecutive repeated entries
                 repeated = True
-                for i in fields:
-                    if fileinfo.get(i, '') != act[i]:
+                for fld in fields:
+                    if fld in backticks_fields and fileinfo.get(fld, ''):
+                        fileinfo[fld] = '`' + fileinfo[fld] + '`'
+                    if fileinfo.get(fld, '') != act[fld]:
                         repeated = False
-                    act[i] = fileinfo.get(i, '')
+                    act[fld] = fileinfo.get(fld, '')
                 if repeated:
                     continue
                 outputfile.write("|".join([fileinfo.get(field, '') for field in fields]))
