@@ -7,7 +7,7 @@
     "path": {
       "EventData":{
         "Name": ["Vendor", "Model", "DeviceGUID", "SerialNumber", "ScsiStatus"],
-        "transform": {"DeviceGUID": "data.device_guid", "Vendor": "data.device_vendor", "Model": "data.device_model", "SerialNumber": "data.device_serial_number"}
+        "transform": {"Vendor": "data.DeviceVendor", "Model": "data.DeviceModel", "SerialNumber": "data.DeviceSerialNumber"}
       }
     }
   }

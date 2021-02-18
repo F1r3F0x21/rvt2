@@ -604,6 +604,14 @@
           "type": {
             "ignore_above": 1024,
             "type": "keyword"
+          },
+          "data": {
+            "properties": {
+              "Data": {
+                "type" : "object",
+                "enabled": false
+              }
+            }
           }
         }
       },

@@ -7,7 +7,7 @@
     "path": {
       "EventData":{
         "Name": ["VolumeGuid", "VolumeName", "IsBootVolume"],
-        "transform": {"VolumeName": "data.device_volume_name"}
+        "transform": {"VolumeName": "data.DeviceVolumeName"}
       }
     }
   }

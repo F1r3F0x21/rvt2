@@ -18,8 +18,9 @@ import logging
 import json
 from tqdm import tqdm
 
-from base.utils import check_directory, relative_path
+from base.utils import check_directory
 from base.commands import run_command
+from plugins.windows.RVT_hives import get_hives
 import base.job
 
 
@@ -87,56 +88,10 @@ class Autorip(base.job.BaseModule):
     def run(self, path=""):
         """ Main function to generate report files """
 
-        regfiles = self.get_hives(path)
+        regfiles = get_hives(path)
         id = self.myconfig('volume_id', None)
         self.generate_registry_output(regfiles, id)
         return []
-
-    def get_hives(self, path):
-        """ Obtain the paths to registry hives
-
-        Arguments:
-            path (str): Hives location directory. Expected inputs:
-                - Directory where registry hive files are stored, such as 'Windows/System32/config/' or 'Windows/AppCompat/Programs/'
-                - Main volume directory --> Root directory, where 'Documents and Settings' or 'Users' folders are expected
-                - Custom folder containing hives. Warning: 'ntuser.dat' are expected to be stored in a username folder.
-        """
-
-        regfiles = {}
-
-        # Common Hives
-        hive_names = {
-            'system': 'system',
-            'software': 'software',
-            'sam': 'sam',
-            'security': 'security',
-            'amcache.hve': 'amcache',
-            'syscache.hve': 'syscache'}
-
-        for file in os.listdir(path):
-            for hive_file, hive_name in hive_names.items():
-                if file.lower() == hive_file:
-                    regfiles[hive_name] = os.path.join(path, file)
-
-        # User hives
-        usr = []
-        regfiles["ntuser"] = {}
-        regfiles["usrclass"] = {}
-
-        for root, dirs, files in os.walk(path):
-            for file in files:
-                for hve, hve_name in zip(['ntuser.dat', 'usrclass.dat'], ['ntuser', 'usrclass']):
-                    if file.lower() == hve:
-                        user = relative_path(root, path).split('/')[0]
-                        if user not in regfiles[hve_name]:
-                            regfiles[hve_name][user] = os.path.join(root, file)
-                            usr.append(user)
-
-        if not regfiles['ntuser'] and not regfiles['usrclass']:
-            del regfiles['ntuser']
-            del regfiles['usrclass']
-
-        return regfiles
 
     def generate_registry_output(self, regfiles, id=None):
         """ Generates registry output files for a partition
@@ -146,8 +101,7 @@ class Autorip(base.job.BaseModule):
         """
 
         if not regfiles:
-            self.logger().warning('No valid registry hives provided')
-            return []
+            raise base.job.RVTError('No valid registry hives provided')
 
         output_path = self.myconfig('outdir')
         check_directory(output_path, create=True)
