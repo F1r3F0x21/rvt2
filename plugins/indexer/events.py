@@ -349,7 +349,8 @@ class BrowsersHistory(SuperTimeline):
             })
             common.update(decompose_url(d['url']))
 
-            if d['browser'] == 'chrome':
+            # One of Edge formats is equal to Chrome. Not the other
+            if d['browser'] == 'chrome' or (d['browser'] == 'edge' and 'visit_count' in d):
                 common.update({
                     '@timestamp': to_iso_format(d['visit_date']),
                     'url.title': d['title'],
@@ -377,7 +378,7 @@ class BrowsersHistory(SuperTimeline):
                 })
                 yield common
 
-            elif d['browser'] == 'edge':
+            elif d['browser'] == 'edge' and 'visit_count' not in d:
                 common.update({
                     '@timestamp': to_iso_format(d['last_visit']),
                     'url.modified': to_iso_format(d['modified'])
@@ -417,7 +418,8 @@ class BrowsersCookies(SuperTimeline):
             if 'accessed' in d:
                 common.update({'cookie.accessed': to_iso_format(d.get('accessed', '1970-01-01 01:00:00'))})
 
-            if d['browser'] in ['chrome', 'firefox']:
+            # One of Edge formats is equal to Chrome. Not the other
+            if d['browser'] in ['chrome', 'firefox', 'edge'] and 'cookie_name' in d:
                 common.update({
                     '@timestamp': to_iso_format(d['accessed']),
                     'event.type': ['access'],
@@ -444,7 +446,7 @@ class BrowsersCookies(SuperTimeline):
                 })
                 yield common
 
-            elif d['browser'] == 'edge':
+            elif d['browser'] == 'edge' and 'cookie_name' not in d:
                 common.update({
                     '@timestamp': to_iso_format(d['creation']),
                     'event.type': ['creation'],
@@ -467,8 +469,71 @@ class BrowsersDownloads(SuperTimeline):
     """
 
     def run(self, path=None):
-        pass
-        # TODO: differs too much for browser type. Some without timestamps
+        # Warning: Output differs too much for browser type.
+        self.check_params(path, check_from_module=True)
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                'tags': ['browsers'],
+                'user.name': d['user'],
+                'event.category': ['web'],
+                'event.module': 'browsers',
+                'event.dataset': 'downloads',
+                'user_agent.name': d['browser'],
+                'url.original': d['url'],
+            })
+
+            if d['browser'] == 'safari':
+                # Safari does not have timestamps
+                continue
+
+            elif d['browser'] == 'firefox':
+                common.update({
+                    '@timestamp': to_iso_format(d['date_added']),
+                    'event.type': ['start'],
+                    'event.action': 'download-started',
+                    'message': 'Download started from: ' + d['url'],
+                    'event.data.DownloadedContent': d.get('content', '')
+                })
+                yield common
+
+                common.update({
+                    '@timestamp': to_iso_format(d['modified']),
+                    'event.type': ['change'],
+                    'event.action': 'download-modified',
+                    'message': 'Download modified from: ' + d['url']
+                })
+                yield common
+
+            elif d['browser'] in ['chrome', 'edge']:
+                common.update({
+                    '@timestamp': to_iso_format(d['start']),
+                    'event.type': ['start'],
+                    'event.action': 'download-started',
+                    'message': 'Download started from: ' + d['url'],
+                    'file.path': d['path'],
+                    'file.size': d['size']
+                })
+                yield common
+
+                common.update({
+                    '@timestamp': to_iso_format(d['end']),
+                    'event.type': ['end'],
+                    'event.action': 'download-finished',
+                    'message': 'Download finished from: ' + d['url']
+                })
+                yield common
+
+            if d['browser'] == 'edge' and d.get('modified', '1601-01-01 T00:00:00Z') != '1601-01-01 T00:00:00Z':
+                common.update({
+                    '@timestamp': to_iso_format(d['modified']),
+                    'event.type': ['change'],
+                    'event.action': 'download-modified',
+                    'message': 'Download modified from: ' + d['url']
+                })
+                yield common
 
 
 class EventLogs(SuperTimeline):
