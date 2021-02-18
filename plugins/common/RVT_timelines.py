@@ -134,6 +134,10 @@ class MFTTimeline(base.job.BaseModule):
         self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'MFTECmd.exe'))
 
     def run(self, path=""):
+
+        # Check if there's another mft_timeline job running
+        base.job.wait_for_job(self.config, self)
+
         self.check_params(path, check_from_module=False, check_path=True, check_path_exists=True)
         self.path = path
         tl_dir = self.myconfig('outdir')

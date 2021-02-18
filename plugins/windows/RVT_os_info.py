@@ -59,6 +59,11 @@ class CharacterizeWindows(base.job.BaseModule):
             self.os_information(part)
             self.users_information(part)
 
+        # Check there is a valid output
+        if not self.os_info:
+            self.logger().warning('No registry output has been generated. Make sure there are registry hives in the partition')
+            return []
+
         self.logger().debug('Windows OS characterization finished')
 
         # Save information in auxiliar file to be used by other modules
@@ -84,7 +89,10 @@ class CharacterizeWindows(base.job.BaseModule):
                 self.config,
                 'plugins.windows.RVT_autorip.Autorip',
                 extra_config=dict(path=self.myconfig('mountdir') + '/p*', ripplugins=ripplugins_file))
-            list(module.run())
+            try:
+                list(module.run())
+            except base.job.RVTError as exc:
+                self.logger().warning(exc)
 
         with open(ripplugins_file) as rf:
             self.ripplugins = json.load(rf)

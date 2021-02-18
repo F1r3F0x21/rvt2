@@ -157,7 +157,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
                 # Check: https://stackoverflow.com/questions/47456631/simpler-way-to-run-a-generator-function-without-caring-about-items
                 collections.deque(results, maxlen=0)
             else:
-                logging.warning('Job job=%s returned None instead of generator. You probably want to change this.', job)
+                logging.info('Job job=%s returned None instead of generator. You probably want to change this.', job)
         return list()
 
 
@@ -229,7 +229,7 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
                 return []
             for data in results:
                 yield data
-        except KeyboardInterrupt as exc:
+        except KeyboardInterrupt:
             logging.warning('INTERRUPTED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
             raise
         except RVTCritical as exc:

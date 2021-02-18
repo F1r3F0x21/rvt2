@@ -101,8 +101,7 @@ class Autorip(base.job.BaseModule):
         """
 
         if not regfiles:
-            self.logger().warning('No valid registry hives provided')
-            return []
+            raise base.job.RVTError('No valid registry hives provided')
 
         output_path = self.myconfig('outdir')
         check_directory(output_path, create=True)

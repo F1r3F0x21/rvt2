@@ -464,23 +464,22 @@ class LnkExtract(base.job.BaseModule):
     def run(self, path=""):
         """ Parses lnk files, jumplists and customdestinations """
 
-        # Check if there's another characterize job running
+        # Check if there's another recentfiles job running
         base.job.wait_for_job(self.config, self, job_name='windows.recentfiles')
         base.job.wait_for_job(self.config, self, job_name='windows.recentfiles_default')
 
         self.logger().info("Starting extraction of lnk files")
 
+        # Since lnk may be anywhere, this job must rely on allocfiles. Accepting a glob pattern will be much slower
         self.Files = GetFiles(self.config, vss=self.myflag("vss"))
         self.mountdir = self.myconfig('mountdir')
+        self.users = get_user_list(self.mountdir, self.vss)
+        all_recentfiles = self.sort_recent_allocated_files()
 
         lnk_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
         check_folder(lnk_path)
 
-        self.users = get_user_list(self.mountdir, self.vss)
-        all_recentfiles = self.sort_recent_allocated_files()
-
         base_class = LnkParser(config=self.config)
-
         artifacts_funcs = {'lnk': base_class.lnk_parser, 'autodest': base_class.automaticDest_parser, 'customdest': base_class.customDest_parser}
 
         for sort_values, files in all_recentfiles.items():

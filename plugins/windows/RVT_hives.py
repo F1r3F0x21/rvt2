@@ -66,7 +66,7 @@ def get_hives(path):
         'amcache.hve': 'amcache',
         'syscache.hve': 'syscache'}
 
-    # Search only first level, not subfolders. File nams MUST BE the expected Windows hives names. If names had been changed, they will be ommited
+    # Search only first level, not subfolders. File names MUST BE the expected Windows hives names. If names had been changed, they will be ommited
     for file in os.listdir(path):
         for hive_file, hive_name in hive_names.items():
             if file.lower() == hive_file:
@@ -598,12 +598,11 @@ name" are automatically set by the job. The rest are the same ones specified in 
             path = self.myconfig('path')
 
         regfiles = get_hives(path)
-
-        id = self.myconfig('volume_id', None)  # Volume identifier
-        if not regfiles:
-            self.logger().warning('No valid registry hives provided')
+        if 'ntuser' not in regfiles:
+            self.logger().warning('No valid NTUSER.DAT registry hives provided')
             return []
 
+        id = self.myconfig('volume_id', None)  # Volume identifier
         check_directory(self.myconfig('outdir'), create=True)
 
         cmd = self.myconfig('cmd')
@@ -689,16 +688,15 @@ class Shellbags(base.job.BaseModule):
 
         # Get NTUSER.DAT and UsrClass.dat hives path for every user
         regfiles = get_hives(path)
+        if 'ntuser' not in regfiles:
+            self.logger().warning('No valid NTUSER.DAT or usrclass.dat registry hives provided')
+            return []
         usr_folders = {}
         for user_hive in ['ntuser', 'usrclass']:
             for user, hive in regfiles.get(user_hive, {}).items():
                 usr_folders[os.path.dirname(hive)] = user
 
         id = self.myconfig('volume_id', None)  # Volume identifier
-        if not regfiles:
-            self.logger().warning('No valid registry hives provided')
-            return []
-
         check_directory(self.myconfig('outdir'), create=True)
 
         cmd = self.myconfig('cmd')
