@@ -6,7 +6,7 @@
 if [ -z "$1" ]; then
     ESSERVER=http://localhost:9200
 else
-    ESSERVER=$2
+    ESSERVER=$1
 fi
-
-curl -X PUT "$ESSERVER/_all/_settings" -H 'Content-Type: application/json' -d'{ "index.blocks.read_only_allow_delete" : false } }'
+ 
+curl -X PUT "$ESSERVER/_all/_settings" -H 'Content-Type: application/json' -d'{ "index.blocks.read_only_allow_delete" : false }'
