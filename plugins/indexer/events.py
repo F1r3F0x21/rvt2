@@ -636,7 +636,7 @@ class Prefetch(SuperTimeline):
                     yield common
 
 
-class Amcache(SuperTimeline):
+class AmCache(SuperTimeline):
     """ Converts amcache execution times to events. After this, you can save this file using events.save.
     """
 
@@ -701,8 +701,8 @@ class AppCompatCache(SuperTimeline):
                 'event.dataset': 'appcompat',
                 'registry.hive': 'system',
                 'event.action': 'file-modified',
-                'message': 'File modified: ' + d.get('Path', None) or d['Application'],
-                'process.executable': d.get('Path', None) or d['Application']
+                'message': 'File modified: ' + (d.get('Path', None) or d['Application']),
+                'process.executable': (d.get('Path', None) or d['Application'])
             })
 
             if d.get('Executed', ''):
