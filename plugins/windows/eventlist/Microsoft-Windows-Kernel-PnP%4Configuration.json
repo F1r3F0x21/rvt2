@@ -7,7 +7,7 @@
     "path": {
       "EventData":{
         "Name": ["DeviceInstanceId", "ClassGuid", "ParentDeviceInstanceId"],
-        "transform": {"DeviceInstanceId": "data.device_id", "ParentDeviceInstanceId": "data.parent_device_id"}
+        "transform": {"DeviceInstanceId": "data.DeviceID", "ParentDeviceInstanceId": "data.ParentDeviceID"}
       }
     }
   },
@@ -19,7 +19,7 @@
     "path": {
       "EventData":{
         "Name": ["DeviceInstanceId", "ClassGuid", "ServiceName"],
-        "transform": {"DeviceInstanceId": "data.device_id", "ServiceName": "data.service_name"}
+        "transform": {"DeviceInstanceId": "data.DeviceID", "ServiceName": "service.name"}
       }
     }
   },
@@ -31,7 +31,7 @@
     "path": {
       "EventData":{
         "Name": ["DeviceInstanceId"],
-        "transform": {"DeviceInstanceId": "data.device_id"}
+        "transform": {"DeviceInstanceId": "data.DeviceID"}
       }
     }
   }

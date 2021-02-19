@@ -26,6 +26,8 @@ import ast
 import traceback
 import shlex
 import collections
+import time
+import datetime
 from base.config import parse_conf_array
 
 
@@ -140,7 +142,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     myconfig.update(myparams)
     if jobs is None:
         # no jobs: run as a single job
-        results = run_single_job(config, job_name_with_params, default_path=path, extra_config=myconfig, from_module=from_module, log_execution=(nested_logs>0))
+        results = run_single_job(config, job_name_with_params, default_path=path, extra_config=myconfig, from_module=from_module, log_execution=(nested_logs > 0))
         # return the resulting generatos
         if results is None:
             logging.warning('Job job=%s returned None instead of generator. You probably want to change this.', job_name)
@@ -149,13 +151,13 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     else:
         # multiple jobs: run each job separately
         for job in parse_modules_chain(job_name, myconfig, config):
-            results = run_job(config, job, path=path, extra_config=myconfig, nested_logs=nested_logs-1)
+            results = run_job(config, job, path=path, extra_config=myconfig, nested_logs=nested_logs - 1)
             if results:
                 # run the generator without caring about the results.
                 # Check: https://stackoverflow.com/questions/47456631/simpler-way-to-run-a-generator-function-without-caring-about-items
                 collections.deque(results, maxlen=0)
             else:
-                logging.warning('Job job=%s returned None instead of generator. You probably want to change this.', job)
+                logging.info('Job job=%s returned None instead of generator. You probably want to change this.', job)
         return list()
 
 
@@ -227,7 +229,7 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
                 return []
             for data in results:
                 yield data
-        except KeyboardInterrupt as exc:
+        except KeyboardInterrupt:
             logging.warning('INTERRUPTED job=%s on path=%s casename=%s source=%s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'))
             raise
         except RVTCritical as exc:
@@ -287,6 +289,39 @@ def load_module(config, confsection, from_module=None, extra_config=None):
         raise RVTCritical('Cannot load class {}.{} from section [{}]: TypeError: {}'.format(package, classname, section, exc)) from None
     except ImportError as exc:
         raise RVTCritical('Cannot load class {}.{} from section [{}]: ImportError: {}'.format(package, classname, section, exc)) from None
+
+
+def wait_for_job(config, job, step=30, timeout=600, job_name=None, exclude_present_job=True):
+    """ Manages concurrency of repeated jobs.
+        If there is still an instance running of a job that is to be executed, then the new job waits the first one to finish.
+
+    Args:
+        config (:obj:`base.config.Config`): global configuration object to pass to the module.
+        job (base.job.BaseModule): job object of the new job to be executed.
+        step (int): time (in seconds) between consecutive state asking.
+        timeout (int): maximum time (in seconds) to wait. After that, the new job is cancelled.
+        job_name (str): name of the job to check it's running. By default it will be the present job name itself.
+        exclude_jobid (str): Exclude the present job id in the search, since it will always be registered before the present functions is executed.
+    """
+
+    now = datetime.datetime.now()
+    ellapsed_time = datetime.timedelta(seconds=0)
+    timeout = datetime.timedelta(seconds=timeout)
+    available = False
+
+    while ellapsed_time < timeout:
+        if job.get_job_status(job_name=job_name, exclude_present_job=exclude_present_job) == 'start':
+            job.logger().debug('There is already an instance of the same job name running. Waiting to complete. Ellapsed time: {}'.format(str(ellapsed_time)))
+            time.sleep(step)
+            ellapsed_time = datetime.datetime.now() - now
+        else:
+            available = True
+            break
+
+    if available:
+        return
+    else:
+        raise RVTError('Timeout of {}s exhausted. Job {} will be cancelled'.format(timeout, str(job)))
 
 
 class BaseModule(object):
@@ -434,6 +469,30 @@ class BaseModule(object):
             self.from_module.shutdown()
         # request to save the local store
         self.config.store_set(option=None, save=True)
+
+    def get_job_status(self, job_name=None, exclude_present_job=True):
+        """ Find if there is any job with provided name running on the same source.
+            Used to determine if the job can run or must wait to other job to finish.
+
+        Args:
+            job_name (str): name of the job to check. By default it will be the present job name itself.
+            exclude_jobid (str): Exclude the present job id in the search, since it will always be registered before the present functions is executed.
+
+        Returns:
+            The last registered state for a job as such. Options: 'new', 'start', 'end', 'interrupted', 'error'.
+        """
+        if not job_name:
+            job_name = self.config.job_name
+        if exclude_present_job:
+            jobid = self.config.get('rvt2', 'jobid')
+        module = load_module(self.config, 'base.input.JSONReader', extra_config={'progress.disable': True})
+        last_status = 'new'
+        for register in module.run(self.config.get('rvt2', 'register', None)):
+            if exclude_present_job and register["_id"] == jobid:
+                continue
+            if register["job"] == job_name and register["source"] == self.config.get('DEFAULT', 'source'):
+                last_status = register["status"]
+        return last_status
 
 
 class RVTError(Exception):

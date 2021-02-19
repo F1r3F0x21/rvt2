@@ -13,11 +13,12 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import csv
 import os
 import re
 import datetime
 import dateutil.parser
+import shlex
+import shutil
 from collections import OrderedDict
 from Registry import Registry
 from Registry.RegistryParse import parse_windows_timestamp as _parse_windows_timestamp
@@ -25,10 +26,9 @@ from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, save_csv, relative_path
+from base.utils import check_directory, save_csv, relative_path, windows_format_path
 from base.commands import run_command, yield_command
-from plugins.common.RVT_files import GetFiles
-from plugins.common.RVT_filesystem import FileSystem
+from plugins.common.RVT_files import GetTimeline
 from plugins.windows.RVT_os_info import CharacterizeWindows
 
 
@@ -66,7 +66,7 @@ def get_hives(path):
         'amcache.hve': 'amcache',
         'syscache.hve': 'syscache'}
 
-    # Search only first level, not subfolders. File nams MUST BE the expected Windows hives names. If names had been changed, they will be ommited
+    # Search only first level, not subfolders. File names MUST BE the expected Windows hives names. If names had been changed, they will be ommited
     for file in os.listdir(path):
         for hive_file, hive_name in hive_names.items():
             if file.lower() == hive_file:
@@ -94,31 +94,36 @@ def get_hives(path):
     return regfiles
 
 
-class Amcache(base.job.BaseModule):
+class AmCache(base.job.BaseModule):
     """ Parses Amcache.hve registry hive. """
 
-    def run(self, path=""):
-        vss = self.myflag('vss')
-        self.search = GetFiles(self.config, vss=vss)
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
 
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.amcache_path = path
+
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        self.partition = id if id else 'p01'  # needed to get OS info
+        vss = self.myflag('vss')
         outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'amcache{}.csv'.format('_{}'.format(id) if id else ''))
 
-        amcache_hives = [path] if path else self.search.search("Amcache.hve$")
-        for am_file in amcache_hives:
-            self.amcache_path = os.path.join(self.myconfig('casedir'), am_file)
-            self.partition = am_file.split("/")[2]
-            self.logger().debug("Parsing {}".format(am_file))
-            self.outfile = os.path.join(outfolder, "amcache_{}.csv".format(self.partition))
+        self.logger().debug("Parsing {}".format(self.amcache_path))
 
-            try:
-                reg = Registry.Registry(os.path.join(self.myconfig('casedir'), am_file))
-                entries = self.parse_amcache_entries(reg)
-                save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
-            except KeyError:
-                self.logger().warning("Expected subkeys not found in hive file: {}".format(am_file))
-            except Exception as exc:
-                self.logger().warning("Problems parsing: {}. Error: {}".format(am_file, exc))
+        try:
+            reg = Registry.Registry(self.amcache_path)
+            entries = self.parse_amcache_entries(reg)
+            save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        except KeyError:
+            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+        except Exception as exc:
+            self.logger().warning("Problems parsing: {}. Error: {}".format(self.amcache_path, exc))
 
         self.logger().debug("Amcache.hve parsing finished")
         return []
@@ -174,8 +179,9 @@ class Amcache(base.job.BaseModule):
         }
 
         os_version = CharacterizeWindows(config=self.config).get_windows_version(partition=self.partition)
-        self.logger().debug('Detected OS version {} {} {}'.format(os_version['Name'], os_version['SubVersion'], os_version['BuildNumber']))
-        version_to_search = entries_by_version.get(os_version['Name'], {'default': []})
+        if os_version['Name']:
+            self.logger().debug('Processing OS version {} {} {}'.format(os_version['Name'], os_version['SubVersion'], os_version['BuildNumber']))
+        version_to_search = entries_by_version.get(os_version['Name'], {'default': ['InventoryApplication', 'InventoryApplicationFile', 'Programs', 'File']})
         if os_version['SubVersion'] in version_to_search:
             keys_to_search = version_to_search[os_version['SubVersion']]
         else:
@@ -195,9 +201,11 @@ class Amcache(base.job.BaseModule):
                     yield app
             except Registry.RegistryKeyNotFoundException:
                 self.logger().debug('Key "Root\\{}" not found'.format(key))
+            except Exception as exc:
+                self.logger().warning(exc)
 
         if not found_key:
-            raise KeyError
+            raise KeyError('None of the subkeys found in Amcache')
 
     def _parse_File_entries(self, volumes):
         """ Parses File subkey entries for amcache hive """
@@ -312,26 +320,26 @@ class ShimCache(base.job.BaseModule):
 
     # TODO: .sdb shim database files (ex: Windows/AppPatch/sysmain.sdb)
 
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
+
     def run(self, path=""):
-        self.vss = self.myflag('vss')
-        self.search = GetFiles(self.config, vss=self.vss)
-        self.logger().debug("Parsing ShimCache from registry")
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.shimcache_path = path
 
-        outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
-        SYSTEM = list(self.search.search(r"windows/System32/config/SYSTEM$"))
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        vss = self.myflag('vss')
+        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'shimcache{}.csv'.format('_{}'.format(id) if id else ''))
 
-        partition_list = set()
-        for f in SYSTEM:
-            aux = re.search(r"([vp\d]*)/windows/System32/config", f, re.I)
-            partition_list.add(aux.group(1))
-
-        output_files = {p: os.path.join(outfolder, "shimcache_%s.csv" % p) for p in partition_list}
-
-        for f in SYSTEM:
-            save_csv(self.parse_ShimCache_hive(f), outfile=output_files[f.split("/")[2]], file_exists='OVERWRITE', quoting=0)
-
+        self.logger().debug("Parsing shimcache on {}".format(self.shimcache_path))
+        save_csv(self.parse_ShimCache_hive(self.shimcache_path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
         self.logger().debug("Finished extraction from ShimCache")
+
         return []
 
     def parse_ShimCache_hive(self, sysfile):
@@ -339,7 +347,7 @@ class ShimCache(base.job.BaseModule):
         ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
         date_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
 
-        res = run_command([ripcmd, "-r", os.path.join(self.myconfig('casedir'), sysfile), "-p", "shimcache"], logger=self.logger())
+        res = run_command([ripcmd, "-r", sysfile, "-p", "shimcache"], logger=self.logger())
         for line in res.split('\n'):
             if ':' not in line[:4]:
                 continue
@@ -351,116 +359,47 @@ class ShimCache(base.job.BaseModule):
                 yield OrderedDict([('LastModified', date), ('AppPath', path), ('Executed', executed)])
 
 
-class ScheduledTasks(base.job.BaseModule):
-    """ Parses job files and schedlgu.txt. """
-
-    def run(self, path=""):
-        self.vss = self.myflag('vss')
-        self.search = GetFiles(self.config, vss=self.vss)
-        self.outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
-        check_directory(self.outfolder, create=True)
-
-        self.logger().debug("Parsing artifacts from scheduled tasks files (.job)")
-        self.parse_Task()
-        self.logger().debug("Parsing artifacts from Task Scheduler Service log files (schedlgu.txt)")
-        self.parse_schedlgu()
-        return []
-
-    def parse_Task(self):
-        jobs_files = list(self.search.search(r"\.job$"))
-        partition_list = set()
-        for f in jobs_files:
-            partition_list.add(f.split("/")[2])
-
-        f = {}
-        csv_files = {}
-        writers = {}
-
-        for p in partition_list:
-            csv_files[p] = open(os.path.join(self.outfolder, "jobs_files_%s.csv" % p), "w")
-            writers[p] = csv.writer(csv_files[p], delimiter=";", quotechar='"')
-            writers[p].writerow(["Product Info", "File Version", "UUID", "Maximum Run Time", "Exit Code", "Status", "Flags", "Date Run",
-                                 "Running Instances", "Application", "Working Directory", "User", "Comment", "Scheduled Date"])
-
-        for file in jobs_files:
-            partition = file.split("/")[2]
-            with open(os.path.join(self.myconfig('casedir'), file), "rb") as f:
-                data = f.read()
-            job = jobparser.Job(data)
-            writers[partition].writerow([jobparser.products.get(job.ProductInfo), job.FileVersion, job.UUID, job.MaxRunTime, job.ExitCode, jobparser.task_status.get(job.Status, "Unknown Status"),
-                                         job.Flags_verbose, job.RunDate, job.RunningInstanceCount, "{} {}".format(job.Name, job.Parameter), job.WorkingDirectory, job.User, job.Comment, job.ScheduledDate])
-        for csv_file in csv_files.values():
-            csv_file.close()
-
-        self.logger().debug("Finished extraction from scheduled tasks .job")
-
-    def parse_schedlgu(self):
-        sched_files = list(self.search.search(r"schedlgu\.txt$"))
-        for file in sched_files:
-            partition = file.split("/")[2]
-            save_csv(self._parse_schedlgu(os.path.join(self.myconfig('casedir'), file)),
-                     outfile=os.path.join(self.outfolder, 'schedlgu_{}.csv'.format(partition)), file_exists='OVERWRITE', quoting=0)
-        self.logger().debug("Finished extraction from schedlgu.txt")
-
-    def _parse_schedlgu(self, file):
-        with open(file, 'r', encoding='utf16') as sched:
-            dates = {'start': WINDOWS_TIMESTAMP_ZERO, 'end': WINDOWS_TIMESTAMP_ZERO}
-            parsed_entry = False
-            for line in sched:
-                if line == '\n':
-                    continue
-                elif line.startswith('"'):
-                    service = line.rstrip('\n').strip('"')
-                    if parsed_entry:
-                        yield OrderedDict([('Service', service), ('Started', dates['start']), ('Finished', dates['end'])])
-                    parsed_entry = False
-                    dates = {'start': WINDOWS_TIMESTAMP_ZERO, 'end': WINDOWS_TIMESTAMP_ZERO}
-                    continue
-                for state, words in {'start': ['Started', 'Iniciado'], 'end': ['Finished', 'Finalizado']}.items():
-                    for word in words:
-                        if line.startswith('\t{}'.format(word)):
-                            try:
-                                dates[state] = dateutil.parser.parse(line[re.search(r'\d', line).span()[0]:].rstrip('\n')).strftime("%Y-%m-%d %H:%M:%S")
-                                parsed_entry = True
-                            except Exception:
-                                pass
-                            break
-
-
 class SysCache(base.job.BaseModule):
+    """ Parse SysCache registry hive """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
 
     def run(self, path=""):
-        self.search = GetFiles(self.config, vss=self.myflag("vss"))
-        self.vss = self.myflag('vss')
-        self.logger().debug("Parsing Syscache from registry")
-        self.parse_SysCache_hive()
-        return []
+        self.check_params(path, check_path=True, check_path_exists=True)
 
-    def parse_SysCache_hive(self):
-        outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
-        # self.tl_file = os.path.join(self.myconfig('timelinesdir'), "%s_BODY.csv" % self.myconfig('source'))
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        vss = self.myflag('vss')
+        self.partition = id if id else 'p01'  # needed to get inode information
+        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
         check_directory(outfolder, create=True)
-        SYSC = self.search.search(r"/System Volume Information/SysCache.hve$")
+        self.outfile = os.path.join(outfolder, 'syscache{}.csv'.format('_{}'.format(id) if id else ''))
 
-        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
-
-        for f in SYSC:
-            p = f.split('/')[2]
-            output_text = run_command([ripcmd, "-r", os.path.join(self.myconfig('casedir'), f), "-p", "syscache_csv"], logger=self.logger())
-            output_file = os.path.join(outfolder, "syscache_%s.csv" % p)
-
-            self.path_from_inode = FileSystem(config=self.config).load_path_from_inode(self.myconfig, p, vss=self.vss)
-
-            save_csv(self.parse_syscache_csv(p, output_text), outfile=output_file, file_exists='OVERWRITE')
-
+        self.logger().debug("Parsing SysCache hive: {}".format(path))
+        save_csv(self.parse_SysCache_hive(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
         self.logger().debug("Finished extraction from SysCache")
 
-    def parse_syscache_csv(self, partition, text):
-        for line in text.split('\n')[:-1]:
+        return []
+
+    def parse_SysCache_hive(self, path):
+        """ Use syscache_csv plugin from regripper to parse SysCache hive """
+        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        output_text = run_command([ripcmd, "-r", path, "-p", "syscache_csv"], logger=self.logger())
+
+        try:
+            timeline = GetTimeline(config=self.config)
+        except IOError:
+            timeline = None
+
+        for line in output_text.split('\n')[:-1]:
             line = line.split(",")
             fileID = line[1]
             inode = line[1].split('/')[0]
-            name = self.path_from_inode.get(inode, [''])[0]
+            # Get filename from inode if timeline is present
+            name = '' if not timeline else timeline.get_path_from_inode(inode, partition=self.partition)
             try:
                 yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
                                    ("Name", name), ("FileID", fileID), ("Sha1", line[2])])
@@ -471,16 +410,53 @@ class SysCache(base.job.BaseModule):
 
 class AppCompat(base.job.BaseModule):
     """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time """
-    # TODO, obtain the executed flag
+    # appcompatcache regripper plugin doesn't seems to show  executed flag. AppCompatCacheParser.exe does
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
+        self.set_default_config('cmd', '')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'AppCompatCacheParser.exe'))
+
     def run(self, path=""):
-
+        # Take path from params if not provided as an argument
         if not path:
-            self.search = GetFiles(self.config)
-            SYSTEM = self.search.search(r"/windows/system32/config/system$")[0]
-            path = os.path.join(self.myconfig('casedir'), SYSTEM)
+            path = self.myconfig('path')
+        # self.check_params(path, check_path=True, check_path_exists=True)
 
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        vss = self.myflag('vss')
+        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'appcompatcache{}.csv'.format('_{}'.format(id) if id else ''))
+
+        cmd = self.myconfig('cmd', None)
         self.logger().debug("Parsing appcompatcache on registry hive {}".format(path))
+        if not cmd:
+            # Use regripper appcompatcache plugin to parse
+            save_csv(self.parse_appcompatcache(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        else:
+            # Use the specified command to parse
+            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
+                        'path': windows_format_path(path, enclosed=True),
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
+                        'filename': os.path.basename(self.outfile)}
+            cmd_args = shlex.split(cmd.format(**cmd_vars))
+            run_command(cmd_args)
 
+            # Assuming AppCompatCacheParser is used, rearrange the default output
+            tmp_file = os.path.join(os.path.dirname(self.outfile), 'temp_' + os.path.basename(self.outfile))
+            run_command("rg -v ',True' {} | awk -F, '{{ print $4\";\"$3\";\"$2\";\"$5 }}' > {}".format(self.outfile, tmp_file))
+            run_command('mv {} {}'.format(tmp_file, self.outfile))
+
+        self.logger().debug("Finished extraction from AppCompatCache")
+
+        return []
+
+    def parse_appcompatcache(self, path):
+        """ Use appcompatcache plugin from regripper to parse AppCompatCache key in SYSTEM hive """
         ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
         line_number = 0
         start = 1000
@@ -489,30 +465,131 @@ class AppCompat(base.job.BaseModule):
             line_number += 1
             if line_number < 5:
                 continue
-            if line.startswith('LastWrite Time'):
-                start = line_number + 2
             if line_number > start:
-                result['Time'] = line[-20:].strip()
-                result['Application'] = line[:-22].replace('\\', '/')
-                yield result
+                last_modified = line[-20:].strip()
+                # Some entries do not include a time. Process them apart
+                if not self._check_valid_time(last_modified):
+                    result['Time'] = ''
+                    result['Application'] = line.replace('\\', '/').strip()
+                    yield result
+                else:
+                    # The rest have a last modified UTC time
+                    result['Time'] = last_modified
+                    result['Application'] = line[:-22].replace('\\', '/')
+                    yield result
+            if line.startswith('LastWrite Time'):
+                start = line_number + 1
 
         return []
+
+    def _check_valid_time(self, time_str, format="%Y-%m-%d %H:%M:%S"):
+        try:
+            datetime.datetime.strptime(time_str, format)
+            return True
+        except Exception:
+            return False
+
+
+class ScheduledTasks(base.job.BaseModule):
+    """ Parses job files and schedlgu.txt. """
+
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.st_dir = path
+        self.volume_id = self.myconfig('volume_id')
+        # Try to guess volume id/partition from path
+        if not self.volume_id:
+            assumed_location = os.path.join(self.myconfig('casedir'), self.myconfig('source'), 'mnt')
+            if path.find(assumed_location) != -1:
+                self.volume_id = path[len(assumed_location) + 1:].split('/')[0]
+
+        self.vss = self.myflag('vss')
+        self.outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
+        check_directory(self.outfolder, create=True)
+
+        self.logger().debug("Parsing artifacts from scheduled tasks files (.job)")
+        outfile_jobs = os.path.join(self.outfolder, "jobs_files_{}.csv".format(self.volume_id))
+        save_csv(self.parse_Task(), outfile=outfile_jobs, file_exists='APPEND', quoting=0)
+
+        self.logger().debug("Parsing artifacts from Task Scheduler Service log files (schedlgu.txt)")
+        outfile_sched = os.path.join(self.outfolder, 'schedlgu_{}.csv'.format(self.volume_id))
+        save_csv(self.parse_schedlgu(), config=self.config,
+                 outfile=outfile_sched, file_exists='APPEND', quoting=0)
+        self.parse_schedlgu()
+        return []
+
+    def parse_Task(self):
+        """ Parse .job files """
+        jobs_files = [os.path.join(self.st_dir, file) for file in os.listdir(self.st_dir) if file.endswith('.job')]
+
+        for file in jobs_files:
+            with open(file, "rb") as f:
+                data = f.read()
+            # Every .job file is a task
+            job = jobparser.Job(data)
+            yield OrderedDict([("Product Info", jobparser.products.get(job.ProductInfo)),
+                               ("File Version", job.FileVersion),
+                               ("UUID", job.UUID),
+                               ("Maximum Run Time", job.MaxRunTime),
+                               ("Exit Code", job.ExitCode),
+                               ("Status", jobparser.task_status.get(job.Status, "Unknown Status")),
+                               ("Flasgs", job.Flags_verbose),
+                               ("Date Run", job.RunDate),
+                               ("Running Instances", job.RunningInstanceCount),
+                               ("Application", "{} {}".format(job.Name, job.Parameter)),
+                               ("Working Directory", job.WorkingDirectory),
+                               ("User", job.User),
+                               ("Comment", job.Comment),
+                               ("Scheduled Date", job.ScheduledDate)])
+
+        self.logger().debug("Finished extraction from scheduled tasks .job")
+
+    def parse_schedlgu(self):
+        """ Parse SCHEDLGU.TXT files """
+        sched_files = [os.path.join(self.st_dir, file) for file in os.listdir(self.st_dir) if file.lower().endswith('schedlgu.txt')]
+
+        for file in sched_files:
+            with open(file, 'r', encoding='utf16') as sched:
+                dates = {'start': WINDOWS_TIMESTAMP_ZERO, 'end': WINDOWS_TIMESTAMP_ZERO}
+                parsed_entry = False
+                for line in sched:
+                    if line == '\n':
+                        continue
+                    elif line.startswith('"'):
+                        service = line.rstrip('\n').strip('"')
+                        if parsed_entry:
+                            yield OrderedDict([('Service', service), ('Started', dates['start']), ('Finished', dates['end'])])
+                        parsed_entry = False
+                        dates = {'start': WINDOWS_TIMESTAMP_ZERO, 'end': WINDOWS_TIMESTAMP_ZERO}
+                        continue
+                    for state, words in {'start': ['Started', 'Iniciado'], 'end': ['Finished', 'Finalizado']}.items():
+                        for word in words:
+                            if line.startswith('\t{}'.format(word)):
+                                try:
+                                    dates[state] = dateutil.parser.parse(line[re.search(r'\d', line).span()[0]:].rstrip('\n')).strftime("%Y-%m-%d %H:%M:%S")
+                                    parsed_entry = True
+                                except Exception:
+                                    pass
+                                break
+
+        self.logger().debug("Finished extraction from schedlgu.txt")
 
 
 class UserAssist(base.job.BaseModule):
     """ Parses UserAssist registry key in NTUSER.DAT hive.
 
     Configuration section:
-        - **wine_docker**: path to docker instance running wine
-        - **executable**: path to executable app to parse timeline. By default is using RECmd.exe in a dockerized Windows environment. See (https://ericzimmerman.github.io/#!index.md)
-        - **batch_file**: configuration file that settles the registry keys to be parsed
+        - **cmd**: external command to parse userassist. It is a Python string template accepting variables "executable", "hive", "outdir", "filename" and "batch_file". Variables "hive" and "file
+name" are automatically set by the job. The rest are the same ones specified in parameters
+        - **executable**: path to executable app to parse UserAssist. By default is using RECmd.exe. See (https://ericzimmerman.github.io/#!index.md)
+        - **batch_file**: configuration file that settles the registry keys to be parsed. Relative to `windows_tools_dir`
     """
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('wine_docker', os.path.join(self.myconfig('rvthome'), 'somewhere_else', 'wine-docker'))
-        self.set_default_config('executable', os.path.join(self.myconfig('rvthome'), 'somewhere', 'RECmd.exe'))
-        self.set_default_config('batch_file', os.path.join(self.myconfig('rvthome'), 'somewhere', 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
+        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RegistryExplorer/RECmd.exe'))
+        self.set_default_config('batch_file', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
 
     def run(self, path=""):
 
@@ -521,20 +598,36 @@ class UserAssist(base.job.BaseModule):
             path = self.myconfig('path')
 
         regfiles = get_hives(path)
-
-        id = self.myconfig('volume_id', None)  # Volume identifier
-        if not regfiles:
-            self.logger().warning('No valid registry hives provided')
+        if 'ntuser' not in regfiles:
+            self.logger().warning('No valid NTUSER.DAT registry hives provided')
             return []
 
-        output_path = self.myconfig('outdir')
-        check_directory(output_path, create=True)
+        id = self.myconfig('volume_id', None)  # Volume identifier
+        check_directory(self.myconfig('outdir'), create=True)
+
+        cmd = self.myconfig('cmd')
+
         for user in tqdm(regfiles['ntuser'], total=len(regfiles['ntuser']), desc=self.section):
             output_filename = 'userassist_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
-
             hive = regfiles['ntuser'][user]
-            cmd_args = (self.myconfig('winedocker'), 'wine', self.myconfig('executable'), '--bn', self.myconfig('batch_file'), '-f', hive, '--nl', '--csv', self.myconfig('outdir'), '--csvf', output_filename)
-            run_command(*cmd_args)
+
+            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
+                        'batch_file': windows_format_path(self.myconfig('batch_file'), enclosed=True),
+                        'hive': windows_format_path(hive, enclosed=True),
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
+                        'filename': output_filename}
+            cmd_args = shlex.split(cmd.format(**cmd_vars))
+
+            run_command(cmd_args)
+            # RECmd.exe creates two files. We only care about the one ending in `UserAssist.csv`
+            try:
+                if os.path.exists(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv')):
+                    shutil.move(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv'),
+                                os.path.join(self.myconfig('outdir'), output_filename))
+                else:
+                    self.logger().warning('Output file {} not found. Either no userassist key for this user or the parsing process went wrong'.format(output_filename[:-4] + '_UserAssist.csv'))
+            except Exception as exc:
+                raise base.job.RVTError(exc)
 
         return []
 
@@ -549,25 +642,120 @@ class UserAssistAnalysis(base.job.BaseModule):
         """
         check_directory(path, error_missing=True)
         outfile = self.myconfig('outfile')
-        check_directory(os.path.basename(outfile), create=True)
+        check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
 
-        save_csv(self.report_userassist(path), config=self.config, outfile=outfile, quoting=0)
+        save_csv(self.report_userassist(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
 
         return []
 
     def report_userassist(self, path):
-        """ Create a unique csv combining output from lnk and jumplists """
+        """ Create a unique userassist csv for all users """
 
         fields = ["LastExecuted", "ProgramName", "RunCounter", "FocusCount", "FocusTime"]
 
         for file in sorted(os.listdir(path)):
-            # Expected file format: `userassist_user_partition.csv`
-            partition = file.split('_')[-1].split('.')[0]
-            user = file[11:-(len(partition) + 5)]
-            for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
-                res = OrderedDict([(field, line.get(field, '')) for field in fields])
-                res.update({'User': user, 'Partition': partition})
-                yield res
+            if file.startswith('userassist'):
+                # Expected file format: `userassist_user_partition.csv`
+                partition = file.split('_')[-1].split('.')[0]
+                user = file[11:-(len(partition) + 5)]
+                for line in base.job.run_job(self.config,
+                                             'base.input.CSVReader',
+                                             path=os.path.join(path, file),
+                                             extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
+                    res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                    res.update({'User': user, 'Partition': partition})
+                    yield res
+
+
+class Shellbags(base.job.BaseModule):
+    """ Parses Shellbags registry key in NTUSER.DAT and/or usrclass.dat hive.
+
+    Configuration section:
+        - **cmd**: external command to parse shellbags. It is a Python string template accepting variables "executable", "hives_dir" and "outdir". Variable "hives_dir" is deduced by the job from "path". The rest are the same ones specified in parameters
+        - **executable**: path to executable app to parse shellbags. By default is using SBECmd.exe. See (https://ericzimmerman.github.io/#!index.md)
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -d {hives_dir} --csv {outdir} --nl --dedupe')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'ShellBagsExplorer/SBECmd.exe'))
+
+    def run(self, path=""):
+
+        # Take path from params if not provided as an argument
+        if not path:
+            path = self.myconfig('path')
+
+        # Get NTUSER.DAT and UsrClass.dat hives path for every user
+        regfiles = get_hives(path)
+        if 'ntuser' not in regfiles:
+            self.logger().warning('No valid NTUSER.DAT or usrclass.dat registry hives provided')
+            return []
+        usr_folders = {}
+        for user_hive in ['ntuser', 'usrclass']:
+            for user, hive in regfiles.get(user_hive, {}).items():
+                usr_folders[os.path.dirname(hive)] = user
+
+        id = self.myconfig('volume_id', None)  # Volume identifier
+        check_directory(self.myconfig('outdir'), create=True)
+
+        cmd = self.myconfig('cmd')
+
+        for hives_dir in tqdm(usr_folders, total=len(usr_folders), desc=self.section):
+            user = usr_folders[hives_dir]
+            # Only one user should own a folder with NTUSER.dat or UsrClasss.dat hives. Will overwrite if not.
+            output_filename = 'shellbags_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
+
+            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
+                        'hives_dir': windows_format_path(hives_dir, enclosed=True)}
+            cmd_args = shlex.split(cmd.format(**cmd_vars))
+            run_command(cmd_args)
+
+            # SBECmd.exe saves the output in a file called Deduplicated.csv. Change the name:
+            if os.path.exists(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv')):
+                shutil.move(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv'),
+                            os.path.join(self.myconfig('outdir'), output_filename))
+
+        # Remove summary file created by app
+        os.remove(os.path.join(self.myconfig('outdir'), '!SBECmd_Messages.txt'))
+
+        return []
+
+
+class ShellbagsAnalysis(base.job.BaseModule):
+
+    def run(self, path=""):
+        """ Creates a report based on the output of Shellbags.
+
+            Arguments:
+                - ** path **: Path to directory where output files from Shellbags are stored
+        """
+        check_directory(path, error_missing=True)
+        outfile = self.myconfig('outfile')
+        check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
+
+        save_csv(self.report_shellbags(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+
+        return []
+
+    def report_shellbags(self, path):
+        """ Create a unique shellbags csv getting all users together """
+
+        fields = ["LastWriteTime", "AbsolutePath", "FirstInteracted", "LastInteracted", "CreatedOn", "ModifiedOn", "AccessedOn", "HasExplored", "MFTEntry", "MFTSequenceNumber"]
+
+        for file in sorted(os.listdir(path)):
+            if file.startswith('shellbags'):
+                # Expected file format: `shellbags_user_partition.csv`
+                partition = file.split('_')[-1].split('.')[0]
+                user = file[10:-(len(partition) + 5)]
+                for line in base.job.run_job(self.config,
+                                             'base.input.CSVReader',
+                                             path=os.path.join(path, file),
+                                             extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
+                    res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                    res.update({'User': user, 'Partition': partition})
+                    yield res
 
 
 class TaskFolder(base.job.BaseModule):

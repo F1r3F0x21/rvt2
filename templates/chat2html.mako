@@ -170,8 +170,12 @@
     <body>
         % for r in data:
           % if r["message_type"] != "Key change":
+	        <%
+	          r["message"] = r["message"].replace("\\n", "<br />")
+	          r["quote"] = r["quote"].replace("\\n", "<br />")
+          %>
             % if r["is_from_me"] != "1":
-            ## received message
+	          ## received message
               <div class="message received font">
                 <div class="left-received">
                   <div class="author-left">${r["message_from"]}</div>
@@ -181,14 +185,14 @@
                 </div>
                 <div class="right-received">
                   % if r["message_type"] == "Text message":
-		    % if r["quote"] == "":
+		                % if r["quote"] == "":
                       <div class="message-body">${r["message"]}</div>
-		    % else:
+		                % else:
                       <div class="received-quote">
                         <blockquote class="message-body" style="color:#006400;">${r["quote"]}</blockquote>
                       </div>
                       <div class="message-body">${r["message"]}</div>
-		    % endif
+		                % endif
                   % elif r["message_type"] == "Image":
                     <div class="message-body"><img src="${r["message_media_location"]}">${r["message_media_title"]}</div>
                   % elif r["message_type"] in ["Video", "Voice/Audio note"]:
@@ -227,7 +231,7 @@
 		      </div>
 		      <div class="message-body">${r["message"]}</div>
                     % endif
-		  % elif r["message_type"] == "Image":
+		              % elif r["message_type"] == "Image":
                     <div class="message-body"><img src="${r["message_media_location"]}">${r["message_media_title"]}</div>
                   % elif r["message_type"] in ["Video", "Voice/Audio note"]:
                     <div class="message-body"><a href="${r["message_media_location"]}">${r["message_media_location"]}</a></div>

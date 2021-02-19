@@ -61,6 +61,7 @@ class BaseSink(base.job.BaseModule):
         super().read_config()
         self.set_default_config('outfile', '')
         self.set_default_config('file_exists', 'APPEND')
+        self.set_default_config('encoding', 'utf-8')
 
     def _source(self, path):
         """ Returns the source of the data.
@@ -108,7 +109,7 @@ class BaseSink(base.job.BaseModule):
             if dirname:
                 os.makedirs(dirname, exist_ok=True)
 
-            outputfile = open(outfilename, file_mode)
+            outputfile = open(outfilename, file_mode, encoding=self.myconfig('encoding'))
 
         return outputfile
 
@@ -231,35 +232,51 @@ class MDTableSink(BaseSink):
     Configuration:
         - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
-        - **fieldnames**: Use these field names as columns. Use this option to order the fields
+        - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. Mandatory parameter. Values are sepparated using spaces or new lines.
+        - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct md visualization. Values are sepparated using spaces or new lines.
+        - **first_line** (str): Write a first line before headers
     """
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('fieldnames', [])
+        self.set_default_config('fieldnames', '')
+        self.set_default_config('backticks_fields', '')
         self.set_default_config('file_exists', 'APPEND')
+        self.set_default_config('first_line', '')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
         outputfile = self._outputfile()
 
         fields = self.myarray('fieldnames')
+        backticks_fields = self.myarray('backticks_fields')
         act = {field: '' for field in fields}
 
+        first_line = self.myconfig('first_line')
+        if first_line:
+            outputfile.write(first_line.replace('\\n', '\n'))
+            outputfile.write("\n")
+
+        # Headers
         outputfile.write("|".join(fields))
         outputfile.write("\n")
         outputfile.write("|".join(["--"] * len(fields)))
         outputfile.write("\n")
+
+        # Items
         for fileinfo in self._source(path):
             try:
+                # Exclude consecutive repeated entries
                 repeated = True
-                for i in fields:
-                    if fileinfo[i] != act[i]:
+                for fld in fields:
+                    if fld in backticks_fields and fileinfo.get(fld, ''):
+                        fileinfo[fld] = '`' + fileinfo[fld] + '`'
+                    if fileinfo.get(fld, '') != act[fld]:
                         repeated = False
-                    act[i] = fileinfo[i]
+                    act[fld] = fileinfo.get(fld, '')
                 if repeated:
                     continue
-                outputfile.write("|".join([fileinfo[field] for field in fields]))
+                outputfile.write("|".join([fileinfo.get(field, '') for field in fields]))
                 outputfile.write("\n")
                 yield fileinfo
             except TypeError as exc:

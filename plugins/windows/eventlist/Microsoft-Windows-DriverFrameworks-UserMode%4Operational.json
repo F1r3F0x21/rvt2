@@ -4,7 +4,8 @@
     "provider": "Microsoft-Windows-DriverFrameworks-UserMode",
     "path": {
       "UserData/UMDFHostDeviceArrivalBegin/#attributes": {
-        "Name": ["instance", "lifetime"]
+        "Name": ["instance", "lifetime"],
+        "transform": {"instance": "data.Instance", "lifetime": "data.Lifetime"}
       }
     }
   },
@@ -13,7 +14,8 @@
     "provider": "Microsoft-Windows-DriverFrameworks-UserMode",
     "path": {
       "UserData/UMDFHostDeviceArrivalEnd/#attributes": {
-        "Name": ["instance", "lifetime"]
+        "Name": ["instance", "lifetime"],
+        "transform": {"instance": "data.Instance", "lifetime": "data.Lifetime"}
       }
     }
   },
@@ -22,7 +24,8 @@
     "provider": "Microsoft-Windows-DriverFrameworks-UserMode",
     "path": {
       "UserData/UMDFHostDeviceRequest/#attributes": {
-        "Name": ["instance", "lifetime"]
+        "Name": ["instance", "lifetime"],
+        "transform": {"instance": "data.Instance", "lifetime": "data.Lifetime"}
       },
       "UserData/UMDFHostDeviceRequest": {
          "Name": ["Status"]
@@ -34,7 +37,8 @@
     "provider": "Microsoft-Windows-DriverFrameworks-UserMode",
     "path": {
       "UserData/UMDFHostDeviceRequest/#attributes": {
-        "Name": ["instance", "lifetime"]
+        "Name": ["instance", "lifetime"],
+        "transform": {"instance": "data.Instance", "lifetime": "data.Lifetime"}
       },
       "UserData/UMDFHostDeviceRequest": {
          "Name": ["Status"]

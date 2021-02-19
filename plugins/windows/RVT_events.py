@@ -160,18 +160,45 @@ class ParseEvents(EventJob):
     def run(self, path=None):
         """
         Attrs:
-            path (str): Absolute path to evtx file
+            path (str): path to directory containing evtx files
         """
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        path = self.get_evtx(path, os.path.basename(json_file).replace('json', 'evtx'))
-        self.logger().debug('Parsing event log {}'.format(path))
-        if not path:
+        evtx_file = self.get_evtx(path, os.path.basename(json_file).replace('json', 'evtx'))
+        self.logger().debug('Parsing event log {}'.format(evtx_file))
+        if not evtx_file:
             return []
 
-        for ev in GetEvents(path, json_file).parse():
+        for ev in GetEvents(evtx_file, json_file).parse():
             yield ev
+
+
+class ParseExtraLogs(EventJob):
+    """ Extracts events from evtx logs not considered individually in other jobs """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): path to directory containing evtx files
+        """
+
+        json_file = self.config.config[self.config.job_name]['json_conf']
+
+        # Get evtx parsed individually:
+        special_evtx = [jf.replace('json', 'evtx')
+                        for jf in os.listdir(os.path.dirname(json_file))
+                        if jf != os.path.basename(json_file)]
+        # Parse the extra evtx log files
+        for evtx_filename in os.listdir(path):
+            if evtx_filename in special_evtx:
+                continue
+            evtx_file = os.path.join(path, evtx_filename)
+            self.logger().debug('Parsing event log {}'.format(evtx_file))
+            for ev in GetEvents(evtx_file, json_file).parse():
+                yield ev
+
+        return []
 
 
 class Security(EventJob):

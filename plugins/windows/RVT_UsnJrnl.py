@@ -154,13 +154,48 @@ class Usn(object):
 
 class UsnJrnl(base.job.BaseModule):
 
-    def run(self, path=""):
-        """ Parse UsnJrnl files of a disk """
-        self.vss = self.myflag('vss')
-        disk = getSourceImage(self.myconfig)
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('use_image', True)
+        self.set_default_config('vss', False)
+        self.set_default_config('volume_id', 'p01')
 
+    def run(self, path=""):
+        self.vss = self.myflag('vss')
         self.usn_path = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
         check_folder(self.usn_path)
+
+        if self.myflag('use_image'):
+            self.run_with_image()
+        else:
+            if not os.path.exists(path):
+                raise base.job.RVTError('UsnJrnl file {} does not exist'.format(path))
+            partition = self.myconfig('volume_id')
+            self.run_with_file(path, partition)
+
+        return []
+
+    def run_with_file(self, path, partition='p01'):
+        """ Create output files of parsed UsnJrnl """
+        # Check file is not empty
+        if os.stat(path).st_size == 0:
+            self.logger().warning('UsnJrnl file {} is empty'.format(path))
+            return []
+
+        # Create dump file
+        records = self.parseUsn(infile=path, partition=partition)
+        outfile = os.path.join(self.usn_path, "UsnJrnl_dump_{}.csv".format(partition))
+        save_csv(records, outfile=outfile, file_exists='OVERWRITE', quoting=0)
+
+        # Create summary file from dump file
+        filtered_records = self.summaryUsn(infile=outfile, partition=partition)
+        out_summary = os.path.join(self.usn_path, "UsnJrnl_{}.csv".format(partition))
+        save_csv(filtered_records, outfile=out_summary, file_exists='OVERWRITE', quoting=0)
+
+    def run_with_image(self):
+        """ Parse UsnJrnl files of a disk """
+        disk = getSourceImage(self.myconfig)
+
         self.usn_jrnl_file = os.path.join(self.usn_path, "UsnJrnl")
         self.filesystem = FileSystem(self.config, disk=disk)
 
@@ -198,15 +233,8 @@ class UsnJrnl(base.job.BaseModule):
         self.logger().debug("Extraction of journal file completed for partition {}".format(pname))
 
         self.logger().debug("Creating file {}".format(os.path.join(self.usn_path, "UsnJrnl_{}.csv".format(pname))))
-        if os.stat(self.usn_jrnl_file).st_size > 0:
-            # Create dump file
-            records = self.parseUsn(infile=self.usn_jrnl_file, partition=pname)
-            outfile = os.path.join(self.usn_path, "UsnJrnl_dump_{}.csv".format(pname))
-            save_csv(records, outfile=outfile, file_exists='OVERWRITE', quoting=0)
-            # Create summary file from dump file
-            filtered_records = self.summaryUsn(infile=outfile, partition=pname)
-            out_summary = os.path.join(self.usn_path, "UsnJrnl_{}.csv".format(pname))
-            save_csv(filtered_records, outfile=out_summary, file_exists='OVERWRITE', quoting=0)
+
+        self.run_with_file(self.usn_jrnl_file, pname)
 
     def parseUsn(self, infile, partition):
         """ Generator that returns a dictionary for every parsed record in UsnJrnl file.

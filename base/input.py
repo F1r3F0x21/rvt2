@@ -19,6 +19,7 @@
 
 """ Some simple file readers to be used as input for other modules. """
 
+import os
 import csv
 import sqlite3
 import json
@@ -95,7 +96,9 @@ class AllLinesInFile(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
         total_iterations = base.commands.estimate_iterations(path, self.myconfig('progress.cmd'))
         with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
-            for line in tqdm(infile, total=total_iterations, desc=self.section, disable=self.myflag('progress.disable')):
+            for line in tqdm(infile, total=total_iterations,
+                             desc='Reading {}'.format(os.path.basename(path)),
+                             disable=self.myflag('progress.disable')):
                 yield line.strip()
 
 
@@ -118,7 +121,9 @@ class ForAllLinesInFile(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True, check_from_module=True)
         total_iterations = base.commands.estimate_iterations(path, self.myconfig('progress.cmd'))
         with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
-            for line in tqdm(infile, total=total_iterations, desc=self.section, disable=self.myflag('progress.disable')):
+            for line in tqdm(infile, total=total_iterations,
+                             desc='Reading {}'.format(os.path.basename(path)),
+                             disable=self.myflag('progress.disable')):
                 newpath = line.strip()
                 if not newpath:
                     continue
@@ -204,7 +209,10 @@ class CSVReader(base.job.BaseModule):
             else:
                 initial_progress = ignore_lines + 1
             # main loop
-            for data in tqdm(reader, total=total_iterations, initial=initial_progress, desc=self.section, disable=self.myflag('progress.disable')):
+            for data in tqdm(reader, total=total_iterations,
+                             initial=initial_progress,
+                             desc='Reading {}'.format(os.path.basename(path)),
+                             disable=self.myflag('progress.disable')):
                 yield data
 
 

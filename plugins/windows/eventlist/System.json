@@ -98,7 +98,7 @@
     }
   },
   "1074":{
-    "description": "an application causes the system to restart, or user initiates a restart or shutdown",
+    "description": "An application causes the system to restart, or user initiates a restart or shutdown",
     "provider": "USER32",
     "path": {"EventData": {"Name": ["Data"]}}
   },
@@ -126,7 +126,7 @@
     "path": {
       "EventData": {
         "Name": ["param1", "param2", "param5"],
-        "transform": {"param1": "service.name", "param5": "event_data.following_action"}
+        "transform": {"param1": "service.name", "param5": "data.FollowingAction"}
       }
     }
   },
@@ -184,7 +184,7 @@
     "path": {
       "UserData/UMDFDeviceInstallBegin": {
          "Name": ["DeviceId"],
-         "transform": {"DeviceId": "data.device_id"}
+         "transform": {"DeviceId": "data.DeviceID"}
       }
     }
   },
@@ -196,7 +196,7 @@
     "path": {
       "UserData/InstallDeviceID":{
         "Name": ["DeviceInstanceID", "DriverDescription"],
-        "transform": {"DeviceInstanceId": "data.device_id"}
+        "transform": {"DeviceInstanceId": "data.DeviceID"}
       }
     }
   },
@@ -208,7 +208,7 @@
     "path": {
       "UserData/AddServiceID":{
         "Name": ["DeviceInstanceID", "ServiceName", "DriverFileName"],
-        "transform": {"DeviceInstanceId": "data.device_id", "ServiceName": "data.service_name"}
+        "transform": {"DeviceInstanceId": "data.DeviceID", "ServiceName": "service.name"}
       }
     }
   },
