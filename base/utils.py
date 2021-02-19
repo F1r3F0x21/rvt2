@@ -19,10 +19,11 @@
 """ Utility functions to the rest of the system. """
 
 import os
-import base.job
-import base.config
 import shutil
 import uuid
+import base.job
+import base.config
+
 
 __maintainer__ = 'Juanvi Vera'
 
