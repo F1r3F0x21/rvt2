@@ -273,6 +273,13 @@
           }
         }
       },
+      "cookie": {
+        "properties": {
+          "expires": {
+            "type": "date"
+          }
+        }
+      },
       "destination": {
         "properties": {
           "address": {
@@ -1059,6 +1066,9 @@
             "ignore_above": 1024,
             "type": "keyword"
           },
+          "connected_time": {
+            "type": "long"
+          },
           "direction": {
             "ignore_above": 1024,
             "type": "keyword"
@@ -1285,6 +1295,12 @@
             "ignore_above": 1024,
             "type": "keyword"
           },
+          "first_run": {
+            "type": "date"
+          },
+          "focus_count": {
+            "type": "long"
+          },
           "hash": {
             "properties": {
               "md5": {
@@ -1318,6 +1334,12 @@
           "ppid": {
             "type": "long"
           },
+          "run_count": {
+            "type": "long"
+          },
+          "run_count": {
+            "type": "long"
+          },
           "start": {
             "type": "date"
           },
@@ -1342,6 +1364,63 @@
           "working_directory": {
             "ignore_above": 1024,
             "type": "keyword"
+          }
+        }
+      },
+      "recent": {
+        "properties": {
+          "application": {
+            "type": "keyword",
+            "ignore_above": 1024
+          },
+          "drive_sn": {
+            "type": "keyword",
+            "ignore_above": 1024
+          },
+          "drive_type": {
+            "type": "keyword",
+            "ignore_above": 1024
+          },
+          "file": {
+            "type": "keyword",
+            "ignore_above": 1024
+          },
+          "first_open": {
+            "type": "date"
+          },
+          "last_open": {
+            "type": "date"
+          },
+          "machine_id": {
+            "type": "keyword",
+            "ignore_above": 1024
+          },
+          "network_path": {
+            "type": "keyword",
+            "ignore_above": 1024
+          }
+        }
+      },
+      "registry": {
+        "properties": {
+          "hive": {
+            "type": "keyword",
+            "ignore_above": 1024
+          },
+          "key": {
+            "type": "keyword",
+            "ignore_above": 1024
+          },
+          "last_write": {
+            "type": "date"
+          },
+          "path": {
+            "type": "keyword",
+            "ignore_above": 1024
+          },
+          "value": {
+            "type": "keyword",
+            "ignore_above": 1024
           }
         }
       },
@@ -1746,6 +1825,12 @@
             "ignore_above": 1024,
             "type": "keyword"
           },
+          "last_checked": {
+            "type": "date"
+          },
+          "last_visit": {
+            "type": "date"
+          },
           "original": {
             "ignore_above": 1024,
             "type": "keyword"
@@ -1780,6 +1865,9 @@
           "username": {
             "ignore_above": 1024,
             "type": "keyword"
+          },
+          "visit_count": {
+            "type": "long"
           }
         }
       },

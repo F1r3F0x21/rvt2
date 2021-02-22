@@ -111,16 +111,23 @@ def sanitize_ip(value):
     - `-` --> Retrun empty
     - [123.123.123.123]  --> Remove brackets
     - 123.123.123.123::1980 --> Ports are treated as separated field
+    - ::ffff:10.100.1.87 --> ignore ffff and take ip
 
     Returns tuple (ip, port)
     """
 
     if value == '-' or value == '':
         return (None, None)
-    value.replace('[', '').replace(']', '')
+    value = value.replace('[', '').replace(']', '')
     if value.find(':') != -1:
         ip = value.split(':')[0]
         port = value.split(':')[-1]
+        if port:
+            try:
+                int(port)
+            except ValueError:
+                ip = port
+                port = ''
         return ip if ip else None, port
     return value, None
 
@@ -381,7 +388,7 @@ class BrowsersHistory(SuperTimeline):
             elif d['browser'] == 'edge' and 'visit_count' not in d:
                 common.update({
                     '@timestamp': to_iso_format(d['last_visit']),
-                    'url.modified': to_iso_format(d['modified'])
+                    'file.mtime': to_iso_format(d['modified'])
                 })
                 yield common
 
@@ -625,14 +632,14 @@ class Prefetch(SuperTimeline):
                 'file.name': d['Filename'],
                 'file.group': 'plain',
                 'process.executable': d['Executable'],
-                'executable.run_count': d['Run count'],
-                'executable.first_run': d['Birth time']
+                'process.run_count': d['Run count'],
+                'process.first_run': d['Birth time']
             })
             for t in range(8):
                 field = 'Run time {}'.format(t)
                 if d[field]:
                     common['@timestamp'] = common['process.start'] = to_iso_format(d[field])
-                    common['executable.run_time'] = t
+                    common['process.run_time'] = t
                     yield common
 
 
@@ -654,7 +661,7 @@ class AmCache(SuperTimeline):
                 'registry.hive': 'amcache',
                 'process.executable': d['AppPath'],
                 'file.hash.sha1': d['Sha1Hash'],
-                'event.data.volume_GUID': d['GUID']
+                'event.data.VolumeGUID': d['GUID']
             })
 
             for time_field, action, message, ev_type in zip(
@@ -738,7 +745,7 @@ class CCM(SuperTimeline):
             common['@timestamp'] = to_iso_format(d['LastUsedTime'])
 
             original_fields = ["FolderPath", "ExplorerFileName", "FileSize", "LastUserName", "LaunchCount", "OriginalFileName", "FileDescription", "ProductName", "ProductVersion"]
-            translations = ['package.path', 'process.executable', 'package.size', 'user.name', 'executable.run_count', 'package.original_file_name', 'package.description', 'package.name', 'package.version']
+            translations = ['package.path', 'process.executable', 'package.size', 'user.name', 'process.run_count', 'package.original_file_name', 'package.description', 'package.name', 'package.version']
             for original_field, translation in zip(original_fields, translations):
                 common[translation] = d[original_field]
 
@@ -776,9 +783,9 @@ class UserAssist(SuperTimeline):
                 'event.type': ['start'],
                 'message': "Process last executed: {}".format(d['ProgramName']),
                 'process.executable': d['ProgramName'],
-                'executable.run_count': d['RunCounter'],
-                'executable.focus_count': d['FocusCount'],
-                'executable.focus_time': d['FocusTime'],
+                'process.run_count': d['RunCounter'],
+                'process.focus_count': d['FocusCount'],
+                'process.focus_time': d['FocusTime'],
                 'user.name': d['User']})
 
             yield common
@@ -986,7 +993,7 @@ class NetworkConnections(SuperTimeline):
                 'network.application': d['Application'],
                 'network.name': d['L2ProfileId'],
                 'network.type': d['InterfaceLuid'],
-                'network.time_connected': d['ConnectedTime'],  # in seconds
+                'network.connected_time': d['ConnectedTime'],  # in seconds
                 'message': 'Started a {} network connection{}'.format(
                     d['InterfaceLuid'], ' on {}'.format(d['L2ProfileId']) if d['L2ProfileId'] else '')
             })
