@@ -458,7 +458,7 @@ class ElasticSearchQuery(base.job.BaseModule):
     The path is ignored.
 
     Configuration section:
-        - **name**: The name of the index to query.  The name will be converted to lower case, since ES only accept lower case names.
+        - **name**: The name of the index to query. The name will be converted to lower case, since ES only accept lower case names.
         - **query**: The query in lucene language.
         - **source_includes**: a space separated list of fields to include in the answer. Use empty string for all fields.
         - **source_excludes**: a space separated list of fields NOT to include in the answer.
