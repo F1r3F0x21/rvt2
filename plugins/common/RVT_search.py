@@ -538,7 +538,7 @@ class OutSearch(base.job.BaseModule):
 
     def run(self, keyfile=""):
         """
-        Searche contents of regex in output dir except in strings, searches and parser folders
+        Search regex in output, searches and parse folders (except in strings)
         """
         self.logger().debug("Searching at output folder")
         if not keyfile:

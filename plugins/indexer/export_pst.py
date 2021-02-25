@@ -18,7 +18,6 @@
 
 import os
 import re
-import shutil
 from mako.template import Template
 import mimetypes
 from email.message import EmailMessage
