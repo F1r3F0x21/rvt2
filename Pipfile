@@ -35,6 +35,7 @@ yara-python = "*"
 leveldb = "*"
 regipy = "*"
 python-cim = "*"
+Pillow = "*"
 
 [dev-packages]
 sphinx = "*"
