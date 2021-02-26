@@ -13,3 +13,6 @@
 [submodule "plugins/external/srum-dump"]
 	path = plugins/external/srum-dump
 	url = https://github.com/MarkBaggett/srum-dump.git
+[submodule "plugins/external/bmc-tools"]
+	path = plugins/external/bmc-tools
+	url = https://github.com/ANSSI-FR/bmc-tools.git
