@@ -22,6 +22,8 @@ import time
 import getpass
 import grp
 import json
+import datetime
+from collections import defaultdict
 from base.utils import check_folder, check_file
 from base.commands import run_command
 
@@ -57,6 +59,7 @@ class Partition(object):
         self.loop = ""
         self.obytes = int(osects) * int(sectorsize)
         self.vss = {}
+        self.vss_info = defaultdict(dict)
         self.isMountable = True
         self.check_bitlocker()
         self.block_number = bn  # needed for using sleuthkit in APFS
@@ -110,15 +113,56 @@ class Partition(object):
                 pass  # No vss found
 
         DEVNULL.close()
-        for linea in output.split("\n"):
-            aux = re.search(r"Number of stores:\s*(\d+)", str(linea))
-            if aux:
-                nstores = aux.group(1)
-                self.logger.debug("Partition {} has {} mounting points".format(self.partition, nstores))
-                for i in range(1, int(nstores) + 1):
-                    self.vss["v{}p{}".format(i, self.partition)] = ""
+        self._parse_vshadowinfo_output(output)
 
         self.logger.debug("Partition {} has {} vss".format(self.partition, len(self.vss)))
+
+    def _parse_vshadowinfo_output(self, output):
+        """ Save VSS information from standard vshadowinfo report.
+            Expected format example:
+
+            ```
+            vshadowinfo 20191221
+
+            Volume Shadow Snapshot information:
+                Number of stores:	3
+
+            Store: 1
+                Identifier		    : 14b69590-d821-11e9-9689-340288e6d6f5
+                Shadow copy set ID	: 001a795a-417d-4755-b2fb-3ac2e7644532
+                Creation time		: Sep 16, 2019 01:34:38.186677500 UTC
+                Shadow copy ID		: c1034e89-99f5-404c-9afd-d63d5e1dec0a
+                Volume size		    : 111 GiB (119186362368 bytes)
+                Attribute flags		: 0x0042000d
+
+            Store: 2
+                ...
+            ```
+        """
+        number_of_partitions = None
+        current_store = 0
+        for line in output.split("\n"):
+            if number_of_partitions is None:
+                aux = re.search(r"Number of stores:\s*(\d+)", str(line))
+                if aux:
+                    nstores = aux.group(1)
+                    self.logger.debug("Partition {} has {} mounting points".format(self.partition, nstores))
+            if line.startswith('Store'):
+                current_store = re.search(r"Store: (\d+)", str(line)).group(1)
+            elif line.lstrip().startswith('Identifier'):
+                self.vss_info[current_store]['id'] = re.search(r"\s*Identifier\s*: (.+)", str(line)).group(1)
+            elif line.lstrip().startswith('Shadow copy ID'):
+                self.vss_info[current_store]['shadow_id'] = re.search(r"\s*Shadow copy ID\s*: (.+)", str(line)).group(1)
+            elif line.lstrip().startswith('Creation time'):
+                date_string = re.search(r"\s*Creation time\s*: (.+)", str(line)).group(1)
+                try:
+                    creation_time = datetime.datetime.strptime(date_string[:-7], "%b %d, %Y %H:%M:%S.%f00 UTC").isoformat()
+                except Exception:
+                    creation_time = ""
+                self.vss_info[current_store]['creation_time'] = creation_time
+
+        for i in range(1, int(nstores) + 1):
+            self.vss["v{}p{}".format(i, self.partition)] = ""
 
     def mount(self):
         """ Main mounting method for partitions. Calls specific function depending on Filesystem type """

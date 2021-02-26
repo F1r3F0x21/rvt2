@@ -199,6 +199,10 @@ class BaseImage(object):
         """ Return the number of partitions in disk """
         return len([p for p in self.partitions if p.filesystem != "Unallocated" and not p.filesystem.startswith("Primary Table")])
 
+    def getVSSInfo(self):
+        """ Return information of Volume Shadow Snapshots in every partition """
+        return [p.vss_info for p in self.partitions if p.filesystem != "Unallocated" and not p.filesystem.startswith("Primary Table")]
+
     def __str__(self):
         if self.exists():
             text = 'Case disk={} sectorsize={}\n\n'.format(self.disknumber, self.sectorsize)
