@@ -38,7 +38,7 @@ class Skype(base.job.BaseModule):
             shutil.copytree(path, temp_path)
             self.user = self.config.config['skype.parameters']['user']
             self.partition = self.config.config['skype.parameters']['partition']
-            self.out_folder = self.myconfig('voutdir') if self.myflag('vss') else self.myconfig('outdir')
+            self.out_folder = self.myconfig('outdir')
             ParseSkypeLevelDB(temp_path, outdir=self.out_folder, user=self.user, partition=self.partition).run()
         finally:
             shutil.rmtree(temp_dir)
@@ -56,7 +56,7 @@ class Teams(base.job.BaseModule):
             shutil.copytree(path, temp_path)
             self.user = self.config.config['teams.parameters']['user']
             self.partition = self.config.config['teams.parameters']['partition']
-            self.out_folder = self.myconfig('voutdir') if self.myflag('vss') else self.myconfig('outdir')
+            self.out_folder = self.myconfig('outdir')
             ParseTeamsLevelDB(temp_path, outdir=self.out_folder, user=self.user, partition=self.partition).run()
         finally:
             shutil.rmtree(temp_dir)
@@ -76,7 +76,7 @@ class GenericLevelDB(base.job.BaseModule):
             subprocess.call(['chmod', '-R', '655', temp_path])
             self.user = self.config.config['generic.parameters']['user']
             self.partition = self.config.config['generic.parameters']['partition']
-            self.out_folder = self.myconfig('voutdir') if self.myflag('vss') else self.myconfig('outdir')
+            self.out_folder = self.myconfig('outdir')
             ParseLevelDB(temp_path, outdir=self.out_folder, user=self.user, partition=self.partition).run()
         finally:
             shutil.rmtree(temp_dir)

@@ -33,7 +33,7 @@ class Hiberfil(base.job.BaseModule):
         hiber_path = self.myconfig('outdir')
         check_folder(hiber_path)
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         hiberlist = search.search("/hiberfil.sys$")
 
         for h in hiberlist:

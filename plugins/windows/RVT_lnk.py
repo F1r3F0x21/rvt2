@@ -228,7 +228,7 @@ class LnkParser(base.job.BaseModule):
         if files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
             relative_files_list = [relative_path(file, self.myconfig('casedir')) for file in files_list]
 
-        body_file = os.path.join(self.config.get('plugins.common', '{}timelinesdir'.format('v' * self.myflag('vss'))), '{}_BODY.csv'.format(self.config.config['DEFAULT']['source']))
+        body_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), '{}_BODY.csv'.format(self.config.config['DEFAULT']['source']))
         data = {}
         if not (os.path.exists(body_file) and os.path.getsize(body_file) > 0):
             data = {file: ['1601-01-01T00:00:00Z'] * 4 for file in relative_files_list}
@@ -454,7 +454,6 @@ class LnkExtract(base.job.BaseModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.dicID = load_appID(myconfig=self.myconfig)
-        self.vss = self.myflag('vss')
         self.encoding = self.myconfig('encoding', 'cp1252')
 
     def read_config(self):
@@ -472,12 +471,12 @@ class LnkExtract(base.job.BaseModule):
         self.logger().info("Starting extraction of lnk files")
 
         # Since lnk may be anywhere, this job must rely on allocfiles. Accepting a glob pattern will be much slower
-        self.Files = GetFiles(self.config, vss=self.myflag("vss"))
+        self.Files = GetFiles(self.config)
         self.mountdir = self.myconfig('mountdir')
-        self.users = get_user_list(self.mountdir, self.vss)
+        self.users = get_user_list(self.mountdir)
         all_recentfiles = self.sort_recent_allocated_files()
 
-        lnk_path = self.myconfig('{}outdir'.format('v' if self.vss else ''))
+        lnk_path = self.myconfig('outdir')
         check_folder(lnk_path)
 
         base_class = LnkParser(config=self.config)
@@ -525,19 +524,17 @@ class LnkExtractAnalysis(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('vss', False)
-        self.set_default_config('lnk_dir', self.config.get('plugins.windows.RVT_lnk.LnkExtract', '{}outdir'.format('v' * self.myflag('vss'))))
+        self.set_default_config('lnk_dir', self.config.get('plugins.windows.RVT_lnk.LnkExtract', 'outdir'))
 
     def run(self, path=""):
         """ Creates a report based on the output of LnkExtract """
 
-        vss = self.myflag('vss')
         self.logger().info("Generating lnk files report")
 
         self.mountdir = self.myconfig('mountdir')
 
         lnk_path = self.myconfig('lnk_dir')
-        report_lnk_path = self.myconfig('{}outdir'.format('v' * vss))
+        report_lnk_path = self.myconfig('outdir')
 
         check_directory(lnk_path, error_missing=True)
         check_folder(report_lnk_path)
@@ -620,13 +617,13 @@ def getFileTime(data0, data1):
         return int(data1 * 429.4967296 + data0 / 1e7)
 
 
-def get_user_list(mount_path, vss=False):
+def get_user_list(mount_path):
     """ Get a set of paths to 'User' folders in every partition.
         Example of a value: 'p01/Documents and Settings/Default_User'
     """
     users = set()
     for p in sorted(os.listdir(mount_path)):
-        if (vss and p.startswith("v")) or (not vss and p.startswith("p")):
+        if p.startswith("p"):
             user_path = os.path.join(mount_path, p, "Users")
             if not os.path.isdir(user_path):
                 user_path = os.path.join(mount_path, p, "Documents and Settings")
