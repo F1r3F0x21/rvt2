@@ -24,10 +24,10 @@ import grp
 import json
 import datetime
 from collections import defaultdict
-from base.utils import check_folder, check_file, check_directory
+from base.utils import check_folder, check_file, check_directory, relative_path
 from base.commands import run_command
 
-non_mounting_partitions = ("Primary Table", "GPT Header", "Safety Table", "Unallocated")
+non_mountable_partitions = ("Primary Table", "GPT Header", "Safety Table", "Unallocated")
 
 
 class Partition(object):
@@ -48,30 +48,33 @@ class Partition(object):
             self.save_partition()
             return
 
+        # Initialize basic attributes for a partition
         self.mountdir = self.myconfig('mountdir')
         self.mountpath = os.path.join(self.myconfig('mountdir'), 'p%s' % partition)
         self.mountaux = self.myconfig('mountauxdir')
-        self.imagefile = imagefile
-        self.filesystem = filesystem
+        self.imagefile = imagefile  # path to the source image
+        self.filesystem = filesystem  # filesystem name according to mmls
         self.size = int(size) * int(sectorsize)
         self.fuse = {}
         self.osects = osects
-        self.loop = ""
+        self.loop = ""  # Loop device for partiton
         self.obytes = int(osects) * int(sectorsize)
-        self.vss = {}
-        self.vss_extra = defaultdict(dict)
+        self.vss = []  # list of all vss on a partition
+        self.vss_mounted = defaultdict(dict)  # Mount point for all vss
         self.vss_info = defaultdict(dict)
         self.isMountable = True
-        self.check_bitlocker()
+        self.check_bitlocker()  # Check if a partition uses bitlocker and set self.encrypted
         self.block_number = bn  # needed for using sleuthkit in APFS
         self.voln = voln  # needed to mount APFS volumes
 
-        for unm in non_mounting_partitions:
+        # Skip partitions know to be non mountable
+        for unm in non_mountable_partitions:
             if self.filesystem.startswith(unm):
                 self.isMountable = False
                 self.clustersize = sectorsize
                 return
 
+        # Obtain clustersize and block_size
         try:
             img = pytsk3.Img_Info(imagefile)
             fs = pytsk3.FS_Info(img, offset=int(self.osects) * int(sectorsize))
@@ -85,9 +88,11 @@ class Partition(object):
                 self.isMountable = False
         self.refreshMountedImages()
 
+        # Check for VSS
         if self.filesystem.startswith('NTFS') or self.filesystem.startswith('Basic data partition') or self.encrypted:
             self.get_vss_number_stores()
 
+        # Save partition information to be easily retrieved later
         self.refreshMountedImages()
         self.save_partition()
 
@@ -162,8 +167,7 @@ class Partition(object):
                     creation_time = ""
                 self.vss_info[current_store]['creation_time'] = creation_time
 
-        for i in range(1, int(number_of_stores) + 1):
-            self.vss["v{}p{}".format(i, self.partition)] = ""
+        self.vss = ["v{}p{}".format(i, self.partition) for i in range(1, int(number_of_stores) + 1)]
 
     def mount(self):
         """ Main mounting method for partitions. Calls specific function depending on Filesystem type """
@@ -330,29 +334,10 @@ class Partition(object):
         time.sleep(2)  # let it do his work
         self.mount_HFS(imagefile=os.path.join(mountpoint, 'fvde1'), mountpath=os.path.join(self.mountaux, "p%s" % self.partition), offset=False)
 
-    def vss_mount_old(self):
-        vshadowmount = self.myconfig('vshadowmount', '/usr/local/bin/vshadowmount')
-
-        if len(self.vss) > 0:
-            vp = os.path.join(self.mountaux, "vp%s" % self.partition)
-            if len(self.fuse) == 0 or "/dev/fuse" not in self.fuse.keys():
-                check_folder(vp)
-                if self.encrypted:
-                    run_command(["sudo", vshadowmount, "-X", "allow_root", self.loop, vp], logger=self.logger)
-                else:
-                    run_command([vshadowmount, "-X", "allow_root", self.imagefile, "-o", str(self.obytes), vp], logger=self.logger)
-            for p in self.vss.keys():
-                if self.vss[p] == "":
-                    mp = os.path.join(self.mountdir, p)
-                    self.mount_NTFS(imagefile=os.path.join(vp, "vss%s" % p[1:].split("p")[0]), mountpath=mp, offset=False)
-        self.refreshMountedImages()
-
     def vss_mount(self):
         vshadowmount = self.myconfig('vshadowmount', '/usr/local/bin/vshadowmount')
-        if len(self.vss) == 0:
-            return
 
-        # Create auxiliar mount point
+        # Create auxiliar fuse mount point
         vp = os.path.join(self.mountaux, "vp%s" % self.partition)
         if len(self.fuse) == 0 or "fuse" not in self.fuse.keys():
             self.logger.debug('Mounting auxiliary vss point: {}'.format(vp))
@@ -361,12 +346,13 @@ class Partition(object):
                 run_command(["sudo", vshadowmount, "-X", "allow_root", self.loop, vp], logger=self.logger)
             else:
                 run_command([vshadowmount, "-X", "allow_root", self.imagefile, "-o", str(self.obytes), vp], logger=self.logger)
+
         # Create as many new sources as VSS existing, and mount them
-        for p in self.vss.keys():
+        for p in self.vss:
             # Skip already mounted sources
             skip_mounting = False
-            for extra in self.vss_extra:
-                if extra.find(p) != -1:
+            for mounted in self.vss_mounted:
+                if mounted.startswith(p):
                     skip_mounting = True
                     break
             if skip_mounting:
@@ -379,20 +365,15 @@ class Partition(object):
             check_directory(new_source_dir, create=True)
             mp = os.path.join(new_source_dir, 'mnt', 'p{}'.format(p.split('p')[1]))
             self.logger.debug('Mounting vss partition at {}'.format(mp))
-            if self.vss[p] == "":
-                self.mount_NTFS(imagefile=os.path.join(vp, "vss%s" % p[1:].split("p")[0]), mountpath=mp, offset=False)
+            self.mount_NTFS(imagefile=os.path.join(vp, "vss%s" % p[1:].split("p")[0]), mountpath=mp, offset=False)
+
         self.refreshMountedImages()
 
     def umount(self):
         """ Unmounts all partitions """
         self.refreshMountedImages()
 
-        for v, mp in self.vss.items():
-            if mp != "":
-                self.logger.debug("Unmounting vss partition {}".format(v))
-                self.umountPartition(mp)
-
-        for v, mp in self.vss_extra.items():
+        for v, mp in self.vss_mounted.items():
             if mp != "":
                 self.logger.debug("Unmounting vss partition {}".format(v))
                 self.umountPartition(mp)
@@ -421,7 +402,7 @@ class Partition(object):
             self.logger.error("Error unmounting {}".format(path))
 
     def refreshMountedImages(self):
-        """ Updates information about loop devices mounted. """
+        """ Updates information about mounting points. """
 
         df = self.myconfig('df', '/bin/df')
         mount = self.myconfig('mount', '/bin/mount')
@@ -429,33 +410,50 @@ class Partition(object):
         # clear info
         self.loop = ""
         self.fuse = {}
-        self.vss_extra = defaultdict(dict)
-        for v in self.vss.keys():
-            self.vss[v] = ""
+        self.vss_mounted = defaultdict(dict)
+
+        # Get the mountdir and mountauxdir for original sources
+        original_source = self.myconfig('source')
+        aux = re.search(r"(.*)_v\d+p\d+_\d{6}_\d{6}", original_source)
+        if aux:  # If source provided is a vss. Used by other jobs calling getSourceImage
+            original_source = aux.group(1)
+        mountdir = relative_path(self.myconfig('mountdir'), self.myconfig('casedir'))
+        mountdir = os.path.join(self.myconfig('casedir'), original_source, mountdir[mountdir.find('/') + 1:])
+        mountauxdir = relative_path(self.myconfig('mountauxdir'), self.myconfig('casedir'))
+        mountauxdir = os.path.join(self.myconfig('casedir'), original_source, mountauxdir[mountauxdir.find('/') + 1:])
 
         # Update info obtained by 'df'
         output = subprocess.check_output(df).decode().split('\n')
-        self._parse_df(output)
+        self._parse_df(output, mountdir, mountauxdir)
 
         # Update info obtained by 'mount'
         output = subprocess.check_output(mount).decode().split("\n")
-        self._parse_mount(output)
+        self._parse_mount(output, mountauxdir)
 
-    def _parse_df(self, output):
+        self.logger.debug('Loop devices for partition {}: {}'.format(self.partition, str(self.loop)))
+        self.logger.debug('Fuse devices for partition {}: {}'.format(self.partition, str(self.fuse)))
+        self.logger.debug('VSS loop devices for partition {}: {}'.format(self.partition, str(self.vss_mounted)))
+
+    def _parse_df(self, output, mountdir, mountauxdir):
+        """ Find regex patterns in 'df' output to identify mounting points """
         for line in output:
-            aux = re.match(r"(/dev/loop\d+) .*({}|{})/(p{}|v\d+p{})".format(self.myconfig('mountdir'), self.myconfig('mountauxdir'), self.partition, self.partition), line)
+            aux = re.match(r"(/dev/loop\d+) .*({}|{})/(p{}|v\d+p{})".format(mountdir, mountauxdir, self.partition, self.partition), line)
             if aux:
                 if aux.group(3).startswith("p"):
                     self.loop = aux.group(1)
-                elif aux.group(3).startswith("v"):
-                    self.vss[aux.group(3)] = aux.group(1)
-            aux = re.match(r"(/dev/loop\d+) .*{}/{}_(v.*)/mnt/(p{})".format(self.myconfig('casedir'), self.myconfig('source'), self.partition), line)
+            # Vss mounted
+            original_source = self.myconfig('source')
+            aux = re.search(r"(.*)_v\d+p\d+_\d{6}_\d{6}", original_source)
+            if aux:  # If source provided is a vss. Used by other jobs calling getSourceImage
+                original_source = aux.group(1)
+            aux = re.match(r"(/dev/loop\d+) .*{}/{}_(v.*)/mnt/(p{})".format(self.myconfig('casedir'), original_source, self.partition), line)
             if aux:
-                self.vss_extra[aux.group(2)] = aux.group(1)
+                self.vss_mounted[aux.group(2)] = aux.group(1)
 
-    def _parse_mount(self, output):
+    def _parse_mount(self, output, mountauxdir):
+        """ Find regex patterns in 'mount' output to identify mounting points """
         for line in output:
-            aux = re.search("(fuse|dislocker) on .*({}/?v?p{}) type fuse".format(self.myconfig('mountauxdir'), self.partition), str(line))
+            aux = re.search("(fuse|dislocker) on .*({}/?v?p{}) type fuse".format(mountauxdir, self.partition), str(line))
             if aux:
                 self.fuse["{}".format(aux.group(1))] = aux.group(2)
                 continue
@@ -464,10 +462,10 @@ class Partition(object):
             if aux:
                 self.fuse[aux.group(1)] = aux.group(2)
                 continue
-            aux = re.match("({}/p{}) on ({}/p{}) type fuse".format(self.myconfig('mountauxdir'), self.partition, self.mountdir, self.partition), str(line))
+            aux = re.match("({}/p{}) on ({}/p{}) type fuse".format(mountauxdir, self.partition, self.mountdir, self.partition), str(line))
             if aux:
                 self.fuse[aux.group(1)] = aux.group(2)
-            aux = re.match(r"({}/v?p{}/fvde\d+) on ({}/p{}) type hfsplus".format(self.myconfig('mountauxdir'), self.partition, self.mountdir, self.partition), str(line))
+            aux = re.match(r"({}/v?p{}/fvde\d+) on ({}/p{}) type hfsplus".format(mountauxdir, self.partition, self.mountdir, self.partition), str(line))
             if aux:
                 self.fuse[aux.group(1)] = aux.group(2)
 
@@ -477,7 +475,7 @@ class Partition(object):
         return value in ('True', 'true', 'TRUE', 1)
 
     def check_bitlocker(self):
-        """ Check if partitions is encrypted with bitlocker """
+        """ Check if partition is encrypted with bitlocker """
 
         self.encrypted = False
         initBitlocker = b"\xeb\x58\x90\x2d\x46\x56\x45\x2d\x46\x53\x2d"
@@ -511,6 +509,7 @@ class Partition(object):
                 self.logger.error("Error while deleting file: {}".format(infile))
             return False
 
+        self.logger.debug('Loading partition {} information'.format(self.partition))
         if check_file(infile) and os.path.getsize(infile) != 0:
             with open(infile) as inputfile:
                 try:

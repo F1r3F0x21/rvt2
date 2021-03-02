@@ -35,7 +35,7 @@ import shutil
 __maintainer__ = 'Juan Vera'
 
 
-def getSourceImage(myconfig, imagefile=None):
+def getSourceImage(myconfig, imagefile=None, vss=False):
     """ Returns the path to the image file.
 
     imagegile is the absolute path to the image file or devide.
@@ -59,8 +59,15 @@ def getSourceImage(myconfig, imagefile=None):
     # No imagefile is provided. Search in imagedir files with known extensions
     source = myconfig('source')
     imagedir = myconfig('imagedir')
+    if vss:  # Deduce original source name from vss source name
+        aux = re.search(r"(.*)_v\d+p\d+_\d{6}_\d{6}", source)
+        if not aux:
+            logging.warning('Original source not found for present source: {}. Please, provide variable `original_image_path`'.format(source))
+            DummyImage(imagefile=None, imagetype='dummy', params=myconfig)
+        else:
+            source = aux.group(1)
     for ext in KNOWN_IMAGETYPES.keys():
-        ifile = os.path.join(imagedir, "%s.%s" % (myconfig('source'), ext))
+        ifile = os.path.join(imagedir, "{}.{}".format(source, ext))
         if check_file(ifile):
             return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=ifile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
     logging.warning('Image file not found for source=%s in imagedir=%s', source, imagedir)
@@ -88,7 +95,7 @@ class BaseImage(object):
     def mount(self, partitions=None, vss=False, unzip_path=None):
         """ Mounts partitions of disk
         Args:
-            partition (str): partition to be mounted (mounts all available partitions by default)
+            partitions (str): Comma separated list of partitions to be mounted (mounts all available partitions by default). Ex: 'p02,v1p03,p05'
         Returns:
             bool: False in case of error
         """

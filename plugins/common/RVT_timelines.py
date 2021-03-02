@@ -16,8 +16,8 @@
 import os
 import shlex
 import re
-from plugins.common.RVT_disk import getSourceImage, KNOWN_IMAGETYPES
-from base.utils import check_directory, check_file, windows_format_path
+from plugins.common.RVT_disk import getSourceImage
+from base.utils import check_directory, windows_format_path
 from base.commands import run_command, yield_command
 import base.job
 
@@ -143,28 +143,6 @@ class Timelines(BaseTimeline):
             aux = re.match(r"(/dev/loop\d+) .*{}/{}.*".format(self.myconfig('casedir'), source_name), line)
             if aux:
                 return aux.group(1)
-
-    def _get_original_image_path(self, path):
-        original_image_path = path
-        if not original_image_path:
-            aux = re.search(r"(.*)_v\d+p\d+_\d{6}_\d{6}", self.myconfig('source'))
-            if not aux:
-                self.logger().warning('Original source not found for present source: {}. Please, provide variable `original_image_path`'.format(self.myconfig('source')))
-                return []
-            else:
-                original_source = aux.group(1)
-
-            for ext in KNOWN_IMAGETYPES.keys():
-                ifile = os.path.join(self.myconfig('imagedir'), "%s.%s" % (original_source, ext))
-                if check_file(ifile):
-                    original_image_path = ifile
-                    break
-            else:
-                self.logger().warning('Original image file does not exist under {}. Please, provide a valid path for variable `original_image_path`'.format(self.myconfig('imagedir')))
-                return []
-        if not check_file(original_image_path):
-            self.logger().warning('Original image file {} does not exist. Please, provide a valid path for variable `original_image_path`'.format(self.myconfig('original_image_path')))
-            return []
 
 
 class MFTTimeline(BaseTimeline):
