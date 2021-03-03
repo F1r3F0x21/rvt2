@@ -109,8 +109,7 @@ class AmCache(base.job.BaseModule):
         # Determine output filename
         id = self.myconfig('volume_id', None)
         self.partition = id if id else 'p01'  # needed to get OS info
-        vss = self.myflag('vss')
-        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        outfolder = self.myconfig('outdir')
         check_directory(outfolder, create=True)
         self.outfile = os.path.join(outfolder, 'amcache{}.csv'.format('_{}'.format(id) if id else ''))
 
@@ -331,8 +330,7 @@ class ShimCache(base.job.BaseModule):
 
         # Determine output filename
         id = self.myconfig('volume_id', None)
-        vss = self.myflag('vss')
-        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        outfolder = self.myconfig('outdir')
         check_directory(outfolder, create=True)
         self.outfile = os.path.join(outfolder, 'shimcache{}.csv'.format('_{}'.format(id) if id else ''))
 
@@ -372,9 +370,8 @@ class SysCache(base.job.BaseModule):
 
         # Determine output filename
         id = self.myconfig('volume_id', None)
-        vss = self.myflag('vss')
         self.partition = id if id else 'p01'  # needed to get inode information
-        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        outfolder = self.myconfig('outdir')
         check_directory(outfolder, create=True)
         self.outfile = os.path.join(outfolder, 'syscache{}.csv'.format('_{}'.format(id) if id else ''))
 
@@ -427,8 +424,7 @@ class AppCompat(base.job.BaseModule):
 
         # Determine output filename
         id = self.myconfig('volume_id', None)
-        vss = self.myflag('vss')
-        outfolder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        outfolder = self.myconfig('outdir')
         check_directory(outfolder, create=True)
         self.outfile = os.path.join(outfolder, 'appcompatcache{}.csv'.format('_{}'.format(id) if id else ''))
 
@@ -503,8 +499,7 @@ class ScheduledTasks(base.job.BaseModule):
             if path.find(assumed_location) != -1:
                 self.volume_id = path[len(assumed_location) + 1:].split('/')[0]
 
-        self.vss = self.myflag('vss')
-        self.outfolder = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
+        self.outfolder = self.myconfig('outdir')
         check_directory(self.outfolder, create=True)
 
         self.logger().debug("Parsing artifacts from scheduled tasks files (.job)")

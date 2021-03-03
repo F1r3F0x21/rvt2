@@ -27,17 +27,16 @@ class Srum(base.job.BaseModule):
 
     def run(self, path=""):
         """ Extracts SRUM artifacts of a disk """
-        vss = self.myflag('vss')
         SRUM_TEMPLATE = os.path.join(self.myconfig('rvthome'), "plugins/external/srum-dump/SRUM_TEMPLATE2.xlsx")
         srum = os.path.join(self.myconfig('rvthome'), "plugins/external/srum-dump/srum_dump2.py")
         check_file(SRUM_TEMPLATE, error_missing=True)
 
-        Search = GetFiles(self.config, vss=self.myflag("vss"))
+        Search = GetFiles(self.config)
         SOFTWARE = list(Search.search('windows/system32/config/SOFTWARE$'))
         SRUDB = list(Search.search('/windows/system32/sru/SRUDB.dat$'))
         python3 = os.path.join(self.myconfig('rvthome'), ".venv/bin/python3")
 
-        out_folder = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        out_folder = self.myconfig('outdir')
         check_directory(out_folder, create=True)
 
         if not SRUDB:

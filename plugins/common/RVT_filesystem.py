@@ -60,7 +60,7 @@ class FileSystem(base.job.BaseModule):
             self.logger().error('No partitions found in image {}'.format(self.disk.imagefile))
             raise base.job.RVTError('No partitions found in image {}'.format(self.disk.imagefile))
 
-        self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss.items() if dev}
+        self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss_mounted.items() if dev}
         self.logger().debug('Partitions: {}'.format(self.partitions))
         self.logger().debug('Vss Partitions: {}'.format(self.vss_partitions))
 
@@ -109,7 +109,7 @@ class FileSystem(base.job.BaseModule):
 
         Arguments:
             :filename (str): filename to search inode
-            :partition (str): Partition name where getting inode (examples: p05 or v1p04)
+            :partition (str): Partition name where getting inode (examples: p05 or v1p04_201123_050521)
             :vss (bool): True if it's an vss
         """
         try:
@@ -163,7 +163,7 @@ class FileSystem(base.job.BaseModule):
         """ Write or return inode contents. If output_filename is set the content is written to that file and returns nothing.
             Otherwise the content is returned. Be careful with large files.
         Arguments:
-            :partition (str): Partition name where getting content (examples: p05 or v1p04)
+            :partition (str): Partition name where getting content (examples: p05 or v1p04_201123_050521)
             :inode (int): inode number
             :output_filename (string): file where inode's content may be written
             :attribute (string): optional inode attribute (related with ADS)
@@ -231,8 +231,8 @@ class FileSystem(base.job.BaseModule):
                 img = pytsk3.Img_Info(p.imagefile)
                 fs = pytsk3.FS_Info(img, offset=int(p.obytes))
         else:
-            p = self.vss_partitions[partition]
-            img = pytsk3.Img_Info(p.vss[partition])
+            dev = self.vss_partitions[partition]
+            img = pytsk3.Img_Info(dev)
             fs = pytsk3.FS_Info(img)
         return fs
 
@@ -346,7 +346,7 @@ class FileSystem(base.job.BaseModule):
                 continue
 
             if vss:
-                for v, device in p.vss.items():
+                for v, device in p.vss_mounted.items():
                     if device:
                         cmd = 'fls -{}pr -b {} {}'.format('d' if deleted else 'u', sectorsize, device)
                         self.logger().debug('Generating inode-paths association for {} files of device {}'.format('deleted' if deleted else 'allocated', device))

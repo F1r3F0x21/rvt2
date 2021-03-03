@@ -22,7 +22,6 @@ from collections import defaultdict
 from tqdm import tqdm
 
 import base.utils
-from plugins.common.RVT_disk import getSourceImage
 import base.job
 import base.commands
 
@@ -31,25 +30,13 @@ class Files(base.job.BaseModule):
     """ Generates a list with all the allocated files in a disk, by visiting them. """
 
     def run(self, path=None):
-        """ The path is ignored. """
-
-        if self.myflag('vss'):
-            self._generate_allocfiles_vss()
-        else:
-            self._generate_allocfiles()
-        return []
-
-    def _generate_allocfiles(self):
-        """ Generates allocfiles
-
-        Todo:
-            - If file system is corrupt, alloc_files list may be different from the sleuthkit's output
-        """
+        # The path is ignored
+        # TODO: If file system is corrupt, alloc_files list may be different from the sleuthkit's output
 
         mountdir = self.myconfig('mountdir')
         if not base.utils.check_directory(mountdir):
             self.logger().warning('Disk not mounted at {}'.format(mountdir))
-            return
+            return []
 
         outfile = os.path.join(self.config.get(self.section, 'outdir'), 'alloc_files.txt')
         base.utils.check_file(outfile, delete_exists=True, create_parent=True)
@@ -61,26 +48,7 @@ class Files(base.job.BaseModule):
                     relative_p_mountdir = base.utils.relative_path(os.path.join(mountdir, p), self.myconfig('casedir'))
                     base.commands.run_command([find, "-P", relative_p_mountdir + '/'], stdout=outf, logger=self.logger(), from_dir=self.myconfig('casedir'))
 
-    def _generate_allocfiles_vss(self):
-        """ Generates allocfiles from mounted vshadows snapshots  """
-
-        disk = getSourceImage(self.myconfig)
-
-        mountdir = self.myconfig('mountdir')
-        if not base.utils.check_directory(mountdir):
-            self.logger().warning('Disk not mounted')
-            return
-
-        outdir = self.config.get(self.section, 'voutdir')
-        base.utils.check_directory(outdir, create=True)
-
-        find = self.myconfig('find', 'find')
-        for p in disk.partitions:
-            for v, dev in p.vss.items():
-                if dev != "":
-                    with open(os.path.join(outdir, "alloc_{}.txt").format(v), 'wb') as f:
-                        relative_v_mountdir = base.utils.relative_path(os.path.join(mountdir, v), self.myconfig('casedir'))
-                        base.commands.run_command([find, '-P', relative_v_mountdir + '/'], stdout=f, logger=self.logger(), from_dir=self.myconfig('casedir'))
+        return []
 
 
 class GetFiles(object):
@@ -90,26 +58,16 @@ class GetFiles(object):
     def __init__(self, config, vss=False):
         self.logger = logging.getLogger('GetFiles')
         self.config = config
-        self.vss = vss
 
     def get_alloc_txt_files(self):
         """ Return a list of all alloc_files-txt files present in the output directory for the source """
         alloc_txt_files = []
         files_instance = Files(config=self.config)
-        if not self.vss:
-            auxdir = self.config.get(files_instance.section, 'outdir')
-            alloc_txt_files.append(os.path.join(auxdir, "alloc_files.txt"))
-            if not os.path.isfile(alloc_txt_files[0]):
-                self.logger.debug("Alloc files not yet created. Proceeding to generate them")
-                files_instance._generate_allocfiles()
-        else:
-            auxdir = self.config.get(files_instance.section, 'voutdir')
-            if not os.path.isdir(auxdir):
-                self.logger.debug("Alloc files from Volume Snapshots not yet created. Proceeding to generate them.")
-                files_instance._generate_allocfiles_vss()
-            for file in os.listdir(auxdir):
-                if file.startswith("alloc"):
-                    alloc_txt_files.append(os.path.join(auxdir, file))
+        auxdir = self.config.get(files_instance.section, 'outdir')
+        alloc_txt_files.append(os.path.join(auxdir, "alloc_files.txt"))
+        if not os.path.isfile(alloc_txt_files[0]):
+            self.logger.debug("Alloc files not yet created. Proceeding to generate them")
+            files_instance.run()
 
         return alloc_txt_files
 
@@ -141,12 +99,10 @@ class FilterAllocFiles(base.job.BaseModule):
     Configuration:
         - **regex**: the regex expression to match
         - **file_category**: if present, ignore regex and read extensions from this file_category.
-        - **vss**: use virtual shadow instead of the current system (only Window images)
     """
     def read_config(self):
         super().read_config()
         self.set_default_config('regex', r'.*')
-        self.set_default_config('vss', 'False')
         self.set_default_config('file_category', '')
         file_category = self.myconfig('file_category')
         if file_category:
@@ -158,7 +114,7 @@ class FilterAllocFiles(base.job.BaseModule):
     def run(self, path=None):
         """ The path is ignored """
         self.check_params(path, check_from_module=True)
-        getfiles = GetFiles(self.config, vss=self.myflag("vss"))
+        getfiles = GetFiles(self.config)
         for filename in getfiles.search(self.myconfig('regex')):
             for data in self.from_module.run(filename):
                 yield data
@@ -171,7 +127,7 @@ class SendAllocFiles(base.job.BaseModule):
     def run(self, path=None):
         """ The path is ignored """
         self.check_params(path, check_from_module=True)
-        paths = GetFiles(self.config, vss=self.myflag("vss")).files()
+        paths = GetFiles(self.config).files()
         for filename in paths:
             filename = os.path.join(self.myconfig('casedir'), filename.rstrip('\n'))
             for data in self.from_module.run(filename):

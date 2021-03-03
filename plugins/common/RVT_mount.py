@@ -31,6 +31,7 @@ class Mount(base.job.BaseModule):
         - **hfs_args** (str): specific options for mounting an HFS partition.
         - **vss** (bool): mount regular (False) or Volume Shadow Snapshots (True) partitions
         - **nbd_device** (str): for VMDX images (nbd), the device to use.
+        - **remove_info** (bool): if True, remove previous information gathered about disk. Use this if any error occurs
     """
     def run(self, path=None):
         """ If path is provided, it is an abolsolute path to the image to mount.
@@ -47,9 +48,11 @@ class UMount(base.job.BaseModule):
 
     """
     def run(self, path=None):
+        """ If path is provided, it is an abolsolute path to the image to unmount.
+        If not, search imagedir for available images """
         if self.from_module:
             for data in self.from_module.run(path):
                 yield data
-        disk = getSourceImage(self.myconfig)
+        disk = getSourceImage(self.myconfig, imagefile=path)
         disk.umount()
         return []

@@ -49,8 +49,11 @@ class AdvWhatsapps(plugins.ios.IOSModule):
 
         if os.path.exists(searchV3):
             return (sq.connect('file://' + storage + '?mode=ro', uri=True), sq.connect('file://' + searchV3 + '?mode=ro', uri=True))
-        else:
+        elif os.path.exists(search):
             return (sq.connect('file://' + storage + '?mode=ro', uri=True), sq.connect('file://' + search + '?mode=ro', uri=True))
+        else:
+            self.logger().warning('No databases to compare against ChatStorage.sqlite. This is common in newer iOS versions. Averation is not possible by this method.')
+            return (None, None)
 
     def get_tables(self, con_storage, con_search, out):
         cur_storage = con_storage.cursor()
@@ -217,9 +220,12 @@ class AdvWhatsapps(plugins.ios.IOSModule):
         outfilename = self.myconfig('outfile')
         if os.path.isfile(outfilename):
             os.remove(outfilename)
-        out = open(outfilename, 'w')
 
         con_storage, con_search = self.connect()
+        if not con_storage:
+            return []
+
+        out = open(outfilename, 'w')
         # get_tables(con_storage, con_search, out)
         self.last_backup(out)
         self.blacklist(con_storage, out)

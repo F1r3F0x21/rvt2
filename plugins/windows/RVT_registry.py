@@ -98,7 +98,7 @@ class RegistryDump(base.job.BaseModule):
 
         regfiles = {}
 
-        Find = GetFiles(self.config, vss=self.myflag("vss"))
+        Find = GetFiles(self.config)
 
         for main_hive in ['SYSTEM', 'SOFTWARE', 'SAM', 'SECURITY']:
             for item in Find.search("/Windows/System32/config/{}$".format(main_hive)):

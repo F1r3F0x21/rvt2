@@ -81,6 +81,7 @@ class Unback(plugins.ios.IOSModule):
 
                 with zipfile.ZipFile(path, 'r') as myzip:
                     bkid = myzip.namelist()[0]
+
                     self.logger().debug('Extracting file %s to %s', path, unzip_path)
                     if not base.utils.check_directory(os.path.join(unzip_path, bkid)):
                         for zn in tqdm(myzip.namelist(), desc='Unzip backup', disable=self.myflag('progress.disable')):
@@ -97,6 +98,7 @@ class Unback(plugins.ios.IOSModule):
                 raise base.job.RVTError('The zip file {} doesn\'t seem a compressed iOS backup'.format(unzip_path))
             except Exception as exc:
                 self.logger().warning('Cannot read zip file: %s', exc)
+        
         elif base.utils.check_directory(path) and base.utils.check_file(os.path.join(path, 'Info.plist')):
             # if the path is a directory and it includes Info.plist, assume it is a backup directory
             return os.path.abspath(path)
@@ -127,10 +129,7 @@ class Unback(plugins.ios.IOSModule):
                 # for example: directory is busy
                 self.logger().warning('Can\'t remove: {}. I will try to continue'.format(self.myconfig('unzip_path')))
         extract_path = self.myconfig('extract_path')
-        # check extract_path
-        if base.utils.check_directory(extract_path):  # If already unbacked, exit
-            # return []
-            pass
+
         # create the extract_path directory, if it does not exist
         base.utils.check_directory(extract_path, create=True, delete_exists=True)
         self.logger().debug('Extracting to: %s', extract_path)

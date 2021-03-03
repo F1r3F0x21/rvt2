@@ -24,11 +24,10 @@ from plugins.common.RVT_files import GetFiles
 class USBSetupAPI(base.job.BaseModule):
 
     def run(self, path=""):
-        vss = self.myflag('vss')
-        outdir = self.myconfig('voutdir') if vss else self.myconfig('outdir')
+        outdir = self.myconfig('outdir')
         check_directory(outdir, create=True)
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         setupapi = search.search(r"setupapi.dev.log$")
 
         if len(setupapi) < 1:
@@ -38,27 +37,15 @@ class USBSetupAPI(base.job.BaseModule):
         for setupapi_file in setupapi:
             self.logger().debug('Extracting USB devices information from {}'.format(setupapi_file))
             folders = setupapi_file.split('/')
-            partition = folders[2]
-            if not vss:
-                output_file = os.path.join(outdir, "{}_usb_setupapi.csv".format(partition))
-                setupapi_path = os.path.join(self.myconfig('casedir'), setupapi_file)
-                if not os.path.isfile(setupapi_path):
-                    self.logger().warning("{} does not exist. Try to mount disk's partition.".format(setupapi_path))
-                    continue
-                save_csv(self.parse_setupapi(setupapi_path, partition), outfile=output_file)
-                if os.path.getsize(output_file) == 0:
-                    os.remove(output_file)
-            else:
-                vpartitions = [v for v in os.listdir(self.myconfig('mountdir')) if v.startswith('v') and v.find(partition) != -1]
-                for vpart in vpartitions:
-                    output_file = os.path.join(outdir, "{}_usb_setupapi.csv".format(vpart))
-                    setupapi_path = os.path.join(self.myconfig('casedir'), '/'.join(folders[:2]), vpart, '/'.join(folders[3:]))
-                    if not os.path.isfile(setupapi_path):
-                        self.logger().warning("{} does not exist in vss partition {}.".format(setupapi_path, vpart))
-                        continue
-                    save_csv(self.parse_setupapi(setupapi_path, vpart), outfile=output_file)
-                    if os.path.getsize(output_file) == 0:
-                        os.remove(output_file)
+            partition = folders[2]  # allocfiles format: source/mnt/pXX/path
+            output_file = os.path.join(outdir, "{}_usb_setupapi.csv".format(partition))
+            setupapi_path = os.path.join(self.myconfig('casedir'), setupapi_file)
+            if not os.path.isfile(setupapi_path):
+                self.logger().warning("{} does not exist. Try to mount disk's partition.".format(setupapi_path))
+                continue
+            save_csv(self.parse_setupapi(setupapi_path, partition), outfile=output_file)
+            if os.path.getsize(output_file) == 0:
+                os.remove(output_file)
 
         return []
 

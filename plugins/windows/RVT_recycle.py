@@ -63,63 +63,63 @@ class Recycle(base.job.BaseModule):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.disk = getSourceImage(self.myconfig)
-        self.image = os.path.join(self.myconfig('imagedir'), self.disk.disknumber)
         self.vss = self.myflag('vss')
+        try:
+            self.disk = getSourceImage(self.myconfig, vss=self.vss)
+            self.filesystem = FileSystem(self.config, disk=self.disk)
+        except Exception as exc:
+            raise base.job.RVTError('A source image is needed. {}'.format(exc))
 
         # Associate a partition name with a partition object or a loop device
         self.partitions = {''.join(['p', p.partition]): p for p in self.disk.partitions if p.isMountable}
         if not self.partitions:
-            self.logger().error('No partitions found in image {}'.format(self.disk.imagefile))
-            exit(1)
-        self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss.items() if dev}
+            raise base.job.RVTError('No partitions found in image {}'.format(self.disk.imagefile))
+        self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss_mounted.items() if dev}
         self.logger().debug('Partitions: {}'.format(self.partitions))
         self.logger().debug('Vss Partitions: {}'.format(self.vss_partitions))
 
         self.mountdir = self.myconfig('mountdir')
-        if not os.path.isdir(self.mountdir):
-            self.logger().error("Mount directory {} does not exist".format(self.mountdir))
-            exit(1)
 
-        self.timeline_file = os.path.join(self.myconfig('timelinesdir'), '{}_BODY.csv'.format(self.disk.disknumber))
+        if not os.path.isdir(self.mountdir):
+            raise base.job.RVTError("Mount directory {} does not exist".format(self.mountdir))
+
+        self.timeline_file = os.path.join(self.myconfig('timelinesdir'), '{}_BODY.csv'.format(self.myconfig('source')))
 
     def run(self, path=""):
         """ Main function to extract $Recycle.bin files. """
-        if self.vss:
-            output_path = self.myconfig('voutdir')
-        else:
-            output_path = self.myconfig('outdir')
-            try:
-                check_file(self.timeline_file, error_missing=True)
-            except base.job.RVTError:
-                return []
+
+        output_path = self.myconfig('outdir')
+        try:
+            check_file(self.timeline_file, error_missing=True)
+        except base.job.RVTError:
+            raise base.job.RVTError('Timeline not found at {}. Please, generate the timeline with fs_timeline or mft_timeline before running the present job for recycle bin'.format(self.timeline_file))
 
         check_directory(output_path, create=True)
-        self.filesystem = FileSystem(self.config)
 
-        # Get the users associated with each SID for every partition
+        # Get the users associated with each SID for every partition or mounted vss
         self.sid_user = {}
-        if self.vss:
-            for p in self.vss_partitions:
-                self.sid_user[p] = self.generate_SID_user(p)
-        else:
+        for p in self.vss_partitions:
+            self.sid_user[p] = self.generate_SID_user(p)
+        if not self.vss:
             for p in self.partitions:
                 self.sid_user[p] = self.generate_SID_user(p)
 
-        self.logger().debug('Starting to parse RecycleBin')
         # RB_codes relates a a six digit recyclebin code with a path for a file. Are updated for each partition or vss?
         self.RB_codes = {}
+
+        self.logger().debug('Starting to parse RecycleBin')
         if self.vss:
-            for partition in self.vss_partitions:
-                self.logger().debug('Processing Recycle Bin in partition {}'.format(partition))
-                try:
-                    self.parse_RecycleBin(partition)
-                except Exception as exc:
-                    if self.myflag('stop_on_error'):
-                        raise exc
-                    continue
-                output_file = os.path.join(output_path, "{}_recycle_bin.csv".format(partition))
-                self.save_recycle_files(output_file, partition, sorting=True)
+            for partition, dev in self.vss_partitions.items():
+                if dev and self.myconfig('source').find(partition) != -1:
+                    self.logger().debug('Processing Recycle Bin in partition {}'.format(partition))
+                    try:
+                        self.parse_RecycleBin(partition)
+                    except Exception as exc:
+                        if self.myflag('stop_on_error'):
+                            raise exc
+                        continue
+                    output_file = os.path.join(output_path, "{}_recycle_bin.csv".format(partition))
+                    self.save_recycle_files(output_file, partition, sorting=True)
         else:
             try:
                 self.parse_RecycleBin()
@@ -140,13 +140,6 @@ class Recycle(base.job.BaseModule):
         self.i_files = {}
         self.r_files = []
 
-        if self.vss:
-            self.timeline_file = os.path.join(self.myconfig('vtimelinesdir'), '{}_BODY.csv'.format(partition))
-            try:
-                check_file(self.timeline_file, error_missing=True)
-            except base.job.RVTError as e:
-                self.logger().warning('{}. Skipping vss {}'.format(e, partition))
-                return
         self.logger().debug('Timeline file: {}'.format(self.timeline_file))
 
         search_command = 'grep -P "{regex}" "{path}"'
@@ -177,7 +170,6 @@ class Recycle(base.job.BaseModule):
         """ Extract and modify relevant information of each timeline_BODY record supplied. """
         # Timeline BODY fields: "file_md5|path|file_inode|file_mode|file_uid|file_gid|file_size|file_access|file_modified|file_changerecord|file_birth"
         _, filename, inode, _, _, _, size, _, _, change_time, _ = body_record.split('|')
-        # filename format for vss:  'vYpXX/path' or 'vYYpXX/path' if more than 9 vss in a partition
         # filename format for regular timeline:  'source/mnt/pXX/path' or 'source/mnt/p0/path' if single partition in image
 
         if filename.find('$FILE_NAME') > 0:   # Skip $FILE_NAME files
@@ -217,24 +209,18 @@ class Recycle(base.job.BaseModule):
             filename, size, inode, partition, user, file_status = self._process_timeline_record(line)
         except TypeError:
             return
+        p_name = p_name or partition  # In VSS, p_name is different from partition
 
         if size == 0 or size > 4096:  # Standard size of $I file is 544 bytes. Avoid empty or corrupted files.
             self.logger().debug('Wrong $I file size ({}). Not parsing {}'.format(size, filename))
             return
 
-        # For allocated files, search the file in mounted disk. In case of deleted recover from inode
+        # For allocated files, search the file in mounted disk. In case of deleted, recover from inode
         if file_status == 'allocated':
-            if self.vss:
-                record = os.path.join(self.myconfig('casedir'), filename.replace(p_name[p_name.find('p'):], p_name, 1))
-            else:
-                record = os.path.join(self.myconfig('casedir'), filename)
+            record = os.path.join(self.myconfig('casedir'), filename)
         elif file_status == 'deleted':
-            if self.vss:
-                record = self.filesystem.icat(inode, p_name, vss=True)
-            else:
-                record = self.filesystem.icat(inode, p_name)
-                # subprocess.run('icat -o {} {}.dd {} > {}'.format(offset, self.image, inode, tempfile), shell=True)
-        else:  # realloc. Not even try to parse
+            record = self.filesystem.icat(inode, p_name, vss=self.vss)
+        else:  # realloc. Don't even try to parse
             return
 
         try:
@@ -278,7 +264,7 @@ class Recycle(base.job.BaseModule):
                 # Containing folder and all subfiles were deleted at the same time, otherwise another recycle code would have been generated
                 del_time = self.i_files[bin_code]['Date']
         else:
-            # TODO: search inode in vss_fls and get name
+            # TODO: Search inode in previous vss and get the name from there
             original_name = ''  # Can't determine original name
             del_time = datetime.datetime(1970, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -289,7 +275,11 @@ class Recycle(base.job.BaseModule):
 
     @staticmethod
     def get_bin_name(fname, I_file=True):
-        """ Extract the 6 characters name assigned by the Recycle Bin """
+        """ Extract the 6 characters name assigned by the Recycle Bin
+
+            Example:
+            'source/mnt/p01/$Recycle.Bin/S-1-5-21-2334341014-1573730391-3915372428-3835/$I0T3MH9.lnk' --> '0T3MH9'
+        """
         if I_file:
             pos = fname.find("$I")
             return fname[pos + 2:pos + 8]
@@ -300,14 +290,14 @@ class Recycle(base.job.BaseModule):
 
     def update_inode(self, inode, bin_code, file_status):
         ino = self.i_files[bin_code].get('Inode', 0)
-        if not ino and inode:  # Upsate only when new inode is different than 0 and Inode key was 0
+        if not ino and inode:  # Update only when new inode is different than 0 and Inode key was 0
             self.i_files[bin_code]['Inode'] = inode
 
     def get_data(self, file, filepath, status='allocated', inode=0, user=''):
         """ Return a new record parsing file's metadata.
         Args:
             file (str or bytes): $I url or byte-string containing the data
-            filepath (str): name of the mount path to $I file
+            filepath (str): relative path to $I file from mount root
             status (str): allocated, deleted, realloc
             inode (int): inode of the $R file
         Returns:
@@ -327,7 +317,7 @@ class Recycle(base.job.BaseModule):
         """ Parse $I file and obtain metadata
         Args:
             f (str): $I file_object
-            filepath (str): name of the mount path to $I file
+            filepath (str): relative path to $I file from mount root
         Returns:
             dict: keys = [Date, Size, File, OriginalName]
         """
@@ -391,9 +381,8 @@ class Recycle(base.job.BaseModule):
         try:
             software = self.locate_hives(partition)['software']
             # software = GetFiles(self.config, vss=self.myflag("vss")).search('{}/windows/system32/config/SOFTWARE$'.format(partition))[0]
-            # software = os.path.join(self.myconfig('casedir'), software)
         except (KeyError, TypeError):
-            self.logger().warning('No Software registry file found for partition {}'.format(partition))
+            self.logger().debug('No Software registry file found for partition {}'.format(partition))
             return {}
 
         output_profilelist = subprocess.check_output([rip, "-r", software, "-p", 'profilelist']).decode()
@@ -417,6 +406,7 @@ class Recycle(base.job.BaseModule):
                     sid = i.split(':')[1][1:]
                     is_path = False
                     us[sid] = user
+
         return us
 
     def get_user_from_SID(self, SID, partition):
@@ -426,7 +416,8 @@ class Recycle(base.job.BaseModule):
             return self.sid_user[partition][SID]
         except (TypeError, KeyError):
             self.logger().debug('SID {} does not have an associated user in partition {}'.format(SID, partition))
-        for p in {**self.partitions, **self.vss_partitions}:
+        # Warning: it's assuming only one partition has vss
+        for p in self.vss_partitions:
             if p != partition:
                 try:
                     return self.sid_user[p][SID]
@@ -436,7 +427,10 @@ class Recycle(base.job.BaseModule):
 
     def locate_hives(self, partition):
         """ Return the path to the main hives, as a dictionary. """
-        # it can also be done with GetFiles
+        # Consider partition may be in the vss format vXXpYY_123456_123456
+        if partition.startswith('v'):
+            partition = partition[partition.find('p'):partition.find('_')]
+
         part_dir = os.path.join(self.mountdir, partition)
         folder_combinations = product(*((c.capitalize(), c.upper(), c) for c in ['windows', 'system32', 'config']))
         for dir in (os.path.join(*i) for i in folder_combinations):
