@@ -1038,3 +1038,43 @@ class Registry(SuperTimeline):
                     common['registry.{}'.format(sub_value)] = data
                 common['message'] = 'Registry value {} set at subkey {}'.format(v['value'], d['subkey'])
                 yield common
+
+
+class RecycleBin(SuperTimeline):
+    """ Converts files in Recycle Bin to events. After this, you can save this file using events.save.
+
+    Configuration section:
+        - **classify**: If True, categorize the files in the output.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('classify', 'True')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                '@timestamp': to_iso_format(d['Date']),
+                'tags': ['recyclebin'],
+                'event.category': ['file'],
+                'event.type': ['deletion'],
+                'event.module': 'recyclebin',
+                'event.dataset': d['recyclebin'],
+                'event.action': 'file-deleted',
+                'file.deleted': 'False' if d['Status'] == 'allocated' else 'True',
+                'file.inode': d['Inode'],
+                'user.name': d['User'],
+                'file.path': d['File'],
+                'file.size': d['Size'],
+                'file.directory': os.path.dirname(d['OriginalName']),
+                'file.extension': os.path.splitext(d['OriginalName'])[1].lstrip('.'),
+                'file.name': os.path.basename(d['OriginalName']),
+                'file.group': self.filegroup(dict({'path': d['OriginalName']}), self.myflag('classify')) or '',
+                'message': 'File sent to RecycleBin: {}'.format(d['OriginalName'])
+            })
+
+            yield common
