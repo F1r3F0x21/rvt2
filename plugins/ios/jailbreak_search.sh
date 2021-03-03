@@ -2,7 +2,7 @@
 # It does string searches of known jailbreak related apps kw in known log files
 
 # Input
-SOURCE_DIR="/morgue/102121-cubero/102121-01-1"
+SOURCE_DIR="/morgue/mycase/mysource"
 JAILBREAK_DIR="${SOURCE_DIR}/output/ios/jailbreak"
 PLUGINS_DIR="/usr/local/rvt2/plugins/ios"
 
@@ -34,21 +34,21 @@ SEARCH_RESULT="${SOURCE_DIR}/output/ios/jailbreak/jailbreak_result.txt"
 
 locate_files() {
     while read file_regex; do
-        #echo \'"${file_regex}"\'
+        # echo \'"${file_regex}"\'
         rg -N "${file_regex}" $ALLOC_FILES
     done < "${JAILBREAK_FILES}"
 }
 
 make_strings() {
     while read file; do
-        #echo \'"${file}"\'
+        # echo \'"${file}"\'
         srch_strings -f -a -t d "${SOURCE_DIR}/../${file}"
     done < "${ALLOC_LOCATED}"
 }
 
 search_jail_apps() {
     while read app; do
-        #echo \'"${app}"\'
+        # echo \'"${app}"\'
         rg -i -N "${app}" "${STRINGS_ALL}"
     done < "${JAILBREAK_APPS}"
 }
@@ -62,3 +62,4 @@ if [ ! -e "${STRINGS_ALL}" ]; then
   make_strings >> "${STRINGS_ALL}"
 fi
 search_jail_apps > "${SEARCH_RESULT}"
+exit 0

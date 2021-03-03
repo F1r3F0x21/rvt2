@@ -36,7 +36,7 @@ class Files(base.job.BaseModule):
         mountdir = self.myconfig('mountdir')
         if not base.utils.check_directory(mountdir):
             self.logger().warning('Disk not mounted at {}'.format(mountdir))
-            return
+            return []
 
         outfile = os.path.join(self.config.get(self.section, 'outdir'), 'alloc_files.txt')
         base.utils.check_file(outfile, delete_exists=True, create_parent=True)
@@ -47,6 +47,8 @@ class Files(base.job.BaseModule):
                 if p.startswith("p"):
                     relative_p_mountdir = base.utils.relative_path(os.path.join(mountdir, p), self.myconfig('casedir'))
                     base.commands.run_command([find, "-P", relative_p_mountdir + '/'], stdout=outf, logger=self.logger(), from_dir=self.myconfig('casedir'))
+
+        return []
 
 
 class GetFiles(object):

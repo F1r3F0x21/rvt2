@@ -20,6 +20,7 @@ import sqlite3
 import csv
 import biplist
 import datetime
+import json
 
 import base.job
 import base.utils
@@ -38,6 +39,7 @@ class Characterization(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('outfile', os.path.join(self.myconfig('analysisdir'), 'characterize.csv'))
+        self.set_default_config('outfile_json', os.path.join(self.myconfig('analysisdir'), 'os_info.json'))
 
     def run(self, path):
         """
@@ -73,12 +75,16 @@ class Characterization(base.job.BaseModule):
             except Exception:
                 pass
 
+        # Write the output on a json and a csv file
         base.utils.check_file(self.myconfig('outfile'), delete_exists=True, create_parent=True)
-        with open(self.myconfig('outfile'), "w") as outfile:
-            writer = csv.writer(outfile)
+        base.utils.check_file(self.myconfig('outfile_json'), delete_exists=True)
+        with open(self.myconfig('outfile'), "w") as outfile_csv:
+            writer = csv.writer(outfile_csv)
             writer.writerow(("Characteristic", "Value"))
             for k, v in data.items():
                 writer.writerow([k, v])
+        with open(self.myconfig('outfile_json'), 'w') as outfile_json:
+            json.dump(data, outfile_json, indent=4)
 
         self.logger().info("iPhone's characterization exported at %s", self.myconfig('outfile'))
 
@@ -88,7 +94,7 @@ class Characterization(base.job.BaseModule):
         manifest = biplist.readPlist(os.path.join(self.path, 'Manifest.plist'))
         data['Version'] = manifest.get('Version', 'None')
         data['IsEncrypted'] = manifest.get('IsEncrypted', 'None')
-        data['LastBackupDate_Manifest.plist'] = manifest.get('Date', 'None')
+        data['LastBackupDate_Manifest.plist'] = str(manifest.get('Date', 'None'))
         if 'Lockdown' in manifest:
             self.lockdown = True
             data['DeviceName'] = manifest['Lockdown'].get('DeviceName', 'None')
@@ -109,7 +115,7 @@ class Characterization(base.job.BaseModule):
         data['ProductName'] = info.get('Product Name', 'None')
         data['macOSVersion'] = info.get('macOS Version', 'None')
         data['macOS Build Version'] = info.get('macOS Build Version', 'None')
-        data['LastBackupDate_Info.plist'] = info.get('Last Backup Date', 'None')
+        data['LastBackupDate_Info.plist'] = str(info.get('Last Backup Date', 'None'))
         # check some data, they must be the same as the one in Manifest.plist
         if self.lockdown:
             assert data['UniqueDeviceID'].lower() == info['Target Identifier'].lower()
@@ -123,7 +129,7 @@ class Characterization(base.job.BaseModule):
     def parse_status(self, data):
         status = biplist.readPlist(os.path.join(self.path, 'Status.plist'))
         data['UUID'] = status['UUID']
-        data['BackupDate_Status.plist'] = status.get('Date', 'None')
+        data['BackupDate_Status.plist'] = str(status.get('Date', 'None'))
 
     def parse_mobile_backup(self, data):
         mobileBackup = biplist.readPlist(os.path.join(self.path, 'RootDomain/Library/Preferences/com.apple.MobileBackup.plist'))
@@ -175,3 +181,20 @@ class Characterization(base.job.BaseModule):
                 #     4: "Twitter Account",
                 #     8: "Flickr Account",
                 # }
+
+    def get_property(self, property):
+        os_info_json = self.myconfig('outfile_json')
+        if os.path.exists(os_info_json) and os.path.getsize(os_info_json) > 0:
+            with open(os_info_json, 'r') as infile:
+                info = json.load(infile)
+                return info.get(property, '')
+        return ''
+
+
+class LoadApolloVersion(base.job.BaseModule):
+    def run(self, path=None):
+        version = Characterization(self.config).get_property('Version').split('.')[0]
+        conf_file = os.path.join(self.config.config['ios']['plugindir'], 'apollo', 'rvt2-ios-{}.ini'.format(version))
+        if os.path.exists(conf_file):
+            self.config.read(conf_file)
+        return []
