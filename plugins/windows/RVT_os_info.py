@@ -47,13 +47,18 @@ class CharacterizeWindows(base.job.BaseModule):
         base.job.wait_for_job(self.config, self)
 
         self.partitions = [folder for folder in sorted(os.listdir(self.myconfig('mountdir'))) if folder.startswith('p')]
+        self.os_info = defaultdict(dict)
+
         # Get the autorip outputfile associated with each necessary plugin. Generate output if necessary
         self.get_ripplugins()
+        if not self.ripplugins:
+            return [dict(os_info=self.os_info, source=self.myconfig('source'))]
+
         used_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'samparse', 'profilelist']
         self.plugin_files = {plug: p['file'] for plug in used_plugins for p in self.ripplugins if plug in p['plugins']}
         # Define self.ntusers, that gets the creation date of NTUSER.DAT for every user and partition
         self.make_usrclass_timeline()
-        self.os_info = defaultdict(dict)
+
         # Get OS and users information
         for part in self.partitions:
             self.os_information(part)
@@ -93,6 +98,8 @@ class CharacterizeWindows(base.job.BaseModule):
                 list(module.run())
             except base.job.RVTError as exc:
                 self.logger().warning(exc)
+                self.ripplugins = {}
+                return
 
         with open(ripplugins_file) as rf:
             self.ripplugins = json.load(rf)

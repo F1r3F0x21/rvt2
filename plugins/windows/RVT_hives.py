@@ -56,6 +56,8 @@ def get_hives(path):
             In case of ntuser and usrclass hives, they are organized by username
     """
     regfiles = {}
+    if not check_directory(path):
+        return regfiles
 
     # Common Hives
     hive_names = {
