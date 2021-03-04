@@ -16,3 +16,7 @@
 [submodule "plugins/external/bmc-tools"]
 	path = plugins/external/bmc-tools
 	url = https://github.com/ANSSI-FR/bmc-tools.git
+[submodule "plugins/external/analyzeMFT"]
+	path = plugins/external/analyzeMFT
+	url = https://github.com/dkovar/analyzeMFT.git
+	
