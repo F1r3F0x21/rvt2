@@ -62,12 +62,8 @@ class ActivitiesCacheOld(base.job.BaseModule):
 
         self.search = GetFiles(self.config, vss=self.myflag("vss"))
         self.logger().debug("Parsing Activities Cache files")
-        vss = self.myflag('vss')
 
-        if vss:
-            base_path = self.myconfig('voutdir')
-        else:
-            base_path = self.myconfig('outdir')
+        base_path = self.myconfig('outdir')
         check_directory(base_path, create=True)
 
         activities = self.search.search("/ConnectedDevicesPlatform/.*/ActivitiesCache.db$")
