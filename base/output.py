@@ -129,6 +129,7 @@ class JSONSink(BaseSink):
     def read_config(self):
         super().read_config()
         self.set_default_config('indent', None)
+        self.set_default_config('ensure_ascii', True)
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
@@ -140,7 +141,7 @@ class JSONSink(BaseSink):
 
         for fileinfo in self._source(path):
             try:
-                jsondata = json.dumps(fileinfo, indent=indent)
+                jsondata = json.dumps(fileinfo, indent=indent, ensure_ascii=self.myflag('ensure_ascii'))
                 outputfile.write(jsondata)
                 outputfile.write('\n')
                 yield fileinfo

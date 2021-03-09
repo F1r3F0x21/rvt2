@@ -167,8 +167,8 @@ class CSVReader(base.job.BaseModule):
         - **restval** (String): The restval of the DictReader. Defaults to the empty string.
         - **content_type**: The content_type to set, if fill_common_fields is set
         - **fieldnames**: A space separated list of header names. If None, use the first line.
-          Warning: if provided, the first line will be considered data unless ignore_lines is set to >0
-        - **ignore_lines** (int): Ignore this numner of initial lines. If fieldnames is provided, the first line is also ignored.
+          Warning: If provided, the first line will be considered data unless ignore_lines is set to >0
+        - **ignore_lines** (int): Ignore this number of initial lines. If fieldnames is provided, the first line is also ignored.
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file.
     """

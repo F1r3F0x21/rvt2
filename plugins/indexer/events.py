@@ -45,6 +45,13 @@ def to_iso_format(timestring):
             return dateutil.parser.parse(timestring).isoformat()
 
 
+def to_geolocation(lon_lat_string):
+    """ Converts geo coordinates to ElasticSearch suitable format """
+    # TODO: Yet to implement in case input format is not accepted
+    # https://www.elastic.co/guide/en/elasticsearch/reference/current/geo-point.html
+    return lon_lat_string
+
+
 def permissions_to_octal(tsk_permisssion):
     """ Convert a tsk permission string to octal format """
     equivalence = {
@@ -1078,3 +1085,69 @@ class RecycleBin(SuperTimeline):
             })
 
             yield common
+
+
+class WhatsApp(SuperTimeline):
+    """ Convert WhatsApp messages to events. After this, you can save this file using events.save.
+
+    Configuration section:
+        - **classify**: If True, categorize the files in the output.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('classify', 'False')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                'tags': ['whatsapp'],
+                'event.category': ['network'],
+                'event.module': 'whatsapp',
+                # 'event.dataset': d['whatsapp'],
+                'communication.id': d['message_id'],
+                'communication.from': d['message_from'],
+                'communication.to': d['message_to'],
+                'communication.text': d['message'],
+                'communication.type': d['message_type'],
+                'communication.group': d['message_group'],
+                'communication.direction': 'sent' if d['is_from_me'] == '1' else 'received',
+                'communication.to_number': d['message_phonenumber'],
+                'communication.created': to_iso_format(d['date_creation']),
+                'message': 'WhatsApp message: {}'.format(d['message'])
+            })
+
+            if d['lon_lat']:
+                common['geo_location'] = to_geolocation(d['lon_lat'])
+            if d['message_media_location']:
+                common['file.name'] = d['message_media_location']
+            if d['message_media_title']:
+                common['communication.text'] = d['message_media_title']
+
+            if d['date_sent'] != '0':
+                common.update({
+                    '@timestamp': to_iso_format(d['date_sent']),
+                    'event.action': 'message-sent',
+                    'event.type': ['start']
+                })
+                yield common
+
+            elif d['date_delivered'] != '0':
+                common.update({
+                    '@timestamp': to_iso_format(d['date_delivered']),
+                    'event.action': 'message-delivered',
+                    'event.type': ['end']
+                })
+                yield common
+
+            else:
+                common.update({
+                    '@timestamp': to_iso_format(d['date_creation']),
+                    'event.action': 'message-created',
+                    'event.type': ['creation']
+                })
+                yield common
