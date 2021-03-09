@@ -17,8 +17,6 @@
 import os
 import base.job
 from base.utils import save_csv, relative_path, check_directory
-from base.commands import run_command
-from plugins.common.RVT_files import GetFiles
 
 
 class ActivitiesCache(base.job.BaseModule):
@@ -50,28 +48,4 @@ class ActivitiesCache(base.job.BaseModule):
         outfile = os.path.join(base_path, 'activitycache_{}_{}.csv'.format(rel_path.split('/')[-2], rel_path.split('/')[2]))
         save_csv(module.run(path), outfile=outfile, file_exists='OVERWRITE', quoting=1)
 
-        return []
-
-
-class ActivitiesCacheOld(base.job.BaseModule):
-
-    def run(self, path=""):
-        """ Parses activities cache
-
-        """
-
-        self.search = GetFiles(self.config, vss=self.myflag("vss"))
-        self.logger().debug("Parsing Activities Cache files")
-
-        base_path = self.myconfig('outdir')
-        check_directory(base_path, create=True)
-
-        activities = self.search.search("/ConnectedDevicesPlatform/.*/ActivitiesCache.db$")
-
-        activities_cache_parser = self.myconfig('activities_cache_parser', os.path.join(self.myconfig('rvthome'), '.venv/bin/winactivities2json.py'))
-        python3 = self.myconfig('python3', os.path.join(self.myconfig('rvthome'), '.venv/bin/python3'))
-
-        for act in activities:
-            with open(os.path.join(base_path, '{}_activitycache_{}.json'.format(act.split('/')[2], act.split('/')[-2])), 'w') as out_file:
-                run_command([python3, activities_cache_parser, '-s', act], from_dir=self.myconfig('casedir'), stdout=out_file)
         return []

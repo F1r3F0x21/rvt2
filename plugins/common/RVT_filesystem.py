@@ -64,7 +64,7 @@ class FileSystem(base.job.BaseModule):
         self.logger().debug('Partitions: {}'.format(self.partitions))
         self.logger().debug('Vss Partitions: {}'.format(self.vss_partitions))
 
-        self.outdir = self.myconfig('voutdir') if self.vss else self.myconfig('outdir')
+        self.outdir = self.myconfig('outdir')
         check_directory(self.outdir, create=True)
 
     def run(self, path=""):
