@@ -156,7 +156,7 @@ class UsnJrnl(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('use_image', True)
+        self.set_default_config('use_image', False)
         self.set_default_config('vss', False)
         self.set_default_config('volume_id', 'p01')
 
@@ -254,7 +254,7 @@ class UsnJrnl(base.job.BaseModule):
             # Estimate number of entries in UsnJrnl for progressBar.
             # Since 96 is a pessimistic average, process should terminate before progressBar reaches 100%.
             estimated_entries = int((journalSize - dataPointer) / 96)
-            with tqdm(total=estimated_entries, desc='Parse_UsnJrnl dump_{}'.format(partition)) as pbar:
+            with tqdm(total=estimated_entries, desc='Parsing UsnJrnl dump_{}'.format(partition)) as pbar:
 
                 total_entries_found = 0
                 while True:
@@ -294,7 +294,11 @@ class UsnJrnl(base.job.BaseModule):
         if not self.filesystem:
             try:
                 disk = getSourceImage(self.myconfig, vss=self.vss)
-                self.filesystem = FileSystem(self.config, disk=disk)
+                if disk.__class__.__name__ == 'DummyImage':
+                    self.logger().debug('No filesystem loaded for source {}'.format(self.myconfig('source')))
+                    use_path_from_inode = False
+                else:
+                    self.filesystem = FileSystem(self.config, disk=disk)
             except Exception as exc:
                 self.logger().debug('No filesystem loaded for source {}. {}'.format(self.myconfig('source'), exc))
                 use_path_from_inode = False

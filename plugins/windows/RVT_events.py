@@ -18,6 +18,7 @@ import json
 import os
 import re
 import ast
+import logging
 from evtx import PyEvtxParser
 
 import base.job
@@ -30,71 +31,81 @@ class GetEvents(object):
             vss_dir (str): vss folder or empty for normal allocated file
         """
 
-    def __init__(self, eventfile, config_file):
+    def __init__(self, eventfile, config_file, logger=logging):
         """
         Attrs:
             path (str): Absolute path to the parsed Security.xml (from a Security hive)
         """
 
-        with open(config_file) as logcfg:
-            logtext = logcfg.read()
-        self.data_json = json.loads(logtext)
+        try:
+            with open(config_file) as logcfg:
+                logtext = logcfg.read()
+            self.data_json = json.loads(logtext)
+        except Exception as exc:
+            self.logger.warning('Configuration file {} has not been properly loaded: {}'.format(config_file, exc))
+            self.data_json = {}
         self.eventfile = eventfile
+        self.logger = logger
 
     def parse(self):
         parser = PyEvtxParser(self.eventfile)
 
-        for record in parser.records_json():
-            rec = json.loads(record['data'])['Event']
-            data = {}
-            # Common fields
-            data['event.created'] = record.get('timestamp', rec['System']['TimeCreated']['#attributes']['SystemTime'])
-            if isinstance(rec['System']['EventID'], dict):
-                data['event.code'] = str(rec['System']['EventID']['#text'])
-            else:
-                data['event.code'] = str(rec['System']['EventID'])
-            data['event.provider'] = rec['System']['Provider']['#attributes']['Name']
-            data['event.dataset'] = rec['System']['Channel']
-            if 'Security' in rec['System']:
+        count = 0
+        try:
+            for record in parser.records_json():
+                rec = json.loads(record['data'])['Event']
+                data = {}
+                # Common fields
+                data['event.created'] = record.get('timestamp', rec['System']['TimeCreated']['#attributes']['SystemTime'])
+                if isinstance(rec['System']['EventID'], dict):
+                    data['event.code'] = str(rec['System']['EventID']['#text'])
+                else:
+                    data['event.code'] = str(rec['System']['EventID'])
+                data['event.provider'] = rec['System']['Provider']['#attributes']['Name']
+                data['event.dataset'] = rec['System']['Channel']
+                if 'Security' in rec['System']:
+                    try:
+                        data['user.id'] = rec['System']['Security']['#attributes']['UserID']
+                    except Exception:
+                        pass
                 try:
-                    data['user.id'] = rec['System']['Security']['#attributes']['UserID']
+                    data['process.pid'] = rec['System']['Execution']['#attributes']['ProcessID']
+                    data['process.thread.id'] = rec['System']['Execution']['#attributes']['ThreadID']
                 except Exception:
                     pass
-            try:
-                data['process.pid'] = rec['System']['Execution']['#attributes']['ProcessID']
-                data['process.thread.id'] = rec['System']['Execution']['#attributes']['ThreadID']
-            except Exception:
-                pass
 
-            # Events not defined in data_json
-            if not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
-                # EventData, UserData are just reproduced as dictionaries
-                if 'EventData' in rec:
-                    data['EventData'] = rec['EventData']
-                if 'UserData' in rec:
-                    data['UserData'] = rec['UserData']
+                # Events not defined in data_json
+                if not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
+                    # EventData, UserData are just reproduced as dictionaries
+                    if 'EventData' in rec:
+                        data['EventData'] = rec['EventData']
+                    if 'UserData' in rec:
+                        data['UserData'] = rec['UserData']
+                    yield data
+                    continue
+
+                # Selected events
+                try:
+                    description = self.data_json[data['event.code']]["description"].format(**rec)
+                except Exception:
+                    description = re.sub(r'{.*?}', '<>', self.data_json[data['event.code']]["description"])
+
+                data['message'] = description
+                for field in ['category', 'type', 'action']:
+                    if field in self.data_json[data['event.code']]:
+                        data['event.{}'.format(field)] = self.data_json[data['event.code']][field]
+                if 'path' not in self.data_json[data['event.code']].keys():
+                    yield data
+                    continue
+
+                # Extra fields
+                for x, item in self.data_json[data['event.code']]['path'].items():
+                    self.get_xpath_data(x, item, rec, data)
+
                 yield data
-                continue
-
-            # Selected events
-            try:
-                description = self.data_json[data['event.code']]["description"].format(**rec)
-            except Exception:
-                description = re.sub(r'{.*?}', '<>', self.data_json[data['event.code']]["description"])
-
-            data['message'] = description
-            for field in ['category', 'type', 'action']:
-                if field in self.data_json[data['event.code']]:
-                    data['event.{}'.format(field)] = self.data_json[data['event.code']][field]
-            if 'path' not in self.data_json[data['event.code']].keys():
-                yield data
-                continue
-
-            # Extra fields
-            for x, item in self.data_json[data['event.code']]['path'].items():
-                self.get_xpath_data(x, item, rec, data)
-
-            yield data
+                count += 1
+        except Exception as exc:
+            self.logger.warning('Error with pyevtx when reading the {} event from {}: {}'.format(count, self.eventfile, exc))
 
     def get_xpath_data(self, path, item, event, data):
         split_path = path.split('/')
@@ -170,7 +181,7 @@ class ParseEvents(EventJob):
         if not evtx_file:
             return []
 
-        for ev in GetEvents(evtx_file, json_file).parse():
+        for ev in GetEvents(evtx_file, json_file, logger=self.logger()).parse():
             yield ev
 
 
@@ -195,7 +206,7 @@ class ParseExtraLogs(EventJob):
                 continue
             evtx_file = os.path.join(path, evtx_filename)
             self.logger().debug('Parsing event log {}'.format(evtx_file))
-            for ev in GetEvents(evtx_file, json_file).parse():
+            for ev in GetEvents(evtx_file, json_file, logger=self.logger()).parse():
                 yield ev
 
         return []
@@ -324,7 +335,7 @@ class Security(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file).parse():
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             if "data.LogonType" in ev.keys():
                 ev["data.LogonTypeStr"] = LogonTypeStr.get(ev["data.LogonType"], "Unknown")
             if "data.SubStatus" in ev.keys() and ev["data.SubStatus"] != "0x00000000":
@@ -366,7 +377,7 @@ class System(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file).parse():
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             if "data.BootType" in ev.keys():
                 ev["data.BootTypeStr"] = boot_type.get(ev["data.BootType"], "Unknown")
             if "data.Reason" in ev.keys():
@@ -410,7 +421,7 @@ class RDPLocal(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file).parse():
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             if "data.Reason" in ev.keys():
                 ev["data.reasonStr"] = error_reason.get(ev.get('data.Reason'), '')
             yield ev
@@ -533,7 +544,7 @@ class RDPClient(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file).parse():
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             if "data.Reason" in ev.keys() and ev["event.code"] == "39":
                 ev['data.reasonStr'] = "SessionID {} disconnected by session {}".format(ev["data.SessionID"], ev["data.Source"])
             elif "data.Reason" in ev.keys() and ev["event.code"] == "1026":
@@ -555,7 +566,7 @@ class OAlerts(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file).parse():
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             if "#text" in ev.keys():
                 content = ast.literal_eval(ev['#text'])
                 ev['data.office_software'] = content[0].rstrip()
@@ -578,7 +589,7 @@ class PartitionDiagnostic(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file).parse():
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             try:
                 # if ev['data.device_id'].startswith('USB'):
                 #     _, ev['data.vid_pid'], ev['data.device_sn'] = ev.pop('data.ParentId').split('\\')
@@ -619,7 +630,7 @@ class StorageClassPnp(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file).parse():
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             try:
                 if ev['event.code'] == "507":
                     if int(ev['data.ScsiStatus']) != 0:

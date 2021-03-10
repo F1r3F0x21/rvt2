@@ -124,7 +124,7 @@ class Prefetch(base.job.BaseModule):
     def run(self, path=""):
         self.volume_id = self.myconfig('volume_id', None)
         if self.volume_id is None:
-            self.volume_id = relative_path(path, self.myconfig('casedir')).split("/")[-3]
+            self.volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
 
         if not os.path.isdir(path):
             raise base.job.RVTError('Provided path {} is not a directory'.format(path))

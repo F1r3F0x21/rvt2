@@ -159,8 +159,10 @@ class MFTTimeline(BaseTimeline):
     def read_config(self):
         super().read_config()
         self.set_default_config('volume_id', 'p01')
-        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -f {mft_path} --body {outdir} --bodyf {filename} --bdl c --nl')
+        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -f {path} --body {outdir} --bodyf {filename} --bdl c --nl')
         self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'MFTECmd.exe'))
+        self.set_default_config('windows_format', True)
+        self.set_default_config('drive_letter', 'c:')
 
     def run(self, path=""):
 
