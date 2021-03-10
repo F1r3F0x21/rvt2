@@ -36,6 +36,8 @@ leveldb = "*"
 regipy = "*"
 python-cim = "*"
 Pillow = "*"
+bits-parser = "*"
+evtx = "*"
 
 [dev-packages]
 sphinx = "*"
