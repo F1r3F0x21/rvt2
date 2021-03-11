@@ -93,7 +93,7 @@ class CharacterizeWindows(base.job.BaseModule):
             module = base.job.load_module(
                 self.config,
                 'plugins.windows.RVT_autorip.Autorip',
-                extra_config=dict(path=self.myconfig('mountdir') + '/p*', ripplugins=ripplugins_file))
+                extra_config=dict(path=os.path.join(self.myconfig('mountdir'), 'p01'), ripplugins=ripplugins_file))
             try:
                 list(module.run())
             except base.job.RVTError as exc:

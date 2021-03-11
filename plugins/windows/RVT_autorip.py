@@ -82,11 +82,13 @@ class Autorip(base.job.BaseModule):
         self.set_default_config('pluginshives', os.path.join(self.config.config['windows']['plugindir'], 'regripper_plugins.json'))
         self.set_default_config('ripplugins', os.path.join(self.config.config['windows']['plugindir'], 'autorip.json'))
         self.set_default_config('errorfile', os.path.join(self.myconfig('sourcedir'), "{}_aux.log".format(self.myconfig('source'))))
-        self.set_default_config('volume_id', '')
+        self.set_default_config('volume_id', 'p01')
 
     def run(self, path=""):
         """ Main function to generate report files """
 
+        if not path:
+            path = self.myconfig('path', '')
         regfiles = get_hives(path)
         id = self.myconfig('volume_id', None)
         self.generate_registry_output(regfiles, id)

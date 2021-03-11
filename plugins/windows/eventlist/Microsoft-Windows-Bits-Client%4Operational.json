@@ -24,7 +24,7 @@
     "provider": "Microsoft-Windows-Bits-Client",
     "path": {
       "EventData":{
-        "Name": ["name", "url", "peer", "fileTime", "fileLength", "bytesTotal", "bytesTransferred", "proxy"]
+        "Name": ["name", "url", "peer", "fileTime", "fileLength", "bytesTotal", "bytesTransferred", "proxy"],
         "transform": {"name": "service.name", "url": "data.Url", "peer": "data.Peer", "fileTime": "data.FileTime", "fileLength": "data.FileLength", "bytesTotal": "data.TotalBytes", "bytesTransferred": "data.TransferredBytes", "proxy": "data.Proxy"}
       }
     }

@@ -21,6 +21,10 @@ from base.utils import save_csv, relative_path, check_directory
 
 class ActivitiesCache(base.job.BaseModule):
 
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('volume_id', None)
+
     def run(self, path=""):
         """ Parses activitiesCache.db
         """
@@ -45,7 +49,10 @@ class ActivitiesCache(base.job.BaseModule):
         rel_path = relative_path(os.path.abspath(path), self.myconfig('casedir'))
         self.logger().debug("Parsing Activities Cache file {}".format(rel_path))
         module = base.job.load_module(self.config, 'base.input.SQLiteReader', extra_config=dict(query=query))
-        outfile = os.path.join(base_path, 'activitycache_{}_{}.csv'.format(rel_path.split('/')[-2], rel_path.split('/')[2]))
+        if self.myconfig('volume_id'):
+            outfile = os.path.join(base_path, 'activitycache_{}.csv'.format(self.myconfig('volume_id')))
+        else:
+            outfile = os.path.join(base_path, 'activitycache_{}_{}.csv'.format(rel_path.split('/')[-2], rel_path.split('/')[2]))
         save_csv(module.run(path), outfile=outfile, file_exists='OVERWRITE', quoting=1)
 
         return []

@@ -26,6 +26,8 @@ from contextlib import closing
 
 import plugins.ios
 import base.utils
+from base.commands import run_command
+from plugins.common.RVT_search import getSearchItems
 
 
 class WhatsApp(plugins.ios.IOSModule):
@@ -292,9 +294,13 @@ class WhatsApp(plugins.ios.IOSModule):
     def _sanitize_message(self, message):
         # Line breaks are explicit to avoid breaking the resulting csv. Mako template takes them as '<br '
         message = message.replace("\n", "\\n")
+
         # Unicode Character 'ZERO WIDTH JOINER' (U+200D) is erased to avoid writing problems
         for unicode_troubling_symbol in ['\u200d', '\u202a', '\u202c']:
             message = message.replace(unicode_troubling_symbol, '')
+        # Other symbols, like the scape sequence \x00, are also deleted
+        for other_troubling_symbol in ['\x00']:
+            message = message.replace(other_troubling_symbol, '')
         return message
 
     def get_media_filename(self, media_location, message_type, message_group):
@@ -375,4 +381,51 @@ class WhatsAppChatSessions(base.job.BaseModule):
         c = conn.cursor()
         for line in c.execute('SELECT DISTINCT ZCHATSESSION FROM ZWAMESSAGE'):
             yield(dict(message_group=line[0]))
+        return []
+
+
+class WhatsAppKeywords(base.job.BaseModule):
+    """ Searches keywords in WhatsApp conversations. Joins the hits along with
+        some context messages and creates an html for each conversation.
+
+        Please, run `ios.whatsapp` to generate the necessary input for this class.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('kw_file', os.path.join(self.config.get('DEFAULT', 'casedir'), 'searches_files', 'keywords'))
+        self.set_default_config('outfile_name', 'conversation_kw.html')
+
+    def run(self, path=None):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        whatsapp_dir = path
+
+        # Get list of keywords to search
+        kw_file = self.myconfig('kw_file')
+        self.logger().debug('Testing existance of {}'.format(kw_file))
+        base.utils.check_file(kw_file, error_missing=True)
+        keywords = getSearchItems(kw_file)
+
+        for kw_name, kw in keywords.items():
+            self.logger().debug('Searching kw {} in whatsapp conversations'.format(kw))
+            for group in os.listdir(whatsapp_dir):
+                if not os.path.isdir(os.path.join(whatsapp_dir, group)) or group == 'None':
+                    continue
+                # Take +- 5 lines from the conversation hit
+                with open(os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv'), "a") as kw_hits_file:
+                    run_command(['grep', '-iP', '-C', '5', "'{}'".format(kw), os.path.join(whatsapp_dir, group, 'whatsapp.csv')], stdout=kw_hits_file)
+                    run_command(['sort', '-u', '-o', os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv'), os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv')])
+                    with open(os.path.join(whatsapp_dir, group, 'whatsapp_kw_tmp.csv'), "w") as tmp_file:
+                        run_command(['grep', '-v', '^--$', os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv')], stdout=tmp_file)
+                shutil.move(os.path.join(whatsapp_dir, group, 'whatsapp_kw_tmp.csv'), os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv'))
+
+        for group in os.listdir(whatsapp_dir):
+            if not os.path.isdir(os.path.join(whatsapp_dir, group)) or group == 'None':
+                continue
+            # Make an html version made from the conversation selected parts
+            list(base.job.run_job(self.config,
+                                  'ios.chat_to_html',
+                                  path=None,
+                                  extra_config={'message_group': group, 'input_whatsapp_csv': 'whatsapp_kw.csv', 'outfile_name': self.myconfig('outfile_name')}))
+
         return []

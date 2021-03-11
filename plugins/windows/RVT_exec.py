@@ -124,7 +124,7 @@ class Prefetch(base.job.BaseModule):
     def run(self, path=""):
         self.volume_id = self.myconfig('volume_id', None)
         if self.volume_id is None:
-            self.volume_id = relative_path(path, self.myconfig('casedir')).split("/")[-3]
+            self.volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
 
         if not os.path.isdir(path):
             raise base.job.RVTError('Provided path {} is not a directory'.format(path))
@@ -215,10 +215,14 @@ class Prefetch(base.job.BaseModule):
 class RFC(base.job.BaseModule):
     """ Parses RecentFileCache.bcf. It contains the path of binaries executed between the last execution date of ProgramDataUpdater and the current time"""
 
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('volume_id', None)
+
     def run(self, path=""):
         base_path = self.myconfig('outdir')
         check_directory(base_path, create=True)
-        volume_id = self.myconfig('volume_id', None)
+        volume_id = self.myconfig('volume_id')
         if volume_id is None:
             volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
 
@@ -241,6 +245,10 @@ class CCM(base.job.BaseModule):
         Module based on https://github.com/fireeye/flare-wmi/blob/master/python-cim/samples/show_CCM_RecentlyUsedApps.py
     """
 
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('volume_id', None)
+
     def run(self, path=""):
 
         self.type_ = 'win7'
@@ -249,7 +257,7 @@ class CCM(base.job.BaseModule):
         results = self.show_CCM_RecentlyUsedApps(path)
 
         # Organize output by volume
-        volume_id = self.myconfig('volume_id', None)
+        volume_id = self.myconfig('volume_id')
         if volume_id is None:
             volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
         out_file_id = '' if not volume_id else '_{}'.format(volume_id)
