@@ -18,7 +18,7 @@ import os
 import re
 
 import base.job
-from plugins.common.RVT_files import GetFiles
+# from plugins.common.RVT_files import GetFiles
 from base.utils import check_directory
 from base.commands import run_command
 
@@ -33,28 +33,27 @@ class RdpCache(base.job.BaseModule):
 
         self.logger().info("Starting extraction of rdp cache image files")
 
-        self.Files = GetFiles(self.config, vss=self.myflag("vss"))
+        # self.Files = GetFiles(self.config, vss=self.myflag("vss"))
         self.mountdir = self.myconfig('mountdir')
 
         base_path = self.myconfig('outdir')
         check_directory(base_path, create=True)
 
-        dir_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'/Users/[^/]*/AppData/Local/Microsoft/Terminal Server Client/Cache$')]
+        # dir_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'/Users/[^/]*/AppData/Local/Microsoft/Terminal Server Client/Cache$')]
 
         srch = re.compile(r'/([^/]*)/(Documents and Settings|Users)/([^/]*)')
         bmcc = os.path.join(self.myconfig('rvthome'), "plugins/external/bmc-tools/bmc-tools.py")
         python3 = os.path.join(self.myconfig('rvthome'), ".venv/bin/python3")
 
-        for folder in dir_list:
-            srch_aux = srch.search(folder)
-            user = srch_aux.group(1)
-            partition = srch_aux.group(3)
-            self.logger().info('Extracting RDP cache images from user {} at {}'.format(user, partition))
-            outdir = os.path.join(base_path, 'imgs_{}_{}'.format(partition, user))
-            check_directory(outdir, create=True)
-            run_command([python3, bmcc, '-s', folder, '-d', outdir])
-            self.logger().info('Joining images')
-            self.join_images(outdir, os.path.join(base_path, '{}_{}'.format(partition, user)))
+        srch_aux = srch.search(path)
+        partition = srch_aux.group(1)
+        user = srch_aux.group(3)
+        self.logger().info('Extracting RDP cache images from user {} at {}'.format(user, partition))
+        outdir = os.path.join(base_path, 'imgs_{}_{}'.format(partition, user))
+        check_directory(outdir, create=True)
+        run_command([python3, bmcc, '-s', path, '-d', outdir])
+        self.logger().info('Joining images')
+        self.join_images(outdir, os.path.join(base_path, '{}_{}'.format(partition, user)))
 
         self.logger().info("RDP cache extraction done")
         return []

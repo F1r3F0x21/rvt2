@@ -443,8 +443,12 @@ class CreatePstHtml(base.job.BaseModule):
                 if os.path.isfile(fichero):
                     attach.append([r, os.stat(fichero).st_size])
                     regex = f.split("_")[1].replace("(", "\\(").replace(")", "\\)")
-                    body = re.sub('"cid:{}@[^"]*'.format(regex), '"%s' % r, body)
-                    body = re.sub('cid:%s@.{17}' % regex, '<img src="{}">'.format(r), body)
+                    try:
+                        body = re.sub(r'"cid:{}@[^"]*'.format(regex), '"%s' % r, body)
+                        body = re.sub(r'cid:%s@.{17}' % regex, r'<img src="{}">'.format(r), body)
+                    except re.error:
+                        # Ignore bad scape sequences
+                        pass
                 else:
                     for f2 in os.listdir(os.path.join(att_dir, f)):
                         if srch_type.search(f2):

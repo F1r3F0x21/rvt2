@@ -133,12 +133,12 @@ class Characterization(base.job.BaseModule):
 
     def parse_mobile_backup(self, data):
         mobileBackup = biplist.readPlist(os.path.join(self.path, 'RootDomain/Library/Preferences/com.apple.MobileBackup.plist'))
-        data['AccountEnabledDate'] = mobileBackup.get('AccountEnabledDate', 'None')
+        data['AccountEnabledDate'] = str(mobileBackup.get('AccountEnabledDate', 'None'))
         if 'BackupStateInfo' in mobileBackup:
             data['BackupStateInfoIscloud'] = mobileBackup['BackupStateInfo'].get('isCloud', 'None')
-            data['BackupStateInfoDate'] = mobileBackup['BackupStateInfo'].get('date', 'None')
+            data['BackupStateInfoDate'] = str(mobileBackup['BackupStateInfo'].get('date', 'None'))
         if 'RestoreInfo' in mobileBackup:
-            data['RestoreDate'] = mobileBackup['RestoreInfo'].get('RestoreDate', 'None')
+            data['RestoreDate'] = str(mobileBackup['RestoreInfo'].get('RestoreDate', 'None'))
             data['WasCloudRestore'] = mobileBackup['RestoreInfo'].get('WasCloudRestore', 'None')
             data['BackupBuildVersion'] = mobileBackup['RestoreInfo'].get('BackupBuildVersion', 'None')
             data['DeviceBuildVersion'] = mobileBackup['RestoreInfo'].get('DeviceBuildVersion', 'None')

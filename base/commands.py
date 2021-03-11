@@ -185,9 +185,8 @@ class RegexFilter(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('keyword_file', '')
+        self.set_default_config('keyword_file', os.path.join(self.myconfig('casedir'), 'searches_files', 'kw'))
         self.set_default_config('keyword_list', '')
-        self.set_default_config('keyword_dir', os.path.join(self.myconfig('casedir'), 'searches_files'))
         self.set_default_config('cmd', 'grep -iP "{regex}" "{path}"')
         self.set_default_config('encoding', 'utf-8')
         self.set_default_config('from_dir', '')
@@ -203,7 +202,7 @@ class RegexFilter(base.job.BaseModule):
         """
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        keyword_file = os.path.join(self.myconfig('keyword_dir'), self.myconfig('keyword_file'))
+        keyword_file = self.myconfig('keyword_file')
         encoding = self.myconfig('encoding')
 
         kwlist = self.myconfig('keyword_list')

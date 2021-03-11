@@ -605,7 +605,7 @@ name" are automatically set by the job. The rest are the same ones specified in 
         cmd = self.myconfig('cmd')
 
         for user in tqdm(regfiles['ntuser'], total=len(regfiles['ntuser']), desc=self.section):
-            output_filename = 'userassist_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
+            output_filename = 'userassist_{}_{}.csv'.format(id if id else '', user)
             hive = regfiles['ntuser'][user]
 
             cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
@@ -652,9 +652,9 @@ class UserAssistAnalysis(base.job.BaseModule):
 
         for file in sorted(os.listdir(path)):
             if file.startswith('userassist'):
-                # Expected file format: `userassist_user_partition.csv`
-                partition = file.split('_')[-1].split('.')[0]
-                user = file[11:-(len(partition) + 5)]
+                # Expected file format: `userassist_partition_user.csv`
+                user = '.'.join('_'.join(file.split('_')[2:]).split('.')[:-1])
+                partition = file[11:-(len(user) + 5)]
                 for line in base.job.run_job(self.config,
                                              'base.input.CSVReader',
                                              path=os.path.join(path, file),
@@ -701,7 +701,7 @@ class Shellbags(base.job.BaseModule):
         for hives_dir in tqdm(usr_folders, total=len(usr_folders), desc=self.section):
             user = usr_folders[hives_dir]
             # Only one user should own a folder with NTUSER.dat or UsrClasss.dat hives. Will overwrite if not.
-            output_filename = 'shellbags_{}{}.csv'.format(user, '_{}'.format(id) if id else '')
+            output_filename = 'shellbags_{}_{}.csv'.format(id if id else '', user)
 
             cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
                         'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
@@ -743,9 +743,9 @@ class ShellbagsAnalysis(base.job.BaseModule):
 
         for file in sorted(os.listdir(path)):
             if file.startswith('shellbags'):
-                # Expected file format: `shellbags_user_partition.csv`
-                partition = file.split('_')[-1].split('.')[0]
-                user = file[10:-(len(partition) + 5)]
+                # Expected file format: `shellbags_partition_user.csv`
+                user = '.'.join('_'.join(file.split('_')[2:]).split('.')[:-1])
+                partition = file[10:-(len(user) + 5)]
                 for line in base.job.run_job(self.config,
                                              'base.input.CSVReader',
                                              path=os.path.join(path, file),
