@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Download the tika server if not present in the current directory
-JARFILE="tika-server-1.23.jar"
+JARFILE="tika-server-1.25.jar"
 if [ ! -e "$JARFILE" ]; then
     # curl -L "https://apache.rediris.es/tika/$JARFILE" --output "$JARFILE"
     curl -L http://archive.apache.org/dist/tika/$JARFILE --output "$JARFILE"

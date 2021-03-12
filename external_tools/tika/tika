@@ -4,7 +4,7 @@
 # Default tika home: our directory
 READLINK=$(if hash greadlink 2>/dev/null ; then echo greadlink; else echo readlink; fi)
 TIKA_HOME=${TIKA_HOME:-$(dirname $($READLINK -f "$0"))}
-TIKA_JAR=tika-app-1.23.jar
+TIKA_JAR=tika-app-1.25.jar
 
 if [ -z "$1" ]; then
     echo "Usage: $0 file"
