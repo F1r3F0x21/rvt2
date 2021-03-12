@@ -197,7 +197,11 @@ class Timeline(SuperTimeline):
 
     def run(self, path=None):
         """ Converts a BODY file read from from_module into an Elastic Common Schema document. """
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             filename = os.path.basename(d['path'])
@@ -279,7 +283,11 @@ class RecentFiles(SuperTimeline):
         self.set_default_config('classify', 'True')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -343,7 +351,11 @@ class BrowsersHistory(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -412,7 +424,11 @@ class BrowsersCookies(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -484,7 +500,11 @@ class BrowsersDownloads(SuperTimeline):
 
     def run(self, path=None):
         # Warning: Output differs too much for browser type.
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -555,7 +575,11 @@ class EventLogs(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -623,7 +647,11 @@ class Prefetch(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -655,7 +683,11 @@ class AmCache(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -699,7 +731,11 @@ class AppCompatCache(SuperTimeline):
         self.set_default_config('classify', 'False')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         # Column fields depend on which parser is used:
         #   regripper appcompatcache plugin --> Time;Application;Executed
@@ -732,7 +768,11 @@ class CCM(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -771,7 +811,11 @@ class UserAssist(SuperTimeline):
         self.set_default_config('classify', 'False')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             # UserAssist can provide information about aplications without a timestamp.
@@ -810,7 +854,11 @@ class Shellbags(SuperTimeline):
         self.set_default_config('classify', 'False')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             common = self.common_fields()
@@ -849,7 +897,11 @@ class UsnJrnl(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         # CSV fields: Date;Filename;Full Path;File Attributes;Reason;MFT Entry;Parent MFT Entry;Reliable Path
         for d in self.from_module.run(path):
@@ -914,7 +966,11 @@ class USB(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             common = self.common_fields()
@@ -950,7 +1006,11 @@ class NetworkUsage(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             common = self.common_fields()
@@ -985,7 +1045,11 @@ class NetworkConnections(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             common = self.common_fields()
@@ -1018,7 +1082,11 @@ class Registry(SuperTimeline):
     """ Adapts Windows Registry information to Elastic. After this, you can save this file using events.save. """
 
     def run(self, path=""):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             if 'values' not in d:  # No value set, just subkey description
@@ -1059,7 +1127,11 @@ class RecycleBin(SuperTimeline):
         self.set_default_config('classify', 'True')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -1099,7 +1171,11 @@ class WhatsApp(SuperTimeline):
         self.set_default_config('classify', 'False')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
