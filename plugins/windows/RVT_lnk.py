@@ -201,10 +201,8 @@ class LnkParser(base.job.BaseModule):
             for file in os.listdir(path):
                 if file.lower().endswith(properties['ending']):
                     files[artifact].append(os.path.abspath(os.path.join(path, file)))
-            out_file = os.path.join(self.myconfig('outdir'), "{}{}{}.csv".format(
-                '{}_'.format(self.volume_id) if self.volume_id else '',
-                '{}_'.format(self.username) if self.username else '',
-                artifact))
+            out_file = os.path.join(self.myconfig('outdir'), "{}_{}_{}.csv".format(
+                self.volume_id, self.username, artifact))
             if len(files[artifact]) > 0:
                 self.logger().info("Founded {} {} files".format(len(files[artifact]), artifact))
                 save_csv(properties['function'](files[artifact]), config=self.config, outfile=out_file, quoting=0, file_exists='APPEND')
