@@ -4,19 +4,22 @@
 JARFILE="tika-server-1.25.jar"
 if [ ! -e "$JARFILE" ]; then
     # curl -L "https://apache.rediris.es/tika/$JARFILE" --output "$JARFILE"
-    curl -L http://archive.apache.org/dist/tika/$JARFILE --output "$JARFILE"
+    # curl -L http://archive.apache.org/dist/tika/$JARFILE --output "$JARFILE"
+    wget "http://archive.apache.org/dist/tika/$JARFILE" -O "$JARFILE"
 fi
 
 # Tika 1.19 depends on sqlite-jdbc 3.19.3 (this version exactly)
 # Tika 1.20 depends on sqlite-jdbc 3.25.2 (this version exactly)
 # Tika 1.21 depends on sqlite-jdbc 3.27.2.1 (this version exactly)
 # Tika 1.23 depends on sqlite-jdbc 3.28.0 (this version exactly)
+# Tika 1.25 depends on sqlite-jdbc 3.32.3.2 (this version exactly)
 # Check dependencies in: {tika-server-XX.jar}/META-INF/maven/org.apache.tika/tika-parsers/pom.xml
-SQLITE_VERSION="3.28.0"
+SQLITE_VERSION="3.32.3.2"
 SQLITE_JARFILE="sqlite-jdbc-$SQLITE_VERSION.jar"
 if [ ! -e "$SQLITE_JARFILE" ]; then
-    curl -L "https://search.maven.org/remotecontent?filepath=org/xerial/sqlite-jdbc/$SQLITE_VERSION/$SQLITE_JARFILE" --output "$SQLITE_JARFILE"
+    wget "https://search.maven.org/remotecontent?filepath=org/xerial/sqlite-jdbc/$SQLITE_VERSION/$SQLITE_JARFILE" -O "$SQLITE_JARFILE"
     # Alternate URL (the file has the same hash):
+    # curl -L "https://search.maven.org/remotecontent?filepath=org/xerial/sqlite-jdbc/$SQLITE_VERSION/$SQLITE_JARFILE" --output "$SQLITE_JARFILE"
     # curl -L "https://bitbucket.org/xerial/sqlite-jdbc/downloads/$SQLITE_JARFILE" --output "$SQLITE_JARFILE"
 fi
 
