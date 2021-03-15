@@ -197,7 +197,11 @@ class Timeline(SuperTimeline):
 
     def run(self, path=None):
         """ Converts a BODY file read from from_module into an Elastic Common Schema document. """
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             filename = os.path.basename(d['path'])
@@ -279,7 +283,11 @@ class RecentFiles(SuperTimeline):
         self.set_default_config('classify', 'True')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -343,7 +351,11 @@ class BrowsersHistory(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -412,7 +424,11 @@ class BrowsersCookies(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -484,7 +500,11 @@ class BrowsersDownloads(SuperTimeline):
 
     def run(self, path=None):
         # Warning: Output differs too much for browser type.
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -555,7 +575,11 @@ class EventLogs(SuperTimeline):
     """
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
 
@@ -625,29 +649,34 @@ class Prefetch(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        for d in self.from_module.run(path):
+        try:
+            for d in self.from_module.run(path):
 
-            common = self.common_fields()
-            common.update({
-                'tags': ['execution'],
-                'event.category': ['package'],
-                'event.module': 'prefetch',
-                'event.dataset': 'prefetch',
-                'event.action': 'application-executed',
-                'event.type': ['start'],
-                'message': "Executed process: {}".format(d['Executable']),
-                'file.name': d['Filename'],
-                'file.group': 'plain',
-                'process.executable': d['Executable'],
-                'process.run_count': d['Run count'],
-                'process.first_run': d['Birth time']
-            })
-            for t in range(8):
-                field = 'Run time {}'.format(t)
-                if d[field]:
-                    common['@timestamp'] = common['process.start'] = to_iso_format(d[field])
-                    common['process.run_time'] = t
-                    yield common
+                common = self.common_fields()
+                common.update({
+                    'tags': ['execution'],
+                    'event.category': ['package'],
+                    'event.module': 'prefetch',
+                    'event.dataset': 'prefetch',
+                    'event.action': 'application-executed',
+                    'event.type': ['start'],
+                    'message': "Executed process: {}".format(d['Executable']),
+                    'file.name': d['Filename'],
+                    'file.group': 'plain',
+                    'process.executable': d['Executable'],
+                    'process.run_count': d['Run count'],
+                    'process.first_run': d['Birth time']
+                })
+                for t in range(8):
+                    field = 'Run time {}'.format(t)
+                    if d[field]:
+                        common['@timestamp'] = common['process.start'] = to_iso_format(d[field])
+                        common['process.run_time'] = t
+                        yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return []
 
 
 class AmCache(SuperTimeline):
@@ -657,34 +686,39 @@ class AmCache(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        for d in self.from_module.run(path):
+        try:
+            for d in self.from_module.run(path):
 
-            common = self.common_fields()
-            common.update({
-                'tags': ['execution'],
-                'event.category': ['package'],
-                'event.module': 'registry',
-                'event.dataset': 'amcache',
-                'registry.hive': 'amcache',
-                'process.executable': d['AppPath'],
-                'file.hash.sha1': d['Sha1Hash'],
-                'event.data.VolumeGUID': d['GUID']
-            })
-
-            for time_field, action, message, ev_type in zip(
-                    ['KeyLastWrite', 'Created', 'LastModified'],
-                    ['application-first-executed', 'application-created', 'application-last-modified'],
-                    ['First execution of process: {}', 'Creation of executable file {}', 'Last modification of executable file {}'],
-                    ['start', 'creation', 'change']):
-                if d[time_field] == '1601-01-01 00:00:00':
-                    continue
+                common = self.common_fields()
                 common.update({
-                    '@timestamp': to_iso_format(d['KeyLastWrite']),
-                    'event.action': action,
-                    'message': message.format(d['AppPath']),
-                    'event.type': [ev_type]
+                    'tags': ['execution'],
+                    'event.category': ['package'],
+                    'event.module': 'registry',
+                    'event.dataset': 'amcache',
+                    'registry.hive': 'amcache',
+                    'process.executable': d['AppPath'],
+                    'file.hash.sha1': d['Sha1Hash'],
+                    'event.data.VolumeGUID': d['GUID']
                 })
-                yield common
+
+                for time_field, action, message, ev_type in zip(
+                        ['KeyLastWrite', 'Created', 'LastModified'],
+                        ['application-first-executed', 'application-created', 'application-last-modified'],
+                        ['First execution of process: {}', 'Creation of executable file {}', 'Last modification of executable file {}'],
+                        ['start', 'creation', 'change']):
+                    if d[time_field] == '1601-01-01 00:00:00':
+                        continue
+                    common.update({
+                        '@timestamp': to_iso_format(d['KeyLastWrite']),
+                        'event.action': action,
+                        'message': message.format(d['AppPath']),
+                        'event.type': [ev_type]
+                    })
+                    yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
 
 class AppCompatCache(SuperTimeline):
@@ -704,27 +738,32 @@ class AppCompatCache(SuperTimeline):
         # Column fields depend on which parser is used:
         #   regripper appcompatcache plugin --> Time;Application;Executed
         #   AppCompatCacheParser --> LastModifiedTimeUTC;Path;CacheEntryPosition;Executed
-        for d in self.from_module.run(path):
-            common = self.common_fields()
-            common.update({
-                '@timestamp': to_iso_format(d.get('LastModifiedTimeUTC', None) or d['Time']),
-                'tags': ['appcompat'],
-                'event.category': ['file'],
-                'event.type': ['start'],
-                'event.module': 'registry',
-                'event.dataset': 'appcompat',
-                'registry.hive': 'system',
-                'event.action': 'file-modified',
-                'message': 'File modified: ' + (d.get('Path', None) or d['Application']),
-                'process.executable': (d.get('Path', None) or d['Application'])
-            })
+        try:
+            for d in self.from_module.run(path):
+                common = self.common_fields()
+                common.update({
+                    '@timestamp': to_iso_format(d.get('LastModifiedTimeUTC', None) or d['Time']),
+                    'tags': ['appcompat'],
+                    'event.category': ['file'],
+                    'event.type': ['start'],
+                    'event.module': 'registry',
+                    'event.dataset': 'appcompat',
+                    'registry.hive': 'system',
+                    'event.action': 'file-modified',
+                    'message': 'File modified: ' + (d.get('Path', None) or d['Application']),
+                    'process.executable': (d.get('Path', None) or d['Application'])
+                })
 
-            if d.get('Executed', ''):
-                common['process.executed'] = d['Executed']
-            if d.get('CacheEntryPosition', ''):
-                common['event.data.CacheEntryPosition'] = d['CacheEntryPosition']
+                if d.get('Executed', ''):
+                    common['process.executed'] = d['Executed']
+                if d.get('CacheEntryPosition', ''):
+                    common['event.data.CacheEntryPosition'] = d['CacheEntryPosition']
 
-            yield common
+                yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
 
 class CCM(SuperTimeline):
@@ -734,29 +773,34 @@ class CCM(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        for d in self.from_module.run(path):
+        try:
+            for d in self.from_module.run(path):
 
-            common = self.common_fields()
-            common.update({
-                'tags': ['execution'],
-                'event.category': ['package'],
-                'event.module': 'ccm',
-                'event.dataset': 'cim',
-                'event.action': 'application-executed',
-                'event.type': ['start'],
-                'message': "Executed process: {}".format(d['ExplorerFileName']),
-            })
+                common = self.common_fields()
+                common.update({
+                    'tags': ['execution'],
+                    'event.category': ['package'],
+                    'event.module': 'ccm',
+                    'event.dataset': 'cim',
+                    'event.action': 'application-executed',
+                    'event.type': ['start'],
+                    'message': "Executed process: {}".format(d['ExplorerFileName']),
+                })
 
-            if not d['LastUsedTime']:
-                continue
-            common['@timestamp'] = to_iso_format(d['LastUsedTime'])
+                if not d['LastUsedTime']:
+                    continue
+                common['@timestamp'] = to_iso_format(d['LastUsedTime'])
 
-            original_fields = ["FolderPath", "ExplorerFileName", "FileSize", "LastUserName", "LaunchCount", "OriginalFileName", "FileDescription", "ProductName", "ProductVersion"]
-            translations = ['package.path', 'process.executable', 'package.size', 'user.name', 'process.run_count', 'package.original_file_name', 'package.description', 'package.name', 'package.version']
-            for original_field, translation in zip(original_fields, translations):
-                common[translation] = d[original_field]
+                original_fields = ["FolderPath", "ExplorerFileName", "FileSize", "LastUserName", "LaunchCount", "OriginalFileName", "FileDescription", "ProductName", "ProductVersion"]
+                translations = ['package.path', 'process.executable', 'package.size', 'user.name', 'process.run_count', 'package.original_file_name', 'package.description', 'package.name', 'package.version']
+                for original_field, translation in zip(original_fields, translations):
+                    common[translation] = d[original_field]
 
-            yield common
+                yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
 
 class UserAssist(SuperTimeline):
@@ -771,7 +815,11 @@ class UserAssist(SuperTimeline):
         self.set_default_config('classify', 'False')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             # UserAssist can provide information about aplications without a timestamp.
@@ -810,7 +858,11 @@ class Shellbags(SuperTimeline):
         self.set_default_config('classify', 'False')
 
     def run(self, path=None):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             common = self.common_fields()
@@ -852,34 +904,39 @@ class UsnJrnl(SuperTimeline):
         self.check_params(path, check_from_module=True)
 
         # CSV fields: Date;Filename;Full Path;File Attributes;Reason;MFT Entry;Parent MFT Entry;Reliable Path
-        for d in self.from_module.run(path):
+        try:
+            for d in self.from_module.run(path):
 
-            common = self.common_fields()
-            common.update({
-                '@timestamp': to_iso_format(d['Date']),
-                'tags': ['journal'],
-                'event.category': ['package'],
-                'event.module': 'usnjrnl',
-                'event.dataset': 'usnjrnl',
-                'file.path': d['Full Path'],
-                'file.name': d['Filename'],
-                'file.directory': os.path.dirname(d['Full Path']),
-                'file.inode': d['MFT Entry'],
-                'file.group': self.filegroup(dict({'path': d['Full Path']}), self.myflag('classify')) or '',
-                'file.attributes': self.attributes(d['File Attributes']),
-                'event.action': self.reasons(d['Reason'])
-            })
+                common = self.common_fields()
+                common.update({
+                    '@timestamp': to_iso_format(d['Date']),
+                    'tags': ['journal'],
+                    'event.category': ['package'],
+                    'event.module': 'usnjrnl',
+                    'event.dataset': 'usnjrnl',
+                    'file.path': d['Full Path'],
+                    'file.name': d['Filename'],
+                    'file.directory': os.path.dirname(d['Full Path']),
+                    'file.inode': d['MFT Entry'],
+                    'file.group': self.filegroup(dict({'path': d['Full Path']}), self.myflag('classify')) or '',
+                    'file.attributes': self.attributes(d['File Attributes']),
+                    'event.action': self.reasons(d['Reason'])
+                })
 
-            deleted = common['event.action'] == 'file-deleted'
-            common['file.deleted'] = deleted
-            event_types_messages = {'file-created': (['creation'], "File created"),
-                                    'file-deleted': (['deletion'], 'File deleted'),
-                                    'file-renamed-old-name': (['change'], 'File renamed. Old name'),
-                                    'file-renamed-new-name': (['change'], 'File renamed. New name')}
-            common['event.type'] = event_types_messages.get(common['event.action'], [''])[0]
-            common['message'] = "{}: {}".format(event_types_messages.get(common['event.action'], ['', ''])[1], d['Full Path'])
+                deleted = common['event.action'] == 'file-deleted'
+                common['file.deleted'] = deleted
+                event_types_messages = {'file-created': (['creation'], "File created"),
+                                        'file-deleted': (['deletion'], 'File deleted'),
+                                        'file-renamed-old-name': (['change'], 'File renamed. Old name'),
+                                        'file-renamed-new-name': (['change'], 'File renamed. New name')}
+                common['event.type'] = event_types_messages.get(common['event.action'], [''])[0]
+                common['message'] = "{}: {}".format(event_types_messages.get(common['event.action'], ['', ''])[1], d['Full Path'])
 
-            yield common
+                yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
     def attributes(self, attributes):
         """ Converts a string of attributes into a list:
@@ -916,33 +973,38 @@ class USB(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        for d in self.from_module.run(path):
-            common = self.common_fields()
-            common.update({
-                'tags': ['usb'],
-                'event.category': ['driver'],
-                'event.module': 'usb',
-                'event.dataset': 'setupapi',
-                'package.name': d['Device'],
-                'package.description': d['DevDesc']
-            })
+        try:
+            for d in self.from_module.run(path):
+                common = self.common_fields()
+                common.update({
+                    'tags': ['usb'],
+                    'event.category': ['driver'],
+                    'event.module': 'usb',
+                    'event.dataset': 'setupapi',
+                    'package.name': d['Device'],
+                    'package.description': d['DevDesc']
+                })
 
-            common.update({
-                '@timestamp': to_iso_format(d['Start']),
-                'event.type': ['installation', 'start'],
-                'event.action': 'driver-installation-started',
-                'message': 'Driver installation start: {}'.format(d['Device'])
-            })
-            yield common
+                common.update({
+                    '@timestamp': to_iso_format(d['Start']),
+                    'event.type': ['installation', 'start'],
+                    'event.action': 'driver-installation-started',
+                    'message': 'Driver installation start: {}'.format(d['Device'])
+                })
+                yield common
 
-            common.update({
-                '@timestamp': to_iso_format(d['End']),
-                'package.installed': to_iso_format(d['End']),
-                'event.action': 'driver-installation-ended',
-                'message': 'Driver installation end: {}'.format(d['Device']),
-                'event.type': ['installation', 'end']
-            })
-            yield common
+                common.update({
+                    '@timestamp': to_iso_format(d['End']),
+                    'package.installed': to_iso_format(d['End']),
+                    'event.action': 'driver-installation-ended',
+                    'message': 'Driver installation end: {}'.format(d['Device']),
+                    'event.type': ['installation', 'end']
+                })
+                yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
 
 class NetworkUsage(SuperTimeline):
@@ -952,32 +1014,37 @@ class NetworkUsage(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        for d in self.from_module.run(path):
-            common = self.common_fields()
-            common.update({
-                '@timestamp': to_iso_format(d['SRUM ENTRY CREATION']),
-                'event.kind': "metric",
-                'tags': ['network'],
-                'event.category': ['web'],
-                'event.module': 'srum',
-                'event.dataset': 'network-usage',
-                'event.action': 'network-usage-summary',
-                'event.type': ['info'],
-                'network.application': d['Application'],
-                'network.name': d['Profile'],
-                'network.type': d['Interface'],
-                'source.bytes': d['Bytes Sent'],
-                'destination.bytes': d['Bytes Received'],
-                'message': "Application {} uploaded/downloaded {} / {} bytes in last summary period".format(
-                    d['Application'], d['Bytes Sent'], d['Bytes Received'])
-            })
+        try:
+            for d in self.from_module.run(path):
+                common = self.common_fields()
+                common.update({
+                    '@timestamp': to_iso_format(d['SRUM ENTRY CREATION']),
+                    'event.kind': "metric",
+                    'tags': ['network'],
+                    'event.category': ['web'],
+                    'event.module': 'srum',
+                    'event.dataset': 'network-usage',
+                    'event.action': 'network-usage-summary',
+                    'event.type': ['info'],
+                    'network.application': d['Application'],
+                    'network.name': d['Profile'],
+                    'network.type': d['Interface'],
+                    'source.bytes': d['Bytes Sent'],
+                    'destination.bytes': d['Bytes Received'],
+                    'message': "Application {} uploaded/downloaded {} / {} bytes in last summary period".format(
+                        d['Application'], d['Bytes Sent'], d['Bytes Received'])
+                })
 
-            user = d.get('User SID', '').split(' ')
-            common['user.id']: user[0]
-            if len(user) > 1:
-                common['user.name'] = ' '.join(user[1:]).lstrip('(').rstrip(')')
+                user = d.get('User SID', '').split(' ')
+                common['user.id']: user[0]
+                if len(user) > 1:
+                    common['user.name'] = ' '.join(user[1:]).lstrip('(').rstrip(')')
 
-            yield common
+                yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
 
 class NetworkConnections(SuperTimeline):
@@ -987,38 +1054,47 @@ class NetworkConnections(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        for d in self.from_module.run(path):
-            common = self.common_fields()
-            common.update({
-                '@timestamp': to_iso_format(d['ConnectStartTime']),
-                'tags': ['network'],
-                'event.category': ['web'],
-                'event.module': 'srum',
-                'event.dataset': 'network-connections',
-                'event.action': 'connection-started',
-                'event.type': ['start'],
-                'network.application': d['Application'],
-                'network.name': d['L2ProfileId'],
-                'network.type': d['InterfaceLuid'],
-                'network.connected_time': d['ConnectedTime'],  # in seconds
-                'message': 'Started a {} network connection{}'.format(
-                    d['InterfaceLuid'], ' on {}'.format(d['L2ProfileId']) if d['L2ProfileId'] else '')
-            })
+        try:
+            for d in self.from_module.run(path):
+                common = self.common_fields()
+                common.update({
+                    '@timestamp': to_iso_format(d['ConnectStartTime']),
+                    'tags': ['network'],
+                    'event.category': ['web'],
+                    'event.module': 'srum',
+                    'event.dataset': 'network-connections',
+                    'event.action': 'connection-started',
+                    'event.type': ['start'],
+                    'network.application': d['Application'],
+                    'network.name': d['L2ProfileId'],
+                    'network.type': d['InterfaceLuid'],
+                    'network.connected_time': d['ConnectedTime'],  # in seconds
+                    'message': 'Started a {} network connection{}'.format(
+                        d['InterfaceLuid'], ' on {}'.format(d['L2ProfileId']) if d['L2ProfileId'] else '')
+                })
 
-            user = d.get('User SID', '').split(' ')
-            if user[0]:
-                common['user.id']: user[0]
-            if len(user) > 1:
-                common['user.name'] = ' '.join(user[1:]).lstrip('(').rstrip(')')
+                user = d.get('User SID', '').split(' ')
+                if user[0]:
+                    common['user.id']: user[0]
+                if len(user) > 1:
+                    common['user.name'] = ' '.join(user[1:]).lstrip('(').rstrip(')')
 
-            yield common
+                yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
 
 class Registry(SuperTimeline):
     """ Adapts Windows Registry information to Elastic. After this, you can save this file using events.save. """
 
     def run(self, path=""):
-        self.check_params(path, check_from_module=True)
+        try:
+            self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
         for d in self.from_module.run(path):
             if 'values' not in d:  # No value set, just subkey description
@@ -1061,30 +1137,35 @@ class RecycleBin(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        for d in self.from_module.run(path):
+        try:
+            for d in self.from_module.run(path):
 
-            common = self.common_fields()
-            common.update({
-                '@timestamp': to_iso_format(d['Date']),
-                'tags': ['recyclebin'],
-                'event.category': ['file'],
-                'event.type': ['deletion'],
-                'event.module': 'recyclebin',
-                'event.dataset': d['recyclebin'],
-                'event.action': 'file-deleted',
-                'file.deleted': 'False' if d['Status'] == 'allocated' else 'True',
-                'file.inode': d['Inode'],
-                'user.name': d['User'],
-                'file.path': d['File'],
-                'file.size': d['Size'],
-                'file.directory': os.path.dirname(d['OriginalName']),
-                'file.extension': os.path.splitext(d['OriginalName'])[1].lstrip('.'),
-                'file.name': os.path.basename(d['OriginalName']),
-                'file.group': self.filegroup(dict({'path': d['OriginalName']}), self.myflag('classify')) or '',
-                'message': 'File sent to RecycleBin: {}'.format(d['OriginalName'])
-            })
+                common = self.common_fields()
+                common.update({
+                    '@timestamp': to_iso_format(d['Date']),
+                    'tags': ['recyclebin'],
+                    'event.category': ['file'],
+                    'event.type': ['deletion'],
+                    'event.module': 'recyclebin',
+                    'event.dataset': d['recyclebin'],
+                    'event.action': 'file-deleted',
+                    'file.deleted': 'False' if d['Status'] == 'allocated' else 'True',
+                    'file.inode': d['Inode'],
+                    'user.name': d['User'],
+                    'file.path': d['File'],
+                    'file.size': d['Size'],
+                    'file.directory': os.path.dirname(d['OriginalName']),
+                    'file.extension': os.path.splitext(d['OriginalName'])[1].lstrip('.'),
+                    'file.name': os.path.basename(d['OriginalName']),
+                    'file.group': self.filegroup(dict({'path': d['OriginalName']}), self.myflag('classify')) or '',
+                    'message': 'File sent to RecycleBin: {}'.format(d['OriginalName'])
+                })
 
-            yield common
+                yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
 
 class WhatsApp(SuperTimeline):
@@ -1101,53 +1182,58 @@ class WhatsApp(SuperTimeline):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        for d in self.from_module.run(path):
+        try:
+            for d in self.from_module.run(path):
 
-            common = self.common_fields()
-            common.update({
-                'tags': ['whatsapp'],
-                'event.category': ['network'],
-                'event.module': 'whatsapp',
-                # 'event.dataset': d['whatsapp'],
-                'communication.id': d['message_id'],
-                'communication.from': d['message_from'],
-                'communication.to': d['message_to'],
-                'communication.text': d['message'],
-                'communication.type': d['message_type'],
-                'communication.group': d['message_group'],
-                'communication.direction': 'sent' if d['is_from_me'] == '1' else 'received',
-                'communication.to_number': d['message_phonenumber'],
-                'communication.created': to_iso_format(d['date_creation']),
-                'message': 'WhatsApp message: {}'.format(d['message'])
-            })
-
-            if d['lon_lat']:
-                common['geo_location'] = to_geolocation(d['lon_lat'])
-            if d['message_media_location']:
-                common['file.name'] = d['message_media_location']
-            if d['message_media_title']:
-                common['communication.text'] = d['message_media_title']
-
-            if d['date_sent'] != '0':
+                common = self.common_fields()
                 common.update({
-                    '@timestamp': to_iso_format(d['date_sent']),
-                    'event.action': 'message-sent',
-                    'event.type': ['start']
+                    'tags': ['whatsapp'],
+                    'event.category': ['network'],
+                    'event.module': 'whatsapp',
+                    # 'event.dataset': d['whatsapp'],
+                    'communication.id': d['message_id'],
+                    'communication.from': d['message_from'],
+                    'communication.to': d['message_to'],
+                    'communication.text': d['message'],
+                    'communication.type': d['message_type'],
+                    'communication.group': d['message_group'],
+                    'communication.direction': 'sent' if d['is_from_me'] == '1' else 'received',
+                    'communication.to_number': d['message_phonenumber'],
+                    'communication.created': to_iso_format(d['date_creation']),
+                    'message': 'WhatsApp message: {}'.format(d['message'])
                 })
-                yield common
 
-            elif d['date_delivered'] != '0':
-                common.update({
-                    '@timestamp': to_iso_format(d['date_delivered']),
-                    'event.action': 'message-delivered',
-                    'event.type': ['end']
-                })
-                yield common
+                if d['lon_lat']:
+                    common['geo_location'] = to_geolocation(d['lon_lat'])
+                if d['message_media_location']:
+                    common['file.name'] = d['message_media_location']
+                if d['message_media_title']:
+                    common['communication.text'] = d['message_media_title']
 
-            else:
-                common.update({
-                    '@timestamp': to_iso_format(d['date_creation']),
-                    'event.action': 'message-created',
-                    'event.type': ['creation']
-                })
-                yield common
+                if d['date_sent'] != '0':
+                    common.update({
+                        '@timestamp': to_iso_format(d['date_sent']),
+                        'event.action': 'message-sent',
+                        'event.type': ['start']
+                    })
+                    yield common
+
+                elif d['date_delivered'] != '0':
+                    common.update({
+                        '@timestamp': to_iso_format(d['date_delivered']),
+                        'event.action': 'message-delivered',
+                        'event.type': ['end']
+                    })
+                    yield common
+
+                else:
+                    common.update({
+                        '@timestamp': to_iso_format(d['date_creation']),
+                        'event.action': 'message-created',
+                        'event.type': ['creation']
+                    })
+                    yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
