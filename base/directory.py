@@ -376,7 +376,6 @@ class DirectoryClear(base.job.BaseModule):
         Useful when certain jobs that append results to file are called again, avoiding duplication of output. """
 
     def run(self, path=None):
-        # self.check_params(path, check_from_module=True, check_path=True)
         target_path = self.myconfig('target', None)
         if not target_path:
             raise base.job.RVTError('Target path to remove not selected'.format(target_path))
@@ -388,4 +387,34 @@ class DirectoryClear(base.job.BaseModule):
             return []
         self.logger().debug('{} not recognized as file or directory'.format(target_path))
         return []
-        # raise base.job.RVTError('{} not recognized as file or directory'.format(target_path))
+
+
+class GlobClear(base.job.BaseModule):
+    """ Remove the the file or directory specified by glob pattern 'target'.
+        Useful when certain jobs that append results to file are called again, avoiding duplication of output. """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('recursive', 'True')
+        self.set_default_config('ftype', 'all')
+
+    def run(self, path=None):
+        target_path = self.myconfig('target', None)
+        if not target_path:
+            raise base.job.RVTError('Target path to remove not selected'.format(target_path))
+
+        ftype = self.myconfig('ftype').lower()
+
+        self.logger().debug('Removing all {} matching glob pattern: {}'.format(ftype, path))
+        for filepath in glob.iglob(target_path, recursive=self.myflag('recursive')):
+            if ftype == 'all' or \
+                    (ftype == 'file' and os.path.isfile(filepath)) or \
+                    (ftype == 'directory' and os.path.isdir(filepath)):
+                if os.path.isdir(filepath):
+                    shutil.rmtree(filepath)
+                    return []
+                elif os.path.isfile(filepath):
+                    os.remove(filepath)
+                    return []
+        self.logger().debug('{} not recognized as file or directory'.format(target_path))
+        return []
