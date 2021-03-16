@@ -89,6 +89,7 @@ class TikaParser(base.job.BaseModule):
         - **file_max_size** (int): The max size in bytes of a file to be parsed. If the file is larger than this, it is not parsed and tika_status set to 413 (payload too large)
         - **content_max_size** (int): The max size in bytes of a content to be parsed. If the content is larger than this, it is removed and tika_status set to (payload too large)
         - **tika_encoding** (str): The encoding of the answers from tika
+        - **only_root** (bool): If True, return only the root item
     """
     def __init__(self, *attrs, **kwattrs):
         super().__init__(*attrs, **kwattrs)
@@ -104,6 +105,7 @@ class TikaParser(base.job.BaseModule):
         self.set_default_config('tika_server', 'http://localhost:9998')
         self.set_default_config('mapping', os.path.join(self.config.get('indexer', 'plugindir', './'), 'tika-mapping.cfg'))
         self.set_default_config('save_mapping', 'False')
+        self.set_default_config('only_root', 'False')
         self.set_default_config('include_unknown', 'False')
         self.set_default_config('error_status', 400)
         self.set_default_config('file_max_size', 104857600)  # default: 100MB
@@ -234,7 +236,8 @@ class TikaParser(base.job.BaseModule):
                 field = self._map_field(content_type, metadata)
                 if field is None:
                     if self.myflag('include_unknown'):
-                        item[metadata] = filemetadata[metadata]
+                        safe_metadata = metadata.replace(':', '-').replace('=', '-').lower()
+                        item[safe_metadata] = filemetadata[metadata]
                 elif field != IGNORE_FIELD:
                     item[field] = filemetadata[metadata]
         # if the content is too large, remove it and set status to 413
@@ -272,6 +275,9 @@ class TikaParser(base.job.BaseModule):
                 doc[0]['containerid'] = containerid
 
             files.extend(doc)
+            
+            if self.myflag('only_root'):
+                break
         return files
 
     def _common_fields(self, path):

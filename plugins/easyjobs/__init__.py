@@ -85,7 +85,10 @@ def _register_job(func, params_help=dict()):
         func: the main function. Parameters are default_params, ctx is ignored.
     """
     # description
-    default_config.set(f'{func.__module__}.{func.__name__}', 'description', getdoc(func))
+    desc = getdoc(func)
+    if desc is None:
+        desc = ''
+    default_config.set(f'{func.__module__}.{func.__name__}', 'description', desc)
     # params help
     default_config.set(f'{func.__module__}.{func.__name__}', 'params_help', str(params_help))
     sig = signature(func)
