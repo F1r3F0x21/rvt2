@@ -20,58 +20,84 @@ from plugins.common.RVT_files import GetFiles
 from base.utils import check_folder
 import base.job
 from base.commands import run_command
+from plugins.windows.RVT_os_info import CharacterizeWindows
+
+# Alternative: decompress hiberfil.sys using hibernation-recon from https://arsenalrecon.com in a Win8+ OS"
 
 
 class Hiberfil(base.job.BaseModule):
 
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('profile', '')
+        self.set_default_config('volatility_plugins', "pslist netscan filescan shutdowntime mftparser")
+        self.set_default_config('volume_id', 'p01')
+        self.set_default_config('overwrite_imagecopy', False)
+
     def run(self, path=""):
-        """ Get information of hiberfil.sys
+        """ Get information of hiberfil.sys using volatility
 
         """
-        volatility = self.config.get('plugins.common', 'volatility', '/usr/local/bin/vol.py')
-
         hiber_path = self.myconfig('outdir')
         check_folder(hiber_path)
+        self.volatility = self.config.get('plugins.common', 'volatility', '/usr/local/bin/vol.py')
 
-        search = GetFiles(self.config)
-        hiberlist = search.search("/hiberfil.sys$")
+        if not path:
+            search = GetFiles(self.config)
+            hiberlist = search.search("/hiberfil.sys$")
 
-        for h in hiberlist:
-            aux = re.search("{}/([^/]*)/".format(base.utils.relative_path(self.myconfig('mountdir'), self.myconfig('casedir'))), h)
-            partition = aux.group(1)
+            for h in hiberlist:
+                aux = re.search("{}/([^/]*)/".format(base.utils.relative_path(self.myconfig('mountdir'), self.myconfig('casedir'))), h)
+                partition = aux.group(1)
+                profile = version = self.myconfig('profile')
+                if not profile:  # This is the default configuration
+                    profile, version = self.get_win_profile(partition)
+                hiber_file = os.path.join(self.myconfig('casedir'), h)
+                self._run_volatility(hiber_file, hiber_path, partition, profile, version)
 
-            hiber_raw = os.path.join(hiber_path, "hiberfil_{}.raw".format(partition))
-            profile, version = self.get_win_profile(partition)
-            with open(os.path.join(hiber_path, "hiberinfo_{}.txt".format(partition)), 'w') as pf:
-                pf.write("Profile: %s\nVersion: %s" % (profile, version))
-            if version.startswith("5") or version.startswith("6.0") or version.startswith("6.1"):
-                self.logger().debug("Uncompressing {}".format(h))
-                run_command([volatility, "--profile={}".format(profile), "-f", os.path.join(self.myconfig('casedir'), h), "imagecopy", "-O", hiber_raw], logger=self.logger())
-            else:
-                self.logger().debug("{} files could not be descompressed with a linux distro".format(h))
-                self.logger().debug("Descompress with Windows 8 o higher hiberfil.sys file using https://arsenalrecon.com/weapons/hibernation-recon/")
-                self.logger().debug("save output at {}".format(hiber_raw))
-            self.vol_extract(hiber_raw, profile, version)
+        else:
+            if not os.path.exists(path):
+                raise base.job.RVTError('Provided path {} does not exist. Please, use an actual hiberfil.sys file as argument or let the job search in the source allocated files')
+            partition = self.myconfig('volume_id')
+            profile = self.myconfig('profile')
+            version = profile
+            if not profile:
+                profile, version = self.get_win_profile(partition)
+            self._run_volatility(path, hiber_path, partition, profile, version)
+
         return []
 
-    def vol_extract(self, archive, profile, version):
+    def _run_volatility(self, file, outdir, partition, profile, version):
+        """ Create an image copy of hiberfil.sys and run some plugins """
+
+        skip_dump = False
+        hiber_raw = os.path.join(outdir, "hiberfil_{}.raw".format(partition))
+        if os.path.exists(hiber_raw) and os.path.getsize(hiber_raw) > 0:
+            if not self.myflag('overwrite_imagecopy'):
+                self.logger().warning('Imagecopy {} already exists. Existing copy will be used. If you want to create a new one, set parameter `overwrite_imagecopy` to True')
+                skip_dump = True
+            else:
+                os.remove(hiber_raw)
+
+        if not skip_dump:
+            self.logger().debug('Creating an imagecopy of file {} at {}'.format(file, hiber_raw))
+            with open(os.path.join(outdir, "hiberinfo_{}.txt".format(partition)), 'w') as pf:
+                pf.write("Profile: %s\nVersion: %s" % (profile, version))
+            run_command([self.volatility, "--profile={}".format(profile), "-f", file, "imagecopy", "-O", hiber_raw], logger=self.logger())
+
+        self.vol_extract(hiber_raw, profile)
+
+    def vol_extract(self, archive, profile):
         """ Extracts data from decompressed hiberfil files
 
         Args:
             archive (str): file to extract information
             profile (str): volatility profile
-            version (str): windows version
         """
         if not os.path.isfile(archive):
-            if version.startswith("5") or version.startswith("6.0") or version.startswith("6.1"):
-                self.logger().warning("Linux distributions has not programs to decompress hiberfil.sys from Windows version {}".format(version))
-                self.logger().warning("You could decompress hiberfil.sys using hibernation-recon from https://arsenalrecon.com in a Win8+ OS")
-                self.logger().warning("Save output at {}".format(archive))
-                self.logger().Error("Unable to decompress hiberfil.sys")
-                exit(1)
+            raise base.job.RVTError('No raw extraction file generated. File does not exist: {}'.format(archive))
 
-        plugins = ["pslist", "netscan", "filescan", "shutdowntime", "mftparser"]
-        vol = self.config.get('plugins.common', 'volatility', '/usr/local/bin/vol.py')
+        plugins = self.myarray('volatility_plugins')
 
         partition = re.search(r"/hiberfil_([vp\d]+)\.raw$", archive)
         partition = partition.group(1)
@@ -79,10 +105,10 @@ class Hiberfil(base.job.BaseModule):
 
         self.logger().debug("Extracting information from {}".format(archive.split(self.myconfig('outputdir'))[-1]))
 
-        with open(hiber_output, "w") as f:
+        with open(hiber_output, "a") as f:
             for plugin in plugins:
                 self.logger().debug("Plugin {}".format(plugin))
-                output = subprocess.check_output([vol, "--profile={}".format(profile), "-f", archive, plugin]).decode()
+                output = subprocess.check_output([self.volatility, "--profile={}".format(profile), "-f", archive, plugin]).decode()
                 f.write("*********** {} ************\n{}\n".format(plugin, output))
 
     def get_win_profile(self, partition):
@@ -103,6 +129,8 @@ class Hiberfil(base.job.BaseModule):
         profile["10.0.16299x64"] = "Win10x64_16299"
         profile["10.0.17134x64"] = "Win10x64_17134"
         profile["10.0.17763x64"] = "Win10x64_17763"
+        profile["10.0.18362x64"] = "Win10x64_18362"
+        profile["10.0.19041x64"] = "Win10x64_19041"
         profile["10.0x86"] = "Win10x86"
         profile["10.0.10240x86"] = "Win10x86_10240_17770"
         profile["10.0.10586x86"] = "Win10x86_10586"
@@ -111,6 +139,8 @@ class Hiberfil(base.job.BaseModule):
         profile["10.0.16299x86"] = "Win10x86_16299"
         profile["10.0.17134x86"] = "Win10x86_17134"
         profile["10.0.17763x86"] = "Win10x86_17763"
+        profile["10.0.18362x86"] = "Win10x86_18362"
+        profile["10.0.19041x86"] = "Win10x86_19041"
         profile["6.3.9600x64"] = "Win8SP1x64"
         profile["6.3.9600x64"] = "Win81U1x64"
         profile["6.2.9200x64"] = "Win8SP0x64"
@@ -132,31 +162,12 @@ class Hiberfil(base.job.BaseModule):
         profile["5.1.2600x64"] = "WinXPSP3x64"
         profile["5.1.2600x86"] = "WinXPSP3x86"
 
-        srch = re.compile(r"(CurrentVersion|CurrentBuild|BuildLabEx)\s+:\s+(.*)")
-
-        info_file = os.path.join(self.myconfig('hivesdir'), "01_operating_system_information_{}.txt".format(partition))
-        if not os.path.isfile(info_file):
-            self.logger().warning("Not exists {}".format(info_file))
-            return -1
-
-        prof = {}
-        with open(info_file, "r") as f:
-            for line in f:
-                aux = srch.search(line)
-                if aux:
-                    prof[aux.group(1)] = aux.group(2)
-
-        if prof == {}:
-            self.logger().debug("Information about Windows version cannot be extracted from {}".format(info_file))
-            return -2
-
-        if "amd64" in prof["BuildLabEx"]:
-            arquitecture = "x64"
-        else:
-            arquitecture = "x86"
-
-        prof = "{}.{}{}".format(prof["CurrentVersion"], prof["CurrentBuild"], arquitecture)
-
+        os_version = CharacterizeWindows(config=self.config).get_windows_version(partition=partition)
+        architecture = "x64" if os_version.get('ProcessorArchitecture', '').lower() == 'amd64' else "x86"
+        prof = "{}.{}{}".format(os_version.get("Version", ""), os_version.get("BuildNumber", ""), architecture)
         if prof not in profile.keys():
-            prof = "{}{}".format(prof["CurrentVersion"], arquitecture)
+            prof = "{}{}".format(os_version.get("Version", ""), architecture)
+            if prof not in profile.keys():
+                raise base.job.RVTError("Windows version not in the profiles list: {}".format(str(os_version)))
+
         return profile[prof], prof

@@ -292,6 +292,7 @@ class CharacterizeWindows(base.job.BaseModule):
         else:
             raise base.job.RVTError('Selected item <{}> is not a recognized OS attribute'.format(item))
 
+        # TODO: launch minimalrip if not found
         expected_auxfile = os.path.join(self.config.config['plugins.windows']['auxdir'], 'os_info.json')
         if os.path.exists(expected_auxfile) and os.path.getsize(expected_auxfile) > 0:
             with open(expected_auxfile, 'r') as infile:
@@ -311,6 +312,7 @@ class CharacterizeWindows(base.job.BaseModule):
         server = True if product.find('Server') != -1 else False
         version = self.get_information("CurrentVersion", partition)
         build = self.get_information("CurrentBuild", partition)
+        architecture = self.get_information("ProcessorArchitecture", partition)
 
         versions_file = os.path.join(self.config.config['windows']['plugindir'], 'windows_versions.json')
         with open(versions_file, 'r') as infile:
@@ -319,8 +321,11 @@ class CharacterizeWindows(base.job.BaseModule):
             if build == version['BuildNumber']:
                 is_server = True if version['Name'].find('Server') != -1 else False
                 if server == is_server:
+                    version.update({'ProcessorArchitecture': architecture})
                     return version
 
         # Default answer if version not in predefined list
         self.logger().warning('OS Version not recognized. Run windows.characterize or update list of Windows versions')
-        return {'Name': product, 'SubVersion': '', 'Version': version, 'BuildNumber': build, 'PublicRelease': '', 'RTMRelease': ''}
+        return {'Name': product, 'SubVersion': '', 'Version': version,
+                'BuildNumber': build, 'PublicRelease': '', 'RTMRelease': '',
+                'ProcessorArchitecture': architecture}
