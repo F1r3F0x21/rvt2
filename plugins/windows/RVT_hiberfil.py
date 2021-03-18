@@ -22,8 +22,6 @@ import base.job
 from base.commands import run_command
 from plugins.windows.RVT_os_info import CharacterizeWindows
 
-# Alternative: decompress hiberfil.sys using hibernation-recon from https://arsenalrecon.com in a Win8+ OS"
-
 
 class Hiberfil(base.job.BaseModule):
 
@@ -53,7 +51,8 @@ class Hiberfil(base.job.BaseModule):
                 if not profile:  # This is the default configuration
                     profile, version = self.get_win_profile(partition)
                 hiber_file = os.path.join(self.myconfig('casedir'), h)
-                self._run_volatility(hiber_file, hiber_path, partition, profile, version)
+                hiber_raw = self._make_raw_copy(hiber_file, hiber_path, partition, profile, version)
+                self.vol_extract(hiber_raw, profile)
 
         else:
             if not os.path.exists(path):
@@ -63,12 +62,13 @@ class Hiberfil(base.job.BaseModule):
             version = profile
             if not profile:
                 profile, version = self.get_win_profile(partition)
-            self._run_volatility(path, hiber_path, partition, profile, version)
+            hiber_raw = self._make_raw_copy(path, hiber_path, partition, profile, version)
+            self.vol_extract(hiber_raw, profile)
 
         return []
 
-    def _run_volatility(self, file, outdir, partition, profile, version):
-        """ Create an image copy of hiberfil.sys and run some plugins """
+    def _make_raw_copy(self, file, outdir, partition, profile, version):
+        """ Create an image copy of hiberfil.sys """
 
         skip_dump = False
         hiber_raw = os.path.join(outdir, "hiberfil_{}.raw".format(partition))
@@ -80,12 +80,13 @@ class Hiberfil(base.job.BaseModule):
                 os.remove(hiber_raw)
 
         if not skip_dump:
+            self._check_version(profile, file, hiber_raw)
             self.logger().debug('Creating an imagecopy of file {} at {}'.format(file, hiber_raw))
             with open(os.path.join(outdir, "hiberinfo_{}.txt".format(partition)), 'w') as pf:
                 pf.write("Profile: %s\nVersion: %s" % (profile, version))
             run_command([self.volatility, "--profile={}".format(profile), "-f", file, "imagecopy", "-O", hiber_raw], logger=self.logger())
 
-        self.vol_extract(hiber_raw, profile)
+        return hiber_raw
 
     def vol_extract(self, archive, profile):
         """ Extracts data from decompressed hiberfil files
@@ -171,3 +172,8 @@ class Hiberfil(base.job.BaseModule):
                 raise base.job.RVTError("Windows version not in the profiles list: {}".format(str(os_version)))
 
         return profile[prof], prof
+
+    def _check_version(self, profile, file, hiber_raw):
+        if profile.startswith('Win10') or profile.startswith('Win8'):
+            raise base.job.RVTError("{} could not be descompressed with a linux distro. Descompress with Windows 8 o higher hiberfil.sys file using https://arsenalrecon.com/weapons/hibernation-recon/. Save output at {}".format(file, hiber_raw))
+        return
