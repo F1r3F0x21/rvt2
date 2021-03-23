@@ -253,7 +253,7 @@ def main(params=sys.argv[1:]):
     # First configuration pass, in case the initilization of the system needs these parameters
     # Will be read again later
     # read configuration from one or more -c options
-    config = base.config.Config()
+    config = base.config.default_config
     load_configpaths(config, args.config)
     # configure global variables
     # Since plugins are not loaded yet, ignore errors of missing sections

@@ -651,7 +651,6 @@ class EmlxParseMessage(PffExportParseObject):
         info = self.tika_parser.run(path)[0]
         info['content_type'] = "pst/Message"
         info["category"] = "email"
-        intHeaders = os.path.join(path, "InternetHeaders.txt")
         # if os.path.isfile(intHeaders):
         if True:
             info.update(self._getInternetHeaders(path))

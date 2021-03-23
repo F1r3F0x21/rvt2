@@ -128,7 +128,7 @@ def save_output(data, config=None, output_module='base.output.CSVSink', **kwargs
         kwargs (dict): The extra configuration for the `base.output` module. You'd want to set, at least, `outfile`.
     """
     if config is None:
-        config = base.config.Config()
+        config = base.config.default_config
     m = base.job.load_module(
         config, output_module,
         extra_config=kwargs,
