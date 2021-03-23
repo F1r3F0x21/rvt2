@@ -16,7 +16,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-""" Make writing and using modules easier """
+""" Make writing modules easier """
 
 from inspect import signature, _empty, getdoc
 from base.job import BaseModule
@@ -39,46 +39,53 @@ def simplejob(params_help=dict()):
         You can also call directly these functions by passing the config object.
         Check the examples below.
         """
-        def wrapper(decorated_func):
-            class InnerModuleClass(BaseModule):
-                """ A dummy base module, helper to a simplejob """
-                def run(self, path=None):
-                    sig = signature(decorated_func)
-                    if 'path' in sig.parameters:
-                        return self.__call__(path=path)
-                    return self.__call__()
-
-                def __call__(self, *args, **kwargs):
-                    sig = signature(decorated_func)
-                    options = self.options()
-                    # check all parameters of the function
-                    for param in sig.parameters:
-                        # get the annotation. Assumes it work as a converter
-                        # from str to the right type. int, str and bool work OK.
-                        param_type = sig.parameters[param].annotation
-                        if param_type is _empty:
-                            param_type = str
-                        # if ctx is a param, pass self
-                        if param == 'ctx':
-                            kwargs[param] = self
-                        # else, convert the parameter using the annotation as a function
-                        elif param in options:
-                            kwargs[param] = param_type(self.myconfig(param))
-                    # finally, call to the decorated function
-                    # return an empty decorator if the function returned None
-                    retiter = decorated_func(**kwargs)
-                    if retiter is None:
-                        yield from ()
-                    else:
-                        yield from retiter
-            return InnerModuleClass
         _register_job(func, params_help)
-        return wrapper(func)
+        return _func2module(func)
     return inner_decorator
 
 
+def _func2module(decorated_func):
+    """ Converts a function into a BaseModule """
+    class InnerModuleClass(BaseModule):
+        """ A dummy base module, helper to a simplejob """
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.__doc__ = getattr(decorated_func, '__doc__', None)
+
+        def run(self, path=None):
+            sig = signature(decorated_func)
+            if 'path' in sig.parameters:
+                return self.__call__(path=path)
+            return self.__call__()
+
+        def __call__(self, *args, **kwargs):
+            sig = signature(decorated_func)
+            options = self.options()
+            # check all parameters of the function
+            for param in sig.parameters:
+                # get the annotation. Assumes it work as a converter
+                # from str to the right type. int, str and bool work OK.
+                param_type = sig.parameters[param].annotation
+                if param_type is _empty:
+                    param_type = str
+                # if ctx is a param, pass self
+                if param == 'ctx':
+                    kwargs[param] = self
+                # else, convert the parameter using the annotation as a function
+                elif param in options:
+                    kwargs[param] = param_type(self.myconfig(param))
+            # finally, call to the decorated function
+            # return an empty decorator if the function returned None
+            retiter = decorated_func(**kwargs)
+            if retiter is None:
+                yield from ()
+            else:
+                yield from retiter
+    return InnerModuleClass
+
+
 def _register_job(func, params_help=dict()):
-    """ Registers a job in a the default configuration
+    """ Registers a job in the default configuration
 
     Parameters:
         params_help (dict): a dictionary "name of the parameter" to "short help"
@@ -88,6 +95,7 @@ def _register_job(func, params_help=dict()):
     desc = getdoc(func)
     if desc is None:
         desc = ''
+    print(f'{func.__module__}.{func.__name__}')
     default_config.set(f'{func.__module__}.{func.__name__}', 'description', desc)
     # params help
     default_config.set(f'{func.__module__}.{func.__name__}', 'params_help', str(params_help))
@@ -99,23 +107,3 @@ def _register_job(func, params_help=dict()):
         default_params[param] = str(sig.parameters[param].default)
     default_config.set(f'{func.__module__}.{func.__name__}', 'default_params', str(default_params))
     default_config.set(f'{func.__module__}.{func.__name__}', 'help_section', func.__module__)
-
-
-@simplejob(params_help=dict(
-    count='Number of times the message must be returned',
-    name='The name of the user'
-))
-def test(ctx: BaseModule, name: str = 'Alice', count: int = 0):
-    """ A test for a simplejob.
-
-    It will show "Hello NAME" a number of times, using counter() to show
-    how simple jobs can call each other.
-    """
-    for i in counter()(to=count):
-        yield dict(greetings=f'Hello {name} count+1={count+1} from_module={ctx.from_module}')
-
-
-@simplejob()
-def counter(to: int = 10):
-    """ A test for a simplejob: return numbers from 0 to optional parameter to """
-    return range(0, to)

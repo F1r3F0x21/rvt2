@@ -56,13 +56,18 @@ class Help(base.job.BaseModule):
         return [self._help_for_module(help_for)]
 
     def _classify_path(self, path):
-        " Classify the path as a plugin, job or a module "
+        """ Classify the path as a plugin, job or a module.
+        
+        To classify a path, this function checks the configuration section:
+        
+        - If it has a 'plugindir' option, returns 'plugin'
+        - It it has a  'description', returns 'job'
+        - else, returns 'module' and hope for the best """
         if self.config.get(path, 'plugindir', None) is not None:
             return 'plugin'
         if self.config.get(path, 'description', None):
             return 'job'
-        if self.config.get(path, 'module', None):
-            return 'module'
+        return 'module'
 
     def _jobs_in_section(self, section):
         " Get all jobs in a section "
@@ -94,32 +99,48 @@ class Help(base.job.BaseModule):
         )
 
     def _help_for_module(self, path):
+        """ path is a module name """
         try:
-            myjob = base.job.load_module(self.config, path)
+            mymodule = base.job.load_module(self.config, path)
         except base.job.RVTCritical:
             return dict(module=path)
 
-        description = (myjob.__doc__ if hasattr(myjob, '__doc__') else None)
+        description = (mymodule.__doc__ if hasattr(mymodule, '__doc__') else None)
         return dict(
             module=path,
             description=description
         )
 
-    def _help_for_section(self, path):
-        description = self.config.get(path, 'description', '')
+    def _help_for_section(self, section):
+        """ Get the help message for a section.
+
+        Description is got:
+
+        - from option 'section.description'
+        - Reading markdown from file in option 'section.description.file'
+        - loading 'section' and getting its '__doc__'
+        - empty
+        """
+        description = self.config.get(section, 'description', '')
         if not description:
-            descfilename = self.config.get(path, 'description.file', '')
+            descfilename = self.config.get(section, 'description.file', '')
             if descfilename and os.path.exists(descfilename):
                 with open(descfilename) as descfile:
                     description = ''
                     for line in descfile:
                         description = description + line
-        jobs_in_section = self._jobs_in_section(path)
+        if not description:
+            try:
+                mymodule = __import__(section, globals(), locals())
+                description = (mymodule.__doc__ if hasattr(mymodule, '__doc__') else None)
+            except Exception:
+                description = ''
+        jobs_in_section = self._jobs_in_section(section)
         jobs = []
         for job in jobs_in_section:
             jobs.append(self._help_for_job(job, show_vars=self.myconfig('show_vars')))
         return dict(
-            section=path,
+            section=section,
             description=description,
             jobs=jobs
         )

@@ -251,7 +251,7 @@ def load_module(config, confsection, from_module=None, extra_config=None):
     """ Loads a module from a section name.
 
     Args:
-        config (:obj:`base.config.Config`): global configuration object to pass to the module. 
+        config (:obj:`base.config.Config`): global configuration object to pass to the module.
         confsection (str): The section name, and optional local configuration.
             The section name is searched in the configuration. If the section is present and it has a "module" attribute,
             load the class "module". If the section is not present or it doesn't have a "module" attribute,
