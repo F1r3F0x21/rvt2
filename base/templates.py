@@ -68,8 +68,8 @@ class TemplateSink(base.output.BaseSink):
             if data or not self.myflag('skip_on_empty_data'):
                 with self._outputfile() as f:
                     f.write(self._template().render(data=data))
-        except Exception as exc:
-            self.logger().error('Error in the template: error="%s"', exc, mako.exceptions.text_error_template().render())
+        except Exception:
+            self.logger().error('Error in the template: error="%s"', mako.exceptions.text_error_template().render())
             if self.myflag('stop_on_error'):
                 raise
         return iter(data)
