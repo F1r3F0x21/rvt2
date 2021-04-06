@@ -5,6 +5,19 @@
     <title>WhatsApp chat</title>
     <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Open+Sans" />
     <style>
+    body {
+      font-size: 20px;
+    }
+
+    /* Chat containers */
+    .message {
+      margin: 0.5em 0;
+    }
+    /* Chat containers */
+    .message {
+      margin: 0.5em 0;
+    }
+
     /* message content */
     .content {
       display: inline-block;
@@ -14,69 +27,37 @@
       margin: 0.5em;
     }
     .sent .content {
-      float: left;
-      text-align: left;
-      width: 80%;
+      text-align: right;
     }
     .received .content {
-      float: right;
-      text-align: right;
-      width: 80%;
+      text-align: left;
     }
-
 
     /* message metadata */
-    /* .received .metadata {
-      font-family: monospace;
-      font-size: 0.75em; 
-      float: left;
-      text-align: left;
-      width: 20%;
-      background-color: white;
-    }
-    .sent .metadata {
-      font-family: monospace;
-      font-size: 0.75em;
-      float: right;
-      text-align: right;
-      width: 20%;
-      background-color: white;
-    } */
     .metadata {
       display: grid;
       background-color: white;
       border-bottom: 1px solid #aaa;
       grid-template-columns: auto auto auto auto auto;
       font-family: monospace;
-      font-size: 0.75em;
+      font-size: 0.5em;
       margin: 0;
     }
 
-    /* Chat containers */
-    .message {
-      margin: 0.5em 0;
-    }
     /* Received and sent chat container */
     .received {
       border: 1px solid #007780;
-      background-color: #27bae166;
+      background-color: #27bae133;
       margin-left: 0;
       margin-right: auto;
       width: 90%;
     }
     .sent {
       border: 1px solid #005419;
-      background-color: #9cfb6ab3;
+      background-color: #9cfb6a33;
       margin-left: auto;
       margin-right: 0;
       width: 90%;
-    }
-
-    /* Clear floats */
-    .message::after {
-      content: "";
-      clear: both;
-      display: table;
     }
 
     img {

@@ -79,7 +79,8 @@ class WhatsAppAndroid(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('message_group', '')
-        self.set_default_config('media_outdir', os.path.join(self.config.get('ios.common', 'iosdir'), 'whatsapp', self.myconfig('message_group')))
+        self.set_default_config('media_indir', os.path.join(self.myconfig('sourcedir'), 'mnt', 'p01', 'storage', 'self', 'primary'))
+        self.set_default_config('media_outdir', os.path.join(self.myconfig('outputdir'), 'whatsapp', self.myconfig('message_group')))
         self.set_default_config('start_date', '')
         self.set_default_config('end_date', '')
         self.set_default_config('myname', 'ME')
@@ -91,7 +92,6 @@ class WhatsAppAndroid(base.job.BaseModule):
         """
         # Check existance of backup and database
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.backup_dir = path
         self.hashes = None
 
         db_file = os.path.join(os.path.join(path, 'msgstore.db'))
@@ -308,7 +308,7 @@ class WhatsAppAndroid(base.job.BaseModule):
 
         self.hashes = {}
         # Media directory. Depends on Whatsapp version
-        mediafolders = [os.path.join(self.backup_dir, "data/media/0/WhatsApp/Media")]
+        mediafolders = [self.myconfig('media_indir')]
         for mediafolder in mediafolders:
             for folder, subfolder, files in os.walk(mediafolder):
                 for file in files:
