@@ -39,7 +39,7 @@ class BaseSink(base.job.BaseModule):
         Save a list into a CSV file::
 
             m = base.job.load_module(
-                base.config.Config(), 'base.output.CSVSink',
+                base.config.default_config, 'base.output.CSVSink',
                 extra_config=dict(outfile='outfile.csv')
                 from_module=[
                     dict(greeting='Hello', language='English'),

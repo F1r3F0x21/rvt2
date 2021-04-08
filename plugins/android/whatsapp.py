@@ -48,6 +48,8 @@ class WhatsAppAndroid(base.job.BaseModule):
         message_group: If set, output only messages in this message group
         start_date: If set, output only messages from this date
         end_date: If set, output only messages until this date
+        path: Path to the "databases" directory. This directory is '/data/data/com.whatsapp/databases' on a real phone. This directory MUST include msgstore.db and wa.db
+        myname: The name to use for "me", "myself"
     """
 
     type_switcher = {
@@ -77,26 +79,27 @@ class WhatsAppAndroid(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('message_group', '')
-        self.set_default_config('media_outdir', os.path.join(self.config.get('ios.common', 'iosdir'), 'whatsapp', self.myconfig('message_group')))
+        self.set_default_config('media_indir', os.path.join(self.myconfig('sourcedir'), 'mnt', 'p01', 'storage', 'self', 'primary'))
+        self.set_default_config('media_outdir', os.path.join(self.myconfig('outputdir'), 'whatsapp', self.myconfig('message_group')))
         self.set_default_config('start_date', '')
         self.set_default_config('end_date', '')
+        self.set_default_config('myname', 'ME')
 
-    def run(self, path):
+    def run(self, path=None):
         """
         Parameters:
-            path (str): Path to an unbacked backup
+            path (str): Path to the "databases" directory. This directory is '/data/data/com.whatsapp/databases' on a real phone. This directory MUST include msgstore.db and wa.db
         """
         # Check existance of backup and database
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.backup_dir = path
         self.hashes = None
 
-        db_file = os.path.join(os.path.join(path, 'data/com.whatsapp/databases/msgstore.db'))
+        db_file = os.path.join(os.path.join(path, 'msgstore.db'))
         if not base.utils.check_file(db_file):
             self.logger().warning("The file %s do not exists", db_file)
             return []
 
-        contacts_db = os.path.join(os.path.join(path, 'data/com.whatsapp/databases/wa.db'))
+        contacts_db = os.path.join(os.path.join(path, 'wa.db'))
         self.contacts = get_contacts(contacts_db)
 
         self.message_group = self.myconfig('message_group', '')
@@ -123,7 +126,7 @@ class WhatsAppAndroid(base.job.BaseModule):
             Returns a cursor object
         """
 
-        # Create custom view from tables ZWAMESSAGE, ZWAMESSAGEINFO, ZWACHATSESSION and ZWAMEDIAITEM
+        # Create custom view from table messages, message_thumbnails
         view_query = ''' CREATE TEMPORARY VIEW composite AS
                         SELECT
                             messages.key_id,
@@ -159,7 +162,7 @@ class WhatsAppAndroid(base.job.BaseModule):
         return cursor
 
     def filter_query(self, query):
-        """ Filter by dates and group """
+        """ Filter by dates and group, if these paramters are provided """
         # Dates filter
         dates = {'start_date': '', 'end_date': ''}
         for limit_date in dates:
@@ -201,16 +204,18 @@ class WhatsAppAndroid(base.job.BaseModule):
         phone, ext = line[2].split('@')
         group_id = line[2]
 
+        ME = self.myconfig('myname', default='ME')
+
         if ext == 'whatsapp.net':
             dest = self.contacts.get(line[2], phone)
-            origin, destination = ('ME', dest) if from_me else (dest, 'ME')
+            origin, destination = (ME, dest) if from_me else (dest, ME)
         elif ext == 'g.us':
             creator = phone.split('-')[0]   # TODO: convert creator into group_id
             group_name = self.contacts.get(line[2], creator)
-            origin, destination = ('ME', group_name) if from_me else (self.contacts.get(line[3], line[3].split('@')[0]), 'ME')
+            origin, destination = (ME, group_name) if from_me else (self.contacts.get(line[3], line[3].split('@')[0]), ME)
             phone = line[3].split('@')[0] if line[3] else ''
         else:
-            origin, destination = ('ME', group_id) if from_me else (group_id, 'ME')
+            origin, destination = (ME, group_id) if from_me else (group_id, ME)
 
         # Dates
         date_sent = line[5] if from_me else ''
@@ -303,7 +308,7 @@ class WhatsAppAndroid(base.job.BaseModule):
 
         self.hashes = {}
         # Media directory. Depends on Whatsapp version
-        mediafolders = [os.path.join(self.backup_dir, "data/media/0/WhatsApp/Media")]
+        mediafolders = [self.myconfig('media_indir')]
         for mediafolder in mediafolders:
             for folder, subfolder, files in os.walk(mediafolder):
                 for file in files:
@@ -315,15 +320,19 @@ class WhatsAppAndroid(base.job.BaseModule):
         return self.hashes
 
 
-class WhatsAppChatSessionsAndroid(base.job.BaseModule):
-    """ Returns all the available chat identifiers in a whatsapp database.
+class ListChatSessions(base.job.BaseModule):
+    """ Returns all the available chat identifiers in a whatsapp database, using message_group field
 
     The returned dictionary have a field mesage_group.
     """
 
     def run(self, path=None):
+        """
+        Parameters:
+            path (str): Path to the "databases" directory. This directory is '/data/data/com.whatsapp/databases' on a real phone. This directory MUST include msgstore.db and wa.db
+        """
         self.check_params(path, check_path=True, check_path_exists=True)
-        msgdb_file = os.path.join(os.path.join(path, 'data/com.whatsapp/databases/msgstore.db'))
+        msgdb_file = os.path.join(os.path.join(path, 'msgstore.db'))
         if not base.utils.check_file(msgdb_file):
             self.logger().warning("The file %s do not exists", msgdb_file)
             return []
@@ -334,3 +343,27 @@ class WhatsAppChatSessionsAndroid(base.job.BaseModule):
         for line in c.execute('SELECT DISTINCT key_remote_jid FROM messages WHERE received_timestamp != "-1"'):
             yield(dict(message_group=line[0]))
         return []
+
+
+class AllChatsToCsv(base.job.BaseModule):
+    """ Convert all chats in a WA database, using android.whatsapp.csv """
+    def run(self, path=None):
+        from tqdm import tqdm
+        from collections import deque
+        ids = list(ListChatSessions(self.config).run(path=path))
+        for data in tqdm(ids, total=len(ids), desc='Converting WA chats to CSV', disable=self.myflag('progress.disable')):
+            deque(base.job.run_job(self.config, 'android.whatsapp.csv', path=path, extra_config={
+                'message_group': data['message_group'],
+                'outfile': f'{self.myconfig("outputdir")}/whatsapp/{data["message_group"]}/whatsapp.csv'}))
+            yield data
+
+
+class AllChatsToHtml(base.job.BaseModule):
+    """ Convert all chats in a WA database, using android.whatsapp.html """
+    def run(self, path=None):
+        from tqdm import tqdm
+        from collections import deque
+        ids = list(ListChatSessions(self.config).run(path=path))
+        for data in tqdm(ids, total=len(ids), desc='Converting WA chats to HTML', disable=self.myflag('progress.disable')):
+            deque(base.job.run_job(self.config, 'android.whatsapp.html', path=path, extra_config={'message_group': data['message_group'], 'progress.disable': True}))
+            yield data

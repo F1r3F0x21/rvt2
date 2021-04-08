@@ -28,7 +28,7 @@ import shlex
 import collections
 import time
 import datetime
-from base.config import parse_conf_array
+from base.config import parse_conf_array, default_config
 
 
 def parse_modules_name(input_name, default='True'):
@@ -332,19 +332,22 @@ class BaseModule(object):
         - **logger_name**: The name of the logger to use.
 
     Parameters:
-        config (base.config.Config): Global configuration for the application.
+        config (base.config.Config): Global configuration for the application. If None, use config.default_config
         section (str): the name of the configuration section for this module in the global configuration object.. If None, use the classname.
         local_config (dict): local configuration for this module. This configuration overrides the values in the section in the global configuration.
         from_module (base.job.BaseModule): If in a chain, the next module in the chain, or None.
     """
 
-    def __init__(self, config, section=None, local_config=None, from_module=None):
+    def __init__(self, config=None, section=None, local_config=None, from_module=None):
         if section is None:
             # TODO: I think this is just self.__name__ in Python >=3.6
             self.section = self.__module__ + '.' + self.__class__.__name__
         else:
             self.section = section
-        self.config = config
+        if config is None:
+            self.config = default_config
+        else:
+            self.config = config
         if local_config is None:
             self.local_config = dict()
         else:
@@ -393,7 +396,7 @@ class BaseModule(object):
         return default
 
     def options(self):
-        """ Return a dictionary with the available options to this job """
+        """ Return a dictionary with the options available to this job """
         my_options = set()
         if hasattr(self, 'config'):
             my_options.update(self.config.options(self.section))

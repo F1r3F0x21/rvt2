@@ -337,7 +337,9 @@ class Config:
 
     def options(self, section):
         """ Return the options in a section """
-        return self.config.options(section)
+        if self.has_section(section):
+            return self.config.options(section)
+        return []
 
     def set(self, section, option, value):
         """ Add a configuration to a section. If the section does not exists, add it. """
@@ -468,3 +470,6 @@ class TelegramHandler(logging.Handler):
                     requests.get('https://api.telegram.org/bot{}/sendMessage'.format(self.token), data=dict(chat_id=chatid, text=msg))
                 except Exception:
                     pass
+
+
+default_config = Config()
