@@ -159,7 +159,7 @@ class LogonRDP(base.job.BaseModule):
         for eventlist in logID.values():
             logon = '-'
             ip = '-'
-            ln = len(eventlist)
+            # ln = len(eventlist)
             for e, v in enumerate(eventlist):
                 if v['LogonType'] in ("3", "4", "5"):
                     continue
@@ -171,7 +171,7 @@ class LogonRDP(base.job.BaseModule):
                 if v['EventID'] == '4624':
                     logon = v['TimeCreated']
                     ip = v['source.ip']
-                if e == ln:
+                # if e == ln:
                     results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser']})
 
         save_md_table(results, config=None,
@@ -406,7 +406,7 @@ class Poweron(base.job.BaseModule):
         for ev in events:
             if ev['EventID'] == '1':
                 if not inpower:
-                    results.append([act.get('t0', '-'), 'Resume from sleep', act['t1']])
+                    results.append([act.get('t0', '-'), 'Resume from sleep', act.get('t1', '-')])
                 inpower = True
                 act['t0'] = ev['TimeCreated']
                 act['d0'] = 'Sleep'
@@ -418,7 +418,7 @@ class Poweron(base.job.BaseModule):
                 inpower = False
                 act['t1'] = ev['TimeCreated']
                 act['d1'] = 'Shutdown'
-                results.append([act.get('t0', '-'), 'Shut down', act['t1']])
+                results.append([act.get('t0', '-'), 'Shut down', act.get('t1', '-')])
             elif ev['EventID'] == '41':
                 if not inpower:
                     results.append([act.get('t0', '-'), 'Unexpected shutdown', '-'])
@@ -426,7 +426,7 @@ class Poweron(base.job.BaseModule):
                 act['t0'] = ev['TimeCreated']
                 act['d0'] = 'Unexpected reboot'
             elif ev['EventID'] == '42':
-                results.append([act.get('t0', '-'), 'Sleeping', act['t1']])
+                results.append([act.get('t0', '-'), 'Sleeping', act.get('t1', '-')])
                 inpower = False
                 act['t1'] = ev['TimeCreated']
                 act['d1'] = 'Sleeping'
@@ -448,8 +448,9 @@ class Network(base.job.BaseModule):
         net_up = []
         net_down = []
 
+        selected_fields = {"event.created": "Created", "event.code": "Code", "data.SSID": "SSID", "data.BSSID": "BSSID", "data.ConnectionId": "ConnectionId", "data.ProfileName": "ProfileName", "data.PHYType": "PHYType", "data.AuthenticationAlgorithm": "AuthenticationAlgorithm", "data.Reason": "Reason"}
         for event in self.from_module.run(path):
-            yield event
+            yield {field2: event.get(field, '-') for field, field2 in selected_fields.items()}
 
             if event["event.code"] == "8003":
                 net_down.append(event)
@@ -462,11 +463,11 @@ class Network(base.job.BaseModule):
             flag = True
             for ev in net_down:
                 if ev['data.ConnectionId'] == e['data.ConnectionId'] and ev['event.created'] > e['event.created']:
-                    results.append({'WirelessUp': e['event.created'], 'WirelessDown': ev['event.created'], 'SSID': e['data.SSID'], 'MAC': e['data.BSSID'], 'Reason': ev['data.Reason']})
+                    results.append({'WirelessUp': e['event.created'], 'WirelessDown': ev['event.created'], 'SSID': e.get('data.SSID', '-'), 'MAC': e.get('data.BSSID', '-'), 'Reason': ev.get('data.Reason', '-')})
                     flag = False
                     break
             if flag:
-                results.append({'WirelessUp': e['event.created'], 'WirelessDown': '', 'SSID': e['data.SSID'], 'MAC': e['data.BSSID'], 'Reason': ''})
+                results.append({'WirelessUp': e['event.created'], 'WirelessDown': '', 'SSID': e.get('data.SSID', '-'), 'MAC': e.get('data.BSSID', '-'), 'Reason': ''})
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'network.md'),
                       fieldnames='WirelessUp WirelessDown SSID MAC Reason',
