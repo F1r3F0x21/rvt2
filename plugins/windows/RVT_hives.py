@@ -19,6 +19,7 @@ import datetime
 import dateutil.parser
 import shlex
 import shutil
+import codecs
 from collections import OrderedDict
 from Registry import Registry
 from Registry.RegistryParse import parse_windows_timestamp as _parse_windows_timestamp
@@ -558,6 +559,7 @@ class UserAssistAnalysis(base.job.BaseModule):
         check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
 
         save_csv(self.report_userassist(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+        save_csv(self.report_userassist2(path), config=self.config, outfile=outfile[:-4] + '2.csv', file_exists='OVERWRITE', quoting=0, encoding='utf-8')
 
         return []
 
@@ -576,6 +578,28 @@ class UserAssistAnalysis(base.job.BaseModule):
                                              path=os.path.join(path, file),
                                              extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
                     res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                    res.update({'User': user, 'Partition': partition})
+                    yield res
+
+    def report_userassist2(self, path):
+        """ Create a unique userassist csv for all users. Based on raw output """
+
+        # Files are ROT13 encoded
+        rot13 = lambda s: codecs.getencoder("rot-13")(s)[0]
+        fields = ["LastWriteTimestamp", "ValueName"]
+
+        for file in sorted(os.listdir(path)):
+            if file.startswith('userassist'):
+                # Expected file format: `userassist_partition_user.csv`
+                user = '.'.join('_'.join(file.split('_')[2:]).split('.')[:-1])
+                partition = file[11:-(len(user) + 5)]
+                for line in base.job.run_job(self.config,
+                                             'base.input.CSVReader',
+                                             path=os.path.join(path, file),
+                                             extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
+                    res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                    res["LastWriteTimestamp"] = res["LastWriteTimestamp"].split('.')[0]
+                    res['ValueName'] = rot13(res['ValueName'])
                     res.update({'User': user, 'Partition': partition})
                     yield res
 

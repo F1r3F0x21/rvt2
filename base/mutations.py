@@ -146,6 +146,7 @@ class CommonFields(base.job.BaseModule):
         if self.myflag('disabled'):
             for data in self.from_module.run(path):
                 yield data
+            return []
         for data in self.from_module.run(path):
             newdata = self._common_fields(data.get('path', path))
             # fields already in data take precedence
