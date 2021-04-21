@@ -18,6 +18,7 @@ import os
 import ast
 import datetime
 import dateutil.parser
+from collections import defaultdict
 
 import base.job
 from base.utils import save_md_table
@@ -57,6 +58,8 @@ class LogonRDP(base.job.BaseModule):
             ev['SessionID'] = event.get('data.SessionID', '')
             ev['ConnType'] = event.get('data.ConnType', '')
             ev['LogonType'] = event.get('data.LogonType', '')
+            ev['LogonTypeStr'] = event.get('data.LogonTypeStr', '')
+            ev['source.port'] = event.get('source.port', '')
             ev['ProcessName'] = event.get('process.name', '')
             ev['Logon.ProcessName'] = event.get('data.LogonProcessName', '')
             ev['AuthenticationPackageName'] = event.get('data.AuthenticationPackageName', '')
@@ -119,6 +122,7 @@ class LogonRDP(base.job.BaseModule):
             yield ev
         self.extractRDP(actID)
         self.extractLogon(logID)
+        self.extractLogonNetwork(logID)
 
     def __difTimestamp__(self, d1, d0):
         """ get seconds between dates in ISO format
@@ -177,6 +181,35 @@ class LogonRDP(base.job.BaseModule):
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logon_offs.md'),
                       fieldnames='Login IP Logoff User',
+                      file_exists='OVERWRITE')
+
+    def extractLogonNetwork(self, logID):
+
+        results = []
+        event_types = {'4624': 'Login', '4634': 'Logoff'}
+        logons = defaultdict(dict)
+        for eventlist in logID.values():
+            for e, v in enumerate(eventlist):
+                if v['EventID'] not in ["4624", "4634"]:
+                    continue
+                if not v['LogonType'] == "3":
+                    continue
+                logon_id = v['LogonID']
+                event_type = event_types[v['EventID']]
+                logons[logon_id][event_type] = v['TimeCreated']
+                logons[logon_id]['User'] = v['TargetUser']
+                logons[logon_id]['LogonType'] = v['LogonTypeStr']
+                if event_type == 'Login':
+                    logons[logon_id]['SourceIP'] = v.get('source.ip')
+                    logons[logon_id]['SourcePort'] = v.get('source.port')
+
+        results = [logon for logon in logons.values()]
+
+        save_md_table(results, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_network.md'),
+                      fieldnames='Login Logoff User SourceIP SourcePort LogonType',
+                      backticks_fields='User',
+                      # date_fields='Login Logoff',
                       file_exists='OVERWRITE')
 
     def extractRDP(self, actID):
