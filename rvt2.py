@@ -292,7 +292,7 @@ def main(params=sys.argv[1:]):
     jobstarted = datetime.datetime.now()
     registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'start')
     try:
-        for results in base.job.run_job(config, args.job, args.paths, extra_config=args.params):
+        for results in base.job.run_job(config, args.job, args.paths, extra_config=args.params, nested_logs=1):
             if args.print:
                 print(json.dumps(results))
         registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'end', (datetime.datetime.now() - jobstarted) / 3600)

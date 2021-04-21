@@ -145,7 +145,6 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
         results = run_single_job(config, job_name_with_params, default_path=path, extra_config=myconfig, from_module=from_module, log_execution=(nested_logs > 0))
         # return the resulting generatos
         if results is None:
-            logging.warning('Job job=%s returned None instead of generator. You probably want to change this.', job_name)
             return list()
         return results
     else:
@@ -156,8 +155,6 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
                 # run the generator without caring about the results.
                 # Check: https://stackoverflow.com/questions/47456631/simpler-way-to-run-a-generator-function-without-caring-about-items
                 collections.deque(results, maxlen=0)
-            else:
-                logging.info('Job job=%s returned None instead of generator. You probably want to change this.', job)
         return list()
 
 
@@ -225,7 +222,6 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
             # notice we manage exceptions, and then we cannot return the generator: it must be run by us
             results = mymodule.run(abspath)
             if results is None:
-                logging.warning('Job job=%s returned None instead of generator. You probably want to change this.', job_name)
                 return []
             for data in results:
                 yield data
