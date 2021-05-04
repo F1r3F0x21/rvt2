@@ -20,3 +20,6 @@
 	path = plugins/external/analyzeMFT
 	url = https://github.com/dkovar/analyzeMFT.git
 	
+[submodule "plugins/external/KStrike"]
+	path = plugins/external/KStrike
+	url = https://github.com/brimorlabs/KStrike
