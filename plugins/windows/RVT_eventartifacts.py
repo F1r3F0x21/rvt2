@@ -199,6 +199,7 @@ class LogonRDP(base.job.BaseModule):
                 logons[logon_id][event_type] = v['TimeCreated']
                 logons[logon_id]['User'] = v['TargetUser']
                 logons[logon_id]['LogonType'] = v['LogonTypeStr']
+                logons[logon_id]['ProcessName'] = v['Logon.ProcessName']
                 if event_type == 'Login':
                     logons[logon_id]['SourceIP'] = v.get('source.ip')
                     logons[logon_id]['SourcePort'] = v.get('source.port')
@@ -207,7 +208,7 @@ class LogonRDP(base.job.BaseModule):
 
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_network.md'),
-                      fieldnames='Login Logoff User SourceIP SourcePort LogonType',
+                      fieldnames='Login Logoff User SourceIP SourcePort LogonType ProcessName',
                       backticks_fields='User',
                       # date_fields='Login Logoff',
                       file_exists='OVERWRITE')

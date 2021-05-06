@@ -21,6 +21,7 @@ from collections import defaultdict
 import base.job
 from base.utils import check_directory, check_file
 from plugins.common.RVT_files import GetTimeline
+from plugins.windows.windows_tz import win_tz
 
 # TODO: Obtain last login from events instead of registry
 
@@ -329,3 +330,21 @@ class CharacterizeWindows(base.job.BaseModule):
         return {'Name': product, 'SubVersion': '', 'Version': version,
                 'BuildNumber': build, 'PublicRelease': '', 'RTMRelease': '',
                 'ProcessorArchitecture': architecture}
+
+    def get_timezone(self, partition='p01'):
+        """ Return tuple (tzinfo name, offset) reading computer timezone in registry"""
+
+        raw_tz = self.get_information("TimeZone", partition)
+        try:
+            # Get the tzdata/Olsen timezone names
+            name = re.search(r"(.*) \(", raw_tz)
+            tzdata_name = win_tz.get(name.groups()[0].strip(), 'UTC')
+            # Get the current bias as an integer (this number is season depending)
+            bias = re.search(r"\((-?\d+) hours\)", raw_tz)
+            bias = int(bias.groups()[0])
+        except Exception:
+            self.logger().debug('Unable to parse timezone from registry. Setting UTC.')
+            tzdata_name = 'UTC'
+            bias = 0
+
+        return (tzdata_name, bias)

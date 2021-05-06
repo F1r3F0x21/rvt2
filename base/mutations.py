@@ -27,10 +27,13 @@ import dateutil.parser
 import datetime
 import os
 import ast
+import pytz
+from textwrap import wrap
+from plugins.windows.RVT_os_info import CharacterizeWindows
 
 
 class DateFields(base.job.BaseModule):
-    """ Converts some fields into ISO date strings.
+    """ Converts or creates some fields into ISO date strings.
 
     Fields might be:
 
@@ -46,37 +49,50 @@ class DateFields(base.job.BaseModule):
 
     Configuration:
         - **fields**: A space separated list of fields to check to convert
+        - **new_fields**: A space separated list of new fields to create. If not set, original fields will be converted. If `fields` is set, must have the same number of items as `new_fields`
         - **sep**: Parameter used by datetime.isoformat. One-character separator, placed between the date and time portions of the result
         - **timespec**: Parameter used by datetime.isoformat. Specifies the number of additional components of the time to include
-        - **ignore_tz**: If True, do not include a timezone offset with the result
+        - **tz_name**: tzdata/Olsen timezone name to set for the dates. Examples: `Europe/Berlin`, `America/New_York`, `UTC`. If `local` is set, timezone will be searched on the registry
+        - **hide_tz**: If True, do not output a timezone offset with the result
     """
     def read_config(self):
         super().read_config()
         self.set_default_config('fields', 'date_creation')
+        self.set_default_config('new_fields', '')
         self.set_default_config('sep', 'T')
         self.set_default_config('timespec', 'auto')
-        self.set_default_config('timespec', 'auto')
-        self.set_default_config('ignore_tz', False)
+        self.set_default_config('tz_name', 'UTC')
+        self.set_default_config('hide_tz', False)
 
     def run(self, path=None):
         """ The path will be passed to the mandatory from_module """
         self.check_params(path, check_from_module=True)
         sep = self.myconfig('sep')
         timespec = self.myconfig('timespec')
-        ignore_tz = self.myflag('ignore_tz')
+        hide_tz = self.myflag('hide_tz')
         fields = self.myarray('fields')
+        new_fields = self.myarray('new_fields')
+        tz_name = self.myconfig('tz_name')
+
+        if new_fields and len(new_fields) != len(fields):
+            raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
+
+        if tz_name.lower() == 'local':
+            tz_name, offset = CharacterizeWindows(config=self.config).get_timezone()  # partition ???
 
         for data in self.from_module.run(path):
-            for field in fields:
+            for i, field in enumerate(fields):
                 if field in data:
-                    converted_date = self.__convert_date(data[field], sep=sep, timespec=timespec, ignore_tz=ignore_tz)
-                    if converted_date:
+                    converted_date = self.__convert_date(data[field], sep=sep, timespec=timespec, tz_name=tz_name, hide_tz=hide_tz)
+                    if converted_date and not new_fields:
                         data[field] = converted_date
+                    elif converted_date and new_fields:
+                        data[new_fields[i]] = converted_date
                     else:
                         data.pop(field)
             yield data
 
-    def __convert_date(self, source, sep='T', timespec='auto', ignore_tz=False):
+    def __convert_date(self, source, sep='T', timespec='auto', tz_name='UTC', hide_tz=False):
         try:
             if type(source) == int:
                 # convert an integer to a date
@@ -88,8 +104,14 @@ class DateFields(base.job.BaseModule):
                 # default: use dateutil
                 dt = dateutil.parser.parse(source)
 
-            # Convert to isoformat and replace timezone if ignore_tz is set
-            return dt.replace(tzinfo=dt.tzinfo if not ignore_tz else None).isoformat(sep=sep, timespec=timespec)
+            # Assume input date is in UTC when no tzinfo is set:
+            if not dt.tzinfo:
+                dt = dt.replace(tzinfo=pytz.utc)
+            tz = pytz.timezone(tz_name)
+            # Convert the datetime to the specified timezone
+            dt = dt.astimezone(tz)
+            # Display in isoformat
+            return dt.replace(tzinfo=dt.tzinfo if not hide_tz else None).isoformat(sep=sep, timespec=timespec)
 
         except Exception:
             if self.myflag('stop_on_error'):
@@ -336,3 +358,82 @@ class GetFields(base.job.BaseModule):
 
         for data in self.from_module.run(path):
             yield {k: data.get(k, '') for k in fields}
+
+
+class SortResults(base.job.BaseModule):
+    """ Sort the data from from_module, and yields results again.
+    Take note that this operation loses some benefits of using generators,
+    since sort operation must know all the items and the generator is consumed
+
+    Warning: Sorting is not safe when sorting keys values are not strings
+
+    Configuration:
+        - **fields**: Space separated keys to sort by
+        - **reverse**: Sort order
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('fields', '')
+        self.set_default_config('reverse', False)
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+        fields = self.myarray('fields')
+        reverse = self.myflag('reverse')
+
+        if not fields:
+            yield from self.from_module.run(path)
+        else:
+            yield from sorted(self.from_module.run(path), key=safe_string_itemgetter(*fields), reverse=reverse)
+
+
+class SpaceText(base.job.BaseModule):
+    """ Add spaces to text field every `steps` characters, so it is easy to read
+
+    Configuration:
+        - **fields**: Space separated keys to clean the hash
+        - **steps**: Number of caharacters per chunck. If there is only one, it will be used for all fields. Otherwise, the number of items must be the same as fields to convert
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('fields', '')
+        self.set_default_config('steps', '20')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+        fields = self.myarray('fields')
+
+        if not fields:
+            yield from self.from_module.run(path)
+            return []
+
+        steps = self.myarray('steps')
+        try:
+            steps = [int(step) for step in steps]
+        except ValueError:
+            raise base.job.RVTError('`steps` must contain integers. Steps: {}'.format(steps))
+        if len(steps) == 1:
+            steps = [steps[0]] * len(fields)
+        if len(fields) != len(steps):
+            raise base.job.RVTError('`fields` and `steps` must have the same number of items. Fields: {}; Steps: {}'.format(fields, steps))
+
+        for data in self.from_module.run(path):
+            for i, field in enumerate(fields):
+                if field in data:
+                    data[field] = ' '.join(wrap(data[field], steps[i]))
+            yield data
+
+
+def safe_string_itemgetter(*items):
+    """ Variation from operator itemgetter that helps to sort missing keys at first place"""
+    if len(items) == 1:
+        item = items[0]
+
+        def g(obj):
+            return obj.get(item, '')
+    else:
+        def g(obj):
+            return tuple(obj.get(item, '') for item in items)
+    return g
