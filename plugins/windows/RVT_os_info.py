@@ -263,7 +263,7 @@ class CharacterizeWindows(base.job.BaseModule):
                 self.logger().warning('Found extra user hive at {}. Consider analyzing this file separately'.format(filename))
                 continue
 
-            ntusers[part].append([user, dates['b']])
+            ntusers[part].append([user, datetime.datetime.strptime(dates['b'], "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d %H:%M:%S")])
 
         self.ntusers = ntusers
 

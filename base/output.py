@@ -236,6 +236,7 @@ class MDTableSink(BaseSink):
         - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. Mandatory parameter. Values are sepparated using spaces or new lines.
         - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct md visualization. Values are sepparated using spaces or new lines.
         - **first_line** (str): Write a first line before headers
+        - **empty_str** (str): String to fill empty fields with
     """
 
     def read_config(self):
@@ -244,6 +245,7 @@ class MDTableSink(BaseSink):
         self.set_default_config('backticks_fields', '')
         self.set_default_config('file_exists', 'APPEND')
         self.set_default_config('first_line', '')
+        self.set_default_config('empty_str', '-')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
@@ -251,6 +253,7 @@ class MDTableSink(BaseSink):
 
         fields = self.myarray('fieldnames')
         backticks_fields = self.myarray('backticks_fields')
+        empty_str = self.myconfig('empty_str')
         act = {field: '' for field in fields}
 
         first_line = self.myconfig('first_line')
@@ -277,7 +280,7 @@ class MDTableSink(BaseSink):
                     act[fld] = fileinfo.get(fld, '')
                 if repeated:
                     continue
-                outputfile.write("|".join([fileinfo.get(field, '') for field in fields]))
+                outputfile.write("|".join([fileinfo.get(field, empty_str) for field in fields]))
                 outputfile.write("\n")
                 yield fileinfo
             except TypeError as exc:

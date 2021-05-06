@@ -28,6 +28,7 @@ ${subtitle}# OS Information
 
 ${subtitle}# Users
 
+[[[inlinetable(Users,m{5cm}m{4cm}m{4cm})]]]
 User|Creation date (UTC)|Last login/logoff (UTC)
 --|--|--
 % for u, user_data in os_info[p].get("users", {}).items():
@@ -35,6 +36,8 @@ ${u}|${user_data['creation_time']}|${user_data['last_write']}
 % endfor
 
 ${subtitle}# User profiles
+
+[[[inlinetable(User Profiles,m{4cm}m{2.2cm}m{2.2cm}m{4cm})]]]
 User|Creation date (UTC)|Last login/logoff (UTC)|SID
 --|--|--|--
 % for u, user_data in os_info[p].get("user_profiles", {}).items():

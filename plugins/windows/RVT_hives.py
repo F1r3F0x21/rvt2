@@ -598,12 +598,10 @@ class UserAssistAnalysis(base.job.BaseModule):
                                              path=os.path.join(path, file),
                                              extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
                     res = OrderedDict([(field, line.get(field, '')) for field in fields])
-                    res["LastWrite"] = res["LastWriteTimestamp"].split('.')[0]
-                    res.pop("LastWriteTimestamp")
-                    res['Value'] = rot13(res['ValueName'])
-                    if not res['ValueName']:
+                    res["LastWrite"] = res.pop("LastWriteTimestamp").split('.')[0]
+                    res['Value'] = rot13(res.pop("ValueName"))
+                    if not res['Value']:
                         continue
-                    res.pop("ValueName")
                     res.update({'User': user, 'Partition': partition})
                     yield res
 

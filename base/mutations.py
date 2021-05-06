@@ -360,6 +360,41 @@ class GetFields(base.job.BaseModule):
             yield {k: data.get(k, '') for k in fields}
 
 
+class RenameFields(base.job.BaseModule):
+    """ Rename the specified field names with the provided new names.
+
+    Module description:
+        - **path**: not used, passed to *from_module*.
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+
+    Configuration:
+        - **fileds**: Space separated key names to be renamed
+        - **new_fields**: Space separated new key names
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('section', 'DEFAULT')
+        self.set_default_config('fields', '')
+        self.set_default_config('new_fields', '')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+        fields = self.myarray('fields')
+        new_fields = self.myarray('new_fields')
+
+        if not fields:
+            yield from self.from_module.run(path)
+
+        if len(fields) != len(new_fields):
+            raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
+
+        repl = dict(zip(fields, new_fields))
+        for data in self.from_module.run(path):
+            yield {repl.get(k, k): data[k] for k in data}
+
+
 class SortResults(base.job.BaseModule):
     """ Sort the data from from_module, and yields results again.
     Take note that this operation loses some benefits of using generators,
