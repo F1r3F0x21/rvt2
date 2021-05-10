@@ -561,7 +561,7 @@ class LnkExtractAnalysis(base.job.BaseModule):
             user = file[len(partition) + 1:-len(file_types[t])]
             for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
                 res = OrderedDict([(h, line.get(transform_name[t].get(h, h), '')) for h in headers])
-                res.update({'artifact': t, 'user': user})
+                res.update({'artifact': t, 'user': user, 'partition': partition})
                 yield res
 
 

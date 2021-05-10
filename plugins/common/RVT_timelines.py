@@ -14,6 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
+import glob
+import fileinput
 import shlex
 import re
 from plugins.common.RVT_disk import getSourceImage
@@ -174,7 +176,10 @@ class MFTTimeline(BaseTimeline):
         tl_dir = self.myconfig('outdir')
         check_directory(tl_dir, create=True)
 
-        body_filename = "{}_BODY.csv".format(self.myconfig('source'))
+        # Create a volume specific body file to avoid overriding other partitions
+        main_body_filename = "{}_BODY.csv".format(self.myconfig('source'))
+        body_filename = "{}_BODY_{}.csv".format(self.myconfig('source'), self.myconfig('volume_id'))
+        body_filename_pattern = '{}_BODY_*.csv'.format(self.myconfig('source'))
 
         # WARNING: Use cmd with caution. Anything can be executed
         cmd = self.myconfig('cmd')
@@ -189,7 +194,8 @@ class MFTTimeline(BaseTimeline):
         self.logger().debug('Running command: {}'.format(str(cmd_args)))
         self.generate_body(cmd_args)
         self.preceding_path(tl_dir, body_filename, substitution)
-        self.timeline_from_body(tl_dir, body_filename, self.myflag('summary'), self.myconfig('time_range'))
+        self.merge_timelines(tl_dir, body_filename_pattern, main_body_filename)
+        self.timeline_from_body(tl_dir, main_body_filename, self.myflag('summary'), self.myconfig('time_range'))
         return []
 
     def generate_body(self, cmd_args):
@@ -202,3 +208,19 @@ class MFTTimeline(BaseTimeline):
         volume_id = self.myconfig('volume_id')
         cmd = r"sed -i 's@\(\d*|\){}\(.*\)@\1{}/mnt/{}\2@g' {}".format(substitution, self.myconfig('source'), volume_id, os.path.join(tl_dir, body_filename))
         run_command(cmd)
+
+    def merge_timelines(self, tl_dir, body_pattern, main_body_filename):
+        """ Merge all body files into a single one.
+
+        This type of output, where all partitions converge in a single file,
+        ressembles sleuthkit timeline for a disk image. Then all timelines generated,
+        regardless how they are created, follow the same pattern.
+        """
+        main_body = os.path.join(tl_dir, main_body_filename)
+        cmd = r"cat {} > {}".format(os.path.join(tl_dir, body_pattern), main_body)
+        run_command(cmd)
+        # body_files = glob.glob(os.path.join(tl_dir, body_pattern))
+        # with open(main_body, "w") as fout, fileinput.input(body_files) as fin:
+        #     for line in fin:
+        #         fout.write(line)
+
