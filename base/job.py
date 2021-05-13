@@ -159,7 +159,12 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
 
 
 def get_path_array(job_name, myparams, extra_config, default_path, config):
-    """ get path array from 1. myparams (job_with params); 2. extra_config; 3. parameter 4. config """
+    """ Get path parameter as an array from the following options and precedence:
+        1. myparams (job_with params)
+        2. extra_config
+        3. parameter
+        4. config
+    """
     path = myparams.get('path', None)
     if not path and extra_config:
         path = parse_conf_array(extra_config.get('path', None))
