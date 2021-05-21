@@ -1,0 +1,66 @@
+{
+  "1013": {
+    "description": "The antimalware platform deleted history of malware and other potentially unwanted software.",
+    "provider": "Microsoft-Windows-Windows Defender",
+    "path": {
+      "EventData":{
+        "Name": ["Product Name", "Product Version", "Timestamp", "Domain", "User", "SID"],
+        "transform": {"Product Name": "data.productname", "Product Version": "data.version", "SID": "data.SID"}
+      }
+    }
+  },
+  "1116": {
+    "description": "The antimalware platform detected malware or other potentially unwanted software.",
+    "provider": "Microsoft-Windows-Windows Defender",
+    "path": {
+      "System/Correlation/#attributes":{
+        "Name": ["ActivityID"]},
+      "EventData":{
+        "Name": ["Product Name", "Product Version", "Detection ID", "Detection Time", "Threat ID", "Threat Name", "Severity ID", "Severity Name", "Category ID", "Category Name", "FWLink", "Status Code", "Status Description", "State", "Source ID", "Source Name", "Process Name", "Detection User", "Path", "Origin ID", "Origin Name", "Execution ID", "Execution Name", "Type ID", "Type Name", "Pre Execution Status", "Action ID", "Action Name", "Error Code", "Error Description", "Post Clean Status", "Additional Actions ID", "Additional Actions String", "Remediation User", "Signature Version", "Engine Version"],
+        "transform": {"Product Name": "data.productname", "Product Version": "data.version", "Threat Name": "data.threatname", "Severity Name": "data.severity", "C ategory Name": "data.categoryname", "Status Description": "data.status", "Process Name": "process.name", "Origin Name": "data.origin", "Action Name": "data.action", "Error Description": "data.error"}
+      }
+    }
+  },
+  "1117": {
+    "description": "The antimalware platform performed an action to protect your system from malware or other potentially unwanted software.",
+    "provider": "Microsoft-Windows-Windows Defender",
+    "path": {
+      "System/Correlation/#attributes":{
+        "Name": ["ActivityID"]},
+      "EventData":{
+        "Name": ["Product Name", "Product Version", "Detection ID", "Detection Time", "Threat ID", "Threat Name", "Severity ID", "Severity Name", "Category ID", "Category Name", "FWLink", "Status Code", "Status Description", "State", "Source ID", "Source Name", "Process Name", "Detection User", "Path", "Origin ID", "Origin Name", "Execution ID", "Execution Name", "Type ID", "Type Name", "Pre Execution Status", "Action ID", "Action Name", "Error Code", "Error Description", "Post Clean Status", "Additional Actions ID", "Additional Actions String", "Remediation User", "Signature Version", "Engine Version"],
+        "transform": {"Product Name": "data.productname", "Product Version": "data.version", "Threat Name": "data.threatname", "Severity Name": "data.severity", "C ategory Name": "data.categoryname", "Status Description": "data.status", "Process Name": "process.name", "Origin Name": "data.origin", "Action Name": "data.action", "Error Description": "data.error"}
+      }
+    }
+  },
+  "5000": {
+    "description": "Real-time protection is enabled.",
+    "provider": "Microsoft-Windows-Windows Defender",
+    "path": {
+      "EventData":{
+        "Name": ["Product Name", "Product Version"],
+        "transform": {"Product Name": "data.productname", "Product Version": "data.version"}
+      }
+    }
+  },
+  "5001": {
+    "description": "Real-time protection is disabled.",
+    "provider": "Microsoft-Windows-Windows Defender",
+    "path": {
+      "EventData":{
+        "Name": ["Product Name", "Product Version"],
+        "transform": {"Product Name": "data.productname", "Product Version": "data.version"}
+      }
+    }
+  },
+  "5007": {
+    "description": "The antimalware platform configuration changed.",
+    "provider": "Microsoft-Windows-Windows Defender",
+    "path": {
+      "EventData":{
+        "Name": ["Product Name", "Product Version", "Old Value", "New Value"],
+        "transform": {"Product Name": "data.productname", "Product Version": "data.version", "Old Value": "data.oldvalue", "New Value": "data.newvalue"}
+      }
+    }
+  }
+}
