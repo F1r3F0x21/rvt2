@@ -331,14 +331,16 @@ class ListChatSessions(base.job.BaseModule):
         Parameters:
             path (str): Path to the "databases" directory. This directory is '/data/data/com.whatsapp/databases' on a real phone. This directory MUST include msgstore.db and wa.db
         """
+        logger = self.logger()
         self.check_params(path, check_path=True, check_path_exists=True)
         msgdb_file = os.path.join(os.path.join(path, 'msgstore.db'))
         if not base.utils.check_file(msgdb_file):
-            self.logger().warning("The file %s do not exists", msgdb_file)
+            logger.warning('The database file does not exists: filename: "%s"', msgdb_file)
             return []
+        logger.debug('The database file exists: filename="%s"', msgdb_file)
 
-        # contacts = get_contacts(os.path.join(os.path.join(path, 'data/com.whatsapp/databases/wa.db')))
         conn = sqlite3.connect('file://{}?mode=ro'.format(msgdb_file), uri=True)
+        # Alternative: fd = os.open(filename, os.O_RDONLY); c = sqlite3.connect('/dev/fd/%d' % fd); os.close(fd)
         c = conn.cursor()
         for line in c.execute('SELECT DISTINCT key_remote_jid FROM messages WHERE received_timestamp != "-1"'):
             yield(dict(message_group=line[0]))

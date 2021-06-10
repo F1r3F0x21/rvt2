@@ -29,6 +29,7 @@ from base.utils import check_folder, check_file
 from base.commands import run_command
 import base.job
 import zipfile
+import tarfile
 from tqdm import tqdm
 import shutil
 
@@ -245,14 +246,16 @@ class ZipImage(BaseImage):
     """ Manages a ZIP file: its contents are unzipped into a single partition """
 
     def mmls(self):
-        pass
+        """ There is only one partition, named as configured in partname. Default: p01 """
+        self.partitions = [self.params('partname', 'p01')]
 
     def mount(self, unzip_path=None, partitions='', vss=False):
         """ Extracts contents of zip imagefile to unzip_path"""
+        self.mmls()
         if zipfile.is_zipfile(self.imagefile):
             try:
                 if unzip_path is None:
-                    partition_name = self.params('partname', 'p01')
+                    partition_name = self.partitions[0]
                     unzip_path = self.params(os.path.join(self.params('mountdir'), partition_name))
                 base.utils.check_directory(unzip_path, create=True, delete_exists=False)
 
@@ -269,10 +272,40 @@ class ZipImage(BaseImage):
                 self.logger.warning('Cannot read zip file: %s', exc)
 
     def umount(self, unzip_path=None):
-        if unzip_path is None:
-            partition_name = self.params('partname', 'p01')
-            unzip_path = self.params(os.path.join(self.params('mountdir'), partition_name))
-        shutil.rmtree(unzip_path)
+        self.mmls()
+        for partition_name in self.partitions:
+            if unzip_path is None:
+                unzip_path = os.path.join(self.params('mountdir'), partition_name)
+            shutil.rmtree(unzip_path)
+
+
+class TarImage(ZipImage):
+    """ Manages a tar image.
+    
+    Notice: tar files keep information about the file owners. If the owner of a file is root, it will file.
+    Run as root if the .tar files includes root files.
+    
+    Some functions (mmls, umount) are reused from ZipImage.
+    """
+    def mount(self, unzip_path=None, partitions='', vss=False):
+        self.mmls()
+        if tarfile.is_tarfile(self.imagefile):
+            if unzip_path is None:
+                partition_name = self.partitions[0]
+                unzip_path = self.params(os.path.join(self.params('mountdir'), partition_name))
+
+            with tarfile.TarFile(self.imagefile, 'r') as mytar:
+                self.logger.debug('Extracting file imagefile=%s to mountauxdir=%s', self.imagefile, unzip_path)
+                # check wether the directory already exists
+                if not base.utils.check_directory(unzip_path):
+                    base.utils.check_directory(unzip_path, create=True, delete_exists=False)
+                    for zn in tqdm(mytar.getmembers(), desc='Untar image', disable=self.myflag('progress.disable')):
+                        try:
+                            mytar.extract(zn, unzip_path)
+                        except Exception as exc:
+                            self.logger.warning('Cannot read tar file: %s', exc)
+                else:
+                    self.logger.warning('The untar directory already exists: %s. Won\'t untar', unzip_path)
 
 
 class AFFImage(BaseImage):
@@ -363,5 +396,6 @@ KNOWN_IMAGETYPES = {
     "E01": dict(type='encase', imgclass=EncaseImage),
     "vhdx": dict(type='vhdx', imgclass=VHDXImage),
     "zip": dict(type='zip', imgclass=ZipImage),
+    "tar": dict(type='tar', imgclass=TarImage)
 }
 # NOT_MOUNTABLE_PARTITIONS = ("Primary Table", "GPT Header", "Safety Table", "Partition Table", "Unallocated")
