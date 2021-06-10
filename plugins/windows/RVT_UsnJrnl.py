@@ -324,7 +324,10 @@ class UsnJrnl(base.job.BaseModule):
                     # parent inode not found in journal, inode info is used to complete path
                     record['Full Path'] = ''
                     if use_path_from_inode:
-                        record['Full Path'] = os.path.join(self.inode_fls[record['Parent MFT Entry']][0], record['Filename'])
+                        try:
+                            record['Full Path'] = os.path.join(self.inode_fls[record['Parent MFT Entry']][0], record['Filename'])
+                        except:
+                            record['Full Path'] = os.path.join('UNKNOWN_PARENT', record['Filename'])
                     record['Reliable Path'] = False
 
                 yield OrderedDict([(i, record[i]) for i in out_fields])

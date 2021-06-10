@@ -18,8 +18,7 @@
 	url = https://github.com/ANSSI-FR/bmc-tools.git
 [submodule "plugins/external/analyzeMFT"]
 	path = plugins/external/analyzeMFT
-	url = https://github.com/dkovar/analyzeMFT.git
-	
+	url = https://github.com/IncideDigital/analyzeMFT.git
 [submodule "plugins/external/KStrike"]
 	path = plugins/external/KStrike
 	url = https://github.com/brimorlabs/KStrike

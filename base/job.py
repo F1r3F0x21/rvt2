@@ -143,7 +143,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     if jobs is None:
         # no jobs: run as a single job
         results = run_single_job(config, job_name_with_params, default_path=path, extra_config=myconfig, from_module=from_module, log_execution=(nested_logs > 0))
-        # return the resulting generatos
+        # return the resulting generator
         if results is None:
             return list()
         return results
@@ -240,6 +240,7 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
             # This except block includes RVTError
             if config.get(job_name, 'stop_on_error', 'False')[0] in 'tT1':
                 logging.critical('EXCEPTION job=%s on path=%s casename=%s source=%s. %s. %s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc())
+                raise
             else:
                 logging.error('EXCEPTION job=%s on path=%s casename=%s source=%s. %s. %s', job_name, abspath, mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc())
         finally:

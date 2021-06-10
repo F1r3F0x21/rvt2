@@ -86,17 +86,23 @@ class Help(base.job.BaseModule):
                     description = ''
                     for line in descfile:
                         description = description + line
+        if description is None:
+            self.logger().warn('job="%s" has no description', path)
+            description = ''
         other_vars = []
         if show_vars:
             other_vars = list(self._show_vars(path))
-        return dict(
-            job=path,
-            description=description,
-            short=description.split('\n')[0],
-            other_vars=other_vars,
-            params=ast.literal_eval(self.config.get(path, 'default_params', '{}')),
-            params_help=ast.literal_eval(self.config.get(path, 'params_help', '{}')),
-        )
+        try:
+            return dict(
+                job=path,
+                description=description,
+                short=description.split('\n')[0],
+                other_vars=other_vars,
+                params=ast.literal_eval(self.config.get(path, 'default_params', '{}')),
+                params_help=ast.literal_eval(self.config.get(path, 'params_help', '{}')),
+            )
+        except SyntaxError:
+            raise SyntaxError(f'Malformatted option param for path="{path}". Maybe an error in default_params or params_help?')
 
     def _help_for_module(self, path):
         """ path is a module name """
