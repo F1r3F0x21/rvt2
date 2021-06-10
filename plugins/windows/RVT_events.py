@@ -37,6 +37,8 @@ class GetEvents(object):
             path (str): Absolute path to the parsed Security.xml (from a Security hive)
         """
 
+        self.logger = logger
+
         try:
             with open(config_file) as logcfg:
                 logtext = logcfg.read()
@@ -45,7 +47,6 @@ class GetEvents(object):
             self.logger.warning('Configuration file {} has not been properly loaded: {}'.format(config_file, exc))
             self.data_json = {}
         self.eventfile = eventfile
-        self.logger = logger
 
     def parse(self):
         parser = PyEvtxParser(self.eventfile)
@@ -206,8 +207,11 @@ class ParseExtraLogs(EventJob):
                 continue
             evtx_file = os.path.join(path, evtx_filename)
             self.logger().debug('Parsing event log {}'.format(evtx_file))
-            for ev in GetEvents(evtx_file, json_file, logger=self.logger()).parse():
-                yield ev
+            try:
+                for ev in GetEvents(evtx_file, json_file, logger=self.logger()).parse():
+                    yield ev
+            except:
+                self.logger().warning('Problems parsing file %s' % evtx_file)
 
         return []
 
