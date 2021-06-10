@@ -164,9 +164,13 @@ def configure_logging(config, basic=False):
             },
             'loggers': {
                 '': {
-                    'handlers': ['console', 'file', 'telegram'],
+                    'handlers': ['console', 'file'],
                     'level': 'DEBUG',
                     'propagate': True
+                },
+                'analyst': {
+                    'handlers': ['telegram'],
+                    'level': 'DEBUG',
                 },
                 # loggers of libraries and external tools used by the RVT
                 'dkimpy': {

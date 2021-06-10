@@ -127,33 +127,41 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, ella
         :ellapsed (float): elapsed time (in hours)
     """
     filename = config.get('rvt2', 'register', default=None)
+    morgue = config.get('DEFAULT', 'morgue')
+    casename = config.get('DEFAULT', 'casename')
+    source = config.get('DEFAULT', 'source')
+    casedir = config.get('DEFAULT', 'casedir')
+
     data = dict(
         _id=jobid,
         date=datetime.datetime.utcnow().isoformat(),
         cwd=os.getcwd(),
         rvthome=config.get('DEFAULT', 'rvthome'),
         conffiles=conffiles,
-        morgue=config.get('DEFAULT', 'morgue'),
-        casename=config.get('DEFAULT', 'casename'),
-        source=config.get('DEFAULT', 'source'),
+        morgue=morgue,
+        casename=casename,
+        source=source,
         job=job,
         params=params,
         paths=paths,
         status=status,
-        logfile=base.utils.relative_path(config.get('logging', 'file.logfile', None), config.get('DEFAULT', 'casedir')),
-        outfile=base.utils.relative_path(config.get(job, 'outfile', None), config.get('DEFAULT', 'casedir')),
+        logfile=base.utils.relative_path(config.get('logging', 'file.logfile', None), casedir),
+        outfile=base.utils.relative_path(config.get(job, 'outfile', None), casedir),
         ellapsed=str(ellapsed)
     )
     if status == 'start':
         data['date_start'] = data['date']
-    if config.get(job, 'register', 'True') != 'False' and filename:
-        # errors are ignored
-        try:
-            with open(filename, 'a') as f:
-                f.write(json.dumps(data))
-                f.write('\n')
-        except Exception:
-            pass
+    if config.get(job, 'register', 'True') != 'False':
+        if filename:
+            # errors are ignored
+            try:
+                with open(filename, 'a') as f:
+                    f.write(json.dumps(data))
+                    f.write('\n')
+            except Exception:
+                pass
+        analyst = logging.getLogger('analyst')
+        analyst.info(f'RVT2 job="%s" for casename="%s" on source="%s" status="%s"', job, casename, source, status)
 
 
 def load_default_vars(config, morgue, casename, source, jobid):
