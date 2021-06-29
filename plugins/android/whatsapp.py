@@ -31,7 +31,7 @@ def get_contacts(wa_db):
     """ Associate phone numbers to names and groups to ids """
     query = "SELECT jid, display_name FROM wa_contacts"
     contacts = {}
-    with sqlite3.connect('file://{}?mode=ro'.format(wa_db), uri=True) as conn:
+    with sqlite3.connect('file://{}'.format(wa_db), uri=True) as conn:
         with closing(conn.cursor()) as cursor:
             for line in cursor.execute(query):
                 if line[1] is not None:
@@ -65,7 +65,8 @@ class WhatsAppAndroid(base.job.BaseModule):
         10: "Key change",   # Not confirmed
         11: "Video",  # Not confirmed
         14: "Deleted",   # Not confirmed
-        15: "Image"  # Not confirmed
+        15: "Image",  # Not confirmed
+        20: "Image"  # probably
     }
 
     status_switcher = {
@@ -284,7 +285,7 @@ class WhatsAppAndroid(base.job.BaseModule):
             if media_filename:
                 return media_filename
             else:  # Warn for media files not found when expected
-                return '[System message: {}]: not found'.format(self.type_switcher[message_type])
+                return '[System message: {}]'.format(media_name)
 
         media_location = media_name if media_name else hashes[media_hash]
         media_filename = os.path.basename(media_location)
@@ -331,14 +332,17 @@ class ListChatSessions(base.job.BaseModule):
         Parameters:
             path (str): Path to the "databases" directory. This directory is '/data/data/com.whatsapp/databases' on a real phone. This directory MUST include msgstore.db and wa.db
         """
+        logger = self.logger()
         self.check_params(path, check_path=True, check_path_exists=True)
         msgdb_file = os.path.join(os.path.join(path, 'msgstore.db'))
         if not base.utils.check_file(msgdb_file):
-            self.logger().warning("The file %s do not exists", msgdb_file)
+            logger.warning('The database file does not exists: filename: "%s"', msgdb_file)
             return []
+        logger.debug('The database file exists: filename="%s"', msgdb_file)
 
-        # contacts = get_contacts(os.path.join(os.path.join(path, 'data/com.whatsapp/databases/wa.db')))
-        conn = sqlite3.connect('file://{}?mode=ro'.format(msgdb_file), uri=True)
+        # This line fails if the directory is not writable, as will happen nearly always
+        conn = sqlite3.connect('file://{}'.format(msgdb_file), uri=True)
+
         c = conn.cursor()
         for line in c.execute('SELECT DISTINCT key_remote_jid FROM messages WHERE received_timestamp != "-1"'):
             yield(dict(message_group=line[0]))

@@ -87,9 +87,11 @@
             % if r["message_type"] in ["Text message", "Contact"]:
               ${r["message"]}
             % elif r["message_type"] == "Image":
-              <img src="${r['message_media_location']}">
+            <img src="${r['message_media_location']}" alt="${r['mime_type']}" />
             % elif r["message_type"] in ["Video", "Voice/Audio note"]:
               <a href="${r['message_media_location']}">${r["message_media_location"]}</a>
+            % elif r["message_type"] == "Audio":
+              <span class="multimedia">AUDIO: <a href="${r['message_media_location']}">${r["message_media_location"]}</a></span>
             % elif r["message_type"] == "Location":
               ${r["message"]}: ${r["lon_lat"]}
             % elif r["message_type"] == "Url":
@@ -100,6 +102,8 @@
               <a href="${r['message_media_location']}">${r["message"]}</a>
             % elif r["message_type"] == "Deleted":
               This message has been deleted
+            % else:
+            <span class="unknown">${r["message_type"]} - ${r.get('mime_type', 'NO_MIME_TYPE')}</span>
             % endif
           </div>
         </div>
