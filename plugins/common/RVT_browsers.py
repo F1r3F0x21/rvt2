@@ -118,12 +118,12 @@ class Edge(base.job.BaseModule):
                         data = line[fields_pos['ResponseHeaders']]
                         var_aux = {}
                         var_aux['FileSize'] = self.reverse_hex_size(data, 144, 160)
-                        data = binascii.unhexlify(data[688:]).decode('utf-16')
+                        # Decode hex part. Replace errors
+                        data = binascii.unhexlify(data[688:]).decode('utf-16', errors='replace')
                         data = data.split('\x00')
                         var_aux['path'] = data[-2].replace('\\', '/')
                         var_aux['url'] = data[-3]
                         result.update({'path': var_aux['path'], 'url': var_aux['url'], 'size': var_aux['FileSize']})
-
                     yield result
 
     def reverse_hex_size(self, HEXVAL, init, end):
