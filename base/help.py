@@ -166,7 +166,7 @@ class AvailableJobs(base.job.BaseModule):
     """ A module to list all avaiable jobs in the rvt """
     def _is_job(self, section):
         """ Decide wether the section is a job """
-        # a section is a job callable by the user if if thas a description and either cascade, modules or jobs
+        # a section of the configuration file is a job callable by the user if it thas a description and either cascade, modules or jobs
         return self.config.config.has_option(section, 'description') and (self.config.config.has_option(section, 'cascade') or self.config.config.has_option(section, 'modules') or self.config.config.has_option(section, 'jobs'))
 
     def run(self, path=None):
