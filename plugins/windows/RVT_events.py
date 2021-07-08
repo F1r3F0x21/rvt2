@@ -206,6 +206,8 @@ class ParseExtraLogs(EventJob):
             if evtx_filename in special_evtx:
                 continue
             evtx_file = os.path.join(path, evtx_filename)
+            if not evtx_file.lower().endswith('.evtx'):
+                continue
             self.logger().debug('Parsing event log {}'.format(evtx_file))
             try:
                 for ev in GetEvents(evtx_file, json_file, logger=self.logger()).parse():
@@ -337,6 +339,126 @@ class Security(EventJob):
                         '12': 'Cached remote interactive',
                         '13': 'Cached unlock'}
 
+        tgt_error_dict = {'0x0': "No error",
+                          '0x1': "Client's entry in KDC database has expired",
+                          '0x2': "Server's entry in KDC database has expired",
+                          '0x3': 'Requested Kerberos version number not supported',
+                          '0x4': "Client's key encrypted in old master key",
+                          '0x5': "Server's key encrypted in old master key",
+                          '0x6': 'Client not found in Kerberos database',
+                          '0x7': 'Server not found in Kerberos database',
+                          '0x8': 'Multiple principal entries in KDC database',
+                          '0x9': 'The client or server has a null key (master key)',
+                          '0xA': 'Ticket (TGT) not eligible for postdating',
+                          '0xB': 'Requested start time is later than end time',
+                          '0xC': 'Requested start time is later than end time',
+                          '0xD': 'KDC cannot accommodate requested option',
+                          '0xE': 'KDC has no support for encryption type',
+                          '0xF': 'KDC has no support for checksum type',
+                          '0x10': 'KDC has no support for PADATA type (pre-authentication data)',
+                          '0x11': 'KDC has no support for transited type',
+                          '0x12': 'Client’s credentials have been revoked',
+                          '0x13': 'Credentials for server have been revoked',
+                          '0x14': 'TGT has been revoked',
+                          '0x15': 'Client not yet valid—try again later',
+                          '0x16': 'Server not yet valid—try again later',
+                          '0x17': 'Password has expired—change password to reset',
+                          '0x18': 'Pre-authentication information was invalid',
+                          '0x19': 'Additional pre-authentication required',
+                          '0x1D': 'KDC is unavailable',
+                          '0x1F': 'Integrity check on decrypted field failed',
+                          '0x20': 'The ticket has expired',
+                          '0x21': 'The ticket is not yet valid',
+                          '0x22': 'The request is a replay',
+                          '0x23': 'The ticket is not for us',
+                          '0x24': 'The ticket and authenticator do not match',
+                          '0x25': 'The clock skew is too great',
+                          '0x26': "Network address in network layer header doesn't match address inside ticket",
+                          '0x27': "Protocol version numbers don't match (PVNO)",
+                          '0x28': 'Message type is unsupported',
+                          '0x29': "Message stream modified and checksum didn't match",
+                          '0x2A': 'Message out of order (possible tampering)',
+                          '0x2C': 'Specified version of key is not available',
+                          '0x2D': 'Service key not available',
+                          '0x2E': 'Mutual authentication failed',
+                          '0x2F': 'Incorrect message direction',
+                          '0x30': 'Alternative authentication method required',
+                          '0x31': 'Incorrect sequence number in message',
+                          '0x32': 'Inappropriate type of checksum in message (checksum may be unsupported)',
+                          '0x33': 'Desired path is unreachable',
+                          '0x34': 'Too much data',
+                          '0x3C': 'Generic error',
+                          '0x3D': 'Field is too long for this implementation',
+                          '0x3E': 'The client trust failed or is not implemented',
+                          '0x3F': 'The KDC server trust failed or could not be verified',
+                          '0x40': 'The signature is invalid',
+                          '0x41': 'A higher encryption level is needed',
+                          '0x42': 'User-to-user authorization is required',
+                          '0x43': 'No TGT was presented or available',
+                          '0x44': 'Incorrect domain or principal'}
+
+        attributes = {}
+        attributes[0] = "Reserved"
+        attributes[1] = "Forwardable"
+        attributes[2] = "Forwarded"
+        attributes[3] = "Proxiable"
+        attributes[4] = "Proxy"
+        attributes[5] = "Allow-postdate"
+        attributes[6] = "Postdated"
+        attributes[7] = "Invalid"
+        attributes[8] = "Renewable"
+        attributes[9] = "Initial"
+        attributes[10] = "Pre-authent"
+        attributes[11] = "Opt-hardware-auth"
+        attributes[12] = "Transited-policy-checked"
+        attributes[13] = "Ok-as-delegate"
+        attributes[14] = "Request-anonymous"
+        attributes[15] = "Name-canonicalize"
+        attributes[16] = "Unused"
+        attributes[17] = "Unused"
+        attributes[18] = "Unused"
+        attributes[19] = "Unused"
+        attributes[20] = "Unused"
+        attributes[21] = "Unused"
+        attributes[22] = "Unused"
+        attributes[23] = "Unused"
+        attributes[24] = "Unused"
+        attributes[25] = "Unused"
+        attributes[26] = "Disable-transited-check"
+        attributes[27] = "Renewable-ok"
+        attributes[28] = "Enc-tkt-in-skey"
+        attributes[29] = "Unused"
+        attributes[30] = "Renew"
+        attributes[31] = "Validate"
+
+        encr = {}
+
+        encr['0x1'] = 'DES-CBC-CRC'
+        encr['0x3'] = 'DES-CBC-MD4'
+        encr['0x3'] = 'DES-CBC-MD5'
+        encr['0x11'] = 'AES128-CTS-HMAC-SHA1-96'
+        encr['0x12'] = 'AES256-CTS-HMAC-SHA1-96'
+        encr['0x17'] = 'RC4-HMAC'
+        encr['0x18'] = 'RC4-HMAC-EXP'
+
+        tgt = ('4768', '4769', '4770', '4771', '4772')
+
+        protocol = {"1": "Internet Control Message Protocol (ICMP)",
+                    "3": "Gateway-Gateway Protocol (GGP)",
+                    "6": "Transmission Control Protocol (TCP)",
+                    "8": "Exterior Gateway Protocol (EGP)",
+                    "12": "PARC Universal Packet Protocol (PUP)",
+                    "17": "User Datagram Protocol (UDP)",
+                    "20": "Host Monitoring Protocol (HMP)",
+                    "27": "Reliable Datagram Protocol (RDP)",
+                    "46": "Reservation Protocol (RSVP) QoS",
+                    "47": "General Routing Encapsulation (PPTP data over GRE)",
+                    "50": "Encapsulation Security Payload (ESP) IPSec",
+                    "51": "Authentication Header (AH) IPSec",
+                    "66": "MIT Remote Virtual Disk (RVD)",
+                    "88": "Internet Group Management Protocol (IGMP)",
+                    "89": "OSPF Open Shortest Path First"}
+
         json_file = self.config.config[self.config.job_name]['json_conf']
 
         for ev in GetEvents(path, json_file, logger=self.logger()).parse():
@@ -345,7 +467,10 @@ class Security(EventJob):
             if "data.SubStatus" in ev.keys() and ev["data.SubStatus"] != "0x00000000":
                 ev["data.Error"] = errordict.get(ev["data.SubStatus"], '')
             elif "data.Status" in ev.keys():
-                ev["data.Error"] = errordict.get(ev["data.Status"], '')
+                if ev['data.Status'] in tgt_error_dict.keys():
+                    ev['data.Error'] = tgt_error_dict[ev['data.Status']]
+                else:
+                    ev["data.Error"] = errordict.get(ev["data.Status"], '')
             if "data.CategoryId" in ev.keys():
                 ev["data.Category"] = category_id.get(ev["data.CategoryId"], "")
             if "data.SubcategoryGuid" in ev.keys():
@@ -355,6 +480,23 @@ class Security(EventJob):
                 for i in ev["data.AuditPolicyChanges"].split(","):
                     temp_aud.append(audit_policy_changes.get(i.lstrip(), ""))
                 ev["data.AuditPolicyChangesStr"] = ", ".join(temp_aud)
+            if ev['event.code'] in ('5152', '5153', '5156') and ev['event.provider'] == "Microsoft-Windows-Security-Auditing":
+                if ev['Direction'] == "%%14593":
+                    ev['Direction'] = 'Outbound'
+                else:
+                    ev['Direction'] = 'Inbound'
+                ev['Protocol'] = protocol.get(str(ev['Protocol']), ev['Protocol'])
+            if ev['event.code'] in tgt:
+                if 'data.TicketOptions' in ev.keys() and ev['data.TicketOptions']:
+                    attr = int(ev['data.TicketOptions'], 16)
+                    ticket_opt = []
+                    for i in range(32):
+                        if attr & (1 << i):
+                            ticket_opt.append(attributes[31 - i])
+                    ev['data.TicketOptions.str'] = ','.join(ticket_opt)
+                if 'data.TicketEncryptionType' in ev.keys():
+                    if ev['data.TicketEncryptionType'] in encr.keys():
+                        ev['data.TicketEncryptionType'] = encr[ev['data.TicketEncryptionType']]
             yield ev
 
 
@@ -684,3 +826,45 @@ class StorageClassPnp(EventJob):
             except Exception:
                 self.logger().warning("Skipping {} event due to error".format(self.config.job_name))
                 continue
+
+
+class Application(EventJob):
+    """ """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to Application.evtx
+        """
+
+        path = self.get_evtx(path, r"Application.evtx$")
+
+        fields = {'1000': {'provider': 'Application Error', 'fields': ['product name', 'product.version', 'timestamp1', 'module.name', 'module.version', 'module.timestamp2', 'error.code', 'offset', 'process.id', 'application.starttime', 'application.path', 'module.path', 'report.id', 'package.full_name', 'package-relative_application.id']},
+                  '1001': {'provider': 'Windows Error Reporting', 'fields': ['Fault_bucket', 'type', 'event.name', 'response', 'cab.id', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'Attached_files', 'Attached_path', 'Analysis_symbol', 'rechecking_for_solution', 'report.id', 'report.status']},
+                  '1002': {'provider': 'Application Hang', 'fields': ['product name', 'product.version', 'process.id', 'application.starttime', 'application.terminationtime', 'application.path', 'report.id']},
+                  '1013': {'provider': 'MsiInstaller', 'fields': ['error.message']},
+                  '1025': {'provider': 'MsiInstaller', 'fields': ['product.name', 'path', 'process.name', 'process.pid']},
+                  '1029': {'provider': 'MsiInstaller', 'fields': ['product.name']},
+                  '1033': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'status', 'manufacturer']},
+                  '1034': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'status', 'manufacturer']},
+                  '1035': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'status', 'manufacturer']},
+                  '1038': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'reboot.type', 'reason', 'manufacturer']},
+                  '10005': {'provider': 'MsiInstaller', 'fields': ['error', 'arg1', 'arg2', 'arg3', 'arg4', 'arg5']},
+                  '11707': {'provider': 'MsiInstaller', 'fields': ['status']},
+                  '11708': {'provider': 'MsiInstaller', 'fields': ['status']}
+                  }
+
+        json_file = self.config.config[self.config.job_name]['json_conf']
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+            if "data.Binary" in ev.keys() and len(ev['data.Binary']) > 0 and ev['data.Binary'] != 'None':
+                ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
+                ev.pop('data.Binary')
+            if ev['event.code'] in fields.keys() and ev['event.provider'] == fields[ev['event.code']]['provider']:
+                data = ast.literal_eval(ev["data.#text"])
+                ev.pop('data.#text')
+                for e, field in enumerate(fields[ev['event.code']]['fields']):
+                    if data[e] == '(NULL)' or data[e] == '':
+                        continue
+                    ev[field] = data[e]
+                    ev['message'] = ev['message'].replace('<%s>' % field, data[e])
+            yield ev
