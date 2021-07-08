@@ -262,7 +262,7 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "ServiceName", "TicketOptions", "Status", "IpAddress", "IpPort", "CertIssuerName", "CertSerialNumber"],
+        "Name": ["TargetUserName", "TargetDomainName", "ServiceName", "TicketOptions", "TicketEncryptionType", "PreAuthType", "Status", "IpAddress", "IpPort", "CertIssuerName", "CertSerialNumber"],
         "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "ServiceName": "service.name", "IpAddress": "source.ip", "IpPort": "source.port"}
       }
     }
@@ -272,8 +272,28 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "ServiceName", "TicketOptions", "Status", "IpAddress", "IpPort", "TransmittedServices"],
+        "Name": ["TargetUserName", "TargetDomainName", "ServiceName", "TicketEncryptionType", "TicketOptions", "Status", "IpAddress", "IpPort", "TransmittedServices", "LogonGuid"],
         "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "ServiceName": "service.name", "IpAddress": "source.ip", "IpPort": "source.port"}
+      }
+    }
+  },
+  "4770":{
+    "description":"A Kerberos service ticket was renewed",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "ServiceName", "TicketOptions", "Status", "IpAddress", "IpPort", "PreAuthType", "ServiceSid", "TicketEncryptionType"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "ServiceName": "service.name", "IpAddress": "source.ip", "IpPort": "source.port", "ServiceSid": "service.SID"}
+      }
+    }
+  },
+  "4771":{
+    "description":"Kerberos pre-authentication failed",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "ServiceName", "TicketOptions", "Status", "IpAddress", "IpPort", "PreAuthType", "TargetSid"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "ServiceName": "service.name", "IpAddress": "source.ip", "IpPort": "source.port", "TargetSid": "target.SID"}
       }
     }
   },
@@ -324,6 +344,36 @@
       "EventData":{
         "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ObjectType", "IpAddress", "IpPort", "ShareName", "ShareLocalPath", "RelativeTargetName"],
         "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "IpAddress": "source.address", "IpPort": "source.port"}
+      }
+    }
+  },
+  "5152":{
+    "description": "The Windows Filtering Platform blocked a packet.",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["Application", "DestAddress", "DestPort", "Direction", "FilterRTID", "LayerName", "LayerRTID", "ProcessId", "Protocol", "SourceAddress", "SourcePort"],
+        "transform": {"DestAddress": "destination.ip", "DestPort": "destination.port", "ProcessId": "process.id", "SourceAddress": "source.ip", "SourcePort": "source.port"}
+      }
+    }
+  },
+  "5156":{
+    "description": "The Windows Filtering Platform has allowed a connection.",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["Application", "DestAddress", "DestPort", "Direction", "FilterRTID", "LayerName", "LayerRTID", "ProcessID", "Protocol", "RemoteMachineID", "RemoteUserID", "SourceAddress", "SourcePort"],
+        "transform": {"DestAddress": "destination.ip", "DestPort": "destination.port", "ProcessId": "process.id", "SourceAddress": "source.ip", "SourcePort": "source.port"}
+      }
+    }
+  },
+  "5157":{
+    "description": "Windows Filtering Platform blocked a connection.",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["Application", "DestAddress", "DestPort", "Direction", "FilterRTID", "LayerName", "LayerRTID", "ProcessID", "Protocol", "RemoteMachineID", "RemoteUserID", "SourceAddress", "SourcePort"],
+        "transform": {"DestAddress": "destination.ip", "DestPort": "destination.port", "ProcessId": "process.id", "SourceAddress": "source.ip", "SourcePort": "source.port"}
       }
     }
   }
