@@ -174,7 +174,7 @@ class LogonRDP(base.job.BaseModule):
                     continue
                 if v['EventID'] == '4624':
                     logon = v['TimeCreated']
-                    ip = v['source.ip']
+                    ip = v.get('source.ip')
                 # if e == ln:
                     results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser']})
 
@@ -247,7 +247,7 @@ class LogonRDP(base.job.BaseModule):
                     if 'subjectUser' not in act.keys():
                         act['subjectUser'] = ''
                     act['t0'] = v['TimeCreated']
-                    act['ip'] = v['source.ip']
+                    act['ip'] = v.get('source.ip')
                     act['targetUser'] = v['User']
                     if self.__difTimestamp__(v['TimeCreated'], auxtime) < 2:
                         act['subjectUser'] = suser

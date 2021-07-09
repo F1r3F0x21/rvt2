@@ -129,7 +129,10 @@ class GetEvents(object):
                         else:
                             name = 'data.{}'.format(str(item))
                         try:
-                            data[name] = str(ev[item])
+                            if 'keep_format_type' in act.keys():
+                                data[name] = ev[item]
+                            else:
+                                data[name] = str(ev[item])
                         except Exception:
                             pass
                 else:
@@ -138,7 +141,10 @@ class GetEvents(object):
                     else:
                         name = 'data.{}'.format(str(p))
                     try:
-                        data[name] = str(ev[p])
+                        if 'keep_format_type' in act.keys():
+                            data[name] = ev[item]
+                        else:
+                            data[name] = str(ev[item])
                     except Exception:
                         pass
                     break
@@ -868,3 +874,51 @@ class Application(EventJob):
                     ev[field] = data[e]
                     ev['message'] = ev['message'].replace('<%s>' % field, data[e])
             yield ev
+
+
+class PowerShell(EventJob):
+    """ Extracts events of Windows PowerShell.evtx """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Path to "Windows PowerShell.evtx"
+        """
+        path = self.get_evtx(path, r"/Windows PowerShell.evtx$")
+        if not path:
+            return []
+
+        json_file = self.config.config[self.config.job_name]['json_conf']
+
+        # Regex used to extract details
+        host_rgx = re.compile(r'HostName=(.*)\r\n')
+        version_rgx = re.compile(r'EngineVersion=(.*)\r\n')
+        app_rgx = re.compile(r'HostApplication=(.*)\r\n')
+        script_rgx = re.compile(r'ScriptName=(.*)\r\n')
+        cli_rgx = re.compile(r'CommandLine=(.*)$')
+
+        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+            if ev['event.code'] not in ["400", "600"]:
+                continue
+            data = ev.pop('data.PSData')
+            details = data[2]
+            # details example:
+            """ "\tNewEngineState=Available\r\n\tPreviousEngineState=None\r\n\r\n\tSequenceNumber=318419\
+r\n\r\n\tHostName=Default Host\r\n\tHostVersion=4.0\r\n\tHostId=30ba2936-467d-4ded-b94f-889baa517
+0c0\r\n\tHostApplication=C:\\Windows\\system32\\ServerManager.exe\r\n\tEngineVersion=4.0\r\n\tRun
+spaceId=7659aa03-a84d-47e2-91bc-d1671de4cd63\r\n\tPipelineId=\r\n\tCommandName=\r\n\tCommandType=
+\r\n\tScriptName=\r\n\tCommandPath=\r\n\tCommandLine=" """
+            for rgx, name in zip([host_rgx, version_rgx, app_rgx, script_rgx, cli_rgx],
+                                 ['data.HostName', 'data.EngineVersion', 'data.Command', 'data.ScriptName', 'data.CommandLine']):
+                match = re.search(rgx, details)
+                ev[name] = match.groups()[0] if match else ''
+            if ev['event.code'] == "400":
+                ev['data.NewEngineState'] = data[0]
+                ev['data.PreviousEngineState'] = data[1]
+                ev['message'] = f'Engine state is changed from {data[0]} to {data[1]}'
+            elif ev['event.code'] == "600":
+                ev['data.ProviderName'] = data[0]
+                ev['data.NewProviderState'] = data[1]
+                ev['message'] = f'Provider {data[0]} is {data[1]}'
+
+            yield ev            
