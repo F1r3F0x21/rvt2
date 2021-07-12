@@ -174,7 +174,7 @@ class LogonRDP(base.job.BaseModule):
                     continue
                 if v['EventID'] == '4624':
                     logon = v['TimeCreated']
-                    ip = v['source.ip']
+                    ip = v.get('source.ip')
                 # if e == ln:
                     results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser']})
 
@@ -247,7 +247,7 @@ class LogonRDP(base.job.BaseModule):
                     if 'subjectUser' not in act.keys():
                         act['subjectUser'] = ''
                     act['t0'] = v['TimeCreated']
-                    act['ip'] = v['source.ip']
+                    act['ip'] = v.get('source.ip')
                     act['targetUser'] = v['User']
                     if self.__difTimestamp__(v['TimeCreated'], auxtime) < 2:
                         act['subjectUser'] = suser
@@ -611,3 +611,95 @@ class USBConnections(base.job.BaseModule):
                 continue
             if previous_datetime - datetime.datetime.strptime(e['event.created'], "%Y-%m-%d %H:%M:%S.%f %Z") < datetime.timedelta(milliseconds=1000):
                 del ev_list[total_plugins - index - 1]
+
+
+class TGT_attack(base.job.BaseModule):
+    """ Extracts possible TGT attacks """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed Security.xml
+        """
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        ev = {'tgt': {}, 'tgs': {}, 'renew': {}}
+
+        eventlist = {'4768': 'tgt', '4769': 'tgs', '4770': 'renew'}
+
+        for event in list(self.from_module.run(path)):
+            # ev = dict()
+            # ev['EventID'] = event.get('event.code', '')
+            # ev['TimeCreated'] = event.get('event.created', '')
+            # ev['User'] = event.get('destination.user.name', '')
+            # ev['Domain'] = event.get('destination.domain', '')
+            # ev['Service'] = event.get('service.name', '')
+            # ev['Encryption'] = event.get('data.TicketEncryptionType', '')
+            # ev['SourceAddress'] = event.get('source.ip', '')
+            if event['destination.user.name'] not in ev[eventlist[event['event.code']]].keys():
+                ev[eventlist[event['event.code']]][event['destination.user.name']] = []
+            ev[eventlist[event['event.code']]][event['destination.user.name']].append({'event.created': event['event.created'], 'service.name': event['service.name'], 'TicketEncryptionType': event['data.TicketEncryptionType'], 'ip': event['source.ip'], 'TicketOptions': event['data.TicketOptions'], 'status': event.get('data.Error', '')})
+
+        tgt = {}
+        tgs = {}
+        renew = {}
+        startdate = '2099-01-01'
+
+        for k in ev['tgt']:
+            tgt[k] = sorted(ev['tgt'][k], key=lambda l: l['event.created'])
+            aux_date = tgt[k][0]['event.created']
+            if aux_date < startdate:
+                startdate = aux_date
+        for k in ev['tgs']:
+            tgs[k] = sorted(ev['tgs'][k], key=lambda l: l['event.created'])
+            aux_date = tgs[k][0]['event.created']
+            if aux_date < startdate:
+                startdate = aux_date
+        for k in ev['renew']:
+            renew[k] = sorted(ev['renew'][k], key=lambda l: l['event.created'])
+            aux_date = renew[k][0]['event.created']
+            if aux_date < startdate:
+                startdate = aux_date
+        del ev
+
+        print('First TGT or TGS event has date %s\n' % startdate)
+
+        self.check_tgs_encryption(tgs)
+        print('\n--------------------------------------\nTGS without previous TGT')
+        self.check_tgt_before_ticket(tgt, tgs)
+        print('\n--------------------------------------\nRenew of ticket without previous TGT')
+        self.check_tgt_before_ticket(tgt, renew)
+
+    def check_tgs_encryption(self, tgs):
+        """
+        Find TGS with RC4-HMAC encryption with Ticket Options 0x40810000, or TGS with DES encryption.
+
+        Computer accounts are filtered to reduce the amount of 4769 events
+        """
+
+        for user in tgs.keys():
+            for ticket in tgs[user]:
+                if ticket['TicketEncryptionType'].startswith('DES-CBC'):
+                    print('Possible kerberoast attack using deprecated encryption. Date: %s, user: %s, ip: %s, encryption %s, service name: %s, status: %s' % (ticket['event.created'], user, ticket['ip'], ticket['TicketEncryptionType'], ticket['service.name'], ticket['status']))
+                elif ticket['TicketEncryptionType'] == 'RC4-HMAC' and ticket['TicketOptions'] == '0x40810000' and not user.split('@')[0].endswith('$'):
+                    print('Possible kerberoast attack. Date: %s, user: %s, ip: %s, encryption RC4-HMAC, service name: %s, status: %s' % (ticket['event.created'], user, ticket['ip'], ticket['service.name'], ticket['status']))
+
+    def check_tgt_before_ticket(self, tgt, tgs, hours=10):
+        """
+        Finds if there are a tgt ticket before tgs
+        """
+
+        for user in tgs.keys():
+            for ticket in tgs[user]:
+                valid = False
+                tgt_user = user.split('@')[0]
+                if tgt_user in tgt.keys():
+                    for tgt_ticket in tgt[tgt_user]:
+                        if tgt_ticket['ip'] == ticket['ip'] and tgt_ticket['event.created'] < ticket['event.created'] and (datetime.datetime.strptime(ticket['event.created'][:19], "%Y-%m-%d %H:%M:%S") - datetime.datetime.strptime(ticket['event.created'][:19], "%Y-%m-%d %H:%M:%S")).total_seconds() < 3600 * hours:
+                            valid = True
+                            break
+                        if not valid:
+                            print("There are no previous TGT for ticket created (or it has created more than %s hours before) on %s of user %s with service name %s, ip %s, status: %s" % (hours, ticket['event.created'], user, ticket['service.name'], ticket['ip'], ticket['status']))
+                else:
+                    print("There are no TGT ticket of user %s. This ticket is created on %s with service name %s, ip %s, status: %s" % (user, ticket['event.created'], ticket['service.name'], ticket['ip'], ticket['status']))

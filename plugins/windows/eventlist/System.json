@@ -196,7 +196,7 @@
     "path": {
       "UserData/InstallDeviceID":{
         "Name": ["DeviceInstanceID", "DriverDescription"],
-        "transform": {"DeviceInstanceId": "data.DeviceID"}
+        "transform": {"DeviceInstanceID": "data.DeviceID"}
       }
     }
   },
@@ -208,7 +208,7 @@
     "path": {
       "UserData/AddServiceID":{
         "Name": ["DeviceInstanceID", "ServiceName", "DriverFileName"],
-        "transform": {"DeviceInstanceId": "data.DeviceID", "ServiceName": "service.name"}
+        "transform": {"DeviceInstanceID": "data.DeviceID", "ServiceName": "service.name"}
       }
     }
   },

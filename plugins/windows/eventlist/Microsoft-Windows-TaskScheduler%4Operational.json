@@ -22,6 +22,16 @@
       }
     }
   },
+  "140": {
+    "description": "The user {EventData[UserName]} updated the Scheduled Task {EventData[TaskName]}",
+    "provider": "Microsoft-Windows-TaskScheduler",
+    "path": {
+      "EventData": {
+         "Name": ["TaskName", "UserName"],
+         "transform": {"UserName": "user.name"}
+      }
+    }
+  },
   "141": {
     "description": "The user {EventData[UserName]} deleted the Scheduled Task {EventData[TaskName]}",
     "provider": "Microsoft-Windows-TaskScheduler",
