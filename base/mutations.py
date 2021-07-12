@@ -386,6 +386,7 @@ class RenameFields(base.job.BaseModule):
 
         if not fields:
             yield from self.from_module.run(path)
+            return []
 
         if len(fields) != len(new_fields):
             raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
