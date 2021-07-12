@@ -163,17 +163,32 @@ class Help(base.job.BaseModule):
 
 
 class AvailableJobs(base.job.BaseModule):
-    """ A module to list all avaiable jobs in the rvt """
+    """ A module to list all available jobs in the rvt.
+
+    Configuration section:
+        - **only_section**: show jobs only in a specific section.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('only_section', '')
+
     def _is_job(self, section):
-        """ Decide wether the section is a job """
-        # a section of the configuration file is a job callable by the user if it thas a description and either cascade, modules or jobs
+        """ Decide wether a section in the configuration is a job.
+
+        A section of the configuration file is a job callable by the user if it thas a description and either cascade, modules or jobs
+        """
         return self.config.config.has_option(section, 'description') and (self.config.config.has_option(section, 'cascade') or self.config.config.has_option(section, 'modules') or self.config.config.has_option(section, 'jobs'))
 
     def run(self, path=None):
+        only_section = self.myconfig('only_section', '')
         for section in self.config.config.sections():
             if self._is_job(section):
+                job_section = self.config.get(section, 'help_section', default='')
+                if only_section and job_section != only_section:
+                    continue
                 yield dict(
                     job=section,
-                    section=self.config.get(section, 'help_section', default=''),
+                    section=job_section,
                     short=self.config.get(section, 'description', default='').split('\n')[0]
                 )
