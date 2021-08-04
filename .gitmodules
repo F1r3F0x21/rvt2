@@ -22,3 +22,6 @@
 [submodule "plugins/external/KStrike"]
 	path = plugins/external/KStrike
 	url = https://github.com/brimorlabs/KStrike
+[submodule "plugins/external/ntdsxtract"]
+	path = plugins/external/ntdsxtract
+	url = https://github.com/csababarta/ntdsxtract
