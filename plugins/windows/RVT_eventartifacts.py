@@ -75,12 +75,12 @@ class LogonRDP(base.job.BaseModule):
                 ev['ConnectionName'] = event['data.ConnectionName']
             else:
                 ev['ConnectionName'] = event.get('data.SessionName')
-            if 'data.reasonStr' in event.keys():
-                ev['reasonStr'] = event['data.reasonStr']
+            if 'data.ReasonStr' in event.keys():
+                ev['ReasonStr'] = event['data.ReasonStr']
             elif 'data.DisconnectReason' in event.keys():
-                ev['reasonStr'] = event['data.DisconnectReason']
+                ev['ReasonStr'] = event['data.DisconnectReason']
             else:
-                ev['reasonStr'] = event.get('data.Reason', '')
+                ev['ReasonStr'] = event.get('data.Reason', '')
             if 'source.user.name' in event.keys():
                 if event['source.user.name'] != '-':
                     ev['User'] = "{}\\{}".format(event['source.domain'], event['source.user.name'])
@@ -234,7 +234,7 @@ class LogonRDP(base.job.BaseModule):
                     act = dict()
                     auxtime2 = v['TimeCreated']
                 elif v['EventID'] in ('39', '40'):
-                    act['reason'] = v['reasonStr']
+                    act['reason'] = v['ReasonStr']
                 elif v['EventID'] in ('21', '25'):
                     if 't0' in act.keys() and act['t0'] not in ('', '-'):
                         if self.__difTimestamp__(v["TimeCreated"], act['t0']) < 1:  # login event repeated
@@ -425,7 +425,7 @@ class Poweron(base.job.BaseModule):
             ev['TimeCreated'] = event.get('event.created', '')
             ev['EventID'] = event.get('event.code', '')
             ev['message'] = event.get('message', '')
-            ev['reason'] = event.get('reasonStr', '')
+            ev['Reason'] = event.get('ReasonStr', '')
             eventlist.append(ev)
 
             yield ev

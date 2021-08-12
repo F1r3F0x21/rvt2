@@ -10,8 +10,8 @@
         "transform": {"xmlns": "data.namespace"}
       },
       "UserData/EventData": {
-        "Name": ["ClientAddress", "ClientAddressLength", "ClientName", "ClientNameLength", "ConnectionGUID", "SessionGUID", "SessionId", "Status", "TranslatedStatus", "UserName", "UserNameLength"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientAddressLength": "data.ClientAddress.Length", "ClientName": "source.address", "ClientNameLength": "data.ClientNameLength", "ConnectionGUID": "data.ConnectionGUID", "SessionGUID": "data.SessionGUID", "SessionId": "data.SessionID", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "source.user.name", "UserNameLength": "data.UserNameLength"}
+        "Name": ["ClientAddress", "ClientName", "ClientNameLength", "ConnectionGUID", "SessionGUID", "SessionId", "Status", "TranslatedStatus", "UserName", "UserNameLength"],
+        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "ClientNameLength": "data.ClientNameLength", "ConnectionGUID": "data.ConnectionGUID", "SessionGUID": "data.SessionGUID", "SessionId": "data.SessionID", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "source.user.name", "UserNameLength": "data.UserNameLength"}
       }
     }
   },
@@ -26,8 +26,8 @@
         "transform": {"xmlns": "data.namespace"}
       },
       "UserData/EventData": {
-        "Name": ["ClientAddress", "ClientAddressLength", "ClientName", "ClientNameLength", "GrantedAccess", "MappedAccess", "SessionID", "ShareName", "ShareNameLength", "SharePath", "SharePathLength", "ShareSecurityDescriptor", "ShareSecurityDescriptorLength", "Status", "TranslatedStatus", "UserName", "UserNameLength"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientAddressLength": "data.ClientAddress.Length", "ClientName": "source.address", "ClientNameLength": "data.ClientNameLength", "GrantedAccess": "data.GrantedAccess", "MappedAccess": "data.MappedAccess", "SessionId": "data.SessionID", "ShareName": "data.ShareName", "ShareNameLength": "data.ShareNameLength", "SharePath": "data.SharePath", "SharePathLength": "data.SharePathLength", "ShareSecurityDescriptor": "data.ShareSecurityDescriptor", "ShareSecurityDescriptorLength": "data.ShareSecurityDescriptorLength","Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "source.user.name", "UserNameLength": "data.UserNameLength"}
+        "Name": ["ClientAddress", "ClientName", "ClientNameLength", "GrantedAccess", "MappedAccess", "SessionID", "ShareName", "ShareNameLength", "SharePath", "SharePathLength", "ShareSecurityDescriptor", "ShareSecurityDescriptorLength", "Status", "TranslatedStatus", "UserName", "UserNameLength"],
+        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "ClientNameLength": "data.ClientNameLength", "GrantedAccess": "data.GrantedAccess", "MappedAccess": "data.MappedAccess", "SessionId": "data.SessionID", "ShareName": "data.ShareName", "ShareNameLength": "data.ShareNameLength", "SharePath": "data.SharePath", "SharePathLength": "data.SharePathLength", "ShareSecurityDescriptor": "data.ShareSecurityDescriptor", "ShareSecurityDescriptorLength": "data.ShareSecurityDescriptorLength","Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "source.user.name", "UserNameLength": "data.UserNameLength"}
       }
     }
   }

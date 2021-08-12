@@ -307,13 +307,17 @@ class RecentFiles(SuperTimeline):
                 'recent.machine_id': d['machine_id'],
                 'recent.file': d['file'],
                 'user.name': d['user'],
-                'file.path': d['path'],
                 'file.size': d['size'],
-                'file.directory': os.path.dirname(d['path']),
-                'file.extension': os.path.splitext(d['path'])[1].lstrip('.'),
-                'file.name': os.path.basename(d['path']),
-                'file.group': self.filegroup(d, self.myflag('classify')) or ''
             })
+
+            if d['path']:
+                common.update({
+                    'file.path': d['path'],                    
+                    'file.directory': os.path.dirname(d['path']),
+                    'file.extension': os.path.splitext(d['path'])[1].lstrip('.'),
+                    'file.name': os.path.basename(d['path']),
+                    'file.group': self.filegroup(d, self.myflag('classify')) or ''
+                })
 
             if d['artifact'] == 'lnk':
                 common.update({
@@ -884,14 +888,14 @@ class Shellbags(SuperTimeline):
             if d.get('FirstInteracted', ''):
                 common.update({
                     '@timestamp': to_iso_format(d['FirstInteracted']),
-                    'event-action': 'directory-first-interacted',
+                    'event.action': 'directory-first-interacted',
                     'message': 'Directory first interacted: {}'.format(d.get('AbsolutePath', ''))})
                 yield common
 
             if d.get('LastInteracted', ''):
                 common.update({
                     '@timestamp': to_iso_format(d['LastInteracted']),
-                    'event-action': 'directory-last-interacted',
+                    'event.action': 'directory-last-interacted',
                     'message': 'Directory last interacted: {}'.format(d.get('AbsolutePath', ''))})
                 yield common
 
