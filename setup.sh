@@ -60,7 +60,7 @@ install_debian_deps() {
         libscca1 libscca-utils python3-libscca \
         libmsiecf1 libmsiecf-utils python3-libmsiecf \
         liblnk1 liblnk-utils python3-liblnk \
-        fuse3 libfuse3-dev libicu-dev libattr1-dev
+        fuse3 libfuse3-dev libfuse-dev libicu-dev libattr1-dev
     apt-get install -y libparse-win32registry-perl # regripper
 }
 
