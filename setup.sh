@@ -37,8 +37,9 @@ install_debian_buildtools() {
     apt-get install -y \
         unzip wget git \
         build-essential debhelper apt-utils fakeroot cmake \
+        cargo rustc \
         python-all-dev python3-all-dev \
-        pkg-config libssl-dev autotools-dev zlib1g-dev
+        pkg-config libssl-dev autotools-dev zlib1g-dev python-dev python3-dev
 }
 
 # Install Debian useful tools
@@ -55,7 +56,6 @@ install_debian_deps() {
     apt-get install -y \
         sleuthkit \
         bindfs dislocker ewf-tools testdisk \
-        volatility volatility-tools \
         libimage-exiftool-perl \
         libscca1 libscca-utils python3-libscca \
         libmsiecf1 libmsiecf-utils python3-libmsiecf \
@@ -71,8 +71,10 @@ install_debian_python() {
 
 # Install rvt2 python dependencies
 install_pip_deps() (
-    pip3 install lz4
-    pip3 install pipenv
+    # these dependencies fail in the Dockerfile
+    python3 -m pip install lz4
+    python3 -m pip install evtx
+    python3 -m pip install pipenv
     export LC_ALL=C.UTF-8
     export LANG=C.UTF-8
     cd "${RVT2HOME}"
@@ -195,6 +197,16 @@ build_install_libfvde() {
     # sed -i "s/.user_allow_other/user_allow_other/" /etc/fuser.conf
 }
 
+build_install_volatility() {
+    cd "${SRCDIR}"
+    git clone https://github.com/volatilityfoundation/volatility3.git
+    ln -s "$(pwd)"/volatility3/vol.py /usr/local/bin/vol.py
+    mkdir -p volatility3/symbols
+    wget -O volatility3/symbols/windows.zip https://downloads.volatilityfoundation.org/volatility3/symbols/windows.zip
+    wget -O volatility3/symbols/mac.zip https://downloads.volatilityfoundation.org/volatility3/symbols/mac.zip
+    wget -O volatility3/symbols/linux.zip https://downloads.volatilityfoundation.org/volatility3/symbols/linux.zip
+}
+
 build_install_regripper() (
     local NAME="RegRipper3.0"
     local COMMIT="9f2a96acb49aef4957976331e1696e0afc984371"
@@ -243,12 +255,18 @@ build_install_regripper() (
     # Replaces Base, File and Key.pm with regripper version
 
     local WIN32REGISTRY=$(dirname $(dpkg -L libparse-win32registry-perl|grep "/Base.pm"))
-    sudo cp -np "$WIN32REGISTRY/Base.pm" "$WIN32REGISTRY/Base.pm.old"
-    sudo cp -p Base.pm "$WIN32REGISTRY"
-    sudo cp -np "$WIN32REGISTRY/WinNT/File.pm" "$WIN32REGISTRY/WinNT/File.pm.old"
-    sudo cp -p File.pm "$WIN32REGISTRY/WinNT/"
-    sudo cp -np "$WIN32REGISTRY/WinNT/Key.pm" "$WIN32REGISTRY/WinNT/Key.pm.old"
-    sudo cp -p Key.pm "$WIN32REGISTRY/WinNT/"
+    if [ -e Base.pm ]; then
+        sudo cp -np "$WIN32REGISTRY/Base.pm" "$WIN32REGISTRY/Base.pm.old"
+        sudo cp -p Base.pm "$WIN32REGISTRY"
+    fi
+    if [ -e File.pm ]; then
+        sudo cp -np "$WIN32REGISTRY/WinNT/File.pm" "$WIN32REGISTRY/WinNT/File.pm.old"
+        sudo cp -p File.pm "$WIN32REGISTRY/WinNT/"
+    fi
+    if [ -e Key.pm ]; then
+        sudo cp -np "$WIN32REGISTRY/WinNT/Key.pm" "$WIN32REGISTRY/WinNT/Key.pm.old"
+        sudo cp -p Key.pm "$WIN32REGISTRY/WinNT/"
+    fi
 )
 
 build_install_ntfs3g_system_compression() (
@@ -371,6 +389,7 @@ setup_debian_full() {
     build_install_ntfs3g_system_compression
     build_install_apfs_fuse
     build_install_yara
+    build_install_volatility
       # build_install_hindsight
 
     # Install pip dependencies
@@ -393,6 +412,6 @@ build_install_evtxparser() {
   :
 }
 
-if [ $1 = "run" ]; then
+if [ "$1" = "run" ]; then
   setup_debian_full
 fi

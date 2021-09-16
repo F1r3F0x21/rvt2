@@ -35,8 +35,10 @@ leveldb = "*"
 python-cim = "*"
 Pillow = "*"
 bits-parser = "*"
-evtx = "*"
+# este parque no compila con el Pipfile, pero sí se instala con pip
+#evtx = "*"
 winactivities = {ref = "master", git = "https://github.com/forensicmatt/ActivitiesCacheParser.git"}
+setuptools-rust = "*"
 
 [dev-packages]
 sphinx = "*"
