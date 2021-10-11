@@ -112,7 +112,7 @@ class StoreDict(argparse.Action):
         setattr(namespace, self.dest, kv)
 
 
-def registerExecution(jobid, config, conffiles, job, params, paths, status, ellapsed=0.0):
+def registerExecution(jobid, config, conffiles, job, params, paths, status, elapsed=None):
     """ Register the execution of the rvt2 in a file with a timestamp.
 
     Attrs:
@@ -124,7 +124,7 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, ella
         :params: Any extra params
         :paths: The list of paths
         :status: either 'start', 'end', 'interrupted' or 'error'
-        :ellapsed (float): elapsed time (in hours)
+        :elapsed (datetime.timedelta): elapsed time
     """
     filename = config.get('rvt2', 'register', default=None)
     morgue = config.get('DEFAULT', 'morgue')
@@ -147,7 +147,7 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, ella
         status=status,
         logfile=base.utils.relative_path(config.get('logging', 'file.logfile', None), casedir),
         outfile=base.utils.relative_path(config.get(job, 'outfile', None), casedir),
-        ellapsed=str(ellapsed)
+        elapsed=str(elapsed)
     )
     if status == 'start':
         data['date_start'] = data['date']
@@ -303,11 +303,11 @@ def main(params=sys.argv[1:]):
         for results in base.job.run_job(config, args.job, args.paths, extra_config=args.params, nested_logs=1):
             if args.print:
                 print(json.dumps(results))
-        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'end', (datetime.datetime.now() - jobstarted) / 3600)
+        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'end', (datetime.datetime.now() - jobstarted))
     except KeyboardInterrupt:
-        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'interrupted', (datetime.datetime.now() - jobstarted) / 3600)
+        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'interrupted', (datetime.datetime.now() - jobstarted))
     except Exception:
-        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'error', (datetime.datetime.now() - jobstarted) / 3600)
+        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'error', (datetime.datetime.now() - jobstarted))
         raise
 
 

@@ -307,15 +307,15 @@ def wait_for_job(config, job, step=30, timeout=600, job_name=None, exclude_prese
     """
 
     now = datetime.datetime.now()
-    ellapsed_time = datetime.timedelta(seconds=0)
+    elapsed_time = datetime.timedelta(seconds=0)
     timeout = datetime.timedelta(seconds=timeout)
     available = False
 
-    while ellapsed_time < timeout:
+    while elapsed_time < timeout:
         if job.get_job_status(job_name=job_name, exclude_present_job=exclude_present_job) == 'start':
-            job.logger().debug('There is already an instance of the same job name running. Waiting to complete. Ellapsed time: {}'.format(str(ellapsed_time)))
+            job.logger().debug('There is already an instance of the same job name running. Waiting to complete. elapsed_time='.format(str(elapsed_time)))
             time.sleep(step)
-            ellapsed_time = datetime.datetime.now() - now
+            elapsed_time = datetime.datetime.now() - now
         else:
             available = True
             break
