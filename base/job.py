@@ -288,9 +288,9 @@ def load_module(config, confsection, from_module=None, extra_config=None):
     except AttributeError as exc:
         raise RVTCritical('Cannot load class {}.{} from section [{}]: classname not found: {}'.format(package, classname, section, exc)) from None
     except TypeError as exc:
-        raise RVTCritical('Cannot load class {}.{} from section [{}]: TypeError: {}'.format(package, classname, section, exc)) from None
+        raise RVTCritical('Cannot load class {}.{} from section [{}]: TypeError: {}'.format(package, classname, section, exc)) from exc
     except ImportError as exc:
-        raise RVTCritical('Cannot load class {}.{} from section [{}]: ImportError: {}'.format(package, classname, section, exc)) from None
+        raise RVTCritical('Cannot load class {}.{} from section [{}]: ImportError: {}'.format(package, classname, section, exc)) from exc
 
 
 def wait_for_job(config, job, step=30, timeout=600, job_name=None, exclude_present_job=True):

@@ -356,8 +356,12 @@ class GetFields(base.job.BaseModule):
 
         fields = ast.literal_eval(self.myconfig('fields'))
 
-        for data in self.from_module.run(path):
-            yield {k: data.get(k, '') for k in fields}
+        results = self.from_module.run(path)
+        if results is not None:
+            for data in results:
+                yield {k: data.get(k, '') for k in fields}
+        else:
+            return []
 
 
 class RenameFields(base.job.BaseModule):
