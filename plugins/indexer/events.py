@@ -312,7 +312,7 @@ class RecentFiles(SuperTimeline):
 
             if d['path']:
                 common.update({
-                    'file.path': d['path'],                    
+                    'file.path': d['path'],
                     'file.directory': os.path.dirname(d['path']),
                     'file.extension': os.path.splitext(d['path'])[1].lstrip('.'),
                     'file.name': os.path.basename(d['path']),
@@ -898,6 +898,64 @@ class Shellbags(SuperTimeline):
                     'event.action': 'directory-last-interacted',
                     'message': 'Directory last interacted: {}'.format(d.get('AbsolutePath', ''))})
                 yield common
+
+
+#######################  Event Artifacts  #######################
+
+
+class ScheduledTasks(SuperTimeline):
+    """ Converts ScheduledTasks events to ecs format. After this, you can save this file using events.save.
+
+    Configuration section:
+        - **classify**: If True, categorize the files in the output.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('classify', 'False')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        try:
+            for d in self.from_module.run(path):
+                common = self.common_fields()
+                common.update({
+                    '@timestamp': to_iso_format(d.get('event.created', None)),
+                    'tags': ['scheduled'],
+                    'event.category': ['file'],
+                    'event.module': 'event_logs',
+                    'event.dataset': 'scheduled',
+                    'event.code': d.get('event.code', None),
+                    'user.name': g.get('user.name', None),
+                    'message': d.get('message', None)
+                })
+
+                for field, value in d.items():
+                    if field.startswith('data.'):
+                        common[f'event.{field}'] = value
+
+                if d.get('event.code', '106'):
+                    common['event.type'] = ['creation'],
+                    common['event.action'] = 'task-registered'
+                if d.get('event.code', '140'):
+                    common['event.type'] = ['change'],
+                    common['event.action'] = 'task-updated'
+                if d.get('event.code', '141'):
+                    common['event.type'] = ['deletion'],
+                    common['event.action'] = 'task-deleted'
+                if d.get('event.code', '200'):
+                    common['event.type'] = ['start'],
+                    common['event.action'] = 'task-launched' 
+                if d.get('event.code', '201'):
+                    common['event.type'] = ['end'],
+                    common['event.action'] = 'task-finished'
+
+                yield common
+
+        except base.job.RVTErrorNotExistingPath as exc:
+            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            return[]
 
 
 class UsnJrnl(SuperTimeline):

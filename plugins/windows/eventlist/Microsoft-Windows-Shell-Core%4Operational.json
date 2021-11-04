@@ -2,6 +2,7 @@
   "9705": {
     "description": "Started enumeration of commands for registry key",
     "provider": "Microsoft-Windows-Shell-Core",
+    "type": ["start"],
     "path": {
       "EventData": {
          "Name": ["KeyName"]
@@ -15,6 +16,7 @@
   "9706": {
     "description": "Finished enumeration of commands for registry key",
     "provider": "Microsoft-Windows-Shell-Core",
+    "type": ["end"],
     "path": {
       "EventData": {
          "Name": ["KeyName"]
@@ -28,6 +30,7 @@
   "9707": {
     "description": "Started execution of command",
     "provider": "Microsoft-Windows-Shell-Core",
+    "type": ["start"], 
     "path": {
       "EventData": {
          "Name": ["Command"]
@@ -39,8 +42,9 @@
     }
   },
   "9708": {
-    "description": "Started execution of command",
+    "description": "Finished execution of command",
     "provider": "Microsoft-Windows-Shell-Core",
+    "type": ["end"],
     "path": {
       "EventData": {
          "Name": ["Command", "PID"]

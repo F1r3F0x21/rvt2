@@ -97,6 +97,38 @@ def get_hives(path):
     return regfiles
 
 
+def registry_key_to_json(volumekey, depth=0, hive='SOFTWARE'):
+    """ Yields ecs format registry data from all subkeys of a registry key
+
+        Parameters:
+            - registry (Registry.Registry): Registry object to the loaded hive
+            - regkey (str): Key or subkey path inside the hive
+            - hive (str): Name of the hive. Ex: SOFTWARE, HKLM
+            - depth (int): Number of subkey iterations to perform. Default: 0
+    """
+
+    # TODO: parse types other than Registry.RegSZ and Registry.RegExpandSZ
+    # TODO: take a common name for hive, relating to the path
+
+    # Recursive for loop when depth
+    if depth > 0:
+        for filekey in volumekey.subkeys():
+            yield from registry_key_to_json(filekey, depth - 1, binary=binary)
+    # Get registry data
+    else:
+        for value in volumekey.values():
+            data = {
+                '@timestamp': volumekey.timestamp().strftime("%Y-%m-%d %H:%M:%S"),   # Key LastWrite
+                'registry.hive': hive,
+                'registry.key': '/'.join(volumekey.path().split('\\')[1:]),
+                'registry.value': value.name(),
+                'registry.data.type': value.value_type(),
+            }
+            if value.value_type() in [Registry.RegSZ, Registry.RegExpandSZ]:
+                data['registry.data.strings'] = [value.value()]
+                yield data
+
+
 class AmCache(base.job.BaseModule):
     """ Parses Amcache.hve registry hive. """
 
@@ -696,6 +728,61 @@ class ShellbagsAnalysis(base.job.BaseModule):
                     res.update({'User': user, 'Partition': partition})
                     yield res
 
+
+class RunKeys(base.job.BaseModule):
+    """ Get autostart key contents from Software hive. """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
+
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        # Determine output filename
+        id = self.myconfig('volume_id', None)
+        self.partition = id if id else 'p01'  # needed to get OS info
+        outfolder = self.myconfig('outdir')
+        check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'run_keys{}.csv'.format('_{}'.format(id) if id else ''))
+
+        self.logger().debug("Parsing {}".format(path))
+
+        entries = self.parse_run_keys(path)
+        save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+
+    def parse_run_keys(self, path):
+
+        run_keys = [
+            'Microsoft\\Windows\\CurrentVersion\\Run',
+            'Microsoft\\Windows\\CurrentVersion\\RunOnce',
+            'Microsoft\\Windows\\CurrentVersion\\RunServices',
+            'Wow6432Node\\Miyycrosoft\\Windows\\CurrentVersion\\Run',
+            'Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce',
+            'Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run',
+            'Microsoft\\Windows NT\\CurrentVersion\\Terminal Server\\Install\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+            'Microsoft\\Windows NT\\CurrentVersion\\Terminal Server\\Install\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce',
+            'Microsoft\\Windows\\CurrentVersion\\StartupApproved\\Run',
+            'Microsoft\\Windows\\CurrentVersion\\StartupApproved\\Run32',
+            'Microsoft\\Windows\\CurrentVersion\\StartupApproved\\StartupFolder'
+        ]
+
+        try:
+            registry = Registry.Registry(path)
+        except Exception as exc:
+            self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
+        for regkey in run_keys:
+            try:
+                volumekey = registry.open(regkey)
+                yield from registry_key_to_json(volumekey, depth=0, hive='SOFTWARE')
+            except Registry.RegistryKeyNotFoundException:
+                self.logger().debug(f'Key {regkey} not found')
+            except KeyError:
+                self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+
+        self.logger().debug("RunKeys parsing finished")
+        return []
 
 class TaskFolder(base.job.BaseModule):
 

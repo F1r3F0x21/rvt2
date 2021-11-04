@@ -373,7 +373,7 @@ class RenameFields(base.job.BaseModule):
         - **yields**: The updated dict data.
 
     Configuration:
-        - **fileds**: Space separated key names to be renamed
+        - **fields**: Space separated key names to be renamed
         - **new_fields**: Space separated new key names
     """
 
