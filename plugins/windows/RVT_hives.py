@@ -27,7 +27,7 @@ from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, save_csv, relative_path, windows_format_path
+from base.utils import check_directory, save_csv, save_json, relative_path, windows_format_path
 from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetTimeline
 from plugins.windows.RVT_os_info import CharacterizeWindows
@@ -107,13 +107,13 @@ def registry_key_to_json(volumekey, depth=0, hive='SOFTWARE'):
             - depth (int): Number of subkey iterations to perform. Default: 0
     """
 
-    # TODO: parse types other than Registry.RegSZ and Registry.RegExpandSZ
+    # TODO: parse Registry.RegBin
     # TODO: take a common name for hive, relating to the path
 
     # Recursive for loop when depth
     if depth > 0:
         for filekey in volumekey.subkeys():
-            yield from registry_key_to_json(filekey, depth - 1, binary=binary)
+            yield from registry_key_to_json(filekey, depth - 1, hive=hive)
     # Get registry data
     else:
         for value in volumekey.values():
@@ -124,9 +124,94 @@ def registry_key_to_json(volumekey, depth=0, hive='SOFTWARE'):
                 'registry.value': value.name(),
                 'registry.data.type': value.value_type(),
             }
-            if value.value_type() in [Registry.RegSZ, Registry.RegExpandSZ]:
+            if value.value_type() in [Registry.RegSZ, Registry.RegExpandSZ,
+                                      Registry.RegDWord, Registry.RegMultiSZ]:
                 data['registry.data.strings'] = [value.value()]
                 yield data
+
+
+def registry_simple_recursive_to_json(volumekey, depth=0, hive='SOFTWARE'):
+    """ Yields ecs format registry data from all tree subkeys leafs
+
+        Parameters:
+            - registry (Registry.Registry): Registry object to the loaded hive
+            - regkey (str): Key or subkey path inside the hive
+            - hive (str): Name of the hive. Ex: SOFTWARE, HKLM
+            - depth (int): Number of subkey iterations to perform. Default: 0
+    """
+
+    # TODO: take a common name for hive, relating to the path
+
+    if len(volumekey.subkeys()) == 0:
+        data = {
+            '@timestamp': volumekey.timestamp().strftime("%Y-%m-%d %H:%M:%S"),   # Key LastWrite
+            'registry.hive': hive,
+            'registry.key': '/'.join(volumekey.path().split('\\')[1:]),
+            'registry.value': volumekey.name()
+        }
+        yield data
+    else:
+        for filekey in volumekey.subkeys():
+            yield from registry_simple_recursive_to_json(filekey, hive=hive)
+
+
+def registry_key_tree_to_json(volumekey, depth=0, hive='SOFTWARE', data=None, event=None, start=True):
+    """ Yields ecs format registry data joining all subkeys of a registry key
+        in a single event
+
+        Parameters:
+            - registry (Registry.Registry): Registry object to the loaded hive
+            - regkey (str): Key or subkey path inside the hive
+            - hive (str): Name of the hive. Ex: SOFTWARE, HKLM
+            - depth (int): Maximum number of subkey iterations to perform. Default: 0
+    """
+
+    # TODO: parse Registry.RegBin
+    # TODO: take a common name for hive, relating to the path
+
+    services_type = {1: "Kernel Driver",
+                     2: "File System Driver",
+                     4: "Adapter",
+                     16: "Own Process",
+                     32: "Share Process",
+                     }
+
+    services_start = {0: "Boot Start",
+                      1: "Kernel Start",
+                      2: "Auto Start",
+                      3: "Manual",
+                      4: "Disabled",
+                      5: "Delayed Start"
+                      }
+
+    if start:
+        data = list()
+        for filekey in volumekey.subkeys():
+            event = {
+                '@timestamp': filekey.timestamp().strftime("%Y-%m-%d %H:%M:%S"),   # Key LastWrite
+                'registry.hive': hive,
+                'registry.key': '/'.join(filekey.path().split('\\')[1:])
+            }
+            data.append(event)
+            registry_key_tree_to_json(filekey, depth - 1, hive=hive, data=data, event=event, start=False)
+
+        return data
+
+    # Recursive for loop when depth
+    if depth > 0:
+        for filekey in volumekey.subkeys():
+            registry_key_tree_to_json(filekey, depth - 1, hive=hive, data=data, event=event, start=False)
+    # Get registry data
+    else:
+        for value in volumekey.values():
+            if value.value_type() in [Registry.RegSZ, Registry.RegExpandSZ,
+                                      Registry.RegDWord, Registry.RegMultiSZ]:
+                if value.name() == "Start":
+                    event[f'registry.data.{value.name()}'] = services_start.get(value.value(), str(value.value()))
+                elif value.name() == "Type":
+                    event[f'registry.data.{value.name()}'] = services_type.get(value.value(), str(value.value()))
+                else:
+                    event[f'registry.data.{value.name()}'] = value.value()
 
 
 class AmCache(base.job.BaseModule):
@@ -729,24 +814,33 @@ class ShellbagsAnalysis(base.job.BaseModule):
                     yield res
 
 
-class RunKeys(base.job.BaseModule):
-    """ Get autostart key contents from Software hive. """
+class BaseRegistry(base.job.BaseModule):
+    """ Base class to parse registry keys with Registry library """
 
     def read_config(self):
         super().read_config()
         self.set_default_config('path', '')
         self.set_default_config('volume_id', '')
 
-    def run(self, path=""):
-        self.check_params(path, check_path=True, check_path_exists=True)
-
+    def get_outfile(self, prefix_name, extension='csv'):
         # Determine output filename
         id = self.myconfig('volume_id', None)
         self.partition = id if id else 'p01'  # needed to get OS info
         outfolder = self.myconfig('outdir')
         check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'run_keys{}.csv'.format('_{}'.format(id) if id else ''))
+        self.outfile = os.path.join(outfolder, '{}{}.{}'.format(
+            prefix_name, '_{}'.format(id) if id else '', extension))
 
+    def run(self, path=""):
+        raise NotImplementedError
+
+
+class RunKeys(BaseRegistry):
+    """ Get autostart key contents from Software hive. """
+
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.get_outfile('run_keys', extension='csv')
         self.logger().debug("Parsing {}".format(path))
 
         entries = self.parse_run_keys(path)
@@ -783,6 +877,80 @@ class RunKeys(base.job.BaseModule):
 
         self.logger().debug("RunKeys parsing finished")
         return []
+
+
+class Services(BaseRegistry):
+    """ Get services key contents from System hive. """
+
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.get_outfile('services', extension='json')
+        self.logger().debug("Parsing {}".format(path))
+
+        entries = self.parse_services_keys(path)
+        # save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        save_json(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+
+    def parse_services_keys(self, path):
+
+        try:
+            registry = Registry.Registry(path)
+        except Exception as exc:
+            self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
+
+        # Get current control set number
+        select = registry.open("Select")
+        current = select.value("Current").value()
+
+        regkey = f"ControlSet{current:03d}\\Services"
+
+        try:
+            volumekey = registry.open(regkey)
+            # yield from registry_key_to_json(volumekey, depth=1, hive='SYSTEM')
+            yield from registry_key_tree_to_json(volumekey, depth=1, hive='SYSTEM')
+            # yield from registry_key_to_json(volumekey, depth=3, hive='SYSTEM')
+            # yield from registry_key_to_json(volumekey, depth=4, hive='SYSTEM')
+        except Registry.RegistryKeyNotFoundException:
+            self.logger().debug(f'Key {regkey} not found')
+        except KeyError:
+            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+
+        self.logger().debug("Services Keys parsing finished")
+        return []
+
+
+class Tasks(BaseRegistry):
+    """ Get TaskCache key contents from Software hive. """
+
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        self.get_outfile('tasks', extension='json')
+        self.logger().debug("Parsing {}".format(path))
+
+        entries = self.parse_tasks_keys(path)
+        # save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        save_json(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+
+    def parse_tasks_keys(self, path):
+
+        try:
+            registry = Registry.Registry(path)
+        except Exception as exc:
+            self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
+
+        regkey = 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tree'
+
+        try:
+            volumekey = registry.open(regkey)
+            yield from registry_simple_recursive_to_json(volumekey, depth=5, hive='SOFTWARE')
+        except Registry.RegistryKeyNotFoundException:
+            self.logger().debug(f'Key {regkey} not found')
+        except KeyError:
+            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+
+        self.logger().debug("TaskCache Keys parsing finished")
+        return []
+
 
 class TaskFolder(base.job.BaseModule):
 

@@ -54,6 +54,7 @@ class DateFields(base.job.BaseModule):
         - **timespec**: Parameter used by datetime.isoformat. Specifies the number of additional components of the time to include
         - **tz_name**: tzdata/Olsen timezone name to set for the dates. Examples: `Europe/Berlin`, `America/New_York`, `UTC`. If `local` is set, timezone will be searched on the registry
         - **hide_tz**: If True, do not output a timezone offset with the result
+        - **missing_action**: what to do when no date field is present. One of (IGNORE, SKIP_ANY, SKIP_ALL, EPOCH, NOW)
     """
     def read_config(self):
         super().read_config()
@@ -63,6 +64,7 @@ class DateFields(base.job.BaseModule):
         self.set_default_config('timespec', 'auto')
         self.set_default_config('tz_name', 'UTC')
         self.set_default_config('hide_tz', False)
+        self.set_default_config('missing_action', 'IGNORE')
 
     def run(self, path=None):
         """ The path will be passed to the mandatory from_module """
@@ -73,6 +75,12 @@ class DateFields(base.job.BaseModule):
         fields = self.myarray('fields')
         new_fields = self.myarray('new_fields')
         tz_name = self.myconfig('tz_name')
+        missing_action = self.myconfig('missing_action').upper()
+        if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'EPOCH', 'NOW']:
+            raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP, EPOCH, NOW')
+
+        time_limits = {'EPOCH': datetime.datetime.fromtimestamp(0).isoformat(sep=sep, timespec=timespec),
+                       'NOW': datetime.datetime.now().isoformat(sep=sep, timespec=timespec)}
 
         if new_fields and len(new_fields) != len(fields):
             raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
@@ -81,16 +89,34 @@ class DateFields(base.job.BaseModule):
             tz_name, offset = CharacterizeWindows(config=self.config).get_timezone()  # partition ???
 
         for data in self.from_module.run(path):
+            found = False
+            skip = False
             for i, field in enumerate(fields):
+                if skip:
+                    continue
+                if field not in data:
+                    if missing_action in ('IGNORE', 'SKIP_ALL'):
+                        continue
+                    if missing_action == 'SKIP_ANY':
+                        skip = True
+                        continue
                 if field in data:
+                    found = True
                     converted_date = self.__convert_date(data[field], sep=sep, timespec=timespec, tz_name=tz_name, hide_tz=hide_tz)
-                    if converted_date and not new_fields:
-                        data[field] = converted_date
-                    elif converted_date and new_fields:
-                        data[new_fields[i]] = converted_date
-                    else:
-                        data.pop(field)
-            yield data
+                else:
+                    converted_date = time_limits[missing_action]
+                if converted_date and not new_fields:
+                    data[field] = converted_date
+                elif converted_date and new_fields:
+                    data[new_fields[i]] = converted_date
+                else:
+                    data.pop(field)
+
+            if not found and missing_action == 'SKIP_ALL':
+                skip = True
+
+            if not skip:
+                yield data
 
     def __convert_date(self, source, sep='T', timespec='auto', tz_name='UTC', hide_tz=False):
         try:
