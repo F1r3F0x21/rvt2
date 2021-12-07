@@ -80,7 +80,7 @@ class DateFields(base.job.BaseModule):
             raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP, EPOCH, NOW')
 
         time_limits = {'EPOCH': datetime.datetime.fromtimestamp(0).isoformat(sep=sep, timespec=timespec),
-                       'NOW': datetime.datetime.now().isoformat(sep=sep, timespec=timespec)}
+                       'NOW': datetime.datetime.utcnow().isoformat(sep=sep, timespec=timespec)}
 
         if new_fields and len(new_fields) != len(fields):
             raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))

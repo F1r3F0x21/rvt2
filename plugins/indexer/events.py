@@ -34,7 +34,7 @@ def to_date(strtimestamp):
 
 def to_iso_format(timestring):
     """ Converts a date string into iso format date """
-    if not timestring:
+    if not timestring or timestring == 'Never':
         return datetime.datetime.utcfromtimestamp(0).isoformat()
     try:
         return datetime.datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S').isoformat()
@@ -297,6 +297,147 @@ class Timeline(SuperTimeline):
                 'event.type': ['access']
             })
             yield common
+
+
+class Characterize(SuperTimeline):
+    """ Converts OS characterization to ECS suitable events
+    """
+
+    def run(self, path=None):
+        super().run(path)
+
+        fields = {
+            'host.architecture': 'ProcessorArchitecture',
+            'host.id': 'ProductId',
+            # 'host.mac': 'NONE',
+            'host.type': 'InstallationType',
+            'os.full': 'ProductName',
+            'os.kernel': 'CurrentBuild',
+            'os.name': 'ComputerName',
+            'os.type': 'windows',
+            'os.version': 'CurrentVersion',
+            # 'os.family': 'NONE',
+            'event.timezone': 'TimeZone',
+            'user.name': 'RegisteredOwner',
+            'user.domain': 'RegisteredOrganization'
+        }
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                '@timestamp': datetime.datetime.utcnow().isoformat(),
+                'tags': ['characterize'],
+                'event.category': ['configuration'],
+                'event.type': ['info'],
+                'event.module': 'characterize',
+                'event.dataset': 'characterize',
+            })
+
+            # General OS information extracted from the registry
+            for p_name, partition in d.items():
+                common['container.id'] = p_name
+                for ecs_field, rvt_field in fields.items():
+                    common[ecs_field] = partition.get(rvt_field, "")
+                # OS installation date and last standard shutdown date
+                common['event.created'] = to_iso_format(partition.get('InstallDate', None))
+                common['event.end'] = to_iso_format(partition.get('ShutdownTime', None))
+                yield common
+
+                # Users information
+                for user, details in partition.get('users', []).items():
+                    common = self.common_fields()
+                    common.update({
+                        'tags': ['users'],
+                        'event.category': ['configuration'],
+                        'event.type': ['info'],
+                        'event.module': 'characterize',
+                        'event.dataset': 'characterize',
+                        'user.name': user,
+                        'file.created': to_iso_format(details.get('creation_time', None)),
+                        'file.mtime': to_iso_format(details.get('last_write', None)),
+                        '@timestamp': to_iso_format(details.get('creation_time', None))
+                    })
+                    yield common
+                for user, details in partition.get('user_profiles', []).items():
+                    common = self.common_fields()
+                    common.update({
+                        'tags': ['users'],
+                        'event.category': ['configuration'],
+                        'event.type': ['info'],
+                        'event.module': 'characterize',
+                        'event.dataset': 'characterize',
+                        'user.name': user,
+                        'user.id': details.get('sid', ""),
+                        'file.created': to_iso_format(details.get('creation_time', None)),
+                        'file.mtime': to_iso_format(details.get('last_write', None)),
+                        '@timestamp': to_iso_format(details.get('creation_time', None))
+                    })
+                    yield common
+
+
+class Status_GRR(SuperTimeline):
+    """ Converts GRR status to ECS suitable events
+    """
+
+    def run(self, path=None):
+        super().run(path)
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                'host.name': d.get('info', dict()).get('host', d.get('client_id', "")),
+                '@timestamp': to_iso_format(d.get('info', dict()).get('first_seen', None)),
+                'tags': ['characterize'],
+                'event.category': ['configuration'],
+                'event.type': ['info'],
+                'event.module': 'characterize',
+                'event.dataset': 'grr',
+                'agent.id': d.get('client_id', ""),
+                'client.address': d.get('info', dict()).get('addresses', list()),
+                'os.family': d.get('info', dict()).get('system', list()),
+                'agent.version': d.get('info', dict()).get('agent_version', list()),
+            })
+
+            # General client information
+            yield common
+
+            # Volumes (drives) information
+            common['tags'] = ['volumes']
+            for v in d.get('info', {}).get('volumes', list()):
+                common.update({
+                    'file.drive_letter': v.get('drive_letter', ""),
+                    'file.size': v.get('size', ""),
+                    'package.type': v.get('drive_type', ""),
+                    'event.data.FileSystem': v.get('file_system_type', ""),
+                })
+                yield common
+
+            # Flows information
+            common = self.common_fields()
+            common.update({
+                'host.name': d.get('info', dict()).get('host', d.get('client_id', "")),
+                'tags': ['flows'],
+                'event.category': ['configuration'],
+                'event.type': ['info'],
+                'event.module': 'characterize',
+                'event.dataset': 'grr',
+                'agent.id': d.get('client_id', ""),
+                'client.address': d.get('info', dict()).get('addresses', list()),
+                'agent.version': d.get('info', dict()).get('agent_version', list()),
+            })
+            for f_name, flow in d.get('flows', dict()).items():
+                common.update({
+                    '@timestamp': to_iso_format(flow.get('started_at')),
+                    'event.data.FlowLastChecked': to_iso_format(flow.get('last_checked')),
+                    'event.data.FlowFinishedAt': to_iso_format(flow.get('finished_at')),
+                    'event.data.FlowId': f_name,
+                    'event.data.FlowName': flow.get('default_flow', ""),
+                    'event.data.FlowState': flow.get('state', ""),
+                    'user.name': flow.get('creator', ""),
+                })
+                yield common
 
 
 class RecentFiles(SuperTimeline):

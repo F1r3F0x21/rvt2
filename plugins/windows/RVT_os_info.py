@@ -74,9 +74,12 @@ class CharacterizeWindows(base.job.BaseModule):
 
         # Save information in auxiliar file to be used by other modules
         aux_json_file = self.myconfig('aux_file')
+        aux_json_file_raw = '.'.join(aux_json_file.split('.')[:-1]) + '_raw.json'
         check_directory(os.path.dirname(aux_json_file), create=True)
         with open(aux_json_file, 'w') as outfile:
             json.dump(self.os_info, outfile, indent=4)
+        with open(aux_json_file_raw, 'w') as outfile:
+            json.dump(self.os_info, outfile)
 
         return [
             dict(os_info=self.os_info, source=self.myconfig('source'))
