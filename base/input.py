@@ -161,7 +161,7 @@ class CSVReader(base.job.BaseModule):
 
     Configuration:
         - **encoding** (String): The encoding to use. Defaults to "utf-8"
-        - **delimiter** (String): The delimiter to use. Defaults to ;
+        - **delimiter** (String): The delimiter to use. Use `AUTO` to dinamically find out. Defaults to ;
         - **quotechar** (String): The quotechar. Defaults to \"
         - **restkey** (String): The restkey of the DictReader. Defaults to "extra".
         - **restval** (String): The restval of the DictReader. Defaults to the empty string.
@@ -196,11 +196,16 @@ class CSVReader(base.job.BaseModule):
             fieldnames = self.myarray('fieldnames', None)
             for i in range(0, ignore_lines):
                 infile.readline()
+            if self.myconfig('delimiter') == 'AUTO':
+                delimiter = csv.Sniffer().sniff(infile.readline()).delimiter
+                infile.seek(0)
+            else:
+                delimiter = self.myconfig('delimiter')
             reader = csv.DictReader(
                 infile,
                 fieldnames=fieldnames,
                 restval=self.myconfig('restval'), restkey=self.myconfig('restkey'),
-                delimiter=self.myconfig('delimiter'), quotechar=self.myconfig('quotechar'))
+                delimiter=delimiter, quotechar=self.myconfig('quotechar'))
             # progress management
             total_iterations = estimate_iterations(path, self.myconfig('progress.cmd'))
             # if fieldnames is None, the first line is header. Add one to progress
