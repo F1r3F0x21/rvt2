@@ -71,7 +71,7 @@ class Autorip(base.job.BaseModule):
             - Custom folder containing hives. Warning: 'ntuser.dat' are expected to be stored in a username folder.
         - **outdir**: output directory for generated files
         - **errorfile**: path to log file to register regripper errors
-        - **ripplugins**: path to json file containing the organixed list of regripper plugins to run
+        - **ripplugins**: path to json file containing the organized list of regripper plugins to run
         - **pluginshives**: path to json file associating each regripper plugin with a list of hives
         - **volume_id**: volume identifier, such as partition number. Ex: 'p03'
     """

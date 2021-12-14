@@ -21,6 +21,8 @@
 import os
 import shutil
 import uuid
+import hashlib
+import json
 import base.job
 import base.config
 
@@ -206,6 +208,26 @@ def generate_id(data=None):
     else:
         # not enough information: random ID
         return uuid.uuid4()
+
+
+def generate_hash(data=None):
+    """ Generate an MD5 for a dictionary. If data is None, returns a random indentifier.
+
+    The identifier is created using the encoded input data.
+
+    If the data already provides and identifier in an field ``_id``, pop this field from data and return it.
+    """
+
+    if not data:
+        return uuid.uuid4()
+
+    if '_id' in data:
+        return data.pop('_id')
+
+    dhash = hashlib.md5()
+    encoded = json.dumps(data, sort_keys=True).encode()
+    dhash.update(encoded)
+    return dhash.hexdigest()
 
 
 def human_readable_size(num):

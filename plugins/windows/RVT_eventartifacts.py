@@ -616,6 +616,8 @@ class USBConnections(base.job.BaseModule):
 class TGT_attack(base.job.BaseModule):
     """ Extracts possible TGT attacks """
 
+    # TODO: convert prints to dict yields
+
     def run(self, path=None):
         """
         Attrs:

@@ -540,7 +540,6 @@ class AppCompat(base.job.BaseModule):
         # Take path from params if not provided as an argument
         if not path:
             path = self.myconfig('path')
-        # self.check_params(path, check_path=True, check_path_exists=True)
 
         # Determine output filename
         id = self.myconfig('volume_id', None)
@@ -906,10 +905,7 @@ class Services(BaseRegistry):
 
         try:
             volumekey = registry.open(regkey)
-            # yield from registry_key_to_json(volumekey, depth=1, hive='SYSTEM')
             yield from registry_key_tree_to_json(volumekey, depth=1, hive='SYSTEM')
-            # yield from registry_key_to_json(volumekey, depth=3, hive='SYSTEM')
-            # yield from registry_key_to_json(volumekey, depth=4, hive='SYSTEM')
         except Registry.RegistryKeyNotFoundException:
             self.logger().debug(f'Key {regkey} not found')
         except KeyError:

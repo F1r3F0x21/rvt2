@@ -172,10 +172,9 @@ class CharacterizeWindows(base.job.BaseModule):
             self.logger().debug('No OS information for partition {}'.format(part))
             return
 
-        line = '  '
-        users = {'username': '', 'creation_time': '', 'last_log': ''}
+        # users = {'username': '', 'creation_time': '', 'last_log': ''}
         users = {}
-        user_profiles = {'username': '', 'creation_time': '', 'last_log': '', 'sid': ''}
+        # user_profiles = {'username': '', 'creation_time': '', 'last_log': '', 'sid': ''}
         user_profiles = {}
         samparse_hivefile = os.path.join(self.hives_dir, '{}_{}.txt'.format(self.plugin_files['samparse'], part))
         profilelist_hivefile = os.path.join(self.hives_dir, '{}_{}.txt'.format(self.plugin_files['profilelist'], part))
@@ -184,10 +183,25 @@ class CharacterizeWindows(base.job.BaseModule):
         if not check_file(samparse_hivefile) or not profilelist_hivefile:
             return
 
+        self._samparse(users, samparse_hivefile)
+        self._profilelist(user_profiles, profilelist_hivefile)
+
+        # Get creation date from usrclass.DAT if not found in profilelist
+        for user, data in user_profiles.items():
+            for ntusers_info in self.ntusers[part]:
+                if user == ntusers_info[0] and data['creation_time'] == "":
+                    data['creation_time'] = ntusers_info[1]
+        self.os_info[part]["users"] = users
+        self.os_info[part]["user_profiles"] = user_profiles
+
+    def _samparse(self, users, file):
         # Parse samparse
-        with open(samparse_hivefile) as f_in:
+        line = '  '
+        with open(file) as f_in:
             while not line.startswith('samparse'):  # anything before samparse uotput is ignored
                 line = f_in.readline()
+                if not line:  # end of file
+                    return
 
             while not line.startswith('.' * 20):   # a large line of points marks the end of the plugin output
                 line = f_in.readline()
@@ -210,12 +224,17 @@ class CharacterizeWindows(base.job.BaseModule):
                             else:
                                 users[username]['last_write'] = "Never"
                             break
+                if not line:  # end of file
+                    return
 
+    def _profilelist(self, user_profiles, file):
         # Parse profilelist
         line = '  '
-        with open(profilelist_hivefile) as f_in:
+        with open(file) as f_in:
             while not line.startswith('profilelist'):  # anything before profilelist uotput is ignored
                 line = f_in.readline()
+                if not line:  # end of file
+                    return
 
             while not line.startswith('.' * 20):   # a large line of points marks the end of the plugin output
                 line = f_in.readline()
@@ -233,14 +252,8 @@ class CharacterizeWindows(base.job.BaseModule):
                         elif last_write_search:
                             date = self._parse_dates(last_write_search.group(1))
                             user_profiles[username]['last_write'] = date.strftime("%Y-%m-%d %H:%M:%S")
-
-        # Get creation date from usrclass.DAT if not found in profilelist
-        for user, data in user_profiles.items():
-            for ntusers_info in self.ntusers[part]:
-                if user == ntusers_info[0] and data['creation_time'] == "":
-                    data['creation_time'] = ntusers_info[1]
-        self.os_info[part]["users"] = users
-        self.os_info[part]["user_profiles"] = user_profiles
+                if not line:  # end of file
+                    return
 
     def make_usrclass_timeline(self):
         """ Get user creation date from the birth time of UsrClass.dat"""

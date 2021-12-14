@@ -326,7 +326,7 @@ class Characterize(SuperTimeline):
 
             common = self.common_fields()
             common.update({
-                '@timestamp': datetime.datetime.utcnow().isoformat(),
+                # '@timestamp': datetime.datetime.utcnow().isoformat(),
                 'tags': ['characterize'],
                 'event.category': ['configuration'],
                 'event.type': ['info'],
@@ -342,6 +342,7 @@ class Characterize(SuperTimeline):
                 # OS installation date and last standard shutdown date
                 common['event.created'] = to_iso_format(partition.get('InstallDate', None))
                 common['event.end'] = to_iso_format(partition.get('ShutdownTime', None))
+                common['@timestamp'] = common['event.created']
                 yield common
 
                 # Users information
@@ -356,7 +357,7 @@ class Characterize(SuperTimeline):
                         'user.name': user,
                         'file.created': to_iso_format(details.get('creation_time', None)),
                         'file.mtime': to_iso_format(details.get('last_write', None)),
-                        '@timestamp': to_iso_format(details.get('creation_time', None))
+                        '@timestamp': to_iso_format(details.get('last_write', None))
                     })
                     yield common
                 for user, details in partition.get('user_profiles', []).items():

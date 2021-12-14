@@ -32,7 +32,7 @@ from tqdm import tqdm
 import base.job
 import base.config
 from base.commands import estimate_iterations
-from base.utils import generate_id
+from base.utils import generate_id, generate_hash
 import uuid
 
 __maintainer__ = 'Juanvi Vera'
@@ -203,6 +203,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
         - **operation**: The operation for elastic search. Possible values are "index" (default) overwrites data, or
           "update" updates existing data with new information. An update does always an upsert.
         - **casename**: The name of the case
+        - **unique_id**: If True, generate MD5 of every event to avoid indexing repeated events
     """
 
     def read_config(self):
@@ -210,6 +211,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
         self.set_default_config('name', self.myconfig('source'))
         self.set_default_config('operation', 'update')
         self.set_default_config('casename', 'casename')
+        self.set_default_config('unique_id', False)
 
     def run(self, path):
         """
@@ -220,6 +222,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
         self.check_params(path, check_from_module=True)
 
         name = self.myconfig('name').lower()
+        unique_id = self.myflag('unique_id')
 
         # read tags from the section
         mytags = self.myarray('tags')
@@ -229,7 +232,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
                 if mytags:
                     fileinfo['tags'] = mytags
                 # get or generate an identifier
-                _id = str(generate_id(fileinfo))
+                _id = str(generate_id(fileinfo)) if not unique_id else str(generate_hash(fileinfo))
                 # if the fileinfo already provides an index name, use it. If not, use the default index name
                 fileindex = fileinfo.pop('_index') if '_index' in fileinfo else name
                 yield dict(_index=fileindex, _id=_id, _source=fileinfo, _op_type=self.myconfig('operation'))
