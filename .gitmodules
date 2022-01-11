@@ -24,4 +24,4 @@
 	url = https://github.com/brimorlabs/KStrike
 [submodule "plugins/external/ntdsxtract"]
 	path = plugins/external/ntdsxtract
-	url = https://github.com/csababarta/ntdsxtract
+	url = https://github.com/IncideDigital/ntdsxtract.git
