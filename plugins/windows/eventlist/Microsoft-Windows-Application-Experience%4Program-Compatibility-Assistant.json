@@ -13,8 +13,7 @@
     "provider": "Microsoft-Windows-Application-Experience",
     "path": {
       "UserData/HelpedUserEvent":{
-         "Name": ["ApplicationName", "ApplicationVersion", "ExecutablePath", "ScenarioId", "UserAction", "UserActionID", "CompatibilityLayer", "FileID", "ProgramID"],
-         "transform": {"ProcessId": "data.ProcessID", "Flags": "data.flags"}
+         "Name": ["ApplicationName", "ApplicationVersion", "ExecutablePath", "ScenarioId", "UserAction", "UserActionID", "CompatibilityLayer", "FileID", "ProgramID"]
       }
     }
   }
