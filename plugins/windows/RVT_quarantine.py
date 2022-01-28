@@ -151,24 +151,27 @@ class Quarantine(base.job.BaseModule):
 
             # Next timestamps should be tested deeply
             try:
-                lw = int.from_bytes(content[249:253], byteorder='little')
-                hg = int.from_bytes(content[253:257], byteorder='little')
+
+                indx2 = content.find(b'file\x00\x00')
+                indx = content.find(b'\x00\x00\x08\x00', indx2) + 10
+                lw = int.from_bytes(content[indx:indx + 4], byteorder='little')
+                hg = int.from_bytes(content[indx + 4:indx + 8], byteorder='little')
                 results['Modification'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
-                lw = int.from_bytes(content[261:265], byteorder='little')
-                hg = int.from_bytes(content[265:269], byteorder='little')
+                lw = int.from_bytes(content[indx + 12:indx + 16], byteorder='little')
+                hg = int.from_bytes(content[indx + 16:indx + 20], byteorder='little')
                 results['Access'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
-                lw = int.from_bytes(content[273:277], byteorder='little')
-                hg = int.from_bytes(content[277:281], byteorder='little')
+                lw = int.from_bytes(content[indx + 24:indx + 28], byteorder='little')
+                hg = int.from_bytes(content[indx + 28:indx + 32], byteorder='little')
                 results['Change metadata'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
             except Exception:
                 pass
 
             # a = 0
             # while a > -1:
-            #     a1 = content.find(b'\x60\x00\xd7\x4d\x14', a + 1) # Possible separator before file metadata
+            #     a1 = content.find(b'\x08\x00\x11\x60', a + 1) # Possible separator before file metadata
             #     a = a1
             #     if a > 0:
-            #         print(content[a + 5:a + 14]) # lw and hg filetime date
+            #         print(content[a + 10:a + 19]) # lw and hg filetime date
 
             indx = content.find(b'\x00', 112)
             results['Malware type'] = content[112:indx].decode()
