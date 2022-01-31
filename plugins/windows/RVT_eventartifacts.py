@@ -332,6 +332,53 @@ class RDPIncoming(base.job.BaseModule):
                     'SourceAddress': act.get('SourceAddress', '')
                 }
 
+class RDPGateway(base.job.BaseModule):
+    """ Extracts events related to incoming RDP connections """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed Security.xml
+        """
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+        
+        ev = dict()
+        users_date=dict()
+        user=''
+        for v in sorted(self.from_module.run(path), key=lambda k: k['event.created']):
+            ev['EventID'] = v.get('event.code', '')
+
+            if ev['EventID'] not in ('302', '303'):
+                continue
+            
+            ev['TimeCreated'] = v.get('event.created', '')
+            ev['User'] = v.get('UserData', {}).get('EventInfo', {}).get('Username', '')
+            ev['Protocol']= v.get('UserData', {}).get('EventInfo', {}).get('ConnectionProtocol', '')
+            ev['SourceAddress'] = v.get('UserData', {}).get('EventInfo', {}).get('IpAddress', '')
+            ev['SessionDuration'] = v.get('UserData', {}).get('EventInfo', {}).get('SessionDuration', '')
+            user = ev['User']
+
+            if ev['EventID'] in ('302'):
+                users_date[user] = ev['TimeCreated']
+            
+            elif ev['EventID'] in ('303') and users_date.get(user, '-') != '-':
+                ev['LogoffDate'] = ev['TimeCreated']
+                if str(ev['SessionDuration']) == '0':
+                    continue
+                yield {
+                   'LoginDate': users_date.get(user, '-'),
+                   'LogoffDate': ev.get('LogoffDate', '-'),
+                   'User': ev.get('User', ''),
+                   'SourceAddress': ev.get('SourceAddress', ''),
+                   'SessionDuration': ev.get('SessionDuration', ''),
+                   'Protocol': ev.get('Protocol', '')
+                }
+                #self.logger().debug("%s %s" % (ev['LoginDate'], ev['LogoffDate']))
+                users_date[user] = '-'
+                ev['LogoffDate'] = '-'
+                ev['User'] = ''
+                ev['SourceAddress'] = ''
 
 class RDPOutgoing(base.job.BaseModule):
     """ Extracts events related to outgoing RDP connections """

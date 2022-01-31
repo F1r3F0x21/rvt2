@@ -409,7 +409,7 @@ class Status_GRR(SuperTimeline):
             for v in d.get('info', {}).get('volumes', list()):
                 common.update({
                     'file.drive_letter': v.get('drive_letter', ""),
-                    'file.size': v.get('size', ""),
+                    'event.data.DriveSize': v.get('size', ""),
                     'package.type': v.get('drive_type', ""),
                     'event.data.FileSystem': v.get('file_system_type', ""),
                 })

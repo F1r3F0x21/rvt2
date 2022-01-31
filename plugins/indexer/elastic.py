@@ -413,7 +413,7 @@ class ElasticSearchBulkSender(base.job.BaseModule):
                 self.logger().warning('No mapping defined for index: %s', name)
             # create the index
             self.logger().debug('Creating index %s', name)
-            esclient.indices.create(index=name, body=mapping, include_type_name=False)
+            esclient.indices.create(index=name, body=mapping)
         else:
             self.logger().warning('The index already exists: %s', name)
 
