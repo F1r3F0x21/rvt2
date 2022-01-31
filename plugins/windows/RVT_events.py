@@ -218,7 +218,7 @@ class ParseExtraLogs(EventJob):
             try:
                 for ev in GetEvents(evtx_file, json_file, logger=self.logger()).parse():
                     yield ev
-            except:
+            except Exception:
                 self.logger().warning('Problems parsing file %s' % evtx_file)
 
         return []
@@ -921,4 +921,4 @@ spaceId=7659aa03-a84d-47e2-91bc-d1671de4cd63\r\n\tPipelineId=\r\n\tCommandName=\
                 ev['data.NewProviderState'] = data[1]
                 ev['message'] = f'Provider {data[0]} is {data[1]}'
 
-            yield ev            
+            yield ev

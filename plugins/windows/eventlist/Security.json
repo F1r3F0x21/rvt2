@@ -357,6 +357,16 @@
       }
     }
   },
+  "5154":{
+    "description": "The Windows Filtering Platform has permitted an application or service to listen on a port for incoming connections",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["Application", "FilterRTID", "LayerName", "LayerRTID", "ProcessId", "Protocol", "SourceAddress", "SourcePort"],
+        "transform": {"ProcessId": "process.id", "SourceAddress": "source.ip", "SourcePort": "source.port"}
+      }
+    }
+  },
   "5156":{
     "description": "The Windows Filtering Platform has allowed a connection.",
     "provider": "Microsoft-Windows-Security-Auditing",
