@@ -487,10 +487,14 @@ class Security(EventJob):
                     temp_aud.append(audit_policy_changes.get(i.lstrip(), ""))
                 ev["data.AuditPolicyChangesStr"] = ", ".join(temp_aud)
             if ev['event.code'] in ('5152', '5153', '5156') and ev['event.provider'] == "Microsoft-Windows-Security-Auditing":
-                if ev['Direction'] == "%%14593":
+                if 'Direction' not in ev.keys():
+                   ev['Direction'] = '-'
+                elif ev['Direction'] == "%%14593":
                     ev['Direction'] = 'Outbound'
                 else:
                     ev['Direction'] = 'Inbound'
+                if 'Protocol' not in ev.keys():
+                    ev['Protocol'] = '-'
                 ev['Protocol'] = protocol.get(str(ev['Protocol']), ev['Protocol'])
             if ev['event.code'] in tgt:
                 if 'data.TicketOptions' in ev.keys() and ev['data.TicketOptions']:
