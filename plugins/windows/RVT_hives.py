@@ -32,6 +32,21 @@ from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetTimeline
 from plugins.windows.RVT_os_info import CharacterizeWindows
 
+# Types of Registry Data: https://www.chemtable.com/blog/en/types-of-registry-data.htm
+REG_TYPES = {
+	0: "REG_NONE",
+	1: "REG_SZ",
+	2: "REG_EXPAND_SZ",
+	3: "REG_BINARY",
+	4: "REG_DWORD",
+	5: "REG_DWORD_BIG_ENDIAN",
+	6: "REG_LINK",
+	7: "REG_MULTI_SZ",
+	8: "REG_RESOURCE_LIST",
+	9: "REG_FULL_RESOURCE_DESCRIPTOR",
+	10: "REG_RESOURCE_REQUIREMENTS_LIST",
+	11: "REG_QWORD"
+			 }
 
 def parse_windows_timestamp(value):
     try:
@@ -97,37 +112,51 @@ def get_hives(path):
     return regfiles
 
 
-def registry_key_to_json(volumekey, depth=0, hive='SOFTWARE'):
+def _parse_reg_key(volumekey, hive=''):
+    """ Yelds registry values from a given key in ECS format """
+    for value in volumekey.values():
+        data = {
+            '@timestamp': volumekey.timestamp().strftime("%Y-%m-%d %H:%M:%S"),   # Key LastWrite
+            'registry.hive': hive,
+            'registry.key': '/'.join(volumekey.path().split('\\')[1:]),
+            'registry.value': value.name(),
+            'registry.data.type': REG_TYPES.get(value.value_type(), value.value_type())
+        }
+        # String types (ECS requires the field to be a list)
+        if value.value_type() in [Registry.RegSZ, Registry.RegExpandSZ,
+                                  Registry.RegDWord, Registry.RegBigEndian,
+                                  Registry.RegQWord, Registry.RegLink]:
+            data['registry.data.strings'] = [value.value()]
+        # Multi String Type (already a list)
+        elif value.value_type() == Registry.RegMultiSZ:
+            data['registry.data.strings'] = value.value()
+        # Binary Types (may cause errors)
+        else:
+            try:
+                data['registry.data.binary'] = value.value().hex()
+            except Exception as exc:
+                try:
+                    data['registry.data.binary'] = str(value.value())
+                except Exception as exc2:
+                    data['registry.data.binary'] = "Error: Unknown Type Exception"
+        yield data
+
+
+def registry_key_to_json(volumekey, depth=1, hive='SOFTWARE'):
     """ Yields ecs format registry data from all subkeys of a registry key
 
         Parameters:
-            - registry (Registry.Registry): Registry object to the loaded hive
-            - regkey (str): Key or subkey path inside the hive
+            - volumekey (Registry.Registry.RegistryKey): RegistryKey object pointing the key to parse
             - hive (str): Name of the hive. Ex: SOFTWARE, HKLM
-            - depth (int): Number of subkey iterations to perform. Default: 0
+            - depth (int): Maximum number of subkey iterations to perform. Default: 1 (only same level)
     """
 
-    # TODO: parse Registry.RegBin
-    # TODO: take a common name for hive, relating to the path
-
-    # Recursive for loop when depth
     if depth > 0:
+        # Get key values
+        yield from _parse_reg_key(volumekey, hive=hive)
+        # Recursively get subkey values
         for filekey in volumekey.subkeys():
             yield from registry_key_to_json(filekey, depth - 1, hive=hive)
-    # Get registry data
-    else:
-        for value in volumekey.values():
-            data = {
-                '@timestamp': volumekey.timestamp().strftime("%Y-%m-%d %H:%M:%S"),   # Key LastWrite
-                'registry.hive': hive,
-                'registry.key': '/'.join(volumekey.path().split('\\')[1:]),
-                'registry.value': value.name(),
-                'registry.data.type': value.value_type(),
-            }
-            if value.value_type() in [Registry.RegSZ, Registry.RegExpandSZ,
-                                      Registry.RegDWord, Registry.RegMultiSZ]:
-                data['registry.data.strings'] = [value.value()]
-                yield data
 
 
 def registry_simple_recursive_to_json(volumekey, depth=0, hive='SOFTWARE'):
@@ -212,6 +241,64 @@ def registry_key_tree_to_json(volumekey, depth=0, hive='SOFTWARE', data=None, ev
                     event[f'registry.data.{value.name()}'] = services_type.get(value.value(), str(value.value()))
                 else:
                     event[f'registry.data.{value.name()}'] = value.value()
+
+
+class AllKeys(base.job.BaseModule):
+    """ Parses all keys and subkeys from a registry hive """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
+
+    def run(self, path=""):
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        id = self.myconfig('volume_id', None)
+        outfolder = self.myconfig('outdir')
+        check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, 'all_registry{}.json'.format('_{}'.format(id) if id else ''))
+
+        # When path is a file, parse only that hive
+        if os.path.isfile(path):
+            self._save_and_log(path)
+            return []
+
+        # Otherwise, get all hives inside path directory
+        regfiles = get_hives(path)
+        ntuser = None
+        if 'ntuser' in regfiles:
+            ntuser = regfiles.pop('ntuser')
+        usrclass = None
+        if 'usrclass' in regfiles:
+            usrclass = regfiles.pop('usrclass')
+
+        # Parse all hives
+        for i, reg_hive in regfiles.items():
+            self._save_and_log(reg_hive)
+        for cls, cls_name in zip([ntuser, usrclass], ['NTUSER.DAT', 'UsrClass.dat']):
+            if cls:
+                for user, reg_hive in cls.items():
+                    self._save_and_log(reg_hive, hive_name=f'{user}/{cls_name}')
+        return []
+
+
+    def _save_and_log(self, path, hive_name=None):
+        self.logger().debug("Parsing all keys from hive {}".format(path))
+        save_json(self._parse_all_keys(path, hive_name), outfile=self.outfile, file_exists='APPEND', quoting=0)
+        self.logger().debug("Finished extraction from hive {}".format(path))
+
+    def _parse_all_keys(self, path, hive_name=None):
+        try:
+            reg = Registry.Registry(path)
+            volumekey = reg.root()
+            if not hive_name:
+                hive_name = reg.hive_name()
+            yield from registry_key_to_json(volumekey, depth=100, hive=hive_name)
+        except KeyError:
+            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+        except Exception as exc:
+            self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
 
 
 class AmCache(base.job.BaseModule):
