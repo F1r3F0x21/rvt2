@@ -309,7 +309,7 @@ class IP_info(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('section', 'DEFAULT')
-        self.set_default_config('tor_db_file', os.path.join('external_tools', 'tor_list.gz'))
+        self.set_default_config('tor_db_file', os.path.join(self.myconfig('rvthome'), 'external_tools', 'tor_list.gz'))
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
