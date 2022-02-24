@@ -11,3 +11,4 @@ external_tools/windows/*
 plugins/ai/models
 log
 tests
+plugins/common/api_keys.py
