@@ -128,7 +128,7 @@ class abuseipdb(object):
     def __init__(self, max_days=60):
         try:
             from . import api_keys
-            self.key = api_keys.ABUSEIPDB
+            self.apikey = api_keys.ABUSEIPDB
         except Exception:
             self.apikey = None
         self.url = 'https://api.abuseipdb.com/api/v2/check'
@@ -143,7 +143,7 @@ class abuseipdb(object):
 
         headers = {
             'Accept': 'application/json',
-            'Key': self.key
+            'Key': self.apikey
         }
 
         response = requests.request(method='GET', url=self.url, headers=headers, params=querystring)
@@ -213,7 +213,7 @@ class alienvault(object):
                 for pulse in pulses:
                     if 'name' in pulse:
                         res['alerts'].append('In pulse: ' + pulse['name'])
-
+        res['malicious'] = len(res['alerts']) > 0
         return res
 
     def url(self, url):
@@ -299,10 +299,12 @@ class alienvault(object):
 
 
 class IP_info(base.job.BaseModule):
-    """ A module that gets the results from other modules and yields info about IP.
+    """ A module that gets the results from other modules and yields info about IP. ip_field and date_field should be
 
-    Configuration::
+    Configuration:
         - **max_days** (String): Maximum number of previous days to get data (api_keys have a limit number of queries per hour, day or month).
+        - **ip_field** (String): key name with ip
+        - **date_field** (String): key name with date
 
     """
 
@@ -322,16 +324,27 @@ class IP_info(base.job.BaseModule):
         ab = abuseipdb()
         av = alienvault()
         ip_list = set()
-        ip_field = self.myarray('ip_field')[0]
-        date_field = self.myarray('date_field')[0]
+        flag_dict = True
+        try:
+            ip_field = self.myarray('ip_field')[0]
+            date_field = self.myarray('date_field')[0]
+        except Exception:
+            now = datetime.datetime.now()
+            flag_dict = False
 
-        for fileinfo in self.from_module.run(path):
-            if fileinfo[ip_field] in ip_list or check_private_ip(fileinfo[ip_field]) or check_file_date(fileinfo[date_field], max_days):
+        for iteminfo in self.from_module.run(path):
+            if not flag_dict:
+                ip_item = iteminfo.rstrip()
+                fdate = now
+            else:
+                ip_item = iteminfo[ip_field]
+                fdate = iteminfo[date_field]
+            if ip_item in ip_list or check_private_ip(ip_item) or (flag_dict and check_file_date(fdate, max_days)):
                 continue
-            ip_list.add(fileinfo[ip_field])
-            res = tn.check_tor_ip(fileinfo[ip_field])
-            res.update(ab.get_ip_data(fileinfo[ip_field]))
-            res.update(av.ip(fileinfo[ip_field]))
+            ip_list.add(ip_item)
+            res = tn.check_tor_ip(ip_item)
+            res.update(ab.get_ip_data(ip_item))
+            res.update(av.ip(ip_item))
             for k, v in res.items():
                 if type(v) == list:
                     res[k] = ';'.join(v)
