@@ -412,11 +412,18 @@ class BaseModule(object):
         return value in ('True', 'true', 'TRUE', 1)
 
     def myarray(self, option, default=[]):
-        """ A convenience method to get an array from a configuration """
+        """ A convenience method to get an array from a configuration.
+            The input string may be one of two options:
+            - Space separated terms. Ex: 'itemA itemB'
+            - Literal python list definition. Ex: '["itemA","itemB"]'
+        """
         value = self.myconfig(option, '')
-        if value:
+        if not value:
+            return default
+        if value.startswith('[') and value.endswith(']'):
+            return ast.literal_eval(value)
+        else:
             return parse_conf_array(value)
-        return default
 
     def set_default_config(self, option, default=None):
         """ Get the value of a configuration for this module.

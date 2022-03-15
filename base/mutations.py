@@ -154,7 +154,7 @@ class RemoveFields(base.job.BaseModule):
         - **yields**: The modified data.
 
     Configuration:
-        - **fields**: A space separated list of fields to drop
+        - **fields**: List of fields to drop.
     """
     def read_config(self):
         super().read_config()
@@ -162,6 +162,7 @@ class RemoveFields(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
+
         fields = self.myarray('fields')
         for data in self.from_module.run(path):
             for field in fields:
@@ -380,7 +381,7 @@ class GetFields(base.job.BaseModule):
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
 
-        fields = ast.literal_eval(self.myconfig('fields'))
+        fields = self.myarray('fields')
 
         results = self.from_module.run(path)
         if results is not None:
@@ -399,8 +400,8 @@ class RenameFields(base.job.BaseModule):
         - **yields**: The updated dict data.
 
     Configuration:
-        - **fields**: Space separated key names to be renamed
-        - **new_fields**: Space separated new key names
+        - **fields**: List of key names to be renamed
+        - **new_fields**: List of new key names
     """
 
     def read_config(self):
@@ -411,6 +412,7 @@ class RenameFields(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
+
         fields = self.myarray('fields')
         new_fields = self.myarray('new_fields')
 

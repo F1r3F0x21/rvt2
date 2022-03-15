@@ -302,7 +302,7 @@ class RDPIncoming(base.job.BaseModule):
             act['SourceAddress'] = ''
 
             for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
-                self.logger().debug("%s %s" % (v['TimeCreated'], v['EventID']))
+                # self.logger().debug("%s %s" % (v['TimeCreated'], v['EventID']))
 
                 if v['EventID'] in ('21', '22', '25'):
                     if act['SourceAddress'] == '':
@@ -318,7 +318,7 @@ class RDPIncoming(base.job.BaseModule):
                         'User': act.get('User', ''),
                         'SourceAddress': act.get('SourceAddress', '')
                     }
-                    self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
+                    # self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
                     act['LoginDate'] = '-'
                     act['LogoffDate'] = '-'
                     act['User'] = ''
@@ -419,7 +419,7 @@ class RDPOutgoing(base.job.BaseModule):
             act['LogoffDate'] = '-'
 
             for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
-                self.logger().debug("%s %s %s" % (v['TimeCreated'], v['EventID'], v['ActivityID']))
+                # self.logger().debug("%s %s %s" % (v['TimeCreated'], v['EventID'], v['ActivityID']))
                 if 'SID' not in act.keys() and 'user.id' in v.keys():
                     act['SID'] = v['user.id']
                 if v['EventID'] in ('1024', '1102'):
@@ -436,7 +436,7 @@ class RDPOutgoing(base.job.BaseModule):
                         'SID': act.get('SID', '-'),
                         'B64Hash': act.get('B64Hash', '')
                     }
-                    self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
+                    # self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
                     act['LoginDate'] = '-'
                     act['LogoffDate'] = '-'
                     writted = True

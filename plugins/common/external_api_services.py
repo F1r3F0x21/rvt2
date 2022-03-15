@@ -10,6 +10,7 @@ import dateutil.parser
 from OTXv2 import OTXv2
 import IndicatorTypes
 import re
+import logging
 from functools import lru_cache
 
 import base.job
@@ -125,12 +126,14 @@ class tor_node(object):
 
 
 class abuseipdb(object):
-    def __init__(self, max_days=60):
-        try:
-            from . import api_keys
-            self.apikey = api_keys.ABUSEIPDB
-        except Exception:
-            self.apikey = None
+    def __init__(self, max_days=60, api_key=None, config=None):
+        self.apikey = api_key
+        if not self.apikey:
+            if config:
+                self.apikey = config.get('IP_API_keys', 'abuseipdb_key', None)
+            if not self.apikey:
+                logging.getLogger(__name__).error(f'No API key provided for abuseipdb')
+
         self.url = 'https://api.abuseipdb.com/api/v2/check'
         self.max_days = max_days
 
@@ -138,7 +141,8 @@ class abuseipdb(object):
     def get_ip_data(self, ip):
         data = {'CC': '-', 'abuseConfidenceScore': '-', 'isWhitelisted': '-', 'usageType': '-', 'isp': '-' }
 
-        if not ip:
+        # TODO: skip local IP addresses (192., etc)
+        if not ip or ip.lower() in ['local', '-']:
             return data
 
         querystring = {
@@ -151,6 +155,7 @@ class abuseipdb(object):
             'Key': self.apikey
         }
 
+        logging.getLogger(__name__).debug(f'Getting AbuseIP data for {ip}')
         response = requests.request(method='GET', url=self.url, headers=headers, params=querystring)
 
         # Formatted output
@@ -171,12 +176,14 @@ class abuseipdb(object):
 
 class alienvault(object):
     # Class based on https://github.com/AlienVault-OTX/OTX-Python-SDK/tree/master/examples/is_malicious
-    def __init__(self, otx_server='https://otx.alienvault.com/'):
-        try:
-            from . import api_keys
-            self.apikey = api_keys.ALIENVAULT
-        except Exception:
-            self.apikey = None
+    def __init__(self, otx_server='https://otx.alienvault.com/', api_key=None, config=None):
+        self.apikey = api_key
+        if not self.apikey:
+            if config:
+                self.apikey = config.get('IP_API_keys', 'alienvault_key', None)
+            if not self.apikey:
+                logging.getLogger(__name__).error(f'No API key provided for alientvault')
+ 
         self.otx_server = otx_server
         self.otx = OTXv2(self.apikey, server=otx_server)
 
@@ -208,9 +215,10 @@ class alienvault(object):
     @lru_cache(maxsize=1000)
     def ip(self, ip):
         res = {'alerts': [], 'city': '-', 'country_name': '-', 'asn': '-'}
-        if not ip:
+        if not ip or ip.lower() in ['local', '-']:
             return res
 
+        logging.getLogger(__name__).debug(f'Getting AlienVault data for {ip}')
         try:
             result = self.otx.get_indicator_details_by_section(IndicatorTypes.IPv4, ip, 'general')
         except Exception as exc:
@@ -319,7 +327,8 @@ class IP_info(base.job.BaseModule):
         - **max_days** (String): Maximum number of previous days to get data (api_keys have a limit number of queries per hour, day or month).
         - **ip_field** (String): key name with ip
         - **date_field** (String): key name with date
-
+        - **alienvault_key** (String): API key value for Alienvault
+        - **abuseipdb_key** (String): API key value for abuseipdb
     """
 
     def read_config(self):
@@ -327,14 +336,18 @@ class IP_info(base.job.BaseModule):
         self.set_default_config('section', 'DEFAULT')
         self.set_default_config('tor_db_file', os.path.join(self.myconfig('rvthome'), 'external_tools', 'tor_list.gz'))
         self.set_default_config('max_days', 90)
+        self.set_default_config('alientvault_key', None)
+        self.set_default_config('abuseipdb_key', None)
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
         max_days = int(self.myconfig('max_days'))
 
         tn = tor_node(self.myconfig('tor_db_file'))
-        ab = abuseipdb()
-        av = alienvault()
+        ab_key = self.myconfig('abuseipdb_key')
+        ab = abuseipdb(api_key=ab_key, config=self.config)
+        av_key = self.myconfig('alienvault_key')
+        av = alienvault(api_key=av_key, config=self.config)
         parsed_ips = set()
         flag_dict = True
         try:
