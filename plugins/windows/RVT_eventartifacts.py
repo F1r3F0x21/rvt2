@@ -332,6 +332,7 @@ class RDPIncoming(base.job.BaseModule):
                     'SourceAddress': act.get('SourceAddress', '')
                 }
 
+
 class RDPGateway(base.job.BaseModule):
     """ Extracts events related to incoming RDP connections """
 
@@ -342,26 +343,26 @@ class RDPGateway(base.job.BaseModule):
         """
 
         self.check_params(path, check_path=True, check_path_exists=True)
-        
+
         ev = dict()
-        users_date=dict()
-        user=''
+        users_date = dict()
+        user = ''
         for v in sorted(self.from_module.run(path), key=lambda k: k['event.created']):
             ev['EventID'] = v.get('event.code', '')
 
             if ev['EventID'] not in ('302', '303'):
                 continue
-            
+
             ev['TimeCreated'] = v.get('event.created', '')
             ev['User'] = v.get('UserData', {}).get('EventInfo', {}).get('Username', '')
-            ev['Protocol']= v.get('UserData', {}).get('EventInfo', {}).get('ConnectionProtocol', '')
+            ev['Protocol'] = v.get('UserData', {}).get('EventInfo', {}).get('ConnectionProtocol', '')
             ev['SourceAddress'] = v.get('UserData', {}).get('EventInfo', {}).get('IpAddress', '')
             ev['SessionDuration'] = v.get('UserData', {}).get('EventInfo', {}).get('SessionDuration', '')
             user = ev['User']
 
             if ev['EventID'] in ('302'):
                 users_date[user] = ev['TimeCreated']
-            
+
             elif ev['EventID'] in ('303') and users_date.get(user, '-') != '-':
                 ev['LogoffDate'] = ev['TimeCreated']
                 if str(ev['SessionDuration']) == '0':
@@ -374,11 +375,12 @@ class RDPGateway(base.job.BaseModule):
                    'SessionDuration': ev.get('SessionDuration', ''),
                    'Protocol': ev.get('Protocol', '')
                 }
-                #self.logger().debug("%s %s" % (ev['LoginDate'], ev['LogoffDate']))
+                # self.logger().debug("%s %s" % (ev['LoginDate'], ev['LogoffDate']))
                 users_date[user] = '-'
                 ev['LogoffDate'] = '-'
                 ev['User'] = ''
                 ev['SourceAddress'] = ''
+
 
 class RDPOutgoing(base.job.BaseModule):
     """ Extracts events related to outgoing RDP connections """
@@ -559,6 +561,7 @@ class USB(base.job.BaseModule):
     """ Extracts events related with usb plugs
 
     Events should be sorted"""
+
     def run(self, path=None):
         """ Extracts USB sticks' plugins and plugoffs data """
 
@@ -658,6 +661,68 @@ class USBConnections(base.job.BaseModule):
                 continue
             if previous_datetime - datetime.datetime.strptime(e['event.created'], "%Y-%m-%d %H:%M:%S.%f %Z") < datetime.timedelta(milliseconds=1000):
                 del ev_list[total_plugins - index - 1]
+
+
+class USBPlugs2(base.job.BaseModule):
+    """ Extracts logon and rdp artifacts """
+
+    def run(self, path=None):
+        """
+        Extracts information about disk plugs
+        """
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        plugs = {}
+        usb = []
+        dev_ids = set()
+
+        for event in self.from_module.run(path):
+            ev = dict()
+            ev['TimeCreated'] = event.get('event.created', '')
+            ev['Vendor'] = event.get('data.DeviceVendor', '')
+            ev['Description'] = event.get('message', '')
+            ev['Model'] = event.get('data.DeviceModel', )
+            ev['DeviceID'] = event.get('data.DeviceID', '')
+            ev['SerialNumber'] = event.get('data.DeviceSerialNumber', '')
+            ev['action'] = event.get('event.action', '')
+            ev['Capacity'] = event.get('data.capacity', '')
+            if ev['DeviceID'] not in dev_ids:
+                dev_ids.add(ev['DeviceID'])
+                usb.append({'DeviceID': ev['DeviceID'], 'Vendor': ev['Vendor'], 'Model': ev['Model'], 'SerialNumber': ev['SerialNumber'], 'Capacity': ev['Capacity']})
+                plugs[ev['DeviceID']] = []
+            plugs[ev['DeviceID']].append({'TimeCreated': ev['TimeCreated'], 'action': ev['action']})
+
+        results = self.get_plugs(plugs)
+        save_md_table(results, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plugs2.md'),
+                      fieldnames='plugged_in plugged_off DeviceID',
+                      backticks_fields='DeviceID',
+                      file_exists='OVERWRITE')
+        save_md_table(usb, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_info.md'),
+                      fieldnames='DeviceID Vendor Model SerialNumber Capacity',
+                      backticks_fields='DeviceID',
+                      file_exists='OVERWRITE')
+        return results
+
+    def get_plugs(self, usb_dict):
+
+        for dev_id in usb_dict.keys():
+            usb_id = sorted(usb_dict[dev_id], key=lambda d: d['TimeCreated'])
+            flag = False
+            plugged_in = '-'
+            for item in usb_id:
+                if item['action'] == 'device-connected':
+                    if flag:
+                        yield {'plugged_in': plugged_in, 'plugged_off': '-', 'DeviceID': dev_id}
+                    flag = True
+                    plugged_in = item['TimeCreated']
+                else:
+                    if not flag:
+                        plugged_in = '-'
+                    flag = False
+                    yield {'plugged_in': plugged_in, 'plugged_off': item['TimeCreated'], 'DeviceID': dev_id}
 
 
 class TGT_attack(base.job.BaseModule):

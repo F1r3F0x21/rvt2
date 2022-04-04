@@ -525,6 +525,7 @@ class System(EventJob):
 
         reason_sleep = {"0": "Button or Lid",
                         "2": "Battery",
+                        "4": "Low Battery",
                         "7": "System Idle"}
 
         boot_type = {"0": "After full shutdown",
