@@ -12,3 +12,4 @@ plugins/ai/models
 log
 tests
 plugins/common/api_keys.py
+external_tools/tor_list.gz
