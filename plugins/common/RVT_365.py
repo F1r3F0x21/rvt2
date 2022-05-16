@@ -43,11 +43,13 @@ class Parse_Audit_Logs(base.job.BaseModule):
                         break
             
             data["UserAgent"] = ""
+            data["RequestType"] = ""
             if "ExtendedProperties" in audit_data:
                 for property in audit_data["ExtendedProperties"]:
                     if property["Name"] == "UserAgent":
                         data["UserAgent"] = property["Value"]
-                        break
+                    if property["Name"] == "RequestType":
+                        data["RequestType"] = property["Value"]
 
             yield data
 

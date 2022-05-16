@@ -235,6 +235,7 @@ class MDTableSink(BaseSink):
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
         - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. Mandatory parameter. Values are sepparated using spaces or new lines.
         - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct md visualization. Values are sepparated using spaces or new lines.
+        - **path_fields** (str): Sorround selected fields with LaTeX path command to ensure correct md visualization. Values are sepparated using spaces or new lines.
         - **first_line** (str): Write a first line before headers
         - **empty_str** (str): String to fill empty fields with
     """
@@ -243,6 +244,7 @@ class MDTableSink(BaseSink):
         super().read_config()
         self.set_default_config('fieldnames', '')
         self.set_default_config('backticks_fields', '')
+        self.set_default_config('path_fields', '')
         self.set_default_config('file_exists', 'APPEND')
         self.set_default_config('first_line', '')
         self.set_default_config('empty_str', '-')
@@ -253,6 +255,7 @@ class MDTableSink(BaseSink):
 
         fields = self.myarray('fieldnames')
         backticks_fields = self.myarray('backticks_fields')
+        path_fields = self.myarray('path_fields')
         empty_str = self.myconfig('empty_str')
         act = {field: '' for field in fields}
 
@@ -275,6 +278,8 @@ class MDTableSink(BaseSink):
                 for fld in fields:
                     if fld in backticks_fields and fileinfo.get(fld, ''):
                         fileinfo[fld] = '`' + fileinfo[fld] + '`'
+                    if fld in path_fields and fileinfo.get(fld, ''):
+                        fileinfo[fld] = r'`\path{' + fileinfo[fld] + r'}`{=latex}'
                     if fileinfo.get(fld, '') != act[fld]:
                         repeated = False
                     act[fld] = fileinfo.get(fld, '')
