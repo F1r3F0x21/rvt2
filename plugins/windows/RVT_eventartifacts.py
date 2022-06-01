@@ -663,6 +663,34 @@ class USBConnections(base.job.BaseModule):
                 del ev_list[total_plugins - index - 1]
 
 
+class USBDevice(object):
+
+    def __init__(self, vendor, model, deviceID, serialN, capacity):
+        self.Vendor = vendor
+        self.Model = model
+        self.DeviceID = deviceID
+        self.SerialNumber = serialN
+        self.Capacity = capacity
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.DeviceID == other.DeviceID and self.SerialNumber == other.SerialNumber
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __str__(self):
+        return self.DeviceID + str(self.SerialNumber)
+
+    def __hash__(self):
+        return hash(str(self))
+
+    def to_dict(self):
+        return {'Vendor': self.Vendor, 'Model': self.Model, 'DeviceID': self.DeviceID, 'SerialNumber': self.SerialNumber, 'Capacity': self.Capacity}
+
+
 class USBPlugs2(base.job.BaseModule):
     """ Extracts logon and rdp artifacts """
 
@@ -674,32 +702,34 @@ class USBPlugs2(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         plugs = {}
-        usb = []
-        dev_ids = set()
+        devices = []
 
         for event in self.from_module.run(path):
             ev = dict()
             ev['TimeCreated'] = event.get('event.created', '')
-            ev['Vendor'] = event.get('data.DeviceVendor', '')
+            device = USBDevice(event.get('data.DeviceVendor', ''), event.get('data.DeviceModel', ''), event.get('data.DeviceID', ''), event.get('data.DeviceSerialNumber', ''), event.get('data.capacity', ''))
             ev['Description'] = event.get('message', '')
-            ev['Model'] = event.get('data.DeviceModel', )
-            ev['DeviceID'] = event.get('data.DeviceID', '')
-            ev['SerialNumber'] = event.get('data.DeviceSerialNumber', '')
             ev['action'] = event.get('event.action', '')
-            ev['Capacity'] = event.get('data.capacity', '')
-            if ev['DeviceID'] not in dev_ids:
-                dev_ids.add(ev['DeviceID'])
-                usb.append({'DeviceID': ev['DeviceID'], 'Vendor': ev['Vendor'], 'Model': ev['Model'], 'SerialNumber': ev['SerialNumber'], 'Capacity': ev['Capacity']})
-                plugs[ev['DeviceID']] = []
-            plugs[ev['DeviceID']].append({'TimeCreated': ev['TimeCreated'], 'action': ev['action']})
+            if device not in devices:
+                devices.append(device)
+                plugs[device] = []
+            else:
+                index = devices.index(device)
+                if devices[index].Capacity == '' or str(devices[index].Capacity) == "0":
+                    devices[index].Capacity = event.get('data.capacity', '')
+            plugs[device].append({'TimeCreated': ev['TimeCreated'], 'action': ev['action']})
 
         results = self.get_plugs(plugs)
+        devices2 = []
+        for dev in devices:
+            devices2.append(dev.to_dict())
+
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plugs2.md'),
-                      fieldnames='plugged_in plugged_off DeviceID',
+                      fieldnames='plugged_in plugged_off DeviceID SerialNumber',
                       backticks_fields='DeviceID',
                       file_exists='OVERWRITE')
-        save_md_table(usb, config=None,
+        save_md_table(devices2, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_info.md'),
                       fieldnames='DeviceID Vendor Model SerialNumber Capacity',
                       backticks_fields='DeviceID',
@@ -708,21 +738,21 @@ class USBPlugs2(base.job.BaseModule):
 
     def get_plugs(self, usb_dict):
 
-        for dev_id in usb_dict.keys():
-            usb_id = sorted(usb_dict[dev_id], key=lambda d: d['TimeCreated'])
+        for device in usb_dict.keys():
+            usb_id = sorted(usb_dict[device], key=lambda d: d['TimeCreated'])
             flag = False
             plugged_in = '-'
             for item in usb_id:
                 if item['action'] == 'device-connected':
                     if flag:
-                        yield {'plugged_in': plugged_in, 'plugged_off': '-', 'DeviceID': dev_id}
+                        yield {'plugged_in': plugged_in, 'plugged_off': '-', 'DeviceID': device.DeviceID, 'SerialNumber': device.SerialNumber}
                     flag = True
                     plugged_in = item['TimeCreated']
                 else:
                     if not flag:
                         plugged_in = '-'
                     flag = False
-                    yield {'plugged_in': plugged_in, 'plugged_off': item['TimeCreated'], 'DeviceID': dev_id}
+                    yield {'plugged_in': plugged_in, 'plugged_off': item['TimeCreated'], 'DeviceID': device.DeviceID, 'SerialNumber': device.SerialNumber}
 
 
 class TGT_attack(base.job.BaseModule):

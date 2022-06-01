@@ -6,7 +6,7 @@
     "type": ["start"],
     "path": {
       "EventData":{
-        "Name": ["VolumeGuid", "VolumeName", "IsBootVolume"],
+        "Name": ["VolumeGuid", "VolumeName", "IsBootVolume", "LowestFreeSpaceInBytes", "HighestFreeSpaceInBytes"],
         "transform": {"VolumeName": "data.DeviceVolumeName"}
       }
     }
