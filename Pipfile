@@ -40,6 +40,7 @@ bits-parser = "*"
 winactivities = {ref = "master", git = "https://github.com/forensicmatt/ActivitiesCacheParser.git"}
 setuptools-rust = "*"
 OTXv2 = "*"
+xmltodict = "*"
 
 [dev-packages]
 sphinx = "*"
