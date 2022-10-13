@@ -274,7 +274,7 @@ class RDPIncoming(base.job.BaseModule):
 
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        sID = {}
+        aID = {}
 
         for event in self.from_module.run(path):
             ev = dict()
@@ -284,16 +284,19 @@ class RDPIncoming(base.job.BaseModule):
             ev['User'] = event.get('destination.user.name', '')
             ev['SessionID'] = event.get('data.SessionID', '')
             ev['SourceAddress'] = event.get('source.address', '')
-            if ev['SessionID'] not in sID.keys():
-                sID[ev['SessionID']] = []
-            sID[ev['SessionID']].append(ev)
+            ev['ActivityID'] = event.get('data.ActivityID', '')
+            if ev['ActivityID'] == '':
+                ev['ActivityID'] = ev['SessionID']
+            if ev['ActivityID'] not in aID.keys():
+                aID[ev['ActivityID']] = []
+            aID[ev['ActivityID']].append(ev)
 
-        for result in self.extractRDP(sID):
+        for result in self.extractRDP(aID):
             yield result
 
-    def extractRDP(self, sID):
+    def extractRDP(self, aID):
 
-        for eventlist in sID.values():
+        for eventlist in aID.values():
             act = dict()
             written = True
             act['LoginDate'] = '-'
@@ -403,7 +406,7 @@ class RDPOutgoing(base.job.BaseModule):
             ev['ActivityID'] = event.get('data.ActivityID', '')
             ev['Address'] = event.get('destination.address', '')
             ev['user.id'] = event.get('user.id', '')
-            ev['Base64Hash'] = event.get('data.Base64Hash', '')
+            ev['B64Hash'] = event.get('data.Base64Hash', '')
 
             if ev['ActivityID'] not in actID.keys():
                 actID[ev['ActivityID']] = []
@@ -443,7 +446,7 @@ class RDPOutgoing(base.job.BaseModule):
                     act['LogoffDate'] = '-'
                     writted = True
                 elif v['EventID'] == '1029' and 'B64Hash' not in act.keys():
-                    act['B64Hash'] = v.get('data.Base64Hash', '')
+                    act['B64Hash'] = v.get('B64Hash', '')
             if not writted:
                 yield {
                     'LoginDate': act.get('LoginDate', '-'),
