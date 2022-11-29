@@ -122,11 +122,19 @@ class Quarantine(base.job.BaseModule):
             results['size'] = struct.unpack('<L', content[20:24])[0]
 
             indx = content.rfind(sep)
-            results['filepath'] = content[indx + 8:].decode('utf-16le')
+            try:
+                results['filepath'] = content[indx + 8:].decode('utf-16le')
+            except:
+                self.logger().warning("Unable to decode filepath for file in path {}".format(path))
+                results['filepath'] = str(content[indx + 8:])
 
             indx = content.find(sep, 17)
             indx2 = content.find(b'\x00\x00\x00\x00', indx + 12)
-            results['Malware type'] = content[indx + 12:indx2 + 1].decode('utf-16le')
+            try:
+                results['Malware type'] = content[indx + 12:indx2 + 1].decode('utf-16le')
+            except:
+                self.logger().warning("Unable to decode malware type for file in path {}".format(path))
+                results['Malware type'] = str(content[indx + 12:indx2 + 1])
             return json.dumps(results)
 
     def parse_defender(self, path):
@@ -142,8 +150,12 @@ class Quarantine(base.job.BaseModule):
             results['path'] = path
 
             content = ''
-            with open(decrypted_file, 'rb') as fin:
-                content = fin.read()
+            try:
+                with open(decrypted_file, 'rb') as fin:
+                    content = fin.read()
+            except:
+                self.logger().warning("Decrypted file {} not found. Skipping metadata parsing".format(decrypted_file))
+                return json.dumps(results)
 
             lw = int.from_bytes(content[96:100], byteorder='little')
             hg = int.from_bytes(content[100:104], byteorder='little')

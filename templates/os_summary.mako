@@ -25,6 +25,7 @@ ${subtitle}# OS Information
 **TimeZone**| ${os_info[p].get("TimeZone", 'Unknown')}
 **InstallDate**| ${os_info[p].get("InstallDate", 'Unknown')}
 **ShutdownTime**| ${os_info[p].get("ShutdownTime", 'Unknown')}
+**IpAddress**| ${os_info[p].get("IpAddress", '-')}
 
 ${subtitle}# Users
 

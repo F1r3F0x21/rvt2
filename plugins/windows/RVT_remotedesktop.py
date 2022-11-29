@@ -19,7 +19,7 @@ import re
 import os
 
 import base.job
-
+from base.utils import check_folder
 
 class Teamviewer_connections(base.job.BaseModule):
     """ Extracts teamviewer connections information """
@@ -89,6 +89,7 @@ class Anydesk(base.job.BaseModule):
 
         self.check_params(path, check_path=True, check_path_exists=True)
         base_path = self.myconfig('outdir')
+        check_folder(base_path)
 
         regex = re.compile(r'(External address|app.prepare_task|files|Logged|Connecting to|Accept request from)')
 
