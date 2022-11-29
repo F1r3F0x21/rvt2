@@ -81,10 +81,10 @@ def check_file(path, error_missing=False, error_exists=False, delete_exists=Fals
     Returns:
         True if the file exists at the end of this function.
     """
-    if os.path.exists(path):
+    if os.path.lexists(path):
         if error_exists:
             raise base.job.RVTError('{} exists'.format(path))
-        if not os.path.isfile(path):
+        if not (os.path.isfile(path) or os.path.islink(path)):
             raise base.job.RVTError('{} exists and it is not a file'.format(path))
         if delete_exists:
             os.remove(path)
@@ -93,7 +93,7 @@ def check_file(path, error_missing=False, error_exists=False, delete_exists=Fals
             raise base.job.RVTError('{} does not exist'.format(path))
     if create_parent:
         check_directory(os.path.dirname(path), create=True)
-    return os.path.exists(path)
+    return os.path.lexists(path)
 
 
 def relative_path(path, start):

@@ -274,7 +274,7 @@ class RDPIncoming(base.job.BaseModule):
 
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        sID = {}
+        aID = {}
 
         for event in self.from_module.run(path):
             ev = dict()
@@ -284,16 +284,19 @@ class RDPIncoming(base.job.BaseModule):
             ev['User'] = event.get('destination.user.name', '')
             ev['SessionID'] = event.get('data.SessionID', '')
             ev['SourceAddress'] = event.get('source.address', '')
-            if ev['SessionID'] not in sID.keys():
-                sID[ev['SessionID']] = []
-            sID[ev['SessionID']].append(ev)
+            ev['ActivityID'] = event.get('data.ActivityID', '')
+            if ev['ActivityID'] == '':
+                ev['ActivityID'] = ev['SessionID']
+            if ev['ActivityID'] not in aID.keys():
+                aID[ev['ActivityID']] = []
+            aID[ev['ActivityID']].append(ev)
 
-        for result in self.extractRDP(sID):
+        for result in self.extractRDP(aID):
             yield result
 
-    def extractRDP(self, sID):
+    def extractRDP(self, aID):
 
-        for eventlist in sID.values():
+        for eventlist in aID.values():
             act = dict()
             written = True
             act['LoginDate'] = '-'
@@ -403,7 +406,7 @@ class RDPOutgoing(base.job.BaseModule):
             ev['ActivityID'] = event.get('data.ActivityID', '')
             ev['Address'] = event.get('destination.address', '')
             ev['user.id'] = event.get('user.id', '')
-            ev['Base64Hash'] = event.get('data.Base64Hash', '')
+            ev['B64Hash'] = event.get('data.Base64Hash', '')
 
             if ev['ActivityID'] not in actID.keys():
                 actID[ev['ActivityID']] = []
@@ -443,7 +446,7 @@ class RDPOutgoing(base.job.BaseModule):
                     act['LogoffDate'] = '-'
                     writted = True
                 elif v['EventID'] == '1029' and 'B64Hash' not in act.keys():
-                    act['B64Hash'] = v.get('data.Base64Hash', '')
+                    act['B64Hash'] = v.get('B64Hash', '')
             if not writted:
                 yield {
                     'LoginDate': act.get('LoginDate', '-'),
@@ -468,6 +471,8 @@ class Poweron(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         eventlist = []
+        unexpected = []
+        self.path = path
 
         for event in self.from_module.run(path):
             ev = dict()
@@ -476,9 +481,20 @@ class Poweron(base.job.BaseModule):
             ev['message'] = event.get('message', '')
             ev['Reason'] = event.get('ReasonStr', '')
             eventlist.append(ev)
-
+            if ev['EventID'] == '41':
+                temp = datetime.datetime.strptime(ev['TimeCreated'][:19], '%Y-%m-%d %H:%M:%S')
+                temp -= datetime.timedelta(minutes=1)
+                unexpected.append(temp.strftime('%Y-%m-%d %H:%M:%S'))
             yield ev
-        self.extractPower(eventlist)
+        if len(unexpected) > 0:
+            for g in self.guess_poweroff(sorted(unexpected)):
+                ev = {'TimeCreated': g,
+                      'EventID': '',
+                      'message': 'Possible unexpected poweroff',
+                      'Reason': ''}
+                eventlist.append(ev)
+                yield ev
+        # self.extractPower(sorted(eventlist, key=lambda d: d['TimeCreated']))
 
     def extractPower(self, events):
         """
@@ -490,10 +506,14 @@ class Poweron(base.job.BaseModule):
             if ev['EventID'] == '1':
                 if not inpower:
                     results.append([act.get('t0', '-'), 'Resume from sleep', act.get('t1', '-')])
+                    act = {}
                 inpower = True
                 act['t0'] = ev['TimeCreated']
                 act['d0'] = 'Sleep'
             elif ev['EventID'] == '12':
+                if not inpower:
+                    results.append([act.get('t0', '-'), 'Boot', act.get('t1', '-')])
+                    act = {}
                 inpower = True
                 act['t0'] = ev['TimeCreated']
                 act['d0'] = 'StartBoot'
@@ -502,9 +522,11 @@ class Poweron(base.job.BaseModule):
                 act['t1'] = ev['TimeCreated']
                 act['d1'] = 'Shutdown'
                 results.append([act.get('t0', '-'), 'Shut down', act.get('t1', '-')])
-            elif ev['EventID'] == '41':
+                act = {}
+            elif ev['EventID'] == '':
                 if not inpower:
                     results.append([act.get('t0', '-'), 'Unexpected shutdown', '-'])
+                    act = {}
                 inpower = True
                 act['t0'] = ev['TimeCreated']
                 act['d0'] = 'Unexpected reboot'
@@ -513,6 +535,24 @@ class Poweron(base.job.BaseModule):
                 inpower = False
                 act['t1'] = ev['TimeCreated']
                 act['d1'] = 'Sleeping'
+                act = {}
+
+    def guess_poweroff(self, unexpected):
+        guess = [""]
+        m = len(unexpected)
+        i = 0
+        import subprocess
+
+        cmd = "grep -o '\"event.created\": \"20..-..-.....:..:..' %s|sort -u|cut -b 19-" % self.path
+        output = subprocess.check_output(cmd, shell=True).decode()
+        for line in output.split('\n'):
+            if unexpected[i] > line:
+                guess[i] = line
+            else:
+                i += 1
+                if i == m:
+                    return guess
+                guess.append(line)
 
 
 class Network(base.job.BaseModule):
@@ -663,6 +703,35 @@ class USBConnections(base.job.BaseModule):
                 del ev_list[total_plugins - index - 1]
 
 
+class USBDevice(object):
+
+    def __init__(self, vendor, model, deviceID, serialN, capacity, volume=''):
+        self.Vendor = vendor
+        self.Model = model
+        self.DeviceID = deviceID
+        self.SerialNumber = serialN
+        self.Capacity = capacity
+        self.VolumeName = volume
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return (self.DeviceID == other.DeviceID or self.Model == other.Model) and self.SerialNumber == other.SerialNumber
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __str__(self):
+        return str(self.SerialNumber) + self.Model
+
+    def __hash__(self):
+        return hash(str(self))
+
+    def to_dict(self):
+        return {'Vendor': self.Vendor, 'Model': self.Model, 'DeviceID': self.DeviceID, 'SerialNumber': self.SerialNumber, 'Capacity': self.Capacity}
+
+
 class USBPlugs2(base.job.BaseModule):
     """ Extracts logon and rdp artifacts """
 
@@ -674,32 +743,34 @@ class USBPlugs2(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         plugs = {}
-        usb = []
-        dev_ids = set()
+        devices = []
 
         for event in self.from_module.run(path):
             ev = dict()
             ev['TimeCreated'] = event.get('event.created', '')
-            ev['Vendor'] = event.get('data.DeviceVendor', '')
+            device = USBDevice(event.get('data.DeviceVendor', ''), event.get('data.DeviceModel', '').rstrip().lstrip(), event.get('data.DeviceID', ''), event.get('data.DeviceSerialNumber', ''), event.get('data.capacity', ''), event.get('data.DeviceVolumeName', ''))
             ev['Description'] = event.get('message', '')
-            ev['Model'] = event.get('data.DeviceModel', )
-            ev['DeviceID'] = event.get('data.DeviceID', '')
-            ev['SerialNumber'] = event.get('data.DeviceSerialNumber', '')
             ev['action'] = event.get('event.action', '')
-            ev['Capacity'] = event.get('data.capacity', '')
-            if ev['DeviceID'] not in dev_ids:
-                dev_ids.add(ev['DeviceID'])
-                usb.append({'DeviceID': ev['DeviceID'], 'Vendor': ev['Vendor'], 'Model': ev['Model'], 'SerialNumber': ev['SerialNumber'], 'Capacity': ev['Capacity']})
-                plugs[ev['DeviceID']] = []
-            plugs[ev['DeviceID']].append({'TimeCreated': ev['TimeCreated'], 'action': ev['action']})
+            ev['VolumeName'] = event.get('data.DeviceVolumeName', '')
+            if device not in devices:  # device to put in list
+                devices.append(device)
+                plugs[device] = []
+            else:
+                index = devices.index(device)  # sometimes, capacity value is 0
+                if devices[index].Capacity == '' or str(devices[index].Capacity) == "0":
+                    devices[index].Capacity = event.get('data.capacity', '')
+            plugs[device].append({'TimeCreated': ev['TimeCreated'], 'action': ev['action'], 'VolumeName': ev['VolumeName']})
 
         results = self.get_plugs(plugs)
+        devices2 = []
+        for dev in devices:
+            devices2.append(dev.to_dict())
+
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plugs2.md'),
-                      fieldnames='plugged_in plugged_off DeviceID',
-                      backticks_fields='DeviceID',
+                      fieldnames='plugged_in plugged_off Vendor Model SerialNumber VolumeName',
                       file_exists='OVERWRITE')
-        save_md_table(usb, config=None,
+        save_md_table(devices2, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_info.md'),
                       fieldnames='DeviceID Vendor Model SerialNumber Capacity',
                       backticks_fields='DeviceID',
@@ -708,21 +779,24 @@ class USBPlugs2(base.job.BaseModule):
 
     def get_plugs(self, usb_dict):
 
-        for dev_id in usb_dict.keys():
-            usb_id = sorted(usb_dict[dev_id], key=lambda d: d['TimeCreated'])
+        for device in usb_dict.keys():
+            usb_id = sorted(usb_dict[device], key=lambda d: d['TimeCreated'])
             flag = False
             plugged_in = '-'
+            volume = ''
             for item in usb_id:
-                if item['action'] == 'device-connected':
+                if item['action'] == '':  # event with volume information
+                    volume = item['VolumeName']
+                elif item['action'] == 'device-connected':
                     if flag:
-                        yield {'plugged_in': plugged_in, 'plugged_off': '-', 'DeviceID': dev_id}
+                        yield {'plugged_in': plugged_in, 'plugged_off': '-', 'Vendor': device.Vendor, 'Model': device.Model, 'SerialNumber': device.SerialNumber, 'VolumeName': volume}
                     flag = True
                     plugged_in = item['TimeCreated']
                 else:
                     if not flag:
                         plugged_in = '-'
                     flag = False
-                    yield {'plugged_in': plugged_in, 'plugged_off': item['TimeCreated'], 'DeviceID': dev_id}
+                    yield {'plugged_in': plugged_in, 'plugged_off': item['TimeCreated'], 'Vendor': device.Vendor, 'Model': device.Model, 'SerialNumber': device.SerialNumber, 'VolumeName': volume}
 
 
 class TGT_attack(base.job.BaseModule):
