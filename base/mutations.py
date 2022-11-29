@@ -428,6 +428,50 @@ class RenameFields(base.job.BaseModule):
             yield {repl.get(k, k): data[k] for k in data}
 
 
+class CoalesceFields(base.job.BaseModule):
+    """ Get the first non empty value of a list of fields and create a new single field.
+
+    Module description:
+        - **path**: not used, passed to *from_module*.
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+
+    Configuration:
+        - **fields**: List of key names to be coalesced
+        - **new_field**: Name of the new field to create. Can be one of the previous, but it will be overwritten
+        - **default_fill**: Value to fill with if all `fields` values are empty
+        - **remove**: Do not yield original fields to coalesce, only the new one
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('section', 'DEFAULT')
+        self.set_default_config('fields', '')
+        self.set_default_config('new_field', 'CoalesceField')
+        self.set_default_config('default_fill', "")
+        self.set_default_config('remove', False)
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        fields = self.myarray('fields')
+        new_field = self.myconfig('new_field')
+        default = self.myconfig('default_fill')
+        remove = self.myflag('remove')
+
+        if not fields:
+            yield from self.from_module.run(path)
+            return []
+
+        fields_to_remove = set(fields) - set([new_field])
+        for data in self.from_module.run(path):
+            non_empty_values = [data.get(k, default) for k in fields if data.get(k, None)]
+            data[new_field] = default if not non_empty_values else non_empty_values[0]
+            if remove:
+                [data.pop(i, None) for i in fields_to_remove]
+            yield data
+
+
 class SortResults(base.job.BaseModule):
     """ Sort the data from from_module, and yields results again.
     Take note that this operation loses some benefits of using generators,

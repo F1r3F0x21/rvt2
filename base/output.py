@@ -276,16 +276,16 @@ class MDTableSink(BaseSink):
                 # Exclude consecutive repeated entries
                 repeated = True
                 for fld in fields:
-                    if fld in backticks_fields and fileinfo.get(fld, ''):
-                        fileinfo[fld] = '`' + fileinfo[fld] + '`'
-                    if fld in path_fields and fileinfo.get(fld, ''):
-                        fileinfo[fld] = r'`\path{' + fileinfo[fld] + r'}`{=latex}'
                     if fileinfo.get(fld, '') != act[fld]:
                         repeated = False
                     act[fld] = fileinfo.get(fld, '')
+                    if fld in backticks_fields and fileinfo.get(fld, ''):
+                        act[fld] = '`' + fileinfo[fld] + '`'
+                    if fld in path_fields and fileinfo.get(fld, ''):
+                        act[fld] = r'`\path{' + fileinfo[fld] + r'}`{=latex}'
                 if repeated:
                     continue
-                outputfile.write("|".join([fileinfo.get(field, empty_str) for field in fields]))
+                outputfile.write("|".join([act.get(field, empty_str) for field in fields]))
                 outputfile.write("\n")
                 yield fileinfo
             except TypeError as exc:
