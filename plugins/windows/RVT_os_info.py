@@ -55,7 +55,7 @@ class CharacterizeWindows(base.job.BaseModule):
         if not self.ripplugins:
             return [dict(os_info=self.os_info, source=self.myconfig('source'))]
 
-        used_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'samparse', 'profilelist']
+        used_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'samparse', 'profilelist', 'nic2']
         self.plugin_files = {plug: p['file'] for plug in used_plugins for p in self.ripplugins if plug in p['plugins']}
         # Define self.ntusers, that gets the creation date of NTUSER.DAT for every user and partition
         self.make_usrclass_timeline()
@@ -111,7 +111,7 @@ class CharacterizeWindows(base.job.BaseModule):
     def os_information(self, part):
         """ Characterize Windows partitions from registry files. """
 
-        os_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname']
+        os_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'nic2']
 
         plugin_fields = {'winver2': ['ProductName', 'CurrentVersion', 'InstallationType', 'EditionID', 'CurrentBuild', 'ProductId', 'RegisteredOwner', 'RegisteredOrganization', 'InstallDate'],
                          'shutdown': ['ShutdownTime'],
@@ -129,6 +129,7 @@ class CharacterizeWindows(base.job.BaseModule):
             if not check_file(hivefile):
                 continue
             with open(hivefile, 'r') as f_in:
+                print(plug)
                 if plug == 'lastloggedon':
                     for line in f_in:
                         if line.startswith('LastLoggedOn'):
@@ -152,6 +153,13 @@ class CharacterizeWindows(base.job.BaseModule):
                                     tz_name = line[:line.find('Time') + 4]
                             self.os_info[part]['TimeZone'] = '{} {}'.format(tz_name, bias)
                             break
+                    continue
+                elif plug == 'nic2':
+                    ips = set()
+                    for line in f_in:
+                        if line.startswith('  IPAddress'):
+                            ips.add(line[31:].rstrip())
+                    self.os_info[part]['IpAddress'] = [i for i in ips if i]
                     continue
 
                 for field in plugin_fields[plug]:

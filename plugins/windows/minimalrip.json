@@ -22,7 +22,8 @@
         "file": "04_network_configuration_information",
         "description": "Networking Configuration Information",
         "plugins": [
-            "compname"
+            "compname",
+	    "nic2"
         ]
     }
 ]
