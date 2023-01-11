@@ -129,7 +129,6 @@ class CharacterizeWindows(base.job.BaseModule):
             if not check_file(hivefile):
                 continue
             with open(hivefile, 'r') as f_in:
-                print(plug)
                 if plug == 'lastloggedon':
                     for line in f_in:
                         if line.startswith('LastLoggedOn'):

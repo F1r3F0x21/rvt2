@@ -34,6 +34,8 @@ class Parse_Audit_Logs(base.job.BaseModule):
             data["User"] = audit_data["UserId"]
             data["ClientIP"] = audit_data["ClientIP"] if "ClientIP" in audit_data else ""
             data["LogonError"] = audit_data["LogonError"] if "LogonError" in audit_data else ""
+            data["ModifiedProperties"] = str(audit_data.get("ModifiedProperties",""))
+            data["ObjectId"] = audit_data.get("ObjectId","")
             
             data["SessionId"] = ""
             if "DeviceProperties" in audit_data:
@@ -50,7 +52,21 @@ class Parse_Audit_Logs(base.job.BaseModule):
                         data["UserAgent"] = property["Value"]
                     if property["Name"] == "RequestType":
                         data["RequestType"] = property["Value"]
+ 
+            data["Subject"] = ""
+            data["InternetMessageId"] = ""
+            data["ParentPath"] = ""
+            for a_field in ["Item", "AffectedItems"]:
+                if a_field in audit_data:
+                    if isinstance(audit_data[a_field],list):
+                        audit_data[a_field] = audit_data[a_field][0]
+                    for field in ["Subject", "InternetMessageId"]:
+                        data[field] = audit_data[a_field].get(field, "")
+                    if "ParentFolder" in audit_data[a_field]:
+                        data["ParentPath"] = audit_data[a_field]["ParentFolder"].get("Path","")
 
             yield data
+
+
 
 
