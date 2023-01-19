@@ -342,7 +342,10 @@ class PffExportParseObject(base.job.BaseModule):
             'creation_time': decodeEmailHeader(msg.get('date', None)),
             'email_x_originating_ip': decodeEmailHeader(msg.get('x-originating-ip', None)),
             'email_messageid': decodeEmailHeader(msg.get('message-id', None)),
-            'email_references': decodeEmailHeader(msg.get('references', None))
+            'email_references': decodeEmailHeader(msg.get('references', None)),
+            'email_dkim': decodeEmailHeader(msg.get("dkim-signature", None)),
+            'email_spf': decodeEmailHeader(msg.get("received-sfp", None)),
+            'email_received': decodeEmailHeader(msg.get("received", None))
         }
 
     def _getOutHeaders(self, filename):
