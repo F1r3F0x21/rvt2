@@ -119,7 +119,7 @@ class BaseImage(object):
             raise base.job.RVTError('No partition set to be mounted')
 
         for p in parts:
-            if p.isMountable or p.filesystem == 'HFS':
+            if p.isMountable or p.filesystem in ['HFS','ext4']:
                 p.mount()
 
     def umount(self, unzip_path=None):
@@ -175,6 +175,9 @@ class BaseImage(object):
                 filesystem = part.desc.decode()
             if filesystem.startswith('Macintosh HD'):
                 filesystem = "HFS"
+            if filesystem.startswith('Linux'):
+                filesystem = "ext4"
+
             if filesystem == "NoName":
                 apfs_pstat = self.params('apfs_pstat', '/usr/local/src/sleuthkit-APFS/tools/pooltools/pstat')
                 mosects = osects
