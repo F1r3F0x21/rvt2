@@ -361,7 +361,7 @@ class AddFields(base.job.BaseModule):
 
 
 class GetFields(base.job.BaseModule):
-    """ Get data from from_module, yield fields specified.
+    """ Get data from from_module, yield only the specified fields.
 
     Module description:
         - **path**: not used, passed to *from_module*.
@@ -426,6 +426,57 @@ class RenameFields(base.job.BaseModule):
         repl = dict(zip(fields, new_fields))
         for data in self.from_module.run(path):
             yield {repl.get(k, k): data[k] for k in data}
+
+
+class SplitField(base.job.BaseModule):
+    """ Create new fields splitting a provided input field data.
+
+    Module description:
+        - **path**: not used, passed to *from_module*.
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+
+    Configuration:
+        - **field**: List of key names to be renamed
+        - **separator**: string separator to split
+        - **new_fields**: List of new key names
+        - **new_fields_index**: Index of the split to asssign new fields. Starting at 0
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('section', 'DEFAULT')
+        self.set_default_config('field', '')
+        self.set_default_config('separator', '')
+        self.set_default_config('new_fields', '')
+        self.set_default_config('new_fields_index', '')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        field = self.myconfig('field')
+        separator = self.myconfig('separator')
+        new_fields = self.myarray('new_fields')
+        new_fields_index = self.myarray('new_fields_index')
+
+        if not field:
+            yield from self.from_module.run(path)
+            return []
+
+        if not new_fields:
+            raise base.job.RVTError('`new_fields` and `new_fields_index` must be provided')
+
+        if len(new_fields) != len(new_fields_index):
+            raise base.job.RVTError('`new_fields` and `new_fields_index` must have the same number of items. Fields: {}; Indexes: {}'.format(new_fields, new_fields_index))
+
+        for data in self.from_module.run(path):
+            try:
+                splitted = data[field].split(separator)
+                for i,new_field in zip(new_fields_index,new_fields):
+                    data[new_field] = splitted[int(i)]
+                yield data
+            except:
+                yield data
 
 
 class CoalesceFields(base.job.BaseModule):

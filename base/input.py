@@ -165,7 +165,6 @@ class CSVReader(base.job.BaseModule):
         - **quotechar** (String): The quotechar. Defaults to \"
         - **restkey** (String): The restkey of the DictReader. Defaults to "extra".
         - **restval** (String): The restval of the DictReader. Defaults to the empty string.
-        - **content_type**: The content_type to set, if fill_common_fields is set
         - **fieldnames**: A space separated list of header names. If None, use the first line.
           Warning: If provided, the first line will be considered data unless ignore_lines is set to >0
         - **ignore_lines** (int): Ignore this number of initial lines. If fieldnames is provided, the first line is also ignored.
@@ -182,7 +181,6 @@ class CSVReader(base.job.BaseModule):
         self.set_default_config('restval', '')
         self.set_default_config('fieldnames', '')
         self.set_default_config('ignore_lines', '0')
-        self.set_default_config('content_type', '')
         self.set_default_config('progress.disable', 'False')
         self.set_default_config('progress.cmd', 'cat "{path}" | wc -l')
         self.set_default_config('field_size_limit', sys.maxsize)  # Default csv max is 131072

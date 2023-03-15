@@ -82,10 +82,8 @@ class BaseSink(base.job.BaseModule):
         1. If the outfile parameter in the configuration section is a filename, use this.
         1. If the outfile parameter in the configuration section is empty, follow the same logic in the job section.
         """
-        # read outfile from the section name (first) or the job name (second)
-        outfilename = self.myconfig('outfile')
-        if not outfilename:
-            outfilename = self.config.get(self.config.job_name, 'outfile', None)
+
+        outfilename = self._get_outfile()
 
         if not outfilename or outfilename == 'CONSOLE':
             self.logger().debug('Printing information to the standard output')
@@ -112,6 +110,13 @@ class BaseSink(base.job.BaseModule):
             outputfile = open(outfilename, file_mode, encoding=self.myconfig('encoding'))
 
         return outputfile
+
+    def _get_outfile(self):
+        # read outfile from the section name (first) or the job name (second)
+        outfilename = self.myconfig('outfile')
+        if not outfilename:
+            outfilename = self.config.get(self.config.job_name, 'outfile', None)
+        return outfilename
 
     def run(self, path=None):
         raise base.job.RVTException('You must implement this method')
@@ -196,6 +201,13 @@ class CSVSink(BaseSink):
         delimiter = self.myconfig('delimiter')
         if delimiter == 'TAB':
             delimiter = '\t'
+        # Do not repeat the header if appending results and the file exists
+        outfilename = self._get_outfile()
+        if self.myconfig('file_exists') == 'APPEND' and outfilename != "CONSOLE" and os.path.exists(outfilename) and os.path.getsize(outfilename):
+            write_header = False
+        else:
+            write_header = self.myflag('write_header')
+
         for fileinfo in self._source(path):
             if csvwriter is None:
                 fieldnames = self.myarray('fieldnames')
@@ -209,7 +221,7 @@ class CSVSink(BaseSink):
                     delimiter=delimiter,
                     quotechar=self.myconfig('quotechar'),
                     quoting=int(self.myconfig('quoting')))
-                if self.myflag('write_header'):
+                if write_header:
                     csvwriter.writeheader()
             try:
                 csvwriter.writerow(fileinfo)
@@ -238,6 +250,7 @@ class MDTableSink(BaseSink):
         - **path_fields** (str): Sorround selected fields with LaTeX path command to ensure correct md visualization. Values are sepparated using spaces or new lines.
         - **first_line** (str): Write a first line before headers
         - **empty_str** (str): String to fill empty fields with
+        - **chars_scaped** (str): characters to scape in the values. Sepparated using spaces or new lines
     """
 
     def read_config(self):
@@ -248,6 +261,7 @@ class MDTableSink(BaseSink):
         self.set_default_config('file_exists', 'APPEND')
         self.set_default_config('first_line', '')
         self.set_default_config('empty_str', '-')
+        self.set_default_config('chars_escaped', '|')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
@@ -257,6 +271,8 @@ class MDTableSink(BaseSink):
         backticks_fields = self.myarray('backticks_fields')
         path_fields = self.myarray('path_fields')
         empty_str = self.myconfig('empty_str')
+        chars_escaped = self.myarray('chars_escaped')
+        escaped_table = str.maketrans({c: '\\' + c for c in chars_escaped})
         act = {field: '' for field in fields}
 
         first_line = self.myconfig('first_line')
@@ -279,6 +295,8 @@ class MDTableSink(BaseSink):
                     if fileinfo.get(fld, '') != act[fld]:
                         repeated = False
                     act[fld] = fileinfo.get(fld, '')
+                    if escaped_table:
+                        act[fld] = str(act[fld]).translate(escaped_table)
                     if fld in backticks_fields and fileinfo.get(fld, ''):
                         act[fld] = '`' + fileinfo[fld] + '`'
                     if fld in path_fields and fileinfo.get(fld, ''):

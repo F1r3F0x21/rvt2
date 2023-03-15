@@ -18,8 +18,8 @@ import base.job
 
 class Parse_Audit_Logs(base.job.BaseModule):
     """ 
-        Office 365 Audit Logs original CSV output contains a json format field.
-        This job parses that field and yield the results
+        Office 365 Audit Logs original CSV output contains a json format field `AuditData`.
+        Parse regular fields and `AuditData` field and yield the results
     """
 
     def run(self, path=None):
@@ -27,43 +27,78 @@ class Parse_Audit_Logs(base.job.BaseModule):
 
         for row in self.from_module.run(path):
             data = {}
-            audit_data = row['AuditData']
-            audit_data = json.loads(audit_data)
-            data["CreationTime"] = audit_data["CreationTime"]
-            data["Operation"] = audit_data["Operation"]
-            data["User"] = audit_data["UserId"]
-            data["ClientIP"] = audit_data["ClientIP"] if "ClientIP" in audit_data else ""
-            data["LogonError"] = audit_data["LogonError"] if "LogonError" in audit_data else ""
-            data["ModifiedProperties"] = str(audit_data.get("ModifiedProperties",""))
-            data["ObjectId"] = audit_data.get("ObjectId","")
-            
-            data["SessionId"] = ""
-            if "DeviceProperties" in audit_data:
-                for property in audit_data["DeviceProperties"]:
-                    if property["Name"] == "SessionId":
-                        data["SessionId"] = property["Value"]
-                        break
-            
-            data["UserAgent"] = ""
-            data["RequestType"] = ""
-            if "ExtendedProperties" in audit_data:
-                for property in audit_data["ExtendedProperties"]:
-                    if property["Name"] == "UserAgent":
-                        data["UserAgent"] = property["Value"]
-                    if property["Name"] == "RequestType":
-                        data["RequestType"] = property["Value"]
+
+            # Commmon fields
+            common_fields = ['RecordType', 'Identity', 'IsValid', 'ObjectState']
+            for field in common_fields:
+                data[field] = row[field]
+
+            # Audit Data regular fields
+            audit_data = json.loads(row['AuditData'])
+            ad_fields = ['CreationTime', 'UserId', 'Operation', 'ClientIP', 'LogonError', 'ObjectId', 'ResultStatus', 'UserKey']
+            for field in ad_fields:
+                data[field] = audit_data.get(field,"")
+            data['ClientIP'] = data['ClientIP'].lstrip('::ffff:')
+            data["ModifiedProperties"] = ""
+
+            # Fields on RecordType=AzureActiveDirectoryStsLogon
+            device_properties = ['SessionId', 'OS', 'BrowserType']
+            for selected_prop in device_properties:
+                data[selected_prop] = ""
+                if "DeviceProperties" in audit_data:
+                    for dev_property in audit_data["DeviceProperties"]:
+                        if dev_property["Name"] == selected_prop:
+                            data[selected_prop] = dev_property["Value"]
+
+            ext_properties = ['UserAgent', 'RequestType']
+            for selected_prop in ext_properties:
+                data[selected_prop] = ""
+                if "ExtendedProperties" in audit_data:
+                    for ext_property in audit_data["ExtendedProperties"]:
+                        if ext_property["Name"] == selected_prop:
+                            data[selected_prop] = ext_property["Value"]
  
+            # Fields on RecordType=ExchangeItem and RecordType=ExchangeItemGroup
             data["Subject"] = ""
             data["InternetMessageId"] = ""
             data["ParentPath"] = ""
+            data["SizeInBytes"] = 0
+            data['MailboxOwnerUPN'] = audit_data.get('MailboxOwnerUPN', "")
+            data['OriginatingServer'] = audit_data.get('OriginatingServer', "")
+            if data['RecordType'] == 'ExchangeItem':
+                data["ModifiedProperties"] = str(audit_data.get("ModifiedProperties",""))
             for a_field in ["Item", "AffectedItems"]:
                 if a_field in audit_data:
                     if isinstance(audit_data[a_field],list):
                         audit_data[a_field] = audit_data[a_field][0]
-                    for field in ["Subject", "InternetMessageId"]:
+                    for field in ["Subject", "InternetMessageId", "SizeInBytes"]:
                         data[field] = audit_data[a_field].get(field, "")
                     if "ParentFolder" in audit_data[a_field]:
                         data["ParentPath"] = audit_data[a_field]["ParentFolder"].get("Path","")
+
+            data['Client'] = ""
+            if 'ClientInfoString' in audit_data:
+                components = audit_data['ClientInfoString'].split(';')
+                data['Client'] = components[0].split('=')[1]
+                if components[1:] and not (components[1].startswith('Client') or components[1].startswith('Service')):
+                    data['UserAgent'] = ';'.join(components[1:])
+
+            # fields on RecordType=AzureActiveDirectory
+            if data['RecordType'] == 'AzureActiveDirectory':
+                data["ModifiedProperties"] = str(audit_data.get("ModifiedProperties",""))
+
+            # fields on RecordType=MicrosoftTeams
+            teams_fields = ['CommunicationType', 'MessageId', 'ChatName', 'ItemName']
+            for field in teams_fields:
+                data[field] = audit_data.get(field,"")
+
+            # fields on RecordType=SharePoint
+            sharepoint_fields = ['ApplicationId', 'ApplicationDisplayName', 'CorrelationId', 'ItemType']
+            for share_field in sharepoint_fields:
+                data[share_field] = audit_data.get(share_field, "")
+
+            # fields on RecordType=ExchangeAdmin
+            data["Parameters"] = str(audit_data.get("Parameters",""))
 
             yield data
 

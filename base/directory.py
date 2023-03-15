@@ -176,6 +176,7 @@ class FileParser(base.job.BaseModule):
 
     Configuration:
         - **parsers**: A list of regex and modules. First, the regular expression matching a filename; second, the jobname to run on this filename.
+            Example: ['(.*[Ww]indows/audit/.*.csv) myplugin.myjob', '(.*[Ww]indows/auditlogs/.*.txt) myplugin.myjob2']
     """
     def read_config(self):
         base.job.BaseModule.read_config(self)
