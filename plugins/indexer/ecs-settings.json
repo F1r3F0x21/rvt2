@@ -122,7 +122,8 @@
             }
           },
           "ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           },
           "mac": {
             "ignore_above": 1024,
@@ -131,7 +132,8 @@
           "nat": {
             "properties": {
               "ip": {
-                "type": "ip"
+                "type": "ip",
+                "ignore_malformed": true
               },
               "port": {
                 "type": "long"
@@ -383,7 +385,8 @@
             }
           },
           "ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           },
           "mac": {
             "ignore_above": 1024,
@@ -392,7 +395,8 @@
           "nat": {
             "properties": {
               "ip": {
-                "type": "ip"
+                "type": "ip",
+                "ignore_malformed": true
               },
               "port": {
                 "type": "long"
@@ -525,7 +529,8 @@
             }
           },
           "resolved_ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           },
           "response_code": {
             "ignore_above": 1024,
@@ -877,7 +882,8 @@
             "type": "keyword"
           },
           "ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           },
           "mac": {
             "ignore_above": 1024,
@@ -1117,7 +1123,8 @@
             "type": "keyword"
           },
           "forwarded_ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           },
           "iana_number": {
             "ignore_above": 1024,
@@ -1186,7 +1193,8 @@
             "type": "keyword"
           },
           "ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           },
           "mac": {
             "ignore_above": 1024,
@@ -1380,9 +1388,6 @@
           "run_count": {
             "type": "long"
           },
-          "run_count": {
-            "type": "long"
-          },
           "start": {
             "type": "date"
           },
@@ -1470,7 +1475,8 @@
       "related": {
         "properties": {
           "ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           }
         }
       },
@@ -1538,7 +1544,8 @@
             }
           },
           "ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           },
           "mac": {
             "ignore_above": 1024,
@@ -1547,7 +1554,8 @@
           "nat": {
             "properties": {
               "ip": {
-                "type": "ip"
+                "type": "ip",
+                "ignore_malformed": true
               },
               "port": {
                 "type": "long"
@@ -1714,7 +1722,8 @@
             }
           },
           "ip": {
-            "type": "ip"
+            "type": "ip",
+            "ignore_malformed": true
           },
           "mac": {
             "ignore_above": 1024,
@@ -1723,7 +1732,8 @@
           "nat": {
             "properties": {
               "ip": {
-                "type": "ip"
+                "type": "ip",
+                "ignore_malformed": true
               },
               "port": {
                 "type": "long"

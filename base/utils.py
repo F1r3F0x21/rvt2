@@ -23,6 +23,8 @@ import shutil
 import uuid
 import hashlib
 import json
+import re
+import logging
 import base.job
 import base.config
 
@@ -246,6 +248,101 @@ def windows_format_path(path, enclosed=False):
     if enclosed:
         return '"' + path + '"'
     return path
+
+
+def sanitize_ip(value):
+    """ Adapt IP fields to Elastic IPv4 or IPv6 addresses format (see https://www.elastic.co/guide/en/elasticsearch/reference/current/ip.html)
+
+    Possible inputs to convert:
+    - ''                        --> null (Ipfield throws error when processing empty string)
+    - `-`                       --> null
+    - [123.123.123.123]         --> 123.123.123.123
+    - ::ffff:10.100.1.87        --> 10.100.1.87 (Revert the default IPv4 toIPv6 convention to simplify reading)
+    - 123.123.123.123::1980     --> ip=123.123.123.123, port=1980 (Ports are treated as separated field)
+    - ::1234:5678:1.2.3.4:443   --> ip=::1234:5678:1.2.3.4, port=443
+    - 2603:10a6:7:94:cafe::d6:3 --> ip=2603:10a6:7:94:cafe::d6, port=3
+    - 123.123.123.123           --> 123.123.123.123 (Valid IPv4 format. No changes)
+    - 2001:db8:1::ab9:C0A8:102  --> 2001:db8:1::ab9:C0A8:102 (Valid IPv6 format. No changes)
+    - ::1234:5678:1.2.3.4       --> ::1234:5678:1.2.3.4 (Valid dual IPv6 format. No changes)
+
+    Any other escenario will return null as IP value.
+
+    Returns tuple (ip, port)
+    """
+
+    value = value.replace('[', '').replace(']', '')
+    if value == '-' or value == '':
+        return (None, None)
+
+    semicolons = value.count(':')
+    if not semicolons:  # Single IPv4 address
+        if not is_valid_ipv4_address(value):
+            logging.warning(f'IP value {value} is not a valid IP')
+            return (None, None)
+        return (value, None)
+    terms = value.split(':')
+    if (semicolons == 1 or (semicolons == 2 and terms[0])):  # IPv4:port or IPv4::por escenarios
+        ip = terms[0]
+        if not is_valid_ipv4_address(ip):
+            logging.warning(f'IP value {value} is not a valid IP')
+            ip = None
+        return ip, check_integer(terms[1])
+    elif semicolons == 2 and not terms[0]:  # Empty IPv6 address (::) or ::IPv4 scenario
+        if not terms[2]:
+            return (None,None)
+        if not is_valid_ipv4_address(terms[2]):
+            logging.warning(f'IP value {terms[2]} is not a valid IP')
+            return (None, None)
+        return (terms[2], None)
+    elif semicolons == 3 and value.lower().startswith('::ffff:') and terms[3]:  # ::ffff:IPv4 scenario
+        if not is_valid_ipv4_address(terms[3]):
+            logging.warning(f'IP value {terms[3]} is not a valid IP')
+            return (None, None)
+        return (terms[3], None)
+    elif semicolons >= 3 and '.' in terms[-2]:  # IPv6:IPv4:port scenario
+        port = check_integer(terms[-1])
+        ip = ':'.join(terms[:-1])
+        if not is_valid_ipv4_address(terms[-2]):
+            logging.warning(f'IP value {ip} is not a valid IP')
+            return (None, None)
+        # TODO: Check if first IPv6 part is valid
+        return (ip, port)
+    elif semicolons == 7:  # IPv6:port scenario
+        ip = ':'.join(terms[:-1])
+        if not is_valid_ipv6_address(ip):
+            logging.warning(f'IP value {ip} is not a valid IP')
+            return (None, None)
+        return ip, check_integer(terms[-1])
+    else:
+        return (None, None)
+
+
+def is_valid_ipv4_address(address):
+    # Regular expression pattern for a valid IPv4 address
+    pattern = r'^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+
+    if re.match(pattern, address):
+        return True
+    else:
+        return False
+
+
+def is_valid_ipv6_address(address):
+    # Regular expression pattern for a valid IPv6 address
+    pattern = r'^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$'
+
+    if re.match(pattern, address):
+        return True
+    else:
+        return False
+
+
+def check_integer(value):
+    """ Check if an object can be casted to an integer. Return the casted object or None. """
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
 
 class WaitForJob(base.job.BaseModule):

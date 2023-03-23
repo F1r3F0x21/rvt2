@@ -30,6 +30,7 @@ import ast
 import pytz
 from textwrap import wrap
 from plugins.windows.RVT_os_info import CharacterizeWindows
+from base.utils import sanitize_ip
 
 
 class DateFields(base.job.BaseModule):
@@ -586,6 +587,49 @@ class SpaceText(base.job.BaseModule):
             for i, field in enumerate(fields):
                 if field in data:
                     data[field] = ' '.join(wrap(data[field], steps[i]))
+            yield data
+
+
+class AdaptIpFormat(base.job.BaseModule):
+    """ Adapt IP fields to Elastic IPv4 or IPv6 addresses format (see https://www.elastic.co/guide/en/elasticsearch/reference/current/ip.html)
+
+    Configuration:
+        - **fields**: Space separated keys to adapt to IP format
+        - **port_fields**: Space separated names for the new port field if IP field contains a port. Must hav the same number of items as `fields`. By default, substitute "ip" or "address" by "port" on each of the `fields`
+        - **ignore_port**: If True, ignore the treatment of ports when processing an IP
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('fields', '')
+        self.set_default_config('port_fields', '')
+        self.set_default_config('ignore_port', False)
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+        fields = self.myarray('fields')
+        port_fields = self.myarray('port_fields')
+        ignore_port = self.myconfig('ignore_port')
+
+        if not fields:
+            yield from self.from_module.run(path)
+            return []
+
+        if port_fields and (len(fields) != len(port_fields)):
+            raise base.job.RVTError('`fields` and `port_fields` must have the same number of items. Fields: {}; Port fields: {}'.format(fields, port_fields))
+        if not port_fields:
+            port_fields = fields.copy()
+            for name, replacement in zip(['IP', 'Ip', 'ip', 'Address', 'address'],['Port', 'Port', 'port', 'Port', 'port']):
+                port_fields = [f.replace(name,replacement) for f in port_fields]
+
+        relation = list(zip(fields, port_fields))
+        for data in self.from_module.run(path):
+            for ip_field, port_field in relation:
+                if ip_field not in data:
+                    continue
+                data[ip_field], port = sanitize_ip(data[ip_field])
+                if port:
+                    data[port_field] = port
             yield data
 
 

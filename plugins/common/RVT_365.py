@@ -64,7 +64,7 @@ class Parse_Audit_Logs(base.job.BaseModule):
             data["ParentPath"] = ""
             data["SizeInBytes"] = 0
             data['MailboxOwnerUPN'] = audit_data.get('MailboxOwnerUPN', "")
-            data['OriginatingServer'] = audit_data.get('OriginatingServer', "")
+            data['ClientInfoString'] = audit_data.get('ClientInfoString', "")
             if data['RecordType'] == 'ExchangeItem':
                 data["ModifiedProperties"] = str(audit_data.get("ModifiedProperties",""))
             for a_field in ["Item", "AffectedItems"]:
@@ -76,19 +76,19 @@ class Parse_Audit_Logs(base.job.BaseModule):
                     if "ParentFolder" in audit_data[a_field]:
                         data["ParentPath"] = audit_data[a_field]["ParentFolder"].get("Path","")
 
-            data['Client'] = ""
-            if 'ClientInfoString' in audit_data:
-                components = audit_data['ClientInfoString'].split(';')
-                data['Client'] = components[0].split('=')[1]
-                if components[1:] and not (components[1].startswith('Client') or components[1].startswith('Service')):
-                    data['UserAgent'] = ';'.join(components[1:])
+            # data['Client'] = ""
+            # if 'ClientInfoString' in audit_data:
+            #     components = audit_data['ClientInfoString'].split(';')
+            #     data['Client'] = components[0].split('=')[1]
+            #     if components[1:] and not (components[1].startswith('Client') or components[1].startswith('Service')):
+            #         data['UserAgent'] = ';'.join(components[1:])
 
             # fields on RecordType=AzureActiveDirectory
             if data['RecordType'] == 'AzureActiveDirectory':
                 data["ModifiedProperties"] = str(audit_data.get("ModifiedProperties",""))
 
             # fields on RecordType=MicrosoftTeams
-            teams_fields = ['CommunicationType', 'MessageId', 'ChatName', 'ItemName']
+            teams_fields = ['CommunicationType', 'ChatName', 'ItemName']
             for field in teams_fields:
                 data[field] = audit_data.get(field,"")
 

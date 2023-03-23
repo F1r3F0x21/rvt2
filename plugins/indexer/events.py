@@ -21,6 +21,7 @@ import dateutil.parser
 import urllib.parse
 from os.path import splitext
 import base.job
+from base.utils import sanitize_ip
 
 # ECS Reference: https://www.elastic.co/guide/en/ecs/current/ecs-field-reference.html
 # There are 4 categorization fields for events: event.kind, event.category, event.type, event.outcome
@@ -109,34 +110,6 @@ def decompose_url(full_url):
     if ext:
         new_fields['url.extension'] = ext.lstrip('.')
     return new_fields
-
-
-def sanitize_ip(value):
-    """ Adapt IP fields to Elastic IPv4 or IPv6 addresses format (see https://www.elastic.co/guide/en/elasticsearch/reference/current/ip.html)
-
-    Possible inputs to convert:
-    - `-` --> Retrun empty
-    - [123.123.123.123]  --> Remove brackets
-    - 123.123.123.123::1980 --> Ports are treated as separated field
-    - ::ffff:10.100.1.87 --> ignore ffff and take ip
-
-    Returns tuple (ip, port)
-    """
-
-    if value == '-' or value == '':
-        return (None, None)
-    value = value.replace('[', '').replace(']', '')
-    if value.find(':') != -1:
-        ip = value.split(':')[0]
-        port = value.split(':')[-1]
-        if port:
-            try:
-                int(port)
-            except ValueError:
-                ip = port
-                port = ''
-        return ip if ip else None, port
-    return value, None
 
 
 class SuperTimeline(base.job.BaseModule):
