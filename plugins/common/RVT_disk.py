@@ -77,6 +77,7 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
 
 class BaseImage(object):
     """ A base class for images. Also, manages raw (dd) images """
+
     def __init__(self, imagefile, imagetype, params):
         self.logger = logging.getLogger('Disk')
         self.params = params
@@ -119,7 +120,7 @@ class BaseImage(object):
             raise base.job.RVTError('No partition set to be mounted')
 
         for p in parts:
-            if p.isMountable or p.filesystem in ['HFS','ext4']:
+            if p.isMountable or p.filesystem in ['HFS', 'ext4']:
                 p.mount()
 
     def umount(self, unzip_path=None):
