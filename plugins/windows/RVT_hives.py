@@ -598,16 +598,34 @@ class ShimCache(base.job.BaseModule):
         ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
         date_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
 
-        res = run_command([ripcmd, "-r", sysfile, "-p", "shimcache"], logger=self.logger())
-        for line in res.split('\n'):
-            if ':' not in line[:4]:
+        # shimcache regripper plugin output sample:
+        r"""
+        shimcache v.20200428
+        (System) Parse file refs from System hive AppCompatCache data
+
+        *** ControlSet001 ***
+        ControlSet001\Control\Session Manager\AppCompatCache
+        LastWrite Time: 2022-09-01 09:47:19Z
+        Signature: 0x34
+        C:\ProgramData\Dell\UpdateService\Downloads\Driver_VP20T.EXE  2021-11-05 16:27:20
+        C:\Program Files\Intel\WiFi\bin\iwrap.exe  2019-05-14 13:58:23 Executed
+        """
+
+        line_number = 0
+        start = 1000
+        for line in yield_command([ripcmd, "-r", sysfile, "-p", "shimcache"], logger=self.logger()):
+            line_number += 1
+            if line_number < 5:
                 continue
-            matches = re.search(date_regex, line)
-            if matches:
-                path = line[:matches.span()[0] - 2]
-                date = str(datetime.datetime.strptime(matches.group(), '%Y-%m-%d %H:%M:%S'))
-                executed = bool(len(line[matches.span()[1]:]))
-                yield OrderedDict([('LastModified', date), ('AppPath', path), ('Executed', executed)])
+            if line.startswith('LastWrite Time'):
+                start = line_number + 1
+            if line_number > start:
+                matches = re.search(date_regex, line)
+                if matches:
+                    path = line[:matches.span()[0] - 2]
+                    date = str(datetime.datetime.strptime(matches.group(), '%Y-%m-%d %H:%M:%S'))
+                    executed = "Yes" if len(line[matches.span()[1]:].strip()) else "NA"
+                    yield OrderedDict([('LastModified', date), ('AppPath', path), ('Executed', executed)])
 
 
 class SysCache(base.job.BaseModule):
@@ -674,7 +692,7 @@ class SysCache(base.job.BaseModule):
 
 class AppCompat(base.job.BaseModule):
     """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time """
-    # appcompatcache regripper plugin doesn't seems to show  executed flag. AppCompatCacheParser.exe does
+    # appcompatcache regripper plugin doesn't seems to show executed flag. AppCompatCacheParser.exe does
 
     def read_config(self):
         super().read_config()
@@ -720,6 +738,7 @@ class AppCompat(base.job.BaseModule):
     def parse_appcompatcache(self, path):
         """ Use appcompatcache plugin from regripper to parse AppCompatCache key in SYSTEM hive """
         ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        date_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
         line_number = 0
         start = 1000
         result = {}
@@ -727,20 +746,15 @@ class AppCompat(base.job.BaseModule):
             line_number += 1
             if line_number < 5:
                 continue
-            if line_number > start:
-                last_modified = line[-20:].strip()
-                # Some entries do not include a time. Process them apart
-                if not self._check_valid_time(last_modified):
-                    result['Time'] = ''
-                    result['Application'] = line.replace('\\', '/').strip()
-                    yield result
-                else:
-                    # The rest have a last modified UTC time
-                    result['Time'] = last_modified
-                    result['Application'] = line[:-22].replace('\\', '/')
-                    yield result
             if line.startswith('LastWrite Time'):
                 start = line_number + 1
+            if line_number > start:
+                matches = re.search(date_regex, line)
+                if matches:
+                    path = line[:matches.span()[0] - 2]
+                    date = str(datetime.datetime.strptime(matches.group(), '%Y-%m-%d %H:%M:%S'))
+                    executed = "Yes" if len(line[matches.span()[1]:].strip()) else "NA"
+                    yield OrderedDict([('LastModified', date), ('AppPath', path), ('Executed', executed)])
 
         return []
 
@@ -861,9 +875,9 @@ class UserAssistAnalysis(base.job.BaseModule):
                                              path=os.path.join(path, file),
                                              extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
                     res = OrderedDict([(field, line.get(field, '')) for field in fields])
-                    res["LastWrite"] = res.pop("LastWriteTimestamp").split('.')[0]
-                    res['Value'] = rot13(res.pop("ValueName"))
-                    if not res['Value']:
+                    res["LastExecuted"] = res.pop("LastWriteTimestamp").split('.')[0]
+                    res['ProgramName'] = rot13(res.pop("ValueName"))
+                    if not res['ProgramName']:
                         continue
                     res.update({'User': user, 'Partition': partition})
                     yield res

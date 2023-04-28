@@ -56,7 +56,9 @@ class DateFields(base.job.BaseModule):
         - **tz_name**: tzdata/Olsen timezone name to set for the dates. Examples: `Europe/Berlin`, `America/New_York`, `UTC`. If `local` is set, timezone will be searched on the registry
         - **hide_tz**: If True, do not output a timezone offset with the result
         - **missing_action**: what to do when no date field is present. One of (IGNORE, SKIP_ANY, SKIP_ALL, EPOCH, NOW)
+        - **dayfirst**: force this option to interpret 03/07/2022 as July 3rd instead of March 7th. Be careful, since this overrides common ISO notation, and 2022-01-06 will be parsed as 1st of June, not 6th of January.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('fields', 'date_creation')
@@ -66,6 +68,7 @@ class DateFields(base.job.BaseModule):
         self.set_default_config('tz_name', 'UTC')
         self.set_default_config('hide_tz', False)
         self.set_default_config('missing_action', 'IGNORE')
+        self.set_default_config('dayfirst', False)
 
     def run(self, path=None):
         """ The path will be passed to the mandatory from_module """
@@ -77,6 +80,8 @@ class DateFields(base.job.BaseModule):
         new_fields = self.myarray('new_fields')
         tz_name = self.myconfig('tz_name')
         missing_action = self.myconfig('missing_action').upper()
+        dayfirst = self.myflag('dayfirst')
+
         if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'EPOCH', 'NOW']:
             raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP, EPOCH, NOW')
 
@@ -103,7 +108,7 @@ class DateFields(base.job.BaseModule):
                         continue
                 if field in data:
                     found = True
-                    converted_date = self.__convert_date(data[field], sep=sep, timespec=timespec, tz_name=tz_name, hide_tz=hide_tz)
+                    converted_date = self.__convert_date(data[field], sep=sep, timespec=timespec, tz_name=tz_name, hide_tz=hide_tz, dayfirst=dayfirst)
                 else:
                     converted_date = time_limits[missing_action]
                 if converted_date and not new_fields:
@@ -119,7 +124,7 @@ class DateFields(base.job.BaseModule):
             if not skip:
                 yield data
 
-    def __convert_date(self, source, sep='T', timespec='auto', tz_name='UTC', hide_tz=False):
+    def __convert_date(self, source, sep='T', timespec='auto', tz_name='UTC', hide_tz=False, dayfirst=False):
         try:
             if type(source) == int:
                 # convert an integer to a date
@@ -129,7 +134,9 @@ class DateFields(base.job.BaseModule):
                 dt = datetime.datetime.utcfromtimestamp(int(source))
             else:
                 # default: use dateutil
-                dt = dateutil.parser.parse(source)
+                # WARNING: dateutil uses American notation when in doubt: 09/03/2022 is September 3rd
+                # Using dayfirst parameter enforces European notation, but fails interpreting ISO format
+                dt = dateutil.parser.parse(source, dayfirst=dayfirst)
 
             # Assume input date is in UTC when no tzinfo is set:
             if not dt.tzinfo:
@@ -140,7 +147,7 @@ class DateFields(base.job.BaseModule):
             # Display in isoformat
             return dt.replace(tzinfo=dt.tzinfo if not hide_tz else None).isoformat(sep=sep, timespec=timespec)
 
-        except Exception:
+        except Exception as e:
             if self.myflag('stop_on_error'):
                 raise
             return None

@@ -292,7 +292,8 @@ class Characterize(SuperTimeline):
             # 'os.family': 'NONE',
             'event.timezone': 'TimeZone',
             'user.name': 'RegisteredOwner',
-            'user.domain': 'RegisteredOrganization'
+            'user.domain': 'RegisteredOrganization',
+            'host.ip': 'IpAddress'
         }
 
         for d in self.from_module.run(path):
@@ -849,12 +850,12 @@ class AppCompatCache(SuperTimeline):
 
     def run(self, path=None):
         # Column fields depend on which parser is used:
-        #   regripper appcompatcache plugin --> Time;Application;Executed
+        #   regripper appcompatcache plugin --> LastModified;AppPath;Executed
         #   AppCompatCacheParser --> LastModifiedTimeUTC;Path;CacheEntryPosition;Executed
         for d in self.from_module.run(path):
             common = self.common_fields()
             common.update({
-                '@timestamp': to_iso_format(d.get('LastModifiedTimeUTC', None) or d['Time']),
+                '@timestamp': to_iso_format(d.get('LastModifiedTimeUTC', None) or d['LastModified']),
                 'tags': ['appcompat'],
                 'event.category': ['file'],
                 'event.type': ['start'],
@@ -862,12 +863,12 @@ class AppCompatCache(SuperTimeline):
                 'event.dataset': 'appcompat',
                 'registry.hive': 'system',
                 'event.action': 'file-modified',
-                'message': 'File modified: ' + (d.get('Path', None) or d['Application']),
-                'process.executable': (d.get('Path', None) or d['Application'])
+                'message': 'File modified: ' + (d.get('Path', None) or d['AppPath']),
+                'process.executable': (d.get('Path', None) or d['AppPath'])
             })
 
             if d.get('Executed', ''):
-                common['process.executed'] = d['Executed']
+                common['event.data.Executed'] = d['Executed']
             if d.get('CacheEntryPosition', ''):
                 common['event.data.CacheEntryPosition'] = d['CacheEntryPosition']
 
@@ -935,10 +936,11 @@ class UserAssist(SuperTimeline):
                 'event.type': ['start'],
                 'message': "Process last executed: {}".format(d['ProgramName']),
                 'process.executable': d['ProgramName'],
-                'process.run_count': d['RunCounter'],
-                'process.focus_count': d['FocusCount'],
-                'process.focus_time': d['FocusTime'],
                 'user.name': d['User']})
+
+            for field_in, field_out in zip(['RunCounter', 'FocusCount', 'FocusTime'], ['event.data.RunCount', 'event.data.FocusCount', 'process.uptime']):
+                if field_in in d:
+                    common[field_out] = d[field_in]
 
             yield common
 
