@@ -1081,12 +1081,12 @@ class Tasks(BaseRegistry):
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.get_outfile('tasks', extension='json')
+        self.get_outfile('tasks', extension='csv')
         self.logger().debug("Parsing {}".format(path))
 
         entries = self.parse_tasks_keys(path)
-        # save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
-        save_json(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        #save_json(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
 
     def parse_tasks_keys(self, path):
 
@@ -1095,15 +1095,20 @@ class Tasks(BaseRegistry):
         except Exception as exc:
             self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
 
-        regkey = 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tree'
+        #regkey = 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tree'
+        regkey = 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tasks'
 
         try:
             volumekey = registry.open(regkey)
-            yield from registry_simple_recursive_to_json(volumekey, depth=5, hive='SOFTWARE')
+            for subkey in registry_key_tree_to_json(volumekey, depth=1, hive='SOFTWARE'):
+                yield OrderedDict([("@timestamp", subkey['@timestamp']),
+                                  ('Task', subkey['registry.data.URI']),
+                                  ('Created', subkey.get('registry.data.Date', "")),
+                                  ('Author', subkey.get('registry.data.Author', ""))])
         except Registry.RegistryKeyNotFoundException:
             self.logger().debug(f'Key {regkey} not found')
         except KeyError:
-            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+            self.logger().warning("Expected subkeys not found in hive file: {}".format(regkey))
 
         self.logger().debug("TaskCache Keys parsing finished")
         return []

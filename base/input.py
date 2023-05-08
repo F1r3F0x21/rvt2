@@ -170,6 +170,7 @@ class CSVReader(base.job.BaseModule):
         - **ignore_lines** (int): Ignore this number of initial lines. If fieldnames is provided, the first line is also ignored.
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file.
+        - **check_path_exists** (Boolean): If True and provided path does not exist, raise an error. I False, just warn and continue
     """
 
     def read_config(self):
@@ -184,10 +185,18 @@ class CSVReader(base.job.BaseModule):
         self.set_default_config('progress.disable', 'False')
         self.set_default_config('progress.cmd', 'cat "{path}" | wc -l')
         self.set_default_config('field_size_limit', sys.maxsize)  # Default csv max is 131072
+        self.set_default_config('check_path_exists', True)
+
 
     def run(self, path):
         """ Read CSV file in the path. from_module is ignored """
-        self.check_params(path, check_path=True, check_path_exists=True)
+        try:
+            self.check_params(path, check_path=True, check_path_exists=True)
+        except base.job.RVTErrorNotExistingPath as exc:
+            if not self.myflag('check_path_exists'):
+                self.logger().warning(exc)
+                return []
+            raise exc
         csv.field_size_limit(int(self.myconfig('field_size_limit')))
         with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
             ignore_lines = int(self.myconfig('ignore_lines'))

@@ -180,6 +180,49 @@ class RemoveFields(base.job.BaseModule):
             yield data
 
 
+class SkipResults(base.job.BaseModule):
+    """ Skip data if specified fields are empty. Empty definition includes `-` strings.
+
+    Module description:
+        - **path**: not used, passed to *from_module*.
+        - **from_module**: mandatory. Get data and remove fields.
+        - **yields**: The original data if criteria is not met, or nothing.
+
+    Configuration:
+        - **fields**: List of fields to check for emptyness.
+        - **condition**: **all** (all provided fields must be empty to skip data) or **any** (if any provided field is empty, skip data)
+        - **fields_not_present: what to do if any of the provided fields are not present in data. Availabale options are **skip** (default) or **keep**
+    """
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('fields', '')
+        self.set_default_config('condition', 'all')
+        self.set_default_config('fields_not_present', 'skip')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        fields = self.myarray('fields')
+        condition = self.myconfig('condition')  # values not in ['all', 'any'] will default to 'all'
+        not_present = self.myconfig('fields_not_present').lower()
+
+        for data in self.from_module.run(path):
+            if not fields:
+                semicolon_copy = None
+            else:
+                semicolon_copy = [v if v!="-" else None for k,v in data.items() if k in fields]
+            if not semicolon_copy:
+                if not_present != "keep":  # Skip data if fields not present
+                    continue
+                else:
+                    yield data
+                    continue
+            if condition == 'any' and any(semicolon_copy):
+                yield data
+            if condition != 'any' and all(semicolon_copy):
+                yield data
+
+
 class CommonFields(base.job.BaseModule):
     """
         Adds common fields for a document: *path*, *filename*, *dirname*, *extension*, *content_type* and *_id* if they don't exist yet.
@@ -557,6 +600,7 @@ class SortResults(base.job.BaseModule):
             yield from self.from_module.run(path)
         else:
             yield from sorted(self.from_module.run(path), key=safe_string_itemgetter(*fields), reverse=reverse)
+
 
 
 class SpaceText(base.job.BaseModule):

@@ -249,6 +249,7 @@ class MDTableSink(BaseSink):
         - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct md visualization. Values are sepparated using spaces or new lines.
         - **path_fields** (str): Sorround selected fields with LaTeX path command to ensure correct md visualization. Values are sepparated using spaces or new lines.
         - **first_line** (str): Write a first line before headers
+        - **skip_headers** (bool): If True, do not print table headers. Default=False
         - **empty_str** (str): String to fill empty fields with
         - **chars_scaped** (str): characters to scape in the values. Sepparated using spaces or new lines
     """
@@ -260,6 +261,7 @@ class MDTableSink(BaseSink):
         self.set_default_config('path_fields', '')
         self.set_default_config('file_exists', 'APPEND')
         self.set_default_config('first_line', '')
+        self.set_default_config('skip_headers', False)
         self.set_default_config('empty_str', '-')
         self.set_default_config('chars_escaped', '|')
 
@@ -273,6 +275,7 @@ class MDTableSink(BaseSink):
         empty_str = self.myconfig('empty_str')
         chars_escaped = self.myarray('chars_escaped')
         escaped_table = str.maketrans({c: '\\' + c for c in chars_escaped})
+        skip_headers = self.myflag('skip_headers')
         act = {field: '' for field in fields}
 
         first_line = self.myconfig('first_line')
@@ -281,10 +284,11 @@ class MDTableSink(BaseSink):
             outputfile.write("\n")
 
         # Headers
-        outputfile.write("|".join(fields))
-        outputfile.write("\n")
-        outputfile.write("|".join(["--"] * len(fields)))
-        outputfile.write("\n")
+        if not skip_headers:
+            outputfile.write("|".join(fields))
+            outputfile.write("\n")
+            outputfile.write("|".join(["--"] * len(fields)))
+            outputfile.write("\n")
 
         # Items
         for fileinfo in self._source(path):
@@ -312,7 +316,7 @@ class MDTableSink(BaseSink):
                 else:
                     self.logger().warning('%s: %s', exc, fileinfo.get('path', ''))
 
-        outputfile.write("\n")  # Prepare room for next table in case appending outputs
+        # outputfile.write("\n")  # Prepare room for next table in case appending outputs
         try:
             if not outputfile == sys.stdout:
                 outputfile.close()
