@@ -893,8 +893,8 @@ class Shellbags(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -d {hives_dir} --csv {outdir} --nl --dedupe')
-        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'ShellBagsExplorer/SBECmd.exe'))
+        self.set_default_config('cmd', '{executable} -d {hives_dir} --csv {outdir} --nl --dedupe')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'SBECmd/SBECmd.exe'))
 
     def run(self, path=""):
 
@@ -926,6 +926,8 @@ class Shellbags(base.job.BaseModule):
                         'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
                         'hives_dir': windows_format_path(hives_dir, enclosed=True)}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
+            exec = cmd_vars['executable'][1:-1]
+            cmd_args = f"{exec} -d {cmd_vars['hives_dir']} --csv {cmd_vars['outdir']} --nl --dedupe".replace('\\', '/')
             run_command(cmd_args)
 
             # SBECmd.exe saves the output in a file called Deduplicated.csv. Change the name:

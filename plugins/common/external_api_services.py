@@ -139,7 +139,7 @@ class abuseipdb(object):
 
     @lru_cache(maxsize=1000)
     def get_ip_data(self, ip):
-        data = {'CC': '-', 'abuseConfidenceScore': '-', 'isWhitelisted': '-', 'usageType': '-', 'isp': '-' }
+        data = {'CC': '-', 'abuseConfidenceScore': '-', 'isWhitelisted': '-', 'usageType': '-', 'isp': '-'}
 
         # TODO: skip local IP addresses (192., etc)
         if not ip or ip.lower() in ['local', '-']:
@@ -183,7 +183,7 @@ class alienvault(object):
                 self.apikey = config.get('IP_API_keys', 'alienvault_key', None)
             if not self.apikey:
                 logging.getLogger(__name__).error(f'No API key provided for alientvault')
- 
+
         self.otx_server = otx_server
         self.otx = OTXv2(self.apikey, server=otx_server)
 
@@ -221,7 +221,7 @@ class alienvault(object):
         logging.getLogger(__name__).debug(f'Getting AlienVault data for {ip}')
         try:
             result = self.otx.get_indicator_details_by_section(IndicatorTypes.IPv4, ip, 'general')
-        except Exception as exc:
+        except Exception:
             return res
         res['city'] = result.get('city', '')
         res['country_name'] = result.get('country_name', '')
@@ -381,7 +381,7 @@ class IP_info(base.job.BaseModule):
                     res[k] = ';'.join(v)
                 else:
                     res[k] = str(v)
-            
+
             if flag_dict:
                 iteminfo.update(res)
                 yield iteminfo
