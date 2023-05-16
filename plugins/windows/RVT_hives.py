@@ -779,8 +779,8 @@ name" are automatically set by the job. The rest are the same ones specified in 
     def read_config(self):
         super().read_config()
         self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
-        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RegistryExplorer/RECmd.exe'))
-        self.set_default_config('batch_file', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RECmd/RECmd.exe'))
+        self.set_default_config('batch_file', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RECmd/BatchExamples/BatchExampleUserAssist.reb'))
 
     def run(self, path=""):
 
@@ -808,6 +808,8 @@ name" are automatically set by the job. The rest are the same ones specified in 
                         'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
                         'filename': output_filename}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
+            exec = cmd_vars['executable'][1:-1]
+            cmd_args = f"{exec} --bn {cmd_vars['batch_file']} -f {cmd_vars['hive']} --csv {cmd_vars['outdir']} --csvf {cmd_vars['filename']} --nl".replace('\\', '/')
 
             run_command(cmd_args)
             # RECmd.exe creates two files. We only care about the one ending in `UserAssist.csv`
