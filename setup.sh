@@ -330,6 +330,32 @@ submodules() (
     sed '19d' plugins/external/srum-dump/srum_dump2.py > tempfile && mv tempfile plugins/external/srum-dump/srum_dump2.py
 )
 
+install_zimmerman_tools(){
+# dotnet installation
+EXTERNAL_PATH="external_tools"
+mkdir $EXTERNAL_PATH/dotnet
+mkdir $EXTERNAL_PATH/windows
+chown -R usuario:incide $EXTERNAL_PATH/dotnet
+chown -R usuario:incide $EXTERNAL_PATH/windows
+wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+chmod +x ./dotnet-install.sh 
+./dotnet-install.sh -c 6.0 --runtime dotnet -i $EXTERNAL_PATH/dotnet
+rm ./dotnet-install.sh
+# Zimmerman tools
+cd $EXTERNAL_PATH
+cd windows
+for tool in "AmcacheParser" "AppCompatCacheParser" "MFTECmd" "SDBExplorer" "SBECmd" "SrumECmd" "WxTCmd" "RECmd"
+  do
+    mkdir $tool
+    cd $tool
+    wget https://f001.backblazeb2.com/file/EricZimmermanTools/net6/${tool}.zip
+    7z x $tool.zip
+    rm $tool.zip
+    cd ..
+  done
+cd ..
+}
+
 install_rvt_bin() {
     cat << EOF > /usr/local/bin/rvt2
 #!/bin/sh
@@ -391,6 +417,8 @@ setup_debian_full() {
     build_install_yara
     build_install_volatility
       # build_install_hindsight
+
+    install_zimmerman_tools
 
     # Install pip dependencies
     install_pip_deps
