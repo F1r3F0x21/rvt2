@@ -344,7 +344,7 @@ rm ./dotnet-install.sh
 # Zimmerman tools
 cd $EXTERNAL_PATH
 cd windows
-for tool in "AmcacheParser" "AppCompatCacheParser" "MFTECmd" "SDBExplorer" "SBECmd" "SrumECmd" "WxTCmd" "RECmd"
+for tool in "AmcacheParser" "AppCompatCacheParser" "MFTECmd" "SBECmd" "SrumECmd" "WxTCmd"
   do
     mkdir $tool
     cd $tool
@@ -352,6 +352,12 @@ for tool in "AmcacheParser" "AppCompatCacheParser" "MFTECmd" "SDBExplorer" "SBEC
     7z x $tool.zip
     rm $tool.zip
     cd ..
+  done
+for tool in "SDBExplorer" "RECmd"
+  do
+    wget https://f001.backblazeb2.com/file/EricZimmermanTools/net6/${tool}.zip
+    7z x $tool.zip
+    rm $tool.zip
   done
 cd ..
 }
