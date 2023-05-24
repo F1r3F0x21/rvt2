@@ -14,6 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import json
+import datetime
+import dateutil.parser
 import base.job
 
 class Parse_Audit_Logs(base.job.BaseModule):
@@ -34,7 +36,15 @@ class Parse_Audit_Logs(base.job.BaseModule):
                 data[field] = row[field]
 
             # Audit Data regular fields
-            audit_data = json.loads(row['AuditData'])
+            try:
+                audit_data = json.loads(row['AuditData'])
+            except:
+                data['CreationTime'] = dateutil.parser.parse(row['CreationDate']).isoformat()
+                data['Operation'] = row['Operations']
+                data['UserId'] = row['UserIds']
+                self.logger().warning(f'AuditData in wrong format for RecordType {data["RecordType"]} at {data["CreationTime"]}')
+                yield data
+                continue
             ad_fields = ['CreationTime', 'UserId', 'Operation', 'ClientIP', 'LogonError', 'ObjectId', 'ResultStatus', 'UserKey']
             for field in ad_fields:
                 data[field] = audit_data.get(field,"")
@@ -75,13 +85,6 @@ class Parse_Audit_Logs(base.job.BaseModule):
                         data[field] = audit_data[a_field].get(field, "")
                     if "ParentFolder" in audit_data[a_field]:
                         data["ParentPath"] = audit_data[a_field]["ParentFolder"].get("Path","")
-
-            # data['Client'] = ""
-            # if 'ClientInfoString' in audit_data:
-            #     components = audit_data['ClientInfoString'].split(';')
-            #     data['Client'] = components[0].split('=')[1]
-            #     if components[1:] and not (components[1].startswith('Client') or components[1].startswith('Service')):
-            #         data['UserAgent'] = ';'.join(components[1:])
 
             # fields on RecordType=AzureActiveDirectory
             if data['RecordType'] == 'AzureActiveDirectory':
