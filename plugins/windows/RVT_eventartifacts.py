@@ -275,12 +275,16 @@ class RDPIncoming(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         aID = {}
+        power_ev = []
 
         for event in self.from_module.run(path):
             ev = dict()
             ev['EventID'] = event.get('event.code', '')
             ev['TimeCreated'] = event.get('event.created', '')
             ev['Description'] = event.get('message', '')
+            if ev['EventID'] in ("12", "13"):
+                power_ev.append(ev)
+                continue
             ev['User'] = event.get('destination.user.name', '')
             ev['SessionID'] = event.get('data.SessionID', '')
             ev['SourceAddress'] = event.get('source.address', '')
@@ -291,10 +295,10 @@ class RDPIncoming(base.job.BaseModule):
                 aID[ev['ActivityID']] = []
             aID[ev['ActivityID']].append(ev)
 
-        for result in self.extractRDP(aID):
+        for result in self.extractRDP(aID, sorted(power_ev, key=lambda k: k['TimeCreated'])):
             yield result
 
-    def extractRDP(self, aID):
+    def extractRDP(self, aID, power_ev):
 
         for eventlist in aID.values():
             act = dict()
@@ -303,37 +307,68 @@ class RDPIncoming(base.job.BaseModule):
             act['LogoffDate'] = '-'
             act['User'] = ''
             act['SourceAddress'] = ''
+            act['Comments'] = ''
 
             for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
                 # self.logger().debug("%s %s" % (v['TimeCreated'], v['EventID']))
 
-                if v['EventID'] in ('21', '22', '25'):
-                    if act['SourceAddress'] == '':
-                        act['SourceAddress'] = v.get('SourceAddress', '')
-                    act['User'] = v.get('User', '')
-                    act['LoginDate'] = v['TimeCreated']
-                    written = False
-                elif v['EventID'] in ('23', '24') and act['LoginDate'] != '-':
-                    act['LogoffDate'] = v['TimeCreated']
-                    yield {
-                        'LoginDate': act.get('LoginDate', '-'),
-                        'LogoffDate': act.get('LogoffDate', '-'),
-                        'User': act.get('User', ''),
-                        'SourceAddress': act.get('SourceAddress', '')
-                    }
-                    # self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
-                    act['LoginDate'] = '-'
-                    act['LogoffDate'] = '-'
-                    act['User'] = ''
-                    act['SourceAddress'] = ''
-                    written = True
-            if not written:
-                yield {
-                    'LoginDate': act.get('LoginDate', '-'),
-                    'LogoffDate': act.get('LogoffDate', '-'),
-                    'User': act.get('User', ''),
-                    'SourceAddress': act.get('SourceAddress', '')
-                }
+                if written:  # New login
+                    if v['EventID'] in ('21', '22', '25'):
+                        if act['SourceAddress'] == '':
+                            act['SourceAddress'] = v.get('SourceAddress', '')
+                        act['User'] = v.get('User', '')
+                        act['LoginDate'] = v['TimeCreated']
+                        written = False
+                        if v['EventID'] == '25':
+                            act['Comments'] += "Reconnection."
+
+                else:
+                    if v['EventID'] in '21':  # opened session without close before
+                        dt, reason = self.find_poweroff(act['LoginDate'], v['TimeCreated'], power_ev)
+                        act['LogoffDate'] = dt
+                        if reason == 'poweroff':
+                            act['Comments'] += " Poweroff or restart."
+                        else:
+                            act['Comments'] += " Start event, possibly caused by an unexpected poweroff"
+                        written = True
+                        yield {
+                            'LoginDate': act.get('LoginDate', '-'),
+                            'LogoffDate': act.get('LogoffDate', '-'),
+                            'User': act.get('User', ''),
+                            'SourceAddress': act.get('SourceAddress', ''),
+                            'Comments': act.get('Comments', '')
+                        }
+                        act['LoginDate'] = '-'
+                        act['LogoffDate'] = '-'
+                        act['User'] = ''
+                        act['SourceAddress'] = ''
+                        act['Comments'] = ''
+                    elif v['EventID'] in ('23', '24'):
+                        act['LogoffDate'] = v['TimeCreated']
+                        yield {
+                            'LoginDate': act.get('LoginDate', '-'),
+                            'LogoffDate': act.get('LogoffDate', '-'),
+                            'User': act.get('User', ''),
+                            'SourceAddress': act.get('SourceAddress', ''),
+                            'Comments': act.get('Comments', '')
+                        }
+                        # self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
+                        act['LoginDate'] = '-'
+                        act['LogoffDate'] = '-'
+                        act['User'] = ''
+                        act['SourceAddress'] = ''
+                        act['Comments'] = ''
+                        written = True
+
+    def find_poweroff(self, previous_time, actual_time, power_ev):
+        """ Finds date of poweroff or poweron as logout date """
+
+        for ev in power_ev:
+            if actual_time > ev['TimeCreated'] > previous_time:
+                if ev['EventID'] == "13":
+                    return (ev['TimeCreated'], 'poweroff')
+                else:
+                    return (ev['TimeCreated'], 'poweron')
 
 
 class RDPGateway(base.job.BaseModule):

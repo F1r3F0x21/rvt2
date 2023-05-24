@@ -104,7 +104,7 @@ class Edge(base.job.BaseModule):
             with open(os.path.join(self.webcache_dir_export, filename), "r") as db_export:
                 line = db_export.readline().split("\t")
                 for element in line:
-                    if element in fields[self.info].keys() or element == 'Url' or element.startswith('ResponseHeaders'):
+                    if element in fields[self.info].keys() or element == 'Url' or element.startswith('ResponseHeaders') or element == 'AccessCount':
                         fields_pos[element.rstrip()] = line.index(element)
 
                 for line in db_export:
@@ -112,6 +112,7 @@ class Edge(base.job.BaseModule):
                     result = {name: self.convert_date_format(line[fields_pos[elem]]) for elem, name in fields[self.info].items()}
                     real_url = '@'.join(line[fields_pos["Url"]].split('@')[1:])
                     result.update({'url': real_url})
+                    result.update({'visit_count': line[fields_pos['AccessCount']]})
                     if 'Filename' in fields_pos.keys():
                         result.update({'path': line[fields_pos['Filename']], 'size': line[fields_pos['FileSize']], 'url': line[fields_pos['Url']]})
                     if 'ResponseHeaders' in fields_pos.keys() and self.info == 'downloads':

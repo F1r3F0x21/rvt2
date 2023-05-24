@@ -691,7 +691,14 @@ class SysCache(base.job.BaseModule):
 
 
 class AppCompat(base.job.BaseModule):
-    """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time """
+    """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time
+    
+    Configuration section:
+        - **cmd**: external command to parse shellbags. It is a Python string template accepting variables "windows_tool", "executable", "hives_dir" and "outdir". Variable "hives_dir" is deduced by the job from "path". The rest are the same ones specified in parameters
+        - **executable**: path to executable app to parse appcompat. By default is using AppCompatCacheParser. See (https://ericzimmerman.github.io/#!index.md)
+        - **windows_tool**: in a non Windows environment, path to the tool needed to run the executable, such as `wine` or `dotnet`
+        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`  
+     """
     # appcompatcache regripper plugin doesn't seems to show executed flag. AppCompatCacheParser.exe does
 
     def read_config(self):
@@ -699,7 +706,10 @@ class AppCompat(base.job.BaseModule):
         self.set_default_config('path', '')
         self.set_default_config('volume_id', '')
         self.set_default_config('cmd', '')
+        #self.set_default_config('cmd', '{windows_tool} {executable} -f {path} --csv {outdir} --csvf {filename} --nl')
         self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'AppCompatCacheParser.exe'))
+        self.set_default_config('windows_tool', os.path.join(self.config.config['plugins.windows']['dotnet_dir'], 'dotnet'))
+        self.set_default_config('convert_paths', False)
 
     def run(self, path=""):
         # Take path from params if not provided as an argument
@@ -719,17 +729,20 @@ class AppCompat(base.job.BaseModule):
             save_csv(self.parse_appcompatcache(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
         else:
             # Use the specified command to parse
-            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
-                        'path': windows_format_path(path, enclosed=True),
-                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
-                        'filename': os.path.basename(self.outfile)}
+            convert_paths = self.myflag('convert_paths')
+            cmd_vars = {'windows_tool': self.myconfig('windows_tool'),
+                        'executable': windows_format_path(self.myconfig('executable'), enclosed=True) if convert_paths else self.myconfig('executable'),
+                        'path': windows_format_path(path, enclosed=True) if convert_paths else path,
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True) if convert_paths else self.myconfig('outdir'),
+                        'filename': windows_format_path(os.path.basename(self.outfile), enclosed=True) if convert_paths else self.outfile}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
+
             run_command(cmd_args)
 
             # Assuming AppCompatCacheParser is used, rearrange the default output
             tmp_file = os.path.join(os.path.dirname(self.outfile), 'temp_' + os.path.basename(self.outfile))
             run_command("rg -v ',True' {} | awk -F, '{{ print $4\";\"$3\";\"$2\";\"$5 }}' > {}".format(self.outfile, tmp_file))
-            run_command('mv {} {}'.format(tmp_file, self.outfile))
+            #run_command('mv {} {}'.format(tmp_file, self.outfile))
 
         self.logger().debug("Finished extraction from AppCompatCache")
 
@@ -754,7 +767,7 @@ class AppCompat(base.job.BaseModule):
                     path = line[:matches.span()[0] - 2]
                     date = str(datetime.datetime.strptime(matches.group(), '%Y-%m-%d %H:%M:%S'))
                     executed = "Yes" if len(line[matches.span()[1]:].strip()) else "NA"
-                    yield OrderedDict([('LastModified', date), ('AppPath', path), ('Executed', executed)])
+                    yield OrderedDict([('LastModifiedTimeUTC', date), ('Path', path), ('Executed', executed)])
 
         return []
 
@@ -774,13 +787,18 @@ class UserAssist(base.job.BaseModule):
 name" are automatically set by the job. The rest are the same ones specified in parameters
         - **executable**: path to executable app to parse UserAssist. By default is using RECmd.exe. See (https://ericzimmerman.github.io/#!index.md)
         - **batch_file**: configuration file that settles the registry keys to be parsed. Relative to `windows_tools_dir`
+        - **windows_tool**: in a non Windows environment, path to the tool needed to run the executable, such as `wine` or `dotnet`
+        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`         
     """
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
-        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RegistryExplorer/RECmd.exe'))
-        self.set_default_config('batch_file', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RegistryExplorer/BatchExamples/BatchExampleUserAssist.reb'))
+        #self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
+        self.set_default_config('cmd', '{windows_tool} {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RECmd/RECmd.exe'))
+        self.set_default_config('batch_file', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RECmd/BatchExamples/BatchExampleUserAssist.reb'))
+        self.set_default_config('windows_tool', os.path.join(self.config.config['plugins.windows']['dotnet_dir'], 'dotnet'))
+        self.set_default_config('convert_paths', False)
 
     def run(self, path=""):
 
@@ -802,23 +820,25 @@ name" are automatically set by the job. The rest are the same ones specified in 
             output_filename = 'userassist_{}_{}.csv'.format(id if id else '', user)
             hive = regfiles['ntuser'][user]
 
-            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
-                        'batch_file': windows_format_path(self.myconfig('batch_file'), enclosed=True),
-                        'hive': windows_format_path(hive, enclosed=True),
-                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
-                        'filename': output_filename}
+            convert_paths = self.myflag('convert_paths')
+            cmd_vars = {'windows_tool': self.myconfig('windows_tool'),
+                        'executable': windows_format_path(self.myconfig('executable'), enclosed=True) if convert_paths else self.myconfig('executable'),
+                        'batch_file': windows_format_path(self.myconfig('batch_file'), enclosed=True) if convert_paths else self.myconfig('batch_file'),
+                        'hive': windows_format_path(hive, enclosed=True) if convert_paths else hive,
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True) if convert_paths else self.myconfig('outdir'),
+                        'filename': windows_format_path(output_filename, enclosed=True) if convert_paths else output_filename}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
 
+            output_folder_to_remove = datetime.datetime.utcnow().strftime("%Y%m%d%H")
             run_command(cmd_args)
-            # RECmd.exe creates two files. We only care about the one ending in `UserAssist.csv`
-            try:
-                if os.path.exists(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv')):
-                    shutil.move(os.path.join(self.myconfig('outdir'), output_filename[:-4] + '_UserAssist.csv'),
-                                os.path.join(self.myconfig('outdir'), output_filename))
-                else:
-                    self.logger().warning('Output file {} not found. Either no userassist key for this user or the parsing process went wrong'.format(output_filename[:-4] + '_UserAssist.csv'))
-            except Exception as exc:
-                raise base.job.RVTError(exc)
+
+            # RECmd.exe creates an additional folder containing details. Remove those contents
+            for f in os.listdir(self.myconfig('outdir')):
+                if f.startswith(output_folder_to_remove):
+                    try:
+                        shutil.rmtree(os.path.join(self.myconfig('outdir'), f))
+                    except Exception as exc:
+                        raise base.job.RVTError(exc)
 
         return []
 
@@ -835,8 +855,9 @@ class UserAssistAnalysis(base.job.BaseModule):
         outfile = self.myconfig('outfile')
         check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
 
-        save_csv(self.report_userassist(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
-        save_csv(self.report_userassist2(path), config=self.config, outfile=outfile[:-4] + '2.csv', file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+        #save_csv(self.report_userassist(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+        #save_csv(self.report_userassist_v1(path), config=self.config, outfile=outfile[:-4] + '1.csv', file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+        save_csv(self.report_userassist_v2(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
 
         return []
 
@@ -858,8 +879,8 @@ class UserAssistAnalysis(base.job.BaseModule):
                     res.update({'User': user, 'Partition': partition})
                     yield res
 
-    def report_userassist2(self, path):
-        """ Create a unique userassist csv for all users. Based on raw output """
+    def report_userassist_v1(self, path):
+        """ Create a unique userassist csv for all users. Based on raw output of RECmd v1.6.0.0"""
 
         # Files are ROT13 encoded
         rot13 = lambda s: codecs.getencoder("rot-13")(s)[0]
@@ -883,18 +904,50 @@ class UserAssistAnalysis(base.job.BaseModule):
                     yield res
 
 
+    def report_userassist_v2(self, path):
+        """ Create a unique userassist csv for all users. Based on raw output of RECmd v2.0.0.0 """
+
+        fields = ["LastWriteTimestamp", "ValueData", "ValueData2", "ValueData3", "Deleted"]
+
+        for file in sorted(os.listdir(path)):
+            if file.startswith('userassist'):
+                # Expected file format: `userassist_partition_user.csv`
+                user = '.'.join('_'.join(file.split('_')[2:]).split('.')[:-1])
+                partition = file[11:-(len(user) + 5)]
+                for line in base.job.run_job(self.config,
+                                             'base.input.CSVReader',
+                                             path=os.path.join(path, file),
+                                             extra_config={'delimiter': ',', 'encoding': 'utf-8-sig'}):
+                    if line['ValueType'] == 'RegDword':
+                        continue
+                    res = OrderedDict([(field, line.get(field, '')) for field in fields])
+                    res["LastWrite"] = res.pop("LastWriteTimestamp").split('.')[0]
+                    res['LastExecuted'] = res.pop("ValueData2")[15:].split('.')[0]  # Value in the format "Last executed: 2022-08-19 08:24:43.4370000"
+                    res['ProgramName'] = res.pop("ValueData")
+                    if not res['ProgramName']:
+                        continue                    
+                    res['RunCount'] = res.pop("ValueData3")[11:]  # Value in the format "Run count: 32"
+                    res["Deleted"] = res.pop("Deleted")
+                    res.update({'User': user, 'Partition': partition})
+                    yield res
+
+
 class Shellbags(base.job.BaseModule):
     """ Parses Shellbags registry key in NTUSER.DAT and/or usrclass.dat hive.
 
     Configuration section:
-        - **cmd**: external command to parse shellbags. It is a Python string template accepting variables "executable", "hives_dir" and "outdir". Variable "hives_dir" is deduced by the job from "path". The rest are the same ones specified in parameters
+        - **cmd**: external command to parse shellbags. It is a Python string template accepting variables "windows_tool", "executable", "hives_dir" and "outdir". Variable "hives_dir" is deduced by the job from "path". The rest are the same ones specified in parameters
         - **executable**: path to executable app to parse shellbags. By default is using SBECmd.exe. See (https://ericzimmerman.github.io/#!index.md)
+        - **windows_tool**: in a non Windows environment, path to the tool needed to run the executable, such as `wine` or `dotnet`
+        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`  
     """
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -d {hives_dir} --csv {outdir} --nl --dedupe')
-        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'ShellBagsExplorer/SBECmd.exe'))
+        self.set_default_config('cmd', '{windows_tool} {executable} -d {hives_dir} --csv {outdir} --nl --dedupe')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'SBECmd/SBECmd.exe'))
+        self.set_default_config('windows_tool', os.path.join(self.config.config['plugins.windows']['dotnet_dir'], 'dotnet'))
+        self.set_default_config('convert_paths', False)
 
     def run(self, path=""):
 
@@ -922,10 +975,13 @@ class Shellbags(base.job.BaseModule):
             # Only one user should own a folder with NTUSER.dat or UsrClasss.dat hives. Will overwrite if not.
             output_filename = 'shellbags_{}_{}.csv'.format(id if id else '', user)
 
-            cmd_vars = {'executable': windows_format_path(self.myconfig('executable'), enclosed=True),
-                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True),
-                        'hives_dir': windows_format_path(hives_dir, enclosed=True)}
+            convert_paths = self.myflag('convert_paths')
+            cmd_vars = {'windows_tool': self.myconfig('windows_tool'),
+                        'executable': windows_format_path(self.myconfig('executable'), enclosed=True)  if convert_paths else self.myconfig('executable'),
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True)  if convert_paths else self.myconfig('outdir'),
+                        'hives_dir': windows_format_path(hives_dir, enclosed=True) if convert_paths else hives_dir}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
+
             run_command(cmd_args)
 
             # SBECmd.exe saves the output in a file called Deduplicated.csv. Change the name:
