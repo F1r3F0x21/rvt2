@@ -328,8 +328,10 @@ class RDPIncoming(base.job.BaseModule):
                         act['LogoffDate'] = dt
                         if reason == 'poweroff':
                             act['Comments'] += " Poweroff or restart."
-                        else:
+                        elif reason == 'poweron':
                             act['Comments'] += " Start event, possibly caused by an unexpected poweroff"
+                        else:
+                            act['Comments'] += " Unknown date"
                         written = True
                         yield {
                             'LoginDate': act.get('LoginDate', '-'),
@@ -369,6 +371,7 @@ class RDPIncoming(base.job.BaseModule):
                     return (ev['TimeCreated'], 'poweroff')
                 else:
                     return (ev['TimeCreated'], 'poweron')
+        return (actual_time, 'unknown')
 
 
 class RDPGateway(base.job.BaseModule):
