@@ -161,8 +161,10 @@ class MFTTimeline(BaseTimeline):
     def read_config(self):
         super().read_config()
         self.set_default_config('volume_id', 'p01')
-        self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -f {path} --body {outdir} --bodyf {filename} --bdl c --nl')
-        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'MFTECmd.exe'))
+        #self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -f {path} --body {outdir} --bodyf {filename} --bdl c --nl')
+        self.set_default_config('cmd', '')
+        self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'MFTECmd', 'MFTECmd.dll'))
+        self.set_default_config('windows_tool', os.path.join(self.config.config['plugins.windows']['dotnet_dir'], 'dotnet'))
         self.set_default_config('windows_format', True)
         self.set_default_config('drive_letter', 'c:')
 
@@ -184,7 +186,8 @@ class MFTTimeline(BaseTimeline):
         # WARNING: Use cmd with caution. Anything can be executed
         cmd = self.myconfig('cmd')
         path_conversion = windows_format_path if self.myflag('windows_format') else lambda x, enclosed: '"' + x + '"'
-        cmd_vars = {'executable': path_conversion(self.myconfig('executable'), enclosed=True),
+        cmd_vars = {'windows_tool': self.myconfig('windows_tool'),
+                    'executable': path_conversion(self.myconfig('executable'), enclosed=True),
                     'path': path_conversion(path, enclosed=True),
                     'outdir': path_conversion(self.myconfig('outdir'), enclosed=True),
                     'filename': body_filename}
