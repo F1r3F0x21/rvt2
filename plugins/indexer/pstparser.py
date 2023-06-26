@@ -324,7 +324,7 @@ class PffExportParseObject(base.job.BaseModule):
     def _setContainerID(self, d, containerid=None):
         if not containerid:
             d['_id'] = str(generate_id(d))
-            d['containerid'] = 0
+            d['containerid'] = ""
         else:
             d['_id'] = str(generate_id(d))
             d['containerid'] = containerid
