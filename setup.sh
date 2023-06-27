@@ -35,18 +35,18 @@ prepare_copy() {
 # Install Debian build tools
 install_debian_buildtools() {
     apt-get install -y \
-        unzip wget git \
+        unzip p7zip-full wget git \
         build-essential debhelper apt-utils fakeroot cmake \
         cargo rustc \
-        python-all-dev python3-all-dev \
-        pkg-config libssl-dev autotools-dev zlib1g-dev python-dev python3-dev
+        python3-all-dev \
+        pkg-config libssl-dev autotools-dev zlib1g-dev
 }
 
 # Install Debian useful tools
 install_debian_utils() {
     apt-get install -y \
         sudo curl vim less procps jq \
-        silversearcher-ag fd-find tree \
+        ripgrep tree \
         p7zip bzip2 libbz2-dev \
         gnupg dirmngr
 }
@@ -54,19 +54,15 @@ install_debian_utils() {
 # Install rvt2 dependencies available in Debian
 install_debian_deps() {
     apt-get install -y \
-        sleuthkit \
-        bindfs dislocker ewf-tools testdisk \
+        bindfs dislocker ewf-tools libewf-dev testdisk \
         libimage-exiftool-perl \
-        libscca1 libscca-utils python3-libscca \
-        libmsiecf1 libmsiecf-utils python3-libmsiecf \
-        liblnk1 liblnk-utils python3-liblnk \
         fuse3 libfuse3-dev libfuse-dev libicu-dev libattr1-dev
     apt-get install -y libparse-win32registry-perl # regripper
 }
 
 # Install python3 and pip3
 install_debian_python() {
-    apt-get install -y python3 python3-pip python-setuptools python3-setuptools
+    apt-get install -y python3 python3-pip python3-setuptools
 }
 
 # Install rvt2 python dependencies
@@ -75,6 +71,7 @@ install_pip_deps() (
     python3 -m pip install lz4
     python3 -m pip install evtx
     python3 -m pip install pipenv
+    python3 -m pip install pycrypto
     export LC_ALL=C.UTF-8
     export LANG=C.UTF-8
     cd "${RVT2HOME}"
@@ -82,11 +79,22 @@ install_pip_deps() (
     pipenv install
 )
 
+build_install_evtx() (
+    cd "${SRCDIR}"
+    EVTX=$(curl --silent "https://api.github.com/repos/omerbenamram/evtx/releases/latest"| grep -oP '"browser_download_url": "\K(.*)(?=")' |grep linux-gnu)
+    wget $EVTX
+    chmod 755 evtx_dump*
+    mv evtx_dump* /usr/local/bin/evtx_dump
+)
+
 build_install_sleuthkit() (
     cd "${SRCDIR}"
-    git clone "https://github.com/sleuthkit/sleuthkit.git"
-    cd sleuthkit
-    ./bootstrap
+    SLEUTHKIT=$(curl --silent "https://api.github.com/repos/sleuthkit/sleuthkit/releases/latest" | grep -oP '"browser_download_url": "\K(.*)(?=")'| grep "tar.gz$")
+    wget $SLEUTHKIT
+    FILENAME=${SLEUTHKIT##*/}
+    tar xzvf $FILENAME
+    rm $FILENAME
+    cd ${FILENAME::-7}
     ./configure
     make
     make install
@@ -157,31 +165,50 @@ _build_install_libyal() (
     ln -s ${NAME}-${STAGE}-${VER}.tar.gz ${NAME}_${VER}.orig.tar.gz
     tar xzf ${NAME}-${STAGE}-${VER}.tar.gz
     cd ${NAME}-${VER}/
-    cp -rf dpkg debian
-    dpkg-buildpackage -uc -us -rfakeroot
+    ./configure --enable-python3
+    make
+    make install
+    ldconfig
     cd ..
-    dpkg -i ${NAME}_*.deb ${NAME}-tools_*.deb ${NAME}-python3_*.deb
 )
 
 build_install_libesedb() {
-    local VERSION=$(curl -s "https://github.com/libyal/libesedb/releases" \
-    | grep "libesedb-experimental-.*.tar.gz" | head -1 \
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libesedb/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
     | sed -rn "s/.*([0-9]{8}).*/\1/p")
 
     _build_install_libyal libesedb experimental "${VERSION}"
 }
 
-build_install_libpff() {
-    local VERSION=$(curl -s "https://github.com/libyal/libpff/releases" \
-    | grep "libpff-experimental-.*.tar.gz" | head -1 \
+build_install_liblnk() {
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/liblnk/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
     | sed -rn "s/.*([0-9]{8}).*/\1/p")
 
-    _build_install_libyal libpff experimental "${VERSION}"
+    _build_install_libyal liblnk alpha "${VERSION}"
+}
+
+build_install_libmsiecf() {
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libmsiecf/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
+    | sed -rn "s/.*([0-9]{8}).*/\1/p")
+
+    _build_install_libyal libmsiecf alpha "${VERSION}"
+}
+
+build_install_libscca() {
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libscca/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
+    | sed -rn "s/.*([0-9]{8}).*/\1/p")
+
+    _build_install_libyal libscca alpha "${VERSION}"
+}
+
+build_install_libpff() {
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libpff/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
+    | sed -rn "s/.*([0-9]{8}).*/\1/p")
+
+    _build_install_libyal libpff alpha "${VERSION}"
 }
 
 build_install_libvshadow() {
-    local VERSION=$(curl -s "https://github.com/libyal/libvshadow/releases" \
-    | grep "libvshadow-alpha-.*.tar.gz" | head -1 \
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libvshadow/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
     | sed -rn "s/.*([0-9]{8}).*/\1/p")
 
     _build_install_libyal libvshadow alpha "${VERSION}"
@@ -189,8 +216,7 @@ build_install_libvshadow() {
 }
 
 build_install_libfvde() {
-    local VERSION=$(curl -s "https://github.com/libyal/libfvde/releases" \
-    | grep "libfvde-experimental-.*.tar.gz" | head -1 \
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libfvde/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
     | sed -rn "s/.*([0-9]{8}).*/\1/p")
 
     _build_install_libyal libfvde experimental "${VERSION}"
@@ -209,11 +235,11 @@ build_install_volatility() {
 
 build_install_regripper() (
     local NAME="RegRipper3.0"
-    local COMMIT="9f2a96acb49aef4957976331e1696e0afc984371"
+    local COMMIT="c59d23d151059aa98f1888ee52e2eea16f746f21"
     [ -d /tmp/patches ] || cp -rp patches /tmp/
     cd "${SRCDIR}"
     _download_verify "https://github.com/keydet89/${NAME}/archive/${COMMIT}.zip" \
-        "7087ca440ca1656839c324d581158ff44741e5192b3036bc2b98bd9337f4a736"
+        "db7040058e80fe816e2a8936a29c5a62ebab235eec0870d306453832a0343335"
     mv "${COMMIT}".zip ${NAME}-${COMMIT}.zip
     unzip ${NAME}-${COMMIT}.zip
     cd ${NAME}-${COMMIT}
@@ -221,32 +247,32 @@ build_install_regripper() (
     patch rip.pl < /tmp/patches/regripper_patch.diff
 
     install -p -dm 755 /opt/regripper/
-    install -p -m 755 *.pl *.txt *.md *.pdf /opt/regripper/
+    install -p -m 755 *.pl *.txt *.md /opt/regripper/
     install -p -dm 755 /opt/regripper/plugins/
     install -p -m 755 plugins/* /opt/regripper/plugins/
     install -p -m 755 /tmp/patches/regripper_plugins/ccleaner.pl \
-	      /tmp/patches/regripper_plugins/cortana.pl \
-	      /tmp/patches/regripper_plugins/defbrowser.pl \
-	      /tmp/patches/regripper_plugins/diag_sr.pl \
-	      /tmp/patches/regripper_plugins/eventlog.pl \
-	      /tmp/patches/regripper_plugins/eventlogs.pl \
-	      /tmp/patches/regripper_plugins/fw_config.pl \
-	      /tmp/patches/regripper_plugins/ie_settings.pl \
-	      /tmp/patches/regripper_plugins/ie_version.pl \
-	      /tmp/patches/regripper_plugins/outlook_search.pl \
-	      /tmp/patches/regripper_plugins/polacdms.pl \
-	      /tmp/patches/regripper_plugins/proxysettings.pl \
-	      /tmp/patches/regripper_plugins/rdphint.pl \
-	      /tmp/patches/regripper_plugins/rdpnla.pl \
-	      /tmp/patches/regripper_plugins/silentprocessexit.pl \
-	      /tmp/patches/regripper_plugins/silentprocessexit_tln.pl \
-	      /tmp/patches/regripper_plugins/teamviewer.pl \
-	      /tmp/patches/regripper_plugins/vmware_vsphere_client.pl \
-	      /tmp/patches/regripper_plugins/winevt.pl \
-	      /tmp/patches/regripper_plugins/winlogon_db.pl \
-	      /tmp/patches/regripper_plugins/winnt_cv.pl \
-	      /tmp/patches/regripper_plugins/winscp_sessions.pl \
-	      /tmp/patches/regripper_plugins/winver2.pl \
+          /tmp/patches/regripper_plugins/cortana.pl \
+          /tmp/patches/regripper_plugins/defbrowser.pl \
+          /tmp/patches/regripper_plugins/diag_sr.pl \
+          /tmp/patches/regripper_plugins/eventlog.pl \
+          /tmp/patches/regripper_plugins/eventlogs.pl \
+          /tmp/patches/regripper_plugins/fw_config.pl \
+          /tmp/patches/regripper_plugins/ie_settings.pl \
+          /tmp/patches/regripper_plugins/ie_version.pl \
+          /tmp/patches/regripper_plugins/outlook_search.pl \
+          /tmp/patches/regripper_plugins/polacdms.pl \
+          /tmp/patches/regripper_plugins/proxysettings.pl \
+          /tmp/patches/regripper_plugins/rdphint.pl \
+          /tmp/patches/regripper_plugins/rdpnla.pl \
+          /tmp/patches/regripper_plugins/silentprocessexit.pl \
+          /tmp/patches/regripper_plugins/silentprocessexit_tln.pl \
+          /tmp/patches/regripper_plugins/teamviewer.pl \
+          /tmp/patches/regripper_plugins/vmware_vsphere_client.pl \
+          /tmp/patches/regripper_plugins/winevt.pl \
+          /tmp/patches/regripper_plugins/winlogon_db.pl \
+          /tmp/patches/regripper_plugins/winnt_cv.pl \
+          /tmp/patches/regripper_plugins/winscp_sessions.pl \
+          /tmp/patches/regripper_plugins/winver2.pl \
         /opt/regripper/plugins/
     install -p -dm 755 /usr/local/bin/
     ln -s /opt/regripper/rip.pl /usr/local/bin/rip
@@ -300,11 +326,16 @@ build_install_apfs_fuse() (
 
 build_install_yara() (
     cd "${SRCDIR}"
-    wget https://github.com/VirusTotal/yara/archive/v3.11.0.tar.gz
-    tar -zxf v3.11.0.tar.gz
-    cd yara-3.11.0
+    YARA=$(curl --silent "https://api.github.com/repos/VirusTotal/yara/releases/latest" | grep -oP '"tarball_url": "\K(.*)(?=")')
+    wget $YARA
+    FILENAME=${YARA##*/}
+    tar xzvf $FILENAME
+    rm $FILENAME
+    mv VirusTotal-yara-* yara-$FILENAME
+    cd yara-$FILENAME
+
     ./bootstrap.sh
-    apt-get install -y flex bison
+    apt-get install -y flex bison libjansson-dev libmagic-dev
     ./configure --with-crypto --enable-cuckoo --enable-magic --enable-dotnet
     make
     make install
@@ -314,7 +345,7 @@ build_install_hindsight() (
     cd ${SRCDIR}
     git clone --depth 1 https://github.com/obsidianforensics/hindsight.git
     cd hindsight
-    apt-get install python-pip
+    apt-get install python3-pip
     yes | pip install -r requirements.txt  # segment violation during protobuf
     # pip install protobuf scipy xlsxwriter bottle # if segment error
     chmod 775 ${SRCDIR}/hindsight/hindsight.py  # ???
@@ -332,34 +363,33 @@ submodules() (
 
 install_zimmerman_tools(){
 # dotnet installation
-EXTERNAL_PATH="external_tools"
-mkdir $EXTERNAL_PATH/dotnet
-mkdir $EXTERNAL_PATH/windows
-chown -R usuario:incide $EXTERNAL_PATH/dotnet
-chown -R usuario:incide $EXTERNAL_PATH/windows
-wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
-chmod +x ./dotnet-install.sh 
-./dotnet-install.sh -c 6.0 --runtime dotnet -i $EXTERNAL_PATH/dotnet
-rm ./dotnet-install.sh
-# Zimmerman tools
-cd $EXTERNAL_PATH
-cd windows
-for tool in "AmcacheParser" "AppCompatCacheParser" "MFTECmd" "SBECmd" "SrumECmd" "WxTCmd"
-  do
-    mkdir $tool
-    cd $tool
-    wget https://f001.backblazeb2.com/file/EricZimmermanTools/net6/${tool}.zip
-    7z x $tool.zip
-    rm $tool.zip
+    cd "${BASEDIR}"
+    EXTERNAL_PATH="external_tools"
+    mkdir $EXTERNAL_PATH/dotnet
+    mkdir $EXTERNAL_PATH/windows
+    wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+    chmod +x ./dotnet-install.sh 
+    ./dotnet-install.sh -c 6.0 --runtime dotnet -i $EXTERNAL_PATH/dotnet
+    rm ./dotnet-install.sh
+    # Zimmerman tools
+    cd $EXTERNAL_PATH
+    cd windows
+    for tool in "AmcacheParser" "AppCompatCacheParser" "MFTECmd" "SBECmd" "SrumECmd" "WxTCmd"
+      do
+        mkdir $tool
+        cd $tool
+        wget https://f001.backblazeb2.com/file/EricZimmermanTools/net6/${tool}.zip
+        7z x $tool.zip
+        rm $tool.zip
+        cd ..
+      done
+    for tool in "SDBExplorer" "RECmd"
+      do
+        wget https://f001.backblazeb2.com/file/EricZimmermanTools/net6/${tool}.zip
+        7z x $tool.zip
+        rm $tool.zip
+      done
     cd ..
-  done
-for tool in "SDBExplorer" "RECmd"
-  do
-    wget https://f001.backblazeb2.com/file/EricZimmermanTools/net6/${tool}.zip
-    7z x $tool.zip
-    rm $tool.zip
-  done
-cd ..
 }
 
 install_rvt_bin() {
@@ -393,12 +423,13 @@ create_link_bin() {
 # Remove unnecessary source files
 clean_sources() (
   cd "${SRCDIR}"
-  rm -rf libvshadow* libesedb* libpff* libfvde* apfs-fuse ntfs-3g*
+  rm -rf libvshadow* libesedb* libpff* libfvde* apfs-fuse ntfs-3g* liblnk libmsiecf libscca
   rm -f Parse-Evtx*.zip* RegRipper2*
 )
 
-# Use this function to install all dependencies on Debian stretch and setup rvt2
+# Use this function to install all dependencies on Debian bullseye and setup rvt2
 setup_debian_full() {
+
     # Basic preparation
     prepare_debian
     prepare
@@ -410,27 +441,31 @@ setup_debian_full() {
     install_debian_deps
     install_debian_python
 
+    # Download submodules
+    submodules
+
     # Extra Tools
-      # build_install_sleuthkit
+    build_install_sleuthkit
       # build_install_sleuthkit_APFS
     build_install_libesedb
     build_install_libpff
     build_install_libvshadow
     build_install_libfvde
+    build_install_liblnk
+    build_install_libmsiecf
+    build_install_libscca
     build_install_regripper
     build_install_ntfs3g_system_compression
     build_install_apfs_fuse
     build_install_yara
     build_install_volatility
+    build_install_evtx
       # build_install_hindsight
 
     install_zimmerman_tools
 
     # Install pip dependencies
     install_pip_deps
-
-    # Download submodules
-    submodules
 
     # Permissions and links
     prepare_sudo
