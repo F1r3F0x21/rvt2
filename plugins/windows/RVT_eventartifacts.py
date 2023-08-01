@@ -609,7 +609,15 @@ class Network(base.job.BaseModule):
         net_up = []
         net_down = []
 
-        selected_fields = {"event.created": "Created", "event.code": "Code", "data.SSID": "SSID", "data.BSSID": "BSSID", "data.ConnectionId": "ConnectionId", "data.ProfileName": "ProfileName", "data.PHYType": "PHYType", "data.AuthenticationAlgorithm": "AuthenticationAlgorithm", "data.Reason": "Reason"}
+        selected_fields = {"event.created": "Created",
+                           "event.code": "Code",
+                           "data.SSID": "SSID",
+                           "data.BSSID": "BSSID",
+                           "data.ConnectionId": "ConnectionId",
+                           "data.ProfileName": "ProfileName",
+                           "data.PHYType": "PHYType",
+                           "data.AuthenticationAlgorithm": "AuthenticationAlgorithm",
+                           "data.Reason": "Reason"}
         for event in self.from_module.run(path):
             yield {field2: event.get(field, '-') for field, field2 in selected_fields.items()}
 
