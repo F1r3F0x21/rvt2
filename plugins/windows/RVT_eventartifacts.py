@@ -399,6 +399,7 @@ class RDPGateway(base.job.BaseModule):
             ev['Protocol'] = v.get('UserData', {}).get('EventInfo', {}).get('ConnectionProtocol', '')
             ev['SourceAddress'] = v.get('UserData', {}).get('EventInfo', {}).get('IpAddress', '')
             ev['SessionDuration'] = v.get('UserData', {}).get('EventInfo', {}).get('SessionDuration', '')
+            ev['DestinationAddress'] = v.get('UserData', {}).get('EventInfo', {}).get('Resource', '')
             user = ev['User']
 
             if ev['EventID'] in ('302'):
@@ -414,7 +415,8 @@ class RDPGateway(base.job.BaseModule):
                    'User': ev.get('User', ''),
                    'SourceAddress': ev.get('SourceAddress', ''),
                    'SessionDuration': ev.get('SessionDuration', ''),
-                   'Protocol': ev.get('Protocol', '')
+                   'Protocol': ev.get('Protocol', ''),
+                   'DestinationAddress': ev.get('DestinationAddress', '')
                 }
                 # self.logger().debug("%s %s" % (ev['LoginDate'], ev['LogoffDate']))
                 users_date[user] = '-'
