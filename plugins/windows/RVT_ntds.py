@@ -54,11 +54,11 @@ class Parse(base.job.BaseModule):
                     linktable = os.path.join(ntds_dir_export, archive)
 
             with open(os.path.join(base_path, 'timeline.csv'), 'w') as fout:
-                for line in yield_command(['/usr/bin/python2', tl_parser, datatable, ntds_dir_export, '--csv'], stderr=subprocess.DEVNULL, logger=self.logger()):
+                for line in yield_command(['python3', tl_parser, datatable, ntds_dir_export, '--csv'], stderr=subprocess.DEVNULL, logger=self.logger()):
                     fout.write(line)
 
             with open(os.path.join(base_path, 'users.txt'), 'w') as fout:
-                for line in yield_command(['/usr/bin/python2', users_parser, datatable, linktable, ntds_dir_export], stderr=subprocess.DEVNULL, logger=self.logger()):
+                for line in yield_command(['python3', users_parser, datatable, linktable, ntds_dir_export], stderr=subprocess.DEVNULL, logger=self.logger()):
                     fout.write(line)
 
         finally:

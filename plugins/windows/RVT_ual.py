@@ -42,6 +42,6 @@ class UAL(base.job.BaseModule):
     def parse(self, f_in, f_out):
         parser = self.myconfig('ual_parser')
         with open(f_out, 'w') as fout:
-            for line in yield_command(['/usr/bin/python2', parser, f_in], stderr=subprocess.DEVNULL, logger=self.logger()):
+            for line in yield_command(['/usr/bin/python3', parser, f_in], stderr=subprocess.DEVNULL, logger=self.logger()):
                 line = line.replace('||', '|').replace('\x00', '')
                 fout.write(line)
