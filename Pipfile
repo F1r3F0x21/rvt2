@@ -41,6 +41,7 @@ winactivities = {ref = "master", git = "https://github.com/forensicmatt/Activiti
 setuptools-rust = "*"
 OTXv2 = "*"
 xmltodict = "*"
+oOSbackup = "*"
 
 [dev-packages]
 sphinx = "*"
