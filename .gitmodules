@@ -25,3 +25,6 @@
 [submodule "plugins/external/ntdsxtract"]
 	path = plugins/external/ntdsxtract
 	url = https://github.com/IncideDigital/ntdsxtract.git
+[submodule "plugins/external/iLEAPP"]
+	path = plugins/external/iLEAPP
+	url = https://github.com/abrignoni/iLEAPP.git
