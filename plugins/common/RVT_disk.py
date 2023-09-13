@@ -30,10 +30,52 @@ from base.commands import run_command
 import base.job
 import zipfile
 import tarfile
+import json
 from tqdm import tqdm
 import shutil
 
 __maintainer__ = 'Juan Vera'
+
+
+def load_partition(auxdir):
+    """ Load partition variables from JSON file. """
+
+    infile = None
+
+    if os. path. isdir(auxdir):
+        for part_file in os.listdir(auxdir):
+            if part_file.startswith('p') and part_file.endswith('info.json'):
+                infile = os.path.join(auxdir, part_file)
+                break
+
+    if infile and os.path.getsize(infile) != 0:
+        with open(infile) as inputfile:
+            try:
+                a = json.load(inputfile)
+                return a['imagefile']
+            except Exception:
+                return False
+    return False
+
+
+def test_magic_image(imagefile):
+    """ Sometimes, vmkd files are in flat format
+
+    This function checks if it is the same of extension """
+
+    ext = imagefile.split('.')[-1].lower()
+    with open(imagefile, 'rb') as f_in:
+        magic = f_in.read(16)
+    if ext == 'vmdk':
+        return magic[:3] == b'KDM' or magic == b'# Disk Descripto'
+    elif ext == 'vhdx':
+        return magic[:8] == b'vhdxfile'
+    elif ext == 'vhd':
+        return magic[:9] == b'connectix'
+    elif ext == 'e01':
+        return magic[:3] == b'EVF'
+    else:
+        return True
 
 
 def getSourceImage(myconfig, imagefile=None, vss=False):
@@ -44,6 +86,11 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
 
     Known images are in the KNOWN_IMAGETYPES directory.
     """
+
+    imfile = load_partition(myconfig('auxdir'))
+    if imfile and not imagefile:
+        imagefile = imfile
+
     if imagefile:
         # check for device files
         if imagefile.startswith('/dev'):
@@ -52,7 +99,11 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
         # check for known extensions
         try:
             ext = os.path.basename(imagefile).split('.')[-1]
-            return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
+            if test_magic_image(imagefile):
+                return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
+            else:
+                logging.warning('%s is not %s file. It will be treated as raw file' % (imagefile, ext))
+                return KNOWN_IMAGETYPES['raw']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['raw']['type'], params=myconfig)
         except KeyError:
             # not a know extension: assume RAW image
             return BaseImage(imagefile=imagefile, imagetype='raw', params=myconfig)
@@ -70,7 +121,11 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
     for ext in KNOWN_IMAGETYPES.keys():
         ifile = os.path.join(imagedir, "{}.{}".format(source, ext))
         if check_file(ifile):
-            return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=ifile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
+            if test_magic_image(imagefile):
+                return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
+            else:
+                logging.warning('%s is not %s file. It will be treated as raw file' % (imagefile, ext))
+                return KNOWN_IMAGETYPES['raw']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['raw']['type'], params=myconfig)
     logging.warning('Image file not found for source=%s in imagedir=%s', source, imagedir)
     return DummyImage(imagefile=None, imagetype='dummy', params=myconfig)
 
@@ -285,12 +340,13 @@ class ZipImage(BaseImage):
 
 class TarImage(ZipImage):
     """ Manages a tar image.
-    
+
     Notice: tar files keep information about the file owners. If the owner of a file is root, it will file.
     Run as root if the .tar files includes root files.
-    
+
     Some functions (mmls, umount) are reused from ZipImage.
     """
+
     def mount(self, unzip_path=None, partitions='', vss=False):
         self.mmls()
         if tarfile.is_tarfile(self.imagefile):
@@ -314,6 +370,7 @@ class TarImage(ZipImage):
 
 class AFFImage(BaseImage):
     """ Manages an AFF4 image """
+
     def _getRawImagefile(self):
         fuse_path = os.path.join(self.params('mountauxdir'), "aff")
         imagefile = os.path.join(fuse_path, "%s.raw" % os.path.basename(self.imagefile))
@@ -340,6 +397,7 @@ class AFFImage(BaseImage):
 
 class EncaseImage(BaseImage):
     """ Manages an EncaseImage image """
+
     def _getRawImagefile(self):
         # convert an Encase image to dd using ewfmount
         fuse_path = os.path.join(self.params('mountauxdir'), "encase")
@@ -388,6 +446,32 @@ class VHDXImage(BaseImage):
         run_command(["sudo", qemu_nbd, "-d", device])
 
 
+class VMDKImage(BaseImage):
+    """ Manages an EncaseImage image """
+
+    def _getRawImagefile(self):
+        # convert an Encase image to dd using ewfmount
+        fuse_path = os.path.join(self.params('mountauxdir'), "vmdk")
+        imagefile = os.path.join(fuse_path, "vmdk1")
+        self.auxdirectories.append(fuse_path)
+        if not os.path.exists(imagefile):
+            vmdkmount = self.params('vmdkmount', '/usr/local/bin/vmdkmount')
+            check_folder(fuse_path)
+            try:
+                run_command([vmdkmount, self.imagefile, "-X", "allow_root", fuse_path])
+            except Exception:
+                self.logger.error("Cannot mount Encase imagefile=%s", self.imagefile)
+                raise base.job.RVTError("Cannot mount Vmdk imagefile={}".format(self.imagefile))
+        return imagefile
+
+    def umount(self, unzip_path=None):
+        super().umount()
+        # unmount auxiliary images (encase and aff4)
+        umount = self.params('umount', '/bin/umount')
+        for mp in self.auxdirectories:
+            run_command(["sudo", umount, '-l', mp])
+
+
 # name: type, imageclass
 # The order is important: zip must be the last option (an image maybe already unzipped)
 KNOWN_IMAGETYPES = {
@@ -399,6 +483,7 @@ KNOWN_IMAGETYPES = {
     "aff4": dict(type='aff4', imgclass=AFFImage),
     "E01": dict(type='encase', imgclass=EncaseImage),
     "vhdx": dict(type='vhdx', imgclass=VHDXImage),
+    "vmdk": dict(type='vmdk', imgclass=VMDKImage),
     "zip": dict(type='zip', imgclass=ZipImage),
     "tar": dict(type='tar', imgclass=TarImage)
 }
