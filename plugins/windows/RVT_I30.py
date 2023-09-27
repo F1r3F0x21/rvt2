@@ -73,7 +73,7 @@ class ParseINDX(base.job.BaseModule):
 
     def run(self, path=""):
         """ Generator of INDX entries as dictionaries. Also writes to csv files"""
-        self.disk = getSourceImage(self.myconfig)
+        self.disk = getSourceImage(self.myconfig, imagefile=path)
         self.sector_size = self.disk.sectorsize
 
         self.parseINDX_ROOTFiles = self.myflag('root', False)  # Parse also INDX_ROOT records if set
@@ -85,6 +85,9 @@ class ParseINDX(base.job.BaseModule):
 
         for p in self.disk.partitions:
             if not p.isMountable:
+                continue
+            if p.encrypted and not p.loop:
+                self.logger().warning(f'Partition {p.partition} is encrypted and not well mounted. Skipping the obtention of INDX records')
                 continue
 
             # Get a dictionary {inode: list of names} from 'fls' to later relate inodes to a path. 'inode' keys are strings, not int.
@@ -510,7 +513,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         if not self._valid_fixups:
             return self.offset() + INDEX_NODE_BLOCK_SIZE
         else:
-            return self.offset() + self.entries_allocated_size()
+            return min(self.offset() + self.entries_allocated_size(),self.offset() + INDEX_NODE_BLOCK_SIZE)
 
     def set_directory_inode(self, first_entry=None):
         """ Return the inode of the directory associated with this block.
