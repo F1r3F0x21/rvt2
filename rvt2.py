@@ -19,7 +19,7 @@
 
 """ The entry point to the system. """
 
-__version__ = '20200625'
+__version__ = '20230926'
 
 import os
 import sys
@@ -169,7 +169,7 @@ def load_default_vars(config, morgue, casename, source, jobid):
     config.config[base.config.DEFAULTSECT]['cwd'] = os.getcwd()
     config.config[base.config.DEFAULTSECT]['userhome'] = os.environ.get('HOME')
     config.config[base.config.DEFAULTSECT]['rvthome'] = os.path.dirname(os.path.abspath(__file__))
-    for ar, name in zip([morgue, casename, source], ['morgue', 'casename', 'source']):
+    for ar, name in zip([morgue, client, casename, source], ['morgue', 'client', 'casename', 'source']):
         if ar is not None:
             config.config[base.config.DEFAULTSECT][name] = ar
 
@@ -239,9 +239,10 @@ def main(params=sys.argv[1:]):
     aparser.add_argument('-V', '--version', help='outputs version and current configuration and exit', action='store_true', default=False)
     aparser.add_argument('-c', '--config', help='additional configuration files. Can be provided multiple times and configuration is appended', action='append')
     aparser.add_argument('--globals', help="additional configuration, as SECTION:PARAM=VALUE. You can provide several parameters, end the list with a --. If a section name is not provided, use DEFAULT", action=StoreDict, nargs='*', default=INITIAL_CONF)
-    aparser.add_argument('--morgue', help='value of the morgue variable in the DEFAULT section of the configuration. Shortcut to --globals morgue=MORGUE', default=None)
+    aparser.add_argument('-m', '--morgue', help='value of the morgue variable in the DEFAULT section of the configuration. Shortcut to --globals morgue=MORGUE', default=None)
+    aparser.add_argument('--client', help='value of the client variable in the DEFAULT section of the configuration. Shortcut to --globals client=CLIENT', default=None)
     aparser.add_argument('--casename', help='value of the casename variable in the DEFAULT section of the configuration. Shortcut to --globals casename=CASENAME', default=None)
-    aparser.add_argument('--source', help='value of the source variable in the DEFAULT section of the configuration. Shortcut to --globals source=SOURCE', default=None)
+    aparser.add_argument('-s', '--source', help='value of the source variable in the DEFAULT section of the configuration. Shortcut to --globals source=SOURCE', default=None)
     aparser.add_argument('-j', '--job', help='section name in the configuration file for the main job.', default=None)
     aparser.add_argument('--params', help="additional parameters to the job, as PARAM=VALUE. You can provide seveal parameters, end the list with a --", action=StoreDict, nargs='*', default={})
     aparser.add_argument('-p', '--print', help='print the results of the job as JSON', action='store_true', default=False)
@@ -250,7 +251,7 @@ def main(params=sys.argv[1:]):
 
     # Update initial variables in globals
     # Notice "--globals morgue=SOMETHING" has preference over "--morgue SOMETHING"
-    for ar, name in zip([args.morgue, args.casename, args.source], ['morgue', 'casename', 'source']):
+    for ar, name in zip([args.morgue, args.client, args.casename, args.source], ['morgue', 'client', 'casename', 'source']):
         if ar is not None and name not in args.globals:
             args.globals[name] = ar
 

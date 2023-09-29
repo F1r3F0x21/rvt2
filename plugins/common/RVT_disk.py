@@ -133,6 +133,34 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
 class BaseImage(object):
     """ A base class for images. Also, manages raw (dd) images """
 
+    fs_descr = {
+        0x00000000: 'TSK_FS_TYPE_DETECT',
+        0x00000001: 'TSK_FS_TYPE_NTFS',
+        0x00000002: 'TSK_FS_TYPE_FAT12',
+        0x00000004: 'TSK_FS_TYPE_FAT16',
+        0x00000008: ' TSK_FS_TYPE_FAT32',
+        0x0000000a: 'TSK_FS_TYPE_EXFAT',
+        0x0000000e: 'TSK_FS_TYPE_FAT_DETECT',
+        0x00000010: 'TSK_FS_TYPE_FFS1',
+        0x00000020: 'TSK_FS_TYPE_FFS1B',
+        0x00000040: 'TSK_FS_TYPE_FFS2',
+        0x00000070: 'TSK_FS_TYPE_FFS_DETECT',
+        0x00000080: 'TSK_FS_TYPE_EXT2',
+        0x00000100: 'TSK_FS_TYPE_EXT3',
+        0x00002180: 'TSK_FS_TYPE_EXT_DETECT',
+        0x00000200: 'TSK_FS_TYPE_SWAP',
+        0x00000400: 'TSK_FS_TYPE_RAW',
+        0x00000800: 'TSK_FS_TYPE_ISO9660',
+        0x00001000: 'TSK_FS_TYPE_HFS',
+        0x00009000: 'TSK_FS_TYPE_HFS_DETECT',
+        0x00002000: 'TSK_FS_TYPE_EXT4',
+        0x00004000: 'TSK_FS_TYPE_YAFFS2',
+        0x00008000: 'TSK_FS_TYPE_HFS_LEGACY',
+        0x00010000: 'TSK_FS_TYPE_APFS',
+        0x00020000: 'TSK_FS_TYPE_LOGICAL',
+        0xffffffff: 'TSK_FS_TYPE_UNSUPP'
+    }
+
     def __init__(self, imagefile, imagetype, params):
         self.logger = logging.getLogger('Disk')
         self.params = params
@@ -210,7 +238,7 @@ class BaseImage(object):
             self.logger.warning("File imagefile=%s has not a partition table or is malformed. Trying to manage as a single partition" % self.imagefile)
             try:
                 fs = pytsk3.FS_Info(img)
-                filesystem = str(fs.info.ftype)
+                filesystem = self.fs_descr[fs.info.ftype]
                 filesystem = filesystem.split("TSK_FS_TYPE_")[-1]
                 self.sectorsize = 512
                 self.partitions.append(Partition(imagefile, int(os.stat(self.imagefile).st_size) / int(self.sectorsize), filesystem, "0", "0", self.sectorsize, self.params))
@@ -225,7 +253,7 @@ class BaseImage(object):
             size = part.len
             try:
                 fs = pytsk3.FS_Info(img, int(int(osects) * int(self.sectorsize)))
-                filesystem = str(fs.info.ftype)
+                filesystem = self.fs_descr[fs.info.ftype]
                 filesystem = filesystem.split("TSK_FS_TYPE_")[-1]
             except Exception:
                 filesystem = part.desc.decode()
