@@ -677,7 +677,7 @@ class USB(base.job.BaseModule):
                     break
             if flag:
                 results.append({'Plugin': e['event.created'], 'Plugoff': '', 'Device': e['data.Instance']})
-                results.append([e['event.created'], '', e['data.Instance']])
+                #results.append([e['event.created'], '', e['data.Instance']])
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plugs.md'),
                       fieldnames='Plugin Plugoff Device',

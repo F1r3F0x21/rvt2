@@ -121,8 +121,8 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
     for ext in KNOWN_IMAGETYPES.keys():
         ifile = os.path.join(imagedir, "{}.{}".format(source, ext))
         if check_file(ifile):
-            if test_magic_image(imagefile):
-                return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
+            if test_magic_image(ifile):
+                return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=ifile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
             else:
                 logging.warning('%s is not %s file. It will be treated as raw file' % (imagefile, ext))
                 return KNOWN_IMAGETYPES['raw']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['raw']['type'], params=myconfig)

@@ -28,3 +28,6 @@
 [submodule "plugins/external/iLEAPP"]
 	path = plugins/external/iLEAPP
 	url = https://github.com/abrignoni/iLEAPP.git
+[submodule "plugins/external/sidr"]
+	path = plugins/external/sidr
+	url = https://github.com/strozfriedberg/sidr
