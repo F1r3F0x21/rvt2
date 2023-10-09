@@ -91,7 +91,7 @@ class Anydesk(base.job.BaseModule):
         base_path = self.myconfig('outdir')
         check_folder(base_path)
 
-        regex = re.compile(r'(External address|app.prepare_task|files|Logged|Connecting to|Accept request from)')
+        regex = re.compile(r'(External address|anynet.connection_mgr|Incomming session|Sending a connection request|Client-ID|app.prepare_task|files|Logged|Connecting to|Accept request from)')
 
         partition = ''
         user = ''
