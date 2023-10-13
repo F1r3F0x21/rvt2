@@ -35,7 +35,7 @@ class Srum(base.job.BaseModule):
     def run(self, path=""):
         """ Extracts SRUM artifacts of a disk """
         srum = self.myconfig('srum')
-        SRUM_TEMPLATE = os.path.join(self.myconfig('rvthome'), "plugins/external/srum-dump/SRUM_TEMPLATE2.xlsx")
+        SRUM_TEMPLATE = os.path.join(self.myconfig('rvthome'), "plugins/external/srum-dump/SRUM_TEMPLATE3.xlsx")
         check_file(SRUM_TEMPLATE, error_missing=True)
 
         # Check path to SRUDB and partition
@@ -90,7 +90,7 @@ class Srum(base.job.BaseModule):
     def convert_to_csv(self, folder, partition, sheets=''):
         """ Convert xlsx sheets to multiple csv's. """
         if not sheets:
-            sheet_names = ['Network Usage', 'Network Connections', 'Application Resource Usage', 'Push Notification Data']
+            sheet_names = ['Network Data Usage', 'Network Connectivity Usage', 'Application Resource Usage', 'Windows Push Notifications']
         xslx = openpyxl.load_workbook(os.path.join(folder, 'srum_{}.xlsx'.format(partition)))
         for s in sheet_names:
             sh = xslx.get_sheet_by_name(s)
