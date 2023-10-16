@@ -166,5 +166,77 @@
         "Name": ["#text"]
       }
     }
+  },
+  "20220": {
+    "description": "The connection to <Server Name> made using device <Device Name> was terminated. The error code returned on failure is <err_code>",
+    "provider": "RasClient",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20221": {
+    "description": "The user <source.user> has started dialing a VPN connection using a per-user connection profile named <connection.name>. The connection settings are: Dial-in User = <Dial-in User> VpnStrategy = <VpnStrategy> DataEncryption = <DataEncryption>",
+    "provider": "RasClient",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20222": {
+    "description": "The user <source.user> is trying to establish a link to the Remote Access Server for the connection named <connection.name> using the following device: Server address/Phone Number = <Server address/Phone Number> (VPN server IP address) Device = <Device> Port = <Port> MediaType = <MediaType>",
+    "provider": "RasClient",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20223": {
+    "description": "The user <source.user> has successfully established a link to the Remote Access Server using the following device: Server address/Phone Number = <Server address/Phone Number> Device = <Device> Port = <Port> MediaType = <MediaType>",
+    "provider": "RasClient",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20224": {
+    "description": "The link to the Remote Access Server has been established by user <source.user>.",
+    "provider": "RasClient",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20225": {
+    "description": "The user <source.user> has dialed a connection named <connection.name> to the Remote Access Server which has successfully connected. The connection parameters are: TunnelIpAddress = <TunnelIpAddress> TunnelIpv6Address = <TunnelIpv6Address> Dial-in User = <Dial-in User>.",
+    "provider": "RasClient",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20226": {
+    "description": "The user <source.user> dialed a connection named <connection.name> which has terminated. The reason code returned on termination is <reason>",
+    "provider": "RasClient",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20227": {
+    "description": "The user <source.user> dialed a connection named <connection.name> which has failed. The error code returned on failure is <reason>. ",
+    "provider": "RasClient",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
   }
 }

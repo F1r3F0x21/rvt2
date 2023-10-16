@@ -20,5 +20,16 @@
         "keep_format_type": true
       }
     }
+  },
+  "800": {
+    "description": "Pipeline execution details for command line",
+    "provider": "PowerShell",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.PSData"},
+        "keep_format_type": true
+      }
+    }
   }
 }
