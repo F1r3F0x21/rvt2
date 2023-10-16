@@ -234,5 +234,82 @@
         "transform": {"#text": "user_date"}
       }
     }
+  },
+  "20250": {
+    "description": "The user <destination.user> has connected and has been successfully authenticated on port <Port>.",
+    "provider": "RemoteAccess",
+    "category": ["audit"],
+    "type": ["info" ,"auth"],
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20253": {
+    "description": "The user <destination.user> connected to port <Port> has been disconnected because no network protocols were successfully negotiated.",
+    "provider": "RemoteAccess",
+    "category": ["connection"],
+    "type": ["error"],
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20255": {
+    "description": "The following error occurred in the Point to Point Protocol module on port: <Port>, UserName: <destination.user>. Connection time expired.",
+    "provider": "RemoteAccess",
+    "category": ["connection"],
+    "type": ["error"],
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20271": {
+    "description": "The user <destination.user> connected from <source.ip> but failed an authentication attempt due to the following reason: <reason>",
+    "provider": "RemoteAccess",
+    "category": ["authentication"],
+    "type": ["error"],
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20272": {
+    "description": "The user <destination.user> connected on port <Port> on <startDate> at <startHour> and disconnected on <endDate> at <endHour>.  The user was active for <minutes> minutes <seconds> seconds.  <bytes.sent> bytes were sent and <bytes.received> bytes were received. The reason for disconnecting was demande utilisateur. The tunnel used was WAN Miniport (IKEv2). The quarantine state was .",
+    "provider": "RemoteAccess",
+    "category": ["audit"],
+    "type": ["info"],
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20274": {
+    "description": "The user <source.user> connected on port <Port> has been assigned address <destination.ip>",
+    "provider": "RemoteAccess",
+    "category": ["audit"],
+    "type": ["info"],
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"]
+      }
+    }
+  },
+  "20275": {
+    "description": "The user with ip address <connection.name> has disconnected",
+    "provider": "RemoteAccess",
+    "category": ["audit"],
+    "type": ["info"],
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"]
+      }
+    }
   }
 }

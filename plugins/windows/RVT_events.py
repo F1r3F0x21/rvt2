@@ -25,6 +25,19 @@ import pyevt
 import base.job
 
 
+def load_fields(filename):
+    """ Loads fields from file as a dict """
+
+    items = {}
+
+    with open(filename, 'r') as fin:
+        regex = re.compile("(.*): (.*)\n")
+        for line in fin:
+            aux = regex.search(line)
+            items[aux.group(1)] = aux.group(2)
+    return items
+
+
 class GetEvents(object):
     """ Extracts relevant event logs
 
@@ -238,74 +251,9 @@ class Security(EventJob):
             return []
 
         # category_id, subcategory_guid and audit_changes for event 4719
-        category_id = {"%%8272": "System",
-                       "%%8273": "Logon/Logoff",
-                       "%%8274": "Object_Access",
-                       "%%8275": "Privilege_Use",
-                       "%%8276": "Detailed_Tracking",
-                       "%%8277": "Policy_Change",
-                       "%%8278": "Account_Management",
-                       "%%8279": "DS_Access",
-                       "%%8280": "Account_Logon"}
+        category_id = load_fields(os.path.join(self.config.config['windows']['plugindir'], "sec_category_id.json"))
 
-        subcategory_guid = {"{0CCE9213-69AE-11D9-BED3-505054503030}": "IPsec Driver",
-                            "{0CCE9212-69AE-11D9-BED3-505054503030}": "System Integrity",
-                            "{0CCE9211-69AE-11D9-BED3-505054503030}": "Security System Extension",
-                            "{0CCE9210-69AE-11D9-BED3-505054503030}": "Security State Change",
-                            "{0CCE9214-69AE-11D9-BED3-505054503030}": "Other System Events",
-                            "{0CCE9243-69AE-11D9-BED3-505054503030}": "Network Policy Server",
-                            "{0CCE921C-69AE-11D9-BED3-505054503030}": "Other Logon/Logoff",
-                            "{0CCE921B-69AE-11D9-BED3-505054503030}": "Special Logon",
-                            "{0CCE921A-69AE-11D9-BED3-505054503030}": "IPsec Extended Mode",
-                            "{0CCE9219-69AE-11D9-BED3-505054503030}": "IPsec Quick Mode",
-                            "{0CCE9218-69AE-11D9-BED3-505054503030}": "IPsec Main Mode",
-                            "{0CCE9217-69AE-11D9-BED3-505054503030}": "Account Lockout",
-                            "{0CCE9216-69AE-11D9-BED3-505054503030}": "Logoff",
-                            "{0CCE9215-69AE-11D9-BED3-505054503030}": "Logon",
-                            "{0CCE9223-69AE-11D9-BED3-505054503030}": "Handle Manipulation",
-                            "{0CCE9244-69AE-11D9-BED3-505054503030}": "Detailed File Share",
-                            "{0CCE9227-69AE-11D9-BED3-505054503030}": "Other Object Access",
-                            "{0CCE9226-69AE-11D9-BED3-505054503030}": "Filtering Platform Connection",
-                            "{0CCE9225-69AE-11D9-BED3-505054503030}": "Filtering Platform Packet Drop",
-                            "{0CCE9224-69AE-11D9-BED3-505054503030}": "File Share",
-                            "{0CCE9222-69AE-11D9-BED3-505054503030}": "Application Generated",
-                            "{0CCE9221-69AE-11D9-BED3-505054503030}": "Certification Services",
-                            "{0CCE9220-69AE-11D9-BED3-505054503030}": "SAM",
-                            "{0CCE921F-69AE-11D9-BED3-505054503030}": "Kernel Object",
-                            "{0CCE921E-69AE-11D9-BED3-505054503030}": "Registry",
-                            "{0CCE921D-69AE-11D9-BED3-505054503030}": "File System",
-                            "{0CCE9229-69AE-11D9-BED3-505054503030}": "Non Sensitive Privilege Use",
-                            "{0CCE922A-69AE-11D9-BED3-505054503030}": "Other Privilege Use",
-                            "{0CCE9228-69AE-11D9-BED3-505054503030}": "Sensitive Privilege Use",
-                            "{0CCE922D-69AE-11D9-BED3-505054503030}": "DPAPI Activity",
-                            "{0CCE922C-69AE-11D9-BED3-505054503030}": "Process Termination",
-                            "{0CCE922B-69AE-11D9-BED3-505054503030}": "Process Creation",
-                            "{0CCE922E-69AE-11D9-BED3-505054503030}": "RPC Events",
-                            "{0CCE9232-69AE-11D9-BED3-505054503030}": "MPSSVC Rule-Level Policy Change",
-                            "{0CCE9234-69AE-11D9-BED3-505054503030}": "Other Policy Change Events",
-                            "{0CCE9233-69AE-11D9-BED3-505054503030}": "Filtering Platform Policy Change",
-                            "{0CCE922F-69AE-11D9-BED3-505054503030}": "Audit Policy Change",
-                            "{0CCE9231-69AE-11D9-BED3-505054503030}": "Authorization Policy Change",
-                            "{0CCE9230-69AE-11D9-BED3-505054503030}": "Authentication Policy Change",
-                            "{0CCE923A-69AE-11D9-BED3-505054503030}": "Other Account Management Events",
-                            "{0CCE9239-69AE-11D9-BED3-505054503030}": "Application Group Management",
-                            "{0CCE9238-69AE-11D9-BED3-505054503030}": "Distribution Group Management",
-                            "{0CCE9237-69AE-11D9-BED3-505054503030}": "Security Group Management",
-                            "{0CCE9236-69AE-11D9-BED3-505054503030}": "Computer Account Management",
-                            "{0CCE9235-69AE-11D9-BED3-505054503030}": "User Account Management",
-                            "{0CCE923E-69AE-11D9-BED3-505054503030}": "Detailed Directory Service Replication",
-                            "{0CCE923B-69AE-11D9-BED3-505054503030}": "Directory Service Access",
-                            "{0CCE923D-69AE-11D9-BED3-505054503030}": "Directory Service Replication",
-                            "{0CCE923C-69AE-11D9-BED3-505054503030}": "Directory Service Changes",
-                            "{0CCE9241-69AE-11D9-BED3-505054503030}": "Other Account Logon Events",
-                            "{0CCE9240-69AE-11D9-BED3-505054503030}": "Kerberos Service Ticket Operations",
-                            "{0CCE923F-69AE-11D9-BED3-505054503030}": "Credential Validation",
-                            "{0CCE9242-69AE-11D9-BED3-505054503030}": "Kerberos Authentication Service",
-                            "{0CCE9245-69AE-11D9-BED3-505054503030}": "Removable Storage",
-                            "{0CCE9246-69AE-11D9-BED3-505054503030}": "Central Access Policy Staging",
-                            "{0CCE9247-69AE-11D9-BED3-505054503030}": "User/Device Claims",
-                            "{0CCE9248-69AE-11D9-BED3-505054503030}": "PNP Activity",
-                            "{0CCE9249-69AE-11D9-BED3-505054503030}": "Group Membership"}
+        subcategory_guid = load_fields(os.path.join(self.config.config['windows']['plugindir'], "sec_subcategory_guid.json"))
 
         audit_policy_changes = {"%%8448": "Success Removed",
                                 "%%8449": "Success Added",
@@ -313,96 +261,11 @@ class Security(EventJob):
                                 "%%8451": "Failure Added"}
 
         # errordict for event 4625
-        errordict = {"0xc000005e": "There are currently no logon servers available to service the logon request.",
-                     "0xc0000064": "user name does not exist",
-                     "0xc000006a": "user name is correct but the password is wrong",
-                     "0xc000006d": "This is either due to a bad username or authentication information",
-                     "0xc000006e": "Unknown user name or bad password.",
-                     "0xc000006f": "user tried to logon outside his day of week or time of day restrictions",
-                     "0xc0000070": "workstation restriction, or Authentication Policy Silo violation (look for event ID 4820 on domain controller)",
-                     "0xc0000071": "expired password",
-                     "0xc0000072": "account is currently disabled",
-                     "0xc00000dc": "Indicates the Sam Server was in the wrong state to perform the desired operation.",
-                     "0xc0000133": "clocks between DC and other computer too far out of sync",
-                     "0xc0000193": "account expiration", "0xc0000234": "user is currently locked out",
-                     "0xc000015b": "The user has not been granted the requested logon type (aka logon right) at this machine",
-                     "0xc0000192": "An attempt was made to logon, but the netlogon service was not started.",
-                     "0xc0000224": "user is required to change password at next logon",
-                     "0xc0000225": "evidently a bug in Windows and not a risk",
-                     "0xc0000234": "user is currently locked out",
-                     "0xc00002ee": "Failure Reason: An Error occurred during Logon",
-                     "0xc0000413": "Logon Failure: The machine you are logging onto is protected by an authentication firewall. The specified account is not allowed to authenticate to the machine."}
+        errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "sec_error.json"))
 
-        LogonTypeStr = {'0': 'Unknown (0)',
-                        '1': 'Unknown (empty)',
-                        '2': 'Local',
-                        '3': 'Network',
-                        '5': 'Service',
-                        '7': 'Unlock',
-                        '8': 'NetworkCleartext',
-                        '9': 'NewCredentials',
-                        '10': 'RemoteInteractive',
-                        '11': 'CachedInteractive',
-                        '12': 'Cached remote interactive',
-                        '13': 'Cached unlock'}
+        LogonTypeStr = load_fields(os.path.join(self.config.config['windows']['plugindir'], "logontype.json"))
 
-        tgt_error_dict = {'0x0': "No error",
-                          '0x1': "Client's entry in KDC database has expired",
-                          '0x2': "Server's entry in KDC database has expired",
-                          '0x3': 'Requested Kerberos version number not supported',
-                          '0x4': "Client's key encrypted in old master key",
-                          '0x5': "Server's key encrypted in old master key",
-                          '0x6': 'Client not found in Kerberos database',
-                          '0x7': 'Server not found in Kerberos database',
-                          '0x8': 'Multiple principal entries in KDC database',
-                          '0x9': 'The client or server has a null key (master key)',
-                          '0xA': 'Ticket (TGT) not eligible for postdating',
-                          '0xB': 'Requested start time is later than end time',
-                          '0xC': 'Requested start time is later than end time',
-                          '0xD': 'KDC cannot accommodate requested option',
-                          '0xE': 'KDC has no support for encryption type',
-                          '0xF': 'KDC has no support for checksum type',
-                          '0x10': 'KDC has no support for PADATA type (pre-authentication data)',
-                          '0x11': 'KDC has no support for transited type',
-                          '0x12': 'Client’s credentials have been revoked',
-                          '0x13': 'Credentials for server have been revoked',
-                          '0x14': 'TGT has been revoked',
-                          '0x15': 'Client not yet valid—try again later',
-                          '0x16': 'Server not yet valid—try again later',
-                          '0x17': 'Password has expired—change password to reset',
-                          '0x18': 'Pre-authentication information was invalid',
-                          '0x19': 'Additional pre-authentication required',
-                          '0x1D': 'KDC is unavailable',
-                          '0x1F': 'Integrity check on decrypted field failed',
-                          '0x20': 'The ticket has expired',
-                          '0x21': 'The ticket is not yet valid',
-                          '0x22': 'The request is a replay',
-                          '0x23': 'The ticket is not for us',
-                          '0x24': 'The ticket and authenticator do not match',
-                          '0x25': 'The clock skew is too great',
-                          '0x26': "Network address in network layer header doesn't match address inside ticket",
-                          '0x27': "Protocol version numbers don't match (PVNO)",
-                          '0x28': 'Message type is unsupported',
-                          '0x29': "Message stream modified and checksum didn't match",
-                          '0x2A': 'Message out of order (possible tampering)',
-                          '0x2C': 'Specified version of key is not available',
-                          '0x2D': 'Service key not available',
-                          '0x2E': 'Mutual authentication failed',
-                          '0x2F': 'Incorrect message direction',
-                          '0x30': 'Alternative authentication method required',
-                          '0x31': 'Incorrect sequence number in message',
-                          '0x32': 'Inappropriate type of checksum in message (checksum may be unsupported)',
-                          '0x33': 'Desired path is unreachable',
-                          '0x34': 'Too much data',
-                          '0x3C': 'Generic error',
-                          '0x3D': 'Field is too long for this implementation',
-                          '0x3E': 'The client trust failed or is not implemented',
-                          '0x3F': 'The KDC server trust failed or could not be verified',
-                          '0x40': 'The signature is invalid',
-                          '0x41': 'A higher encryption level is needed',
-                          '0x42': 'User-to-user authorization is required',
-                          '0x43': 'No TGT was presented or available',
-                          '0x44': 'Incorrect domain or principal'}
+        tgt_error_dict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "tgt_error.json"))
 
         attributes = {}
         attributes[0] = "Reserved"
@@ -438,33 +301,11 @@ class Security(EventJob):
         attributes[30] = "Renew"
         attributes[31] = "Validate"
 
-        encr = {}
-
-        encr['0x1'] = 'DES-CBC-CRC'
-        encr['0x3'] = 'DES-CBC-MD4'
-        encr['0x3'] = 'DES-CBC-MD5'
-        encr['0x11'] = 'AES128-CTS-HMAC-SHA1-96'
-        encr['0x12'] = 'AES256-CTS-HMAC-SHA1-96'
-        encr['0x17'] = 'RC4-HMAC'
-        encr['0x18'] = 'RC4-HMAC-EXP'
+        encr = load_fields(os.path.join(self.config.config['windows']['plugindir'], "encryption_id.json"))
 
         tgt = ('4768', '4769', '4770', '4771', '4772')
 
-        protocol = {"1": "Internet Control Message Protocol (ICMP)",
-                    "3": "Gateway-Gateway Protocol (GGP)",
-                    "6": "Transmission Control Protocol (TCP)",
-                    "8": "Exterior Gateway Protocol (EGP)",
-                    "12": "PARC Universal Packet Protocol (PUP)",
-                    "17": "User Datagram Protocol (UDP)",
-                    "20": "Host Monitoring Protocol (HMP)",
-                    "27": "Reliable Datagram Protocol (RDP)",
-                    "46": "Reservation Protocol (RSVP) QoS",
-                    "47": "General Routing Encapsulation (PPTP data over GRE)",
-                    "50": "Encapsulation Security Payload (ESP) IPSec",
-                    "51": "Authentication Header (AH) IPSec",
-                    "66": "MIT Remote Virtual Disk (RVD)",
-                    "88": "Internet Group Management Protocol (IGMP)",
-                    "89": "OSPF Open Shortest Path First"}
+        protocol = load_fields(os.path.join(self.config.config['windows']['plugindir'], "protocol.json"))
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
@@ -487,7 +328,7 @@ class Security(EventJob):
                 for i in ev["data.AuditPolicyChanges"].split(","):
                     temp_aud.append(audit_policy_changes.get(i.lstrip(), ""))
                 ev["data.AuditPolicyChangesStr"] = ", ".join(temp_aud)
-            if ev['event.code'] in ('5152', '5153', '5156') and ev['event.provider'] == "Microsoft-Windows-Security-Auditing":
+            if ev['event.code'] in ('5152', '5153', '5154', '5156', '5157') and ev['event.provider'] == "Microsoft-Windows-Security-Auditing":
                 if 'Direction' not in ev.keys():
                     ev['Direction'] = '-'
                 elif ev['Direction'] == "%%14593":
@@ -535,17 +376,47 @@ class System(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
+        fields = {'20250': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'Port']},
+                  '20253': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'Port']},
+                  '20255': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'Port', 'destination.user', 'desc']},
+                  '20271': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.user', 'source.ip', 'reasonStr', 'reason']},
+                  '20272': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.user', 'Port', 'startDate', 'startHour', 'enddate', 'endHour', 'minutes', 'seconds', 'bytes.send', 'bytes.received', 'reasonStr']},
+                  '20274': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'Port', 'destination.ip', 'EventReceivedTime', 'SourceModuleName', 'SourceModuleType']},
+                  '20275': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.user', 'connection.name', 'reason']},
+                  }
+
         for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             if "data.BootType" in ev.keys():
                 ev["data.BootTypeStr"] = boot_type.get(ev["data.BootType"], "Unknown")
             if "data.Reason" in ev.keys():
                 ev["data.ReasonStr"] = reason_sleep.get(ev.get('data.Reason'), 'Unknown')
+            if "data.Binary" in ev.keys() and len(ev['data.Binary']) > 0 and ev['data.Binary'] != 'None':
+                try:
+                    ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
+                    ev.pop('data.Binary')
+                except Exception:
+                    pass
             if ev['event.code'] == '45058':
                 aux_var = ev.get('user_date', '').split(',')
                 ev['destination.user.name'] = aux_var[0][2:-1]
                 ev['data.LastLoginLocalTime'] = aux_var[1][:-1]
                 ev['message'] = 'A logon cache entry for user {} was the oldest entry and was removed. The timestamp of this entry was {}'.format(ev['destination.user.name'], ev['data.LastLoginLocalTime'])
                 ev.pop('user_date')
+
+            elif ev['event.code'] in fields.keys() and ev['event.provider'] == fields[ev['event.code']]['provider']:
+                data = ast.literal_eval(ev["data.#text"])
+                ev.pop('data.#text')
+                for e, field in enumerate(fields[ev['event.code']]['fields']):
+                    if data[e] == '(NULL)' or data[e] == '':
+                        continue
+                    if field == 'others':
+                        for item in data[e][1:].split('\n'):
+                            aux_fields = re.search("(.*) = (.*)", item)
+                            ev[aux_fields.group(1)] = aux_fields.group(2)
+                            ev['message'] = ev['message'].replace('<%s>' % aux_fields.group(1), aux_fields.group(2))
+                        continue
+                    ev[field] = data[e]
+                    ev['message'] = ev['message'].replace('<%s>' % field, data[e])
             yield ev
 
 
@@ -560,26 +431,8 @@ class SMBServer(EventJob):
 
         path = self.get_evtx(path, r"Microsoft-Windows-SMBServer%4Security.evtx$")
 
-        errordict = {"0xc0000022": "A process has requested access to an object, but has not been granted those access rights.",
-                     "0xc000005e": "There are currently no logon servers available to service the logon request.",
-                     "0xc0000064": "user name does not exist",
-                     "0xc000006a": "user name is correct but the password is wrong",
-                     "0xc000006d": "This is either due to a bad username or authentication information",
-                     "0xc000006e": "Unknown user name or bad password.",
-                     "0xc000006f": "user tried to logon outside his day of week or time of day restrictions",
-                     "0xc0000070": "workstation restriction, or Authentication Policy Silo violation (look for event ID 4820 on domain controller)",
-                     "0xc0000071": "expired password",
-                     "0xc0000072": "account is currently disabled",
-                     "0xc00000dc": "Indicates the Sam Server was in the wrong state to perform the desired operation.",
-                     "0xc0000133": "clocks between DC and other computer too far out of sync",
-                     "0xc0000193": "account expiration", "0xc0000234": "user is currently locked out",
-                     "0xc000015b": "The user has not been granted the requested logon type (aka logon right) at this machine",
-                     "0xc0000192": "An attempt was made to logon, but the netlogon service was not started.",
-                     "0xc0000224": "user is required to change password at next logon",
-                     "0xc0000225": "evidently a bug in Windows and not a risk",
-                     "0xc0000234": "user is currently locked out",
-                     "0xc00002ee": "Failure Reason: An Error occurred during Logon",
-                     "0xc0000413": "Logon Failure: The machine you are logging onto is protected by an authentication firewall. The specified account is not allowed to authenticate to the machine."}
+        errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "smb_error.json"))
+
         json_file = self.config.config[self.config.job_name]['json_conf']
         for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             if "data.Status" in ev.keys():
@@ -600,20 +453,7 @@ class RDPLocal(EventJob):
         if not path:
             return []
 
-        error_reason = {
-            "": "",
-            "0": "No additional information is available.",
-            "1": "The disconnection was initiated by an administrative tool on the server in another session.",
-            "2": "The disconnection was due to a forced logoff initiated by an administrative tool on the server in another session.",
-            "3": "The idle session limit timer on the server has elapsed.",
-            "4": "The active session limit timer on the server has elapsed.",
-            "5": "Another user connected to the server, forcing the disconnection of the current connection.",
-            "6": "The server ran out of available memory resources.",
-            "7": "The server denied the connection.",
-            "9": "The user cannot connect to the server due to insufficient access privileges.",
-            "10": "The server does not accept saved user credentials and requires that the user enter their credentials for each connection.",
-            "11": "The disconnection was initiated by the user disconnecting his or her session on the server or by an administrative tool on the server.",
-            "12": "The disconnection was initiated by the user logging off his or her session on the server."}
+        error_reason = load_fields(os.path.join(self.config.config['windows']['plugindir'], "rdp_local_error.json"))
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
@@ -635,108 +475,7 @@ class RDPClient(EventJob):
         if not path:
             return []
 
-        error_reason = {"0": "No error",
-                        "1": "User-initiated client disconnect.",
-                        "2": "User-initiated client logoff.",
-                        "3": "Your Remote Desktop Services session has ended, possibly for one of the following reasons:  The administrator has ended the session. An error occurred while the connection was being established. A network problem occurred.",
-                        "4": "The remote session ended because the total login time limit was reached. This limit is set by the server administrator or by network policies.",
-                        "260": "Remote Desktop can't find the computer X. This might mean that X does not belong to the specified network.",
-                        "262": "This computer can't connect to the remote computer.  Your computer does not have enough virtual memory available.",
-                        "263": "The remote session was disconnected because the client prematurely ended the licensing protocol.",
-                        "264": "This computer can't connect to the remote computer.  The two computers couldn't connect in the amount of time allotted.",
-                        "516": "Remote Desktop can't connect to the remote computer for one of these reasons:  1) Remote access to the server is not enabled 2) The remote computer is turned off 3) The remote computer is not available on the network  Make sure the remote computer is turned on and connected to the network, and that remote access is enabled.",
-                        "772": "This computer can't connect to the remote computer.  The connection was lost due to a network error.",
-                        "1030": "Because of a security error, the client could not connect to the remote computer. Verify that you are logged on to the network, and then try connecting again.",
-                        "1032": "The specified computer name contains invalid characters.",
-                        "1796": "This computer can't connect to the remote computer.  Try connecting again.",
-                        "1800": "Your computer could not connect to another console session on the remote computer because you already have a console session in progress.",
-                        "2056": "The remote computer disconnected the session because of an error in the licensing protocol.",
-                        "2308": "Your Remote Desktop Services session has ended.  The connection to the remote computer was lost, possibly due to network connectivity problems.",
-                        "2311": "The connection has been terminated because an unexpected server authentication certificate was received from the remote computer.",
-                        "2312": "A licensing error occurred while the client was attempting to connect (Licensing timed out).",
-                        "2567": "The specified username does not exist.",
-                        "2820": "This computer can't connect to the remote computer.  An error occurred that prevented the connection.",
-                        "2822": "Because of an error in data encryption, this session will end.",
-                        "2823": "The user account is currently disabled and cannot be used.",
-                        "2825": "The remote computer requires Network Level Authentication, which your computer does not support.",
-                        "3079": "A user account restriction (for example, a time-of-day restriction) is preventing you from logging on.",
-                        "3080": "The remote session was disconnected because of a decompression failure at the client side.",
-                        "3335": "As a security precaution, the user account has been locked because there were too many logon attempts or password change attempts.",
-                        "3337": "The security policy of your computer requires you to type a password on the Windows Security dialog box. However, the remote computer you want to connect to cannot recognize credentials supplied using the Windows Security dialog box.",
-                        "3590": "The client can't connect because it doesn't support FIPS encryption level.",
-                        "3591": "This user account has expired.",
-                        "3592": "Failed to reconnect to your remote session. Please try to connect again.",
-                        "3593": "The remote PC doesn't support Restricted Administration mode.",
-                        "3847": "This user account's password has expired. The password must change in order to logon.",
-                        "3848": "A connection will not be made because credentials may not be sent to the remote computer.",
-                        "4103": "The system administrator has restricted the times during which you may log in. Try logging in later.",
-                        "4104": "The remote session was disconnected because your computer is running low on video resources.",
-                        "4359": "The system administrator has limited the computers you can log on with. Try logging on at a different computer.",
-                        "4615": "You must change your password before logging on the first time.",
-                        "4871": "The system administrator has restricted the types of logon (network or interactive) that you may use.",
-                        "5127": "The Kerberos sub-protocol User2User is required.",
-                        "6919": "Remote Desktop cannot connect to the remote computer because the authentication certificate received from the remote computer is expired or invalid. In some cases, this error might also be caused by a large time discrepancy between the client and server computers.",
-                        "7431": "Remote Desktop cannot verify the identity of the remote computer because there is a time or date difference between your computer and the remote computer.",
-                        "9479": "Could not auto-reconnect to your applications,please re-launch your applications",
-                        "9732": "Client and server versions do not match. Please upgrade your client software and then try connecting again.",
-                        "33554433": "Failed to reconnect to the remote program. Please restart the remote program.",
-                        "33554434": "The remote computer does not support RemoteApp.",
-                        "50331649": "Your computer can't connect to the remote computer because the username or password is not valid.",
-                        "50331650": "Your computer can't connect to the remote computer because it can't verify the certificate revocation list.",
-                        "50331651": "Your computer can't connect to the remote computer due to one of the following reasons:  1) The requested Remote Desktop Gateway server address and the server SSL certificate subject name do not match. 2) The certificate is expired or revoked. 3) The certificate root authority does not trust the certificate.",
-                        "50331652": "Your computer can't connect to the remote computer because the SSL certificate was revoked by the certification authority.",
-                        "50331653": "This computer can't verify the identity of the RD Gateway X. It's not safe to connect to servers that can't be identified.",
-                        "50331654": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server address requested and the certificate subject name do not match.",
-                        "50331655": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server's certificate has expired or has been revoked.",
-                        "50331656": "Your computer can't connect to the remote computer because an error occurred on the remote computer that you want to connect to.",
-                        "50331657": "An error occurred while sending data to the Remote Desktop Gateway server. The server is temporarily unavailable or a network connection is down.",
-                        "50331658": "An error occurred while receiving data from the Remote Desktop Gateway server. Either the server is temporarily unavailable or a network connection is down.",
-                        "50331659": "Your computer can't connect to the remote computer because an alternate logon method is required. Contact your network administrator for assistance.",
-                        "50331660": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server address is unreachable or incorrect.",
-                        "50331661": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server is temporarily unavailable.",
-                        "50331662": "Your computer can't connect to the remote computer because the Remote Desktop Services client component is missing or is an incorrect version.",
-                        "50331663": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server is running low on server resources and is temporarily unavailable.",
-                        "50331664": "Your computer can't connect to the remote computer because an incorrect version of rpcrt4.dll has been detected.",
-                        "50331665": "Your computer can't connect to the remote computer because no smart card service is installed.",
-                        "50331666": "Your computer can't stay connected to the remote computer because the smart card has been removed.",
-                        "50331669": "Your computer can't connect to the remote computer because the user name or password is not valid.",
-                        "50331671": "Your computer can't connect to the remote computer because a security package error occurred in the transport layer.",
-                        "50331672": "The Remote Desktop Gateway server has ended the connection.",
-                        "50331673": "The Remote Desktop Gateway server administrator has ended the connection.",
-                        "50331674": "Your computer can't connect to the remote computer due to one of the following reasons:   1) Your credentials (the combination of user name, domain, and password) were incorrect. 2) Your smart card was not recognized.",
-                        "50331675": "Remote Desktop can't connect to the remote computer X for one of these reasons:  1) Your user account is not listed in the RD Gateway's permission list 2) You might have specified the remote computer in NetBIOS format (for example, computer1), but the RD Gateway is expecting an FQDN or IP address format (for example, computer1.fabrikam.com or 157.60.0.1).",
-                        "50331676": "Remote Desktop can't connect to the remote computer X for one of these reasons:  1) Your user account is not authorized to access the RD Gateway "" 2) Your computer is not authorized to access the RD Gateway "" 3) You are using an incompatible authentication method (for example, the RD Gateway might be expecting a smart card but you provided a password)",
-                        "50331679": "Your computer can't connect to the remote computer because your network administrator has restricted access to this RD Gateway server.",
-                        "50331680": "Your computer can't connect to the remote computer because the web proxy server requires authentication.",
-                        "50331681": "Your computer can't connect to the remote computer because your password has expired or you must change the password.",
-                        "50331682": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server reached its maximum allowed connections.",
-                        "50331683": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server does not support the request.",
-                        "50331684": "Your computer can't connect to the remote computer because the client does not support one of the Remote Desktop Gateway's capabilities.",
-                        "50331685": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server and this computer are incompatible",
-                        "50331687": "Your computer can't connect to the remote computer because your computer or device did not pass the Network Access Protection requirements set by your network administrator.",
-                        "50331688": "Your computer can't connect to the remote computer because no certificate was configured to use at the Remote Desktop Gateway server.",
-                        "50331689": "Your computer can't connect to the remote computer because the RD Gateway server that you are trying to connect to is not allowed by your computer administrator.",
-                        "50331690": "Your computer can't connect to the remote computer because your computer or device did not meet the Network Access Protection requirements set by your network administrator, for one of the following reasons:  1) The Remote Desktop Gateway server name and the server's public key certificate subject name do not match. 2) The certificate has expired or has been revoked. 3) The certificate root authority does not trust the certificate. 4) The certificate key extension does not support encryption. 5) Your computer cannot verify the certificate revocation list.",
-                        "50331695": "Your computer can't connect to the remote computer because authentication to the firewall failed due to missing firewall credentials.",
-                        "50331696": "Your computer can't connect to the remote computer because authentication to the firewall failed due to invalid firewall credentials.",
-                        "50331699": "The connection has been disconnected because the session timeout limit was reached.",
-                        "50331700": "Your computer can't connect to the remote computer because an invalid cookie was sent to the Remote Desktop Gateway server.",
-                        "50331701": "Your computer can't connect to the remote computer because the cookie was rejected by the Remote Desktop Gateway server.",
-                        "50331703": "Your computer can't connect to the remote computer because the Remote Desktop Gateway server is expecting an authentication method different from the one attempted.",
-                        "50331704": "The RD Gateway connection ended because periodic user authentication failed.",
-                        "50331705": "The RD Gateway connection ended because periodic user authorization failed.",
-                        "50331709": 'To use this program or computer, first log on to the following website: <a href=""></a>.',
-                        "50331710": "To use this program or computer, you must first log on to an authentication website. Contact your network administrator for assistance.",
-                        "50331711": 'Your session has ended. To continue using the program or computer, first log on to the following website: <a href=""></a>.',
-                        "50331712": "Your session has ended. To continue using the program or computer, you must first log on to an authentication website.",
-                        "50331713": "The RD Gateway connection ended because periodic user authorization failed. Your computer or device didn't pass the Network Access Protection (NAP) requirements set by your network administrator.",
-                        "50331714": "Your computer can't connect to the remote computer because the size of the cookie exceeded the supported size.",
-                        "50331717": "This computer cannot connect to the remote resource because you do not have permission to this resource.",
-                        "50331724": "The user name you entered does not match the user name used to subscribe to your applications.",
-                        "50331725": "Looks like there are too many users trying out the Azure RemoteApp service at the moment.",
-                        "50331726": "Maximum user limit has been reached.",
-                        "50331727": "Your trial period for Azure RemoteApp has expired.",
-                        "50331728": "You no longer have access to Azure RemoteApp."}
+        error_reason = load_fields(os.path.join(self.config.config['windows']['plugindir'], "rdp_client_error.json"))
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
@@ -851,7 +590,7 @@ class Application(EventJob):
 
         path = self.get_evtx(path, r"Application.evtx$")
 
-        fields = {'1000': {'provider': 'Application Error', 'fields': ['product name', 'product.version', 'timestamp1', 'module.name', 'module.version', 'module.timestamp2', 'error.code', 'offset', 'process.id', 'application.starttime', 'application.path', 'module.path', 'report.id', 'package.full_name', 'package-relative_application.id']},
+        fields = {'1000': {'provider': 'Application Error', 'fields': ['product.name', 'product.version', 'timestamp1', 'module.name', 'module.version', 'module.timestamp2', 'error.code', 'offset', 'process.id', 'application.starttime', 'application.path', 'module.path', 'report.id', 'package.full_name', 'package-relative_application.id']},
                   '1001': {'provider': 'Windows Error Reporting', 'fields': ['Fault_bucket', 'type', 'event.name', 'response', 'cab.id', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'Attached_files', 'Attached_path', 'Analysis_symbol', 'rechecking_for_solution', 'report.id', 'report.status']},
                   '1002': {'provider': 'Application Hang', 'fields': ['product name', 'product.version', 'process.id', 'application.starttime', 'application.terminationtime', 'application.path', 'report.id']},
                   '1013': {'provider': 'MsiInstaller', 'fields': ['error.message']},
@@ -863,10 +602,20 @@ class Application(EventJob):
                   '1038': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'reboot.type', 'reason', 'manufacturer']},
                   '10005': {'provider': 'MsiInstaller', 'fields': ['error', 'arg1', 'arg2', 'arg3', 'arg4', 'arg5']},
                   '11707': {'provider': 'MsiInstaller', 'fields': ['status']},
-                  '11708': {'provider': 'MsiInstaller', 'fields': ['status']}
+                  '11708': {'provider': 'MsiInstaller', 'fields': ['status']},
+                  '20220': {'provider': 'RasClient', 'fields': []},
+                  '20221': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection', 'connection.type', 'connection.name', 'others']},
+                  '20222': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection.name', 'others']},
+                  '20223': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'others']},
+                  '20224': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user']},
+                  '20225': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection.name', 'others']},
+                  '20226': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection.name', 'reason']},
+                  '20227': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection.name', 'reason']},
                   }
 
         json_file = self.config.config[self.config.job_name]['json_conf']
+
+        error_str = load_fields(os.path.join(self.config.config['windows']['plugindir'], "raserror.json"))
         for ev in GetEvents(path, json_file, logger=self.logger()).parse():
             if "data.Binary" in ev.keys() and len(ev['data.Binary']) > 0 and ev['data.Binary'] != 'None':
                 ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
@@ -876,6 +625,14 @@ class Application(EventJob):
                 ev.pop('data.#text')
                 for e, field in enumerate(fields[ev['event.code']]['fields']):
                     if data[e] == '(NULL)' or data[e] == '':
+                        continue
+                    if field == 'reason' and ev['event.provider'] == 'RasClient':
+                        ev['reasonStr'] = error_str.get(data[e], '')
+                    if field == 'others':
+                        for item in data[e][1:].split('\n'):
+                            aux_fields = re.search("(.*) = (.*)", item)
+                            ev[aux_fields.group(1)] = aux_fields.group(2)
+                            ev['message'] = ev['message'].replace('<%s>' % aux_fields.group(1), aux_fields.group(2))
                         continue
                     ev[field] = data[e]
                     ev['message'] = ev['message'].replace('<%s>' % field, data[e])
@@ -897,25 +654,30 @@ class PowerShell(EventJob):
         json_file = self.config.config[self.config.job_name]['json_conf']
 
         # Regex used to extract details
-        host_rgx = re.compile(r'HostName=(.*)\r\n')
-        version_rgx = re.compile(r'EngineVersion=(.*)\r\n')
-        app_rgx = re.compile(r'HostApplication=(.*)\r\n')
-        script_rgx = re.compile(r'ScriptName=(.*)\r\n')
-        cli_rgx = re.compile(r'CommandLine=(.*)$')
+        user_rgx = re.compile('UserId=([^\r]*)\\r\\n')
+        host_rgx = re.compile('HostName=([^\r]*)\\r\\n')
+        version_rgx = re.compile('HostVersion=([^\r]*)\\r\\n')
+        version2_rgx = re.compile('EngineVersion=([^\r]*)\\r\\n')
+        app_rgx = re.compile('HostApplication=([^\r]*)\\r\\n')
+        script_rgx = re.compile('ScriptName=([^\r]*)\\r\\n')
+        cli_rgx = re.compile('CommandLine=(.*)$')
 
         for ev in GetEvents(path, json_file, logger=self.logger()).parse():
-            if ev['event.code'] not in ["400", "600"]:
+            if ev['event.code'] not in ["400", "600", "800"]:
                 continue
             data = ev.pop('data.PSData')
-            details = data[2]
+            if ev['event.code'] == "800":
+                details = data[1]
+            else:
+                details = data[2]
             # details example:
             """ "\tNewEngineState=Available\r\n\tPreviousEngineState=None\r\n\r\n\tSequenceNumber=318419\
 r\n\r\n\tHostName=Default Host\r\n\tHostVersion=4.0\r\n\tHostId=30ba2936-467d-4ded-b94f-889baa517
 0c0\r\n\tHostApplication=C:\\Windows\\system32\\ServerManager.exe\r\n\tEngineVersion=4.0\r\n\tRun
 spaceId=7659aa03-a84d-47e2-91bc-d1671de4cd63\r\n\tPipelineId=\r\n\tCommandName=\r\n\tCommandType=
 \r\n\tScriptName=\r\n\tCommandPath=\r\n\tCommandLine=" """
-            for rgx, name in zip([host_rgx, version_rgx, app_rgx, script_rgx, cli_rgx],
-                                 ['data.HostName', 'data.EngineVersion', 'data.Command', 'data.ScriptName', 'data.CommandLine']):
+            for rgx, name in zip([user_rgx, host_rgx, version_rgx, version2_rgx, app_rgx, script_rgx, cli_rgx],
+                                 ['user.name', 'data.HostName', 'data.HostVersion', 'data.EngineVersion', 'data.Command', 'file.path', 'data.CommandLine']):
                 match = re.search(rgx, details)
                 ev[name] = match.groups()[0] if match else ''
             if ev['event.code'] == "400":
@@ -926,9 +688,10 @@ spaceId=7659aa03-a84d-47e2-91bc-d1671de4cd63\r\n\tPipelineId=\r\n\tCommandName=\
                 ev['data.ProviderName'] = data[0]
                 ev['data.NewProviderState'] = data[1]
                 ev['message'] = f'Provider {data[0]} is {data[1]}'
+            elif ev['event.code'] == '800':
+                ev['message'] = f"Pipeline execution details for command line: {ev['data.CommandLine']}"
 
             yield ev
-
 
 
 class ParseEvt(object):
