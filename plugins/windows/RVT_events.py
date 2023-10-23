@@ -31,10 +31,10 @@ def load_fields(filename):
     items = {}
 
     with open(filename, 'r') as fin:
-        regex = re.compile("(.*): (.*)\n")
+        regex = re.compile("(.*):(.*)\n")
         for line in fin:
             aux = regex.search(line)
-            items[aux.group(1)] = aux.group(2)
+            items[aux.group(1)] = aux.group(2).lstrip()
     return items
 
 
