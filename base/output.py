@@ -323,6 +323,38 @@ class MDTableSink(BaseSink):
         except Exception as exc:
             self.logger().warning('Exception while closing the file: %s', exc)
 
+class DummySink(BaseSink):
+    """ A module that prints the results from other modules to a file or standard output.
+ 
+    Configuration:
+        - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
+        - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
+    """
+ 
+    def read_config(self):
+        super().read_config()
+ 
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+ 
+        outputfile = self._outputfile()
+ 
+        for fileinfo in self._source(path):
+            try:
+                outputfile.write(fileinfo)
+                outputfile.write("\n")
+                yield fileinfo
+            except Exception as exc:
+                if self.myflag('stop_on_error'):
+                    raise
+                else:
+                    self.logger().warning('%s: %s', exc, path)
+ 
+        try:
+            if not outputfile == sys.stdout:
+                outputfile.close()
+        except Exception as exc:
+            self.logger().warning('Exception while closing the file: %s', exc)
 
 class MirrorPath(base.job.BaseModule):
     """ A basic module that yields the path. """

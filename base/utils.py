@@ -152,6 +152,17 @@ def save_csv(data, config=None, **kwargs):
     """
     save_output(data, config, 'base.output.CSVSink', **kwargs)
 
+def save_dummy(data, config=None, **kwargs):
+    """
+    Save data in a file. This is a convenient function to run a ``base.output.DummySink`` module from inside another module.
+
+    Parameters:
+        data: The data to be saved. It can be a generator (such as list or tuple) or a `base.job.BaseModule`. In the last case, the module is run and saved.
+        config (base.config.Config): The global configuration object, or None to use default configuration.
+        kwargs (dict): The extra configuration for the `base.output.CSVSink` module. You'd want to set, at least, `outfile`.
+    """
+    save_output(data, config, 'base.output.DummySink', **kwargs)
+
 
 def save_json(data, config=None, **kwargs):
     """

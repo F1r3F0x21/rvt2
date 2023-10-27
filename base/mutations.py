@@ -28,6 +28,7 @@ import datetime
 import os
 import ast
 import pytz
+import gzip
 from textwrap import wrap
 from plugins.windows.RVT_os_info import CharacterizeWindows
 from base.utils import sanitize_ip
@@ -683,6 +684,39 @@ class AdaptIpFormat(base.job.BaseModule):
                     data[port_field] = port
             yield data
 
+class Descompress(base.job.BaseModule):
+    """ Descompress a file in `path` to the unzip_destination
+
+    Configuration:
+        - **path** (str): Path of the compressed file to descompress
+        - **unzip_destination** (str): Destination path of the descompress file. 
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('unzip_destination', '')
+
+    def run(self, path=None):
+        self.check_params(path, check_path=True, check_path_exists=True, check_from_module=False)
+        destination_path = self.myconfig('unzip_destination')
+        
+        file_name = os.path.basename(path)
+        file_name_without_extension, file_extension = os.path.splitext(file_name)
+
+        if file_extension == ".gz":        
+            try:
+                if not os.path.exists(destination_path):
+                    os.makedirs(destination_path)
+                with gzip.open(path, 'rb') as f_in:
+                    with open(destination_path + file_name_without_extension, 'wb') as f_out:
+                        f_out.write(f_in.read())
+
+            except SyntaxError:
+                raise base.job.RVTError('base.mutation.Descompress failed')
+        else:
+            raise base.job.RVTError('`Extension` Not supported yet. Extension: {}'.format(file_extension))
+
+        
 
 def safe_string_itemgetter(*items):
     """ Variation from operator itemgetter that helps to sort missing keys at first place"""

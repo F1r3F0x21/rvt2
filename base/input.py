@@ -24,6 +24,8 @@ import csv
 import sqlite3
 import json
 import sys
+import zipfile
+import gzip
 from tqdm import tqdm
 
 import base.job
@@ -101,6 +103,52 @@ class AllLinesInFile(base.job.BaseModule):
                              disable=self.myflag('progress.disable')):
                 yield line.strip()
 
+class AllLinesInCompressedFile(base.job.BaseModule):
+    """ Pass to from_module each line in a compressed file as the path.
+ 
+    Configuration:
+        - **encoding** (String): The encoding to use. Defaults to utf-8
+    """
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('encoding', 'utf-8')
+ 
+    def run(self, path):
+        """ Read all lines from the path and pass them to from_module """
+        self.check_params(path, check_path=True, check_path_exists=True)
+ 
+        # Check what kind of compressed file it is
+        if zipfile.is_zipfile(path):
+            self.logger().info(f'Found ZIP file {path}')
+            yield from self.read_zip(path)
+        else:
+            is_gzip = False
+            with gzip.open(path, 'r') as fh:
+                try:
+                    fh.read(1)
+                    is_gzip = True
+                except gzip.BadGzipFile:
+                    pass
+        if is_gzip:
+            self.logger().info(f'Found GZIP file {path}')
+            yield from self.read_gzip(path)
+        else:
+            self.logger().warning(f'Input file not in a well known compressed format (zip, gzip). Path: {path}')
+            return []
+ 
+    def read_zip(self, path):
+        with zipfile.ZipFile(path, 'r') as f:
+            # If many files exist inside the ZIP, it will read them one after another
+            for file in f.namelist():
+                with f.open(file, 'r') as internal:
+                    for line in internal:
+                        yield line.strip().decode()
+ 
+    def read_gzip(self, path):
+        with gzip.open(path, 'rb') as f:
+            # Assuming there is only one file inside GZIP
+            for line in f:
+                yield line.strip().decode()
 
 class ForAllLinesInFile(base.job.BaseModule):
     """ Pass to from_module each line in a file as the path.
