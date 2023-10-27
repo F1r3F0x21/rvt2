@@ -75,7 +75,7 @@ class Cron(base.job.BaseModule):
             save_csv(extra_data, outfile=csv_out, file_exists='APPEND') 
 
 class CronLog(base.job.BaseModule):
-    """ Extract the cron tasks and scripts
+    """ Extract the cron logs
 
     Module description:
         - **from_module**: Data dict.
@@ -99,7 +99,7 @@ class CronLog(base.job.BaseModule):
                 timestamp, host, command = match.groups()
                 log_entry_dict = {
                     "@timestamp": timestamp,
-                    "host.name": host,
+                    "host.hostname": host,
                     "process.command_line": command
                 }
 
