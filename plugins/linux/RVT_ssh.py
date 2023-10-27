@@ -55,12 +55,33 @@ class Ssh_authorized_keys(base.job.BaseModule):
                         "public_key_data": data,
                         "key_comment": user
                     }
-                    print(sshkeys_entry_dict)
                     yield sshkeys_entry_dict
                 else:
                     self.logger().error("Regex pattern failed with some ssh_authorized_keys " + line)
 
-        
-
-        
+class Ssh_known_hosts(base.job.BaseModule):
     
+    """ Extract the ssh known_hosts
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+
+    def run(self, path=None):
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        # get the home username of the current authorized_keys file
+        path_components = path.split(os.path.sep)
+        indexof_ssh = path_components.index(".ssh")
+        username = path_components[indexof_ssh -1]
+        yield "****************************************"
+        yield username
+        yield "****************************************"
+
+        for line in self.from_module.run(path):
+            #TODO
+            yield line
