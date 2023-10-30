@@ -56,6 +56,7 @@ bencoding = "*"
 pycryptodome = "*"
 python-magic = "0.4.24"
 packaging = "20.1"
+sshpubkeys = "*"
 
 [dev-packages]
 sphinx = "*"

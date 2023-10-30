@@ -16,12 +16,10 @@
 # TODO finish script and dump to file
 # Linux partitions must be mounted
 
-import re
-import time
 import base.job
 import os
-from datetime import datetime
-from base.utils import save_csv, save_dummy
+import re
+from sshpubkeys import SSHKey
 
 class Ssh_authorized_keys(base.job.BaseModule):
     
@@ -34,30 +32,41 @@ class Ssh_authorized_keys(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
+        self.set_default_config('isRoot', None)
+
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
+        is_Root = self.myconfig('isRoot')
+
 
         # get the home username of the current authorized_keys file
-        path_components = path.split(os.path.sep)
-        indexof_ssh = path_components.index(".ssh")
-        username = path_components[indexof_ssh -1]
+        if is_Root == "False":
+            path_components = path.split(os.path.sep)
+            indexof_ssh = path_components.index(".ssh")
+            username = path_components[indexof_ssh -1]
+        else:
+            username = "root"
 
-        pattern_authorized_keys = r'^(ssh-.*)\s(.*)\s(.*)$'
+        pattern_authorized_keys = r'[\S\s]*ssh-\w+\s(\S*)'
         for line in self.from_module.run(path):
             if line and not line.startswith('#'):
                 match = re.match(pattern_authorized_keys, line)
                 if match:
-                    algorithm, data, user = match.groups()
+                    key = SSHKey(line)
+                    key.parse()
                     sshkeys_entry_dict = {
                         "username": username,
-                        "signature_algorithm": algorithm,
-                        "public_key_data": data,
-                        "key_comment": user
+                        "key_algorithm": key.key_type,
+                        "key_data": match.groups()[0],
+                        "key_options": key.options,
+                        "key_comment": key.comment,
+                        "key_bits": key.bits
                     }
                     yield sshkeys_entry_dict
                 else:
                     self.logger().error("Regex pattern failed with some ssh_authorized_keys " + line)
+
 
 class Ssh_known_hosts(base.job.BaseModule):
     
@@ -74,7 +83,7 @@ class Ssh_known_hosts(base.job.BaseModule):
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        # get the home username of the current authorized_keys file
+        # get the home username of the current known_hosts file
         path_components = path.split(os.path.sep)
         indexof_ssh = path_components.index(".ssh")
         username = path_components[indexof_ssh -1]
