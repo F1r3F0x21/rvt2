@@ -32,20 +32,18 @@ class Ssh_authorized_keys(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('isRoot', None)
-
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
-        is_Root = self.myconfig('isRoot')
-
+        mount_dir = self.myconfig('mountdir')
 
         # get the home username of the current authorized_keys file
-        if is_Root == "False":
-            path_components = path.split(os.path.sep)
+        file_path = path[len(mount_dir):]
+        path_components = file_path.split(os.path.sep)
+        if "home" in path_components:
             indexof_ssh = path_components.index(".ssh")
             username = path_components[indexof_ssh -1]
-        else:
+        else:    
             username = "root"
 
         pattern_authorized_keys = r'[\S\s]*ssh-\w+\s(\S*)'
@@ -67,7 +65,6 @@ class Ssh_authorized_keys(base.job.BaseModule):
                 else:
                     self.logger().error("Regex pattern failed with some ssh_authorized_keys " + line)
 
-
 class Ssh_known_hosts(base.job.BaseModule):
     
     """ Extract the ssh known_hosts
@@ -82,15 +79,69 @@ class Ssh_known_hosts(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
+        mount_dir = self.myconfig('mountdir')
 
-        # get the home username of the current known_hosts file
-        path_components = path.split(os.path.sep)
-        indexof_ssh = path_components.index(".ssh")
-        username = path_components[indexof_ssh -1]
-        yield "****************************************"
-        yield username
-        yield "****************************************"
+        # get the home username of the current authorized_keys file
+        file_path = path[len(mount_dir):]
+        path_components = file_path.split(os.path.sep)
+        if "home" in path_components:
+            indexof_ssh = path_components.index(".ssh")
+            username = path_components[indexof_ssh -1]
+        else:    
+            username = "root"
 
+        pattern_authorized_keys = r'(\S+)\s(\S+)\s([\S\s]+)'
         for line in self.from_module.run(path):
-            #TODO
-            yield line
+            match = re.match(pattern_authorized_keys, line)
+            if match:
+                hostname,key_algorithm,key_data= match.groups()
+                sshkeys_entry_dict = {
+                    "username": username,
+                    "hostname": hostname,
+                    "key_algorithm": key_algorithm,
+                    "key_data": key_data
+                }
+                yield sshkeys_entry_dict
+            else:
+                self.logger().error("Regex pattern failed with some ssh_authorized_keys " + line)
+        
+class Ssh_config(base.job.BaseModule):
+    
+    """ Extract the ssh config file
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('isRoot', None)
+
+
+    def run(self, path=None):
+        self.check_params(path, check_path=True, check_path_exists=True)
+        is_Root = self.myconfig('isRoot')
+
+        if is_Root == "False":
+            # get the home username of the current known_hosts file
+            path_components = path.split(os.path.sep)
+            indexof_ssh = path_components.index(".ssh")
+            username = path_components[indexof_ssh -1]
+        else:
+            username = "root"
+
+        aux_dict_data = {}
+        for line in self.from_module.run(path):
+            if line == '':
+                aux_dict_data["username_config_file_of"] = username
+                yield aux_dict_data
+                aux_dict_data = {}
+            else: 
+                data = line.split(" ")
+                aux_dict_data[data[0]]=data[1]
+
+        if len(aux_dict_data) != 0:
+        # the last host don't have any newline
+            aux_dict_data["username_config_file_of"] = username
+            yield aux_dict_data
