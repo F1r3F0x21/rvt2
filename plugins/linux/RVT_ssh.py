@@ -133,12 +133,12 @@ class Ssh_config(base.job.BaseModule):
 
         aux_dict_data = {}
         for line in self.from_module.run(path):
-            if line and not line.startswith('#'):
+            if not line.startswith('#'):
                 if line == '':
                     aux_dict_data["username_config_file_of"] = username
                     yield aux_dict_data
                     aux_dict_data = {}
-                else: 
+                else:
                     data = line.split(" ")
                     aux_dict_data[data[0]]=data[1]
 
