@@ -116,19 +116,18 @@ class Ssh_config(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('isRoot', None)
 
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
-        is_Root = self.myconfig('isRoot')
+        mount_dir = self.myconfig('mountdir')
 
-        if is_Root == "False":
-            # get the home username of the current known_hosts file
-            path_components = path.split(os.path.sep)
+        file_path = path[len(mount_dir):]
+        path_components = file_path.split(os.path.sep)
+        if "home" in path_components:
             indexof_ssh = path_components.index(".ssh")
             username = path_components[indexof_ssh -1]
-        else:
+        else:    
             username = "root"
 
         aux_dict_data = {}
