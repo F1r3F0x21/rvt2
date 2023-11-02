@@ -130,18 +130,27 @@ class Ssh_config(base.job.BaseModule):
         else:    
             username = "root"
 
-        aux_dict_data = {}
+        include_param = False
+        aux_dict_host = {}
         for line in self.from_module.run(path):
-            if not line.startswith('#'):
-                if line == '':
-                    aux_dict_data["username_config_file_of"] = username
-                    yield aux_dict_data
-                    aux_dict_data = {}
+            if not line.startswith('#') and line != '':
+                data = line.split(" ")
+                if data[0] == "Include":
+                    include_param = True
+                    include_data = data
                 else:
-                    data = line.split(" ")
-                    aux_dict_data[data[0]]=data[1]
-
-        if len(aux_dict_data) != 0:
-        # the last host don't have any newline
-            aux_dict_data["username_config_file_of"] = username
-            yield aux_dict_data
+                    if data[0] == "Host":
+                        if len(aux_dict_host) != 0:
+                            if include_param:
+                                aux_dict_host[include_data[0]]=include_data[1]
+                            aux_dict_host["username_config_file_of"] = username
+                            yield aux_dict_host
+                        aux_dict_host = {}
+                        aux_dict_host[data[0]]=data[1]
+                    else:
+                        aux_dict_host[data[0]]=data[1]
+        if len(aux_dict_host) != 0:
+            if include_param:
+                aux_dict_host[include_data[0]]=include_data[1]
+            aux_dict_host["username_config_file_of"] = username
+            yield aux_dict_host
