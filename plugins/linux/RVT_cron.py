@@ -74,6 +74,45 @@ class Cron(base.job.BaseModule):
             csv_out = os.path.join(base_path, 'cronReferences.csv')
             save_csv(extra_data, outfile=csv_out, file_exists='APPEND') 
 
+class AnacronTab(base.job.BaseModule):
+    
+    """ Extract the anacrontab tasks and scripts
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+    
+
+    def run(self, path=None):
+        base_path = self.myconfig('outdir')
+        mount_dir = self.myconfig('mountdir')
+        pattern_cron = r'^(\S*)\s+(\S*)\s+(\S*)\s+(.*)$'
+        script_data = []
+        file_path = path[len(mount_dir):]
+
+        for line in self.from_module.run(path):
+            match = re.match(pattern_cron, line)
+            if line and not line.startswith('#'):
+                if match:
+                    keys = ["Period in days", "Delay in minutes", "job-identifier", "command", "file.path"]
+                    values = list(match.groups())
+                    values.append(str(file_path))
+                    crontab_dict = {key: value for key, value in zip(keys, values)}
+                    yield crontab_dict
+                else:
+                    script_data.append(line)
+                    
+        extra_data = []
+        for line in script_data:
+            if line and not line.startswith('#'):
+                extra_data.append({'line':line,'file.path':file_path})
+        csv_out = os.path.join(base_path, 'cronReferences.csv')
+        save_csv(extra_data, outfile=csv_out, file_exists='APPEND') 
+
 class CronLog(base.job.BaseModule):
     """ Extract the cron logs
 
