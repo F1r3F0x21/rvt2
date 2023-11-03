@@ -19,9 +19,10 @@
 import base.job
 import os
 import re
+import plugins.linux
 from sshpubkeys import SSHKey
 
-class Ssh_authorized_keys(base.job.BaseModule):
+class SshAuthorizedKeys(plugins.linux.LinuxModule):
     
     """ Extract the ssh authorized_keys
 
@@ -35,21 +36,14 @@ class Ssh_authorized_keys(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
-        mount_dir = self.myconfig('mountdir')
 
-        # get the home username of the current authorized_keys file
-        file_path = path[len(mount_dir):]
-        path_components = file_path.split(os.path.sep)
-        if "home" in path_components:
-            indexof_ssh = path_components.index(".ssh")
-            username = path_components[indexof_ssh -1]
-        else:    
-            username = "root"
+        username = self.username(path)
 
         pattern_authorized_keys = r'[\S\s]*ssh-\w+\s(\S*)'
+        prog = re.compile(pattern_authorized_keys)
         for line in self.from_module.run(path):
             if line and not line.startswith('#'):
-                match = re.match(pattern_authorized_keys, line)
+                match = prog.match(line)
                 if match:
                     key = SSHKey(line)
                     key.parse()
@@ -63,9 +57,9 @@ class Ssh_authorized_keys(base.job.BaseModule):
                     }
                     yield sshkeys_entry_dict
                 else:
-                    self.logger().error("Regex pattern failed with some ssh_authorized_keys " + line)
+                    self.logger().warning("Regex pattern failed with some ssh_authorized_keys " + line)
 
-class Ssh_known_hosts(base.job.BaseModule):
+class SshKnownHosts(plugins.linux.LinuxModule):
     
     """ Extract the ssh known_hosts
 
@@ -79,20 +73,12 @@ class Ssh_known_hosts(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
-        mount_dir = self.myconfig('mountdir')
+        username = self.username(path)
 
-        # get the home username of the current authorized_keys file
-        file_path = path[len(mount_dir):]
-        path_components = file_path.split(os.path.sep)
-        if "home" in path_components:
-            indexof_ssh = path_components.index(".ssh")
-            username = path_components[indexof_ssh -1]
-        else:    
-            username = "root"
-
-        pattern_authorized_keys = r'(\S+)\s(\S+)\s([\S\s]+)'
+        pattern_known_hosts = r'(\S+)\s(\S+)\s([\S\s]+)'
+        prog = re.compile(pattern_known_hosts)
         for line in self.from_module.run(path):
-            match = re.match(pattern_authorized_keys, line)
+            match = prog.match(line)
             if match:
                 hostname,key_algorithm,key_data= match.groups()
                 sshkeys_entry_dict = {
@@ -103,9 +89,9 @@ class Ssh_known_hosts(base.job.BaseModule):
                 }
                 yield sshkeys_entry_dict
             else:
-                self.logger().error("Regex pattern failed with some ssh_authorized_keys " + line)
+                self.logger().warning("Regex pattern failed with some ssh_authorized_keys " + line)
         
-class Ssh_config(base.job.BaseModule):
+class SshConfig(plugins.linux.LinuxModule):
     
     """ Extract the ssh config file
 
@@ -120,15 +106,8 @@ class Ssh_config(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
-        mount_dir = self.myconfig('mountdir')
 
-        file_path = path[len(mount_dir):]
-        path_components = file_path.split(os.path.sep)
-        if "home" in path_components:
-            indexof_ssh = path_components.index(".ssh")
-            username = path_components[indexof_ssh -1]
-        else:    
-            username = "root"
+        username = self.username(path)
 
         include_param = False
         aux_dict_host = {}
@@ -143,7 +122,7 @@ class Ssh_config(base.job.BaseModule):
                         if len(aux_dict_host) != 0:
                             if include_param:
                                 aux_dict_host[include_data[0]]=include_data[1]
-                            aux_dict_host["username_config_file_of"] = username
+                            aux_dict_host["owner"] = username
                             yield aux_dict_host
                         aux_dict_host = {}
                         aux_dict_host[data[0]]=data[1]
@@ -152,5 +131,5 @@ class Ssh_config(base.job.BaseModule):
         if len(aux_dict_host) != 0:
             if include_param:
                 aux_dict_host[include_data[0]]=include_data[1]
-            aux_dict_host["username_config_file_of"] = username
+            aux_dict_host["owner"] = username
             yield aux_dict_host

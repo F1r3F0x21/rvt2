@@ -42,6 +42,8 @@ class Cron(base.job.BaseModule):
         base_path = self.myconfig('outdir')
         mount_dir = self.myconfig('mountdir')
         pattern_cron = r'^\s*([\d*,\-/]+)\s+([\d*,\-/]+)\s+([\d*,\-/]+)\s+([\d*,\-/]+)\s+([\d*,\-/]+)\s+([\S]+)\s+(.+)$'
+        prog = re.compile(pattern_cron)
+
         script_data = []
         file_path = path[len(mount_dir):]
         
@@ -51,7 +53,7 @@ class Cron(base.job.BaseModule):
 
         is_cron = False
         for line in self.from_module.run(path):
-            match = re.match(pattern_cron, line)
+            match = prog.match(line)
             if match:
                 is_cron = True
                 keys = ["Minute", "Hour", "Day of Month", "Month", "Day of Week", "user.name", "process.command_line","file.path"]
@@ -91,14 +93,16 @@ class AnacronTab(base.job.BaseModule):
         base_path = self.myconfig('outdir')
         mount_dir = self.myconfig('mountdir')
         pattern_cron = r'^(\S*)\s+(\S*)\s+(\S*)\s+(.*)$'
+        prog = re.compile(pattern_cron)
+
         script_data = []
         file_path = path[len(mount_dir):]
 
         for line in self.from_module.run(path):
-            match = re.match(pattern_cron, line)
+            match = prog.match(line)
             if line and not line.startswith('#'):
                 if match:
-                    keys = ["Period in days", "Delay in minutes", "job-identifier", "command", "file.path"]
+                    keys = ["Period(days)", "Delay(minutes)", "job-identifier", "command", "file.path"]
                     values = list(match.groups())
                     values.append(str(file_path))
                     crontab_dict = {key: value for key, value in zip(keys, values)}
@@ -128,12 +132,13 @@ class CronLog(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*\[\d+\]:\s.*)'
+        prog = re.compile(pattern)
         if os.path.exists(path):
             modification_time = os.path.getmtime(path)
             year = time.localtime(modification_time).tm_year
         
         for line in self.from_module.run(path):
-            match = re.match(pattern, line)
+            match = prog.match(line)
             if match:
                 timestamp, host, command = match.groups()
                 log_entry_dict = {
@@ -151,7 +156,7 @@ class CronLog(base.job.BaseModule):
                 yield log_entry_dict
 
             else:
-                self.logger().error("Regex pattern failed with some logline input " + line)
+                self.logger().warning("Regex pattern failed with some logline input " + line)
 
 
 
