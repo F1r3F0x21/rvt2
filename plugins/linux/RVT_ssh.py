@@ -17,12 +17,11 @@
 # Linux partitions must be mounted
 
 import base.job
-import os
 import re
-import plugins.linux
+from . import get_username
 from sshpubkeys import SSHKey
 
-class SshAuthorizedKeys(plugins.linux.LinuxModule):
+class SshAuthorizedKeys(base.job.BaseModule):
     
     """ Extract the ssh authorized_keys
 
@@ -37,7 +36,7 @@ class SshAuthorizedKeys(plugins.linux.LinuxModule):
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        username = self.username(path)
+        username = get_username(path, self.myconfig('mountdir'))
 
         pattern_authorized_keys = r'[\S\s]*ssh-\w+\s(\S*)'
         prog = re.compile(pattern_authorized_keys)
@@ -48,7 +47,7 @@ class SshAuthorizedKeys(plugins.linux.LinuxModule):
                     key = SSHKey(line)
                     key.parse()
                     sshkeys_entry_dict = {
-                        "username": username,
+                        "owner": username,
                         "key_algorithm": key.key_type,
                         "key_data": match.groups()[0],
                         "key_options": key.options,
@@ -59,7 +58,7 @@ class SshAuthorizedKeys(plugins.linux.LinuxModule):
                 else:
                     self.logger().warning("Regex pattern failed with some ssh_authorized_keys " + line)
 
-class SshKnownHosts(plugins.linux.LinuxModule):
+class SshKnownHosts(base.job.BaseModule):
     
     """ Extract the ssh known_hosts
 
@@ -73,7 +72,7 @@ class SshKnownHosts(plugins.linux.LinuxModule):
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
-        username = self.username(path)
+        username = get_username(path, self.myconfig('mountdir'))
 
         pattern_known_hosts = r'(\S+)\s(\S+)\s([\S\s]+)'
         prog = re.compile(pattern_known_hosts)
@@ -82,7 +81,7 @@ class SshKnownHosts(plugins.linux.LinuxModule):
             if match:
                 hostname,key_algorithm,key_data= match.groups()
                 sshkeys_entry_dict = {
-                    "username": username,
+                    "owner": username,
                     "hostname": hostname,
                     "key_algorithm": key_algorithm,
                     "key_data": key_data
@@ -91,7 +90,7 @@ class SshKnownHosts(plugins.linux.LinuxModule):
             else:
                 self.logger().warning("Regex pattern failed with some ssh_authorized_keys " + line)
         
-class SshConfig(plugins.linux.LinuxModule):
+class SshConfig(base.job.BaseModule):
     
     """ Extract the ssh config file
 
@@ -107,7 +106,7 @@ class SshConfig(plugins.linux.LinuxModule):
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        username = self.username(path)
+        username = get_username(path, self.myconfig('mountdir'))
 
         include_param = False
         aux_dict_host = {}

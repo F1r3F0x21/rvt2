@@ -16,19 +16,15 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import base.job
 
-class LinuxModule(base.job.BaseModule):
-    """ A base class for the modules for Linux. """
-    def username(self, path):
-        mount_dir = self.myconfig('mountdir')
+def get_username(path, mount_dir, subfolder=".ssh"):
 
-        # get the home username of the current authorized_keys file
-        file_path = path[len(mount_dir):]
-        path_components = file_path.split(os.path.sep)
-        if "home" in path_components:
-            indexof_ssh = path_components.index(".ssh")
-            username = path_components[indexof_ssh -1]
-        else:    
-            username = "root"
-        return username
+    # get the home username of the current authorized_keys file
+    file_path = path[len(mount_dir):]
+    path_components = file_path.split(os.path.sep)
+    if "home" in path_components:
+        indexof_subfolder = path_components.index(subfolder)
+        username = path_components[indexof_subfolder -1]
+    else:    
+        username = "root"
+    return username
