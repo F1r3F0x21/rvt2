@@ -146,6 +146,7 @@ class CronLog(base.job.BaseModule):
                     "host.hostname": host,
                     "process.command_line": command
                 }
+                #TODO!!! si canvia l'any que? 
 
                 cron_timestamp_with_year = f"{year} {log_entry_dict['@timestamp']}"
                 # Parse the timestamp and convert it to ISO format

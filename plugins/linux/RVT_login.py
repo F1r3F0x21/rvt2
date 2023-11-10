@@ -37,7 +37,7 @@ class Passwd(base.job.BaseModule):
         for line in self.from_module.run(path):
             data = line.split(":")
             user_account_entry_dict = {
-                "username": data[0],
+                "user.name": data[0],
                 "password": data[1],
                 "user_ID ": data[2],
                 "group_ID": data[3],
@@ -111,7 +111,7 @@ class Shadow(base.job.BaseModule):
                 account_expiration_date = corresponding_date.strftime('%Y-%m-%d')
 
             user_password_entry_dict = {
-                "account_name": data[0],
+                "user.name": data[0],
                 "encrypted_password": data[1],
                 "last_password_change": formatted_date,
                 "minimum_password_age": minimum_pwd_age,
@@ -183,14 +183,14 @@ class Utmpdump(base.job.BaseModule):
             if match:
                 match_group = match.groups()
                 wtmp_entry_dict = {
-                    "ut_type": match_group[0],
-                    "ut_pid": match_group[1],
-                    "ut_id": match_group[2],
-                    "ut_user": match_group[3],
-                    "ut_line": match_group[4],
-                    "ut_host": match_group[5],
-                    "ut_addr_v6": match_group[6],
-                    "ut_time": match_group[7]
+                    "ut_type": match_group[0].strip(),
+                    "ut_pid": match_group[1].strip(),
+                    "ut_id": match_group[2].strip(),
+                    "ut_user": match_group[3].strip(),
+                    "ut_line": match_group[4].strip(),
+                    "ut_host": match_group[5].strip(),
+                    "ut_addr_v6": match_group[6].strip(),
+                    "ut_time": match_group[7].strip()
                 }
                 aux_dict, data_to_yield = self.UtmpdumpConnectionsStartedAndEnded(wtmp_entry_dict, aux_dict)
                 if data_to_yield:
@@ -230,12 +230,12 @@ class Utmpdump(base.job.BaseModule):
                 minutes, _ = divmod(remainder, 60)
 
                 connection_dict = {
+                    "@timestamp": time_from,
                     "ut_type": "USER_PROCESS",
                     "ut_pid": register_dict[self.ut_type["USER_PROCESS"]]["ut_pid"],
-                    "username": register_dict[self.ut_type["USER_PROCESS"]]["ut_user"],
+                    "user.name": register_dict[self.ut_type["USER_PROCESS"]]["ut_user"],
                     "ut_line": register_dict[self.ut_type["USER_PROCESS"]]["ut_line"],
                     "ut_host": register_dict[self.ut_type["USER_PROCESS"]]["ut_host"],
-                    "@timestamp": time_from,
                     "ut_time_to": time_to,
                     "ut_time_total": f"{hours}:{minutes:02}"
                 }
@@ -271,12 +271,12 @@ class Utmpdump(base.job.BaseModule):
                     time_from = dict_value["ut_time"]
 
                 connection_dict = {
+                    "@timestamp": time_from,
                     "ut_type": ut_type_2,
                     "ut_pid": dict_value["ut_pid"],
-                    "username": dict_value["ut_user"],
+                    "user.name": dict_value["ut_user"],
                     "ut_line": dict_value["ut_line"],
                     "ut_host": dict_value["ut_host"],
-                    "@timestamp": time_from,
                     "ut_time_to": ut_time_to ,
                     "ut_time_total": ut_time_total
                 }

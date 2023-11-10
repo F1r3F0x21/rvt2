@@ -20,12 +20,12 @@ import base.job
 import os
 import subprocess, shlex
 from . import get_username
-from base.utils import save_dummy
+from base.utils import check_folder
 
 
-class Bashrc(base.job.BaseModule):
+class BashFilesCp(base.job.BaseModule):
     
-    """ Extract the essential information about bash configs in Bashrc file.
+    """ Extract the essential information about bash configs.
 
     Module description:
         - **from_module**: Data dict.
@@ -39,12 +39,16 @@ class Bashrc(base.job.BaseModule):
     def run(self, path=None):
         bash_dir = self.myconfig('bashdir')
 
-        username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=".bashrc")
-        file_out = os.path.join(bash_dir, "bashrcFile", username + '.txt')
+        sub_folder = os.path.basename(path)
+        if sub_folder.startswith('.'):
+            prefix_file = sub_folder[1:]
+        prefix_file += "_"
 
-        command = "mkdir -p " + bash_dir + "bashrcFile/"
-        args = shlex.split(command)
-        subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=sub_folder)
+        file_out = os.path.join(bash_dir, prefix_file+ username + '.txt')
+
+        folder_out = os.path.join(bash_dir)
+        check_folder(folder_out)
         
         command = "cp -r " + path + " " + file_out
         args = shlex.split(command)
@@ -54,3 +58,25 @@ class Bashrc(base.job.BaseModule):
         if output:
             self.logger().error(output)
 
+class BashHistory(base.job.BaseModule):
+    
+    """ Extract the essential information about bash history in Bash_History file.
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('bashdir', None)
+
+    def run(self, path=None):
+        username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=".bash_history")
+        
+        list_commands = []
+        for line in self.from_module.run(path):
+            if line != "ls" and line != "clear" :
+                list_commands.append(line)
+        
+        yield {username:list_commands}

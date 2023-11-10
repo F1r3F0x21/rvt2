@@ -47,7 +47,7 @@ class SshAuthorizedKeys(base.job.BaseModule):
                     key = SSHKey(line)
                     key.parse()
                     sshkeys_entry_dict = {
-                        "owner": username,
+                        "user.name": username,
                         "key_algorithm": key.key_type,
                         "key_data": match.groups()[0],
                         "key_options": key.options,
@@ -81,7 +81,7 @@ class SshKnownHosts(base.job.BaseModule):
             if match:
                 hostname,key_algorithm,key_data= match.groups()
                 sshkeys_entry_dict = {
-                    "owner": username,
+                    "user.name": username,
                     "hostname": hostname,
                     "key_algorithm": key_algorithm,
                     "key_data": key_data
@@ -121,7 +121,7 @@ class SshConfig(base.job.BaseModule):
                         if len(aux_dict_host) != 0:
                             if include_param:
                                 aux_dict_host[include_data[0]]=include_data[1]
-                            aux_dict_host["owner"] = username
+                            aux_dict_host["user.name"] = username
                             yield aux_dict_host
                         aux_dict_host = {}
                         aux_dict_host[data[0]]=data[1]
@@ -130,5 +130,5 @@ class SshConfig(base.job.BaseModule):
         if len(aux_dict_host) != 0:
             if include_param:
                 aux_dict_host[include_data[0]]=include_data[1]
-            aux_dict_host["owner"] = username
+            aux_dict_host["user.name"] = username
             yield aux_dict_host
