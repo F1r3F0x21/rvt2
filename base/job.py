@@ -129,7 +129,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
         nested_logs (int): number of nested jobs to log the execution
 
     Returns:
-        If the job is sinble (it has 'modules' or 'cascade'), a generator with the result of the execution.
+        If the job is single (it has 'modules' or 'cascade'), a generator with the result of the execution.
         If the job is composite (it has 'jobs'), return an empty list since the result of each job is probably not related to each other.
         You MUST read each item from the returned generator.
     """
@@ -159,7 +159,8 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
 
 
 def get_path_array(job_name, myparams, extra_config, default_path, config):
-    """ Get path parameter as an array from the following options and precedence:
+    """
+    Get path parameter as an array from the following options and precedence:
         1. myparams (job_with params)
         2. extra_config
         3. parameter
