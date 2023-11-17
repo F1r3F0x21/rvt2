@@ -42,12 +42,12 @@ class BashFilesCp(base.job.BaseModule):
         sub_folder = os.path.basename(path)
         if sub_folder.startswith('.'):
             prefix_file = sub_folder[1:]
-        prefix_file += "_"
+        prefix_file_ = prefix_file + "_"
 
         username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=sub_folder)
-        file_out = os.path.join(bash_dir, prefix_file+ username + '.txt')
+        file_out = os.path.join(bash_dir, prefix_file, prefix_file_+ username + '.txt')
 
-        folder_out = os.path.join(bash_dir)
+        folder_out = os.path.join(bash_dir, prefix_file)
         check_folder(folder_out)
         
         command = "cp -r " + path + " " + file_out

@@ -16,9 +16,11 @@
 # TODO finish script and dump to file
 # Linux partitions must be mounted
 
+import re
+import os
 import base.job
 import subprocess, shlex
-import re
+from tqdm import tqdm
 from datetime import datetime, timedelta
 
 class Passwd(base.job.BaseModule):
@@ -168,6 +170,7 @@ class Utmpdump(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
+        self.set_default_config('progress.disable', 'False')
 
     def run(self, path=None):
         pattern_authorized_keys = r'\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]'
@@ -177,9 +180,13 @@ class Utmpdump(base.job.BaseModule):
         process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         aux_dict = {}
 
-        output = process.stdout.readline().strip()
-        while output:
-            match = prog.match(output)
+        output_string = process.stdout.read()
+        total_iterations = output_string.count('\n') + 1
+
+        for line in tqdm(output_string.split('\n'), total=total_iterations,
+                            desc='Reading {}'.format(os.path.basename(path)),
+                            disable=self.myflag('progress.disable')):
+            match = prog.match(line)
             if match:
                 match_group = match.groups()
                 wtmp_entry_dict = {
@@ -195,7 +202,8 @@ class Utmpdump(base.job.BaseModule):
                 aux_dict, data_to_yield = self.UtmpdumpConnectionsStartedAndEnded(wtmp_entry_dict, aux_dict)
                 if data_to_yield:
                     yield data_to_yield
-            output = process.stdout.readline().strip()
+            else:
+                self.logger().warning("Regex pattern failed with some utmp line: " + line)
         
         connections_to_yield = self.UtmpdumpOtherConnections(aux_dict)
         for conection in connections_to_yield:

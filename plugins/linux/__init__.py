@@ -16,6 +16,9 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
+import pytz
+import glob
+from base.job import RVTError
 
 def get_username(path, mount_dir, subfolder=".ssh"):
 
@@ -28,3 +31,25 @@ def get_username(path, mount_dir, subfolder=".ssh"):
     else:    
         username = "root"
     return username
+
+def get_timezone(mount_dir):
+
+    search_path = f"{mount_dir}/**/etc/timezone"
+    matching_files = glob.glob(search_path)
+    if len(matching_files) != 0:
+        if len(matching_files) == 1:
+            f_timezone = open(matching_files[0], "r")
+            tz_string = f_timezone.read().rstrip()
+            f_timezone.close()
+            tz = pytz.timezone(tz_string)
+            return tz
+        else:
+            raise RVTError('get_timezone: More than one timezone found')
+    else:
+        raise RVTError('get_timezone: No timezone found')
+
+
+
+
+
+    
