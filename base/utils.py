@@ -27,10 +27,11 @@ import re
 import logging
 import base.job
 import base.config
-
+import datetime
+import pytz
+import dateutil.parser
+from functools import lru_cache
 from pathlib import Path, PureWindowsPath
-
-__maintainer__ = 'Juanvi Vera'
 
 
 def check_folder(path):
@@ -343,6 +344,97 @@ def check_integer(value):
         return int(value)
     except ValueError:
         return None
+
+
+def date_to_iso(source, input_timezone="UTC", output_timezone="UTC", on_fail='NULL', dayfirst=False, sep="T", timespec='auto', hide_tz=False):
+    """ Get input data representing a date and return a string in ISO format. Both input and output timezones are editable. """
+    dt = to_localized_date(source, tz_name=input_timezone, dayfirst=dayfirst, on_fail=on_fail)
+    return convert_to_iso(dt, sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz, on_fail=on_fail)
+
+
+def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL'):
+    """ Convert a date to a localized datetime object.
+        Admit either an epoch timestamp, a date string or a non localized datetime object as an input.
+        If `source` does not provided a timezone, assign tz_name.
+    """
+    try:
+        # Timestamp input
+        if type(source) == int or (type(source) == str and source.isdigit()):
+            dt = datetime.datetime.utcfromtimestamp(int(source))
+        # Datetime input
+        elif type(source) == datetime.datetime:
+            dt = source
+        # String input            
+        else:
+            # WARNING: dateutil uses American notation when in doubt: 09/03/2022 is September 3rd
+            # Using dayfirst parameter enforces European notation, but fails interpreting ISO format
+            dt = dateutil.parser.parse(source, dayfirst=dayfirst)
+    except Exception as exc:
+        logging.warning(f'Problems parsing input date {source}. {exc}')
+        return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='DATETIME')
+
+    # Set the timezone:
+    try:
+        if dt.tzinfo:
+            # Take the original timezone if included in source, no matter what tz_name is set
+            return dt
+        tz = pytz.timezone(tz_name)
+    except Exception as exc:
+        logging.warning(f'Input timezone provided is not valid: {tz_name}. Time will be treated as UTC')
+        return dt.replace(tzinfo=pytz.utc)
+    try:
+        localized_datetime = tz.localize(dt)
+        return localized_datetime
+    except Exception as exc:
+        logging.warning(f'Problems setting datezone {tz_name}. {exc}')
+        return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='DATETIME')
+
+
+def convert_to_iso(source_datetime, sep='T', timespec='auto', tz_name='UTC', hide_tz=False, on_fail='NULL'):
+    """ Given a datetime object (source_datetime), return a string representing the date in ISO format adapted to the desired timezone output"""
+    try:
+        tz = pytz.timezone(tz_name)
+    except Exception as exc:
+        logging.warning(f'Output timezone provided is not valid: {tz_name}. Time {source_datetime} will be expressed in UTC')
+        tz = pytz.utc
+
+    if type(source_datetime) != datetime.datetime:
+        logging.debug(f'Expected a datetime object as input. Input provided: {source_datetime}')
+        return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='ISO', tz_name=tz_name, sep=sep, timespec=timespec, hide_tz=hide_tz)
+
+    try:
+        # Convert the datetime to the specified timezone
+        dt = source_datetime.astimezone(tz)
+        dt = dt.replace(tzinfo=dt.tzinfo if not hide_tz else None)
+        # Display in isoformat
+        return dt.isoformat(sep=sep, timespec=timespec)
+    except Exception as exc:
+        logging.warning(f'Problems converting date {source_datetime} to ISO format. {exc}')
+        return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='ISO', tz_name=tz_name, sep=sep, timespec=timespec, hide_tz=hide_tz)
+
+
+@lru_cache
+def _on_fail_dates(on_fail_condition='EPOCH', output_type='DATETIME', tz_name='UTC', sep='T', timespec='auto', hide_tz=False):
+    """ Return default common dates. Auxiliar function for `to_localized_date` and `convert_to_iso`. """
+    # Case datetime output
+    utc_tz = pytz.timezone('UTC')
+    on_fail_datetime = {'EPOCH': utc_tz.localize(datetime.datetime.fromtimestamp(0)),
+                        'NOW': utc_tz.localize(datetime.datetime.utcnow()),
+                        'NULL': None}
+    if output_type.upper() == 'DATETIME':
+        return on_fail_datetime.get(on_fail_condition.upper(), None)
+
+    # Case ISO string output
+    try:
+        tz = pytz.timezone(tz_name)
+    except Exception as exc:
+        tz = pytz.utc
+    on_fail_iso = {'EPOCH': on_fail_datetime['EPOCH'].astimezone(tz),
+                   'NOW': on_fail_datetime['NOW'].astimezone(tz),
+                   'NULL': ""}  
+    for condition in ['EPOCH', 'NOW']:
+        on_fail_iso[condition] = on_fail_iso[condition].replace(tzinfo=on_fail_iso[condition].tzinfo if not hide_tz else None).isoformat(sep=sep, timespec=timespec)
+    return on_fail_iso.get(on_fail_condition.upper(), "")
 
 
 class WaitForJob(base.job.BaseModule):

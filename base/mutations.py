@@ -56,7 +56,15 @@ class DateFields(base.job.BaseModule):
         - **input_timezone**: tzdata/Olsen timezone name of the input dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found. If original input data includes a TZ, it won't be overwritten
         - **output_timezone**: tzdata/Olsen timezone name to set for the output dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found.
         - **hide_tz**: If True, do not output a timezone offset with the result
-        - **missing_action**: what to do when no date field is present. One of (IGNORE, SKIP_ANY, SKIP_ALL, EPOCH, NOW)
+        - **missing_action**: what to do when date field is not present. One of (IGNORE, SKIP_ANY, SKIP_ALL, REPLACE). Default: IGNORE
+                IGNORE: do not transform the date field not found but yield the rest of data
+                SKIP_ANY: if one of the date `fields` is not present, skip the data
+                SKIP_ALL: if none of the date `fields` are present, skip the data
+                REPLACE: Add a new date field with the `on_fail` value
+        - **on_fail**: what to do when date field is in a wrong format. One of (EPOCH, NOW, NULL). Default: NULL
+                EPOCH: substitute the date by the epoch (1970-01-01)
+                NOW: substitute the date by the present time of execution
+                NULL: return an empty string as the date value
         - **dayfirst**: force this option to interpret 03/07/2022 as July 3rd instead of March 7th. Be careful, since this overrides common ISO notation, and 2022-01-06 will be parsed as 1st of June, not 6th of January.
     """
 
@@ -70,6 +78,7 @@ class DateFields(base.job.BaseModule):
         self.set_default_config('output_timezone', 'UTC')
         self.set_default_config('hide_tz', False)
         self.set_default_config('missing_action', 'IGNORE')
+        self.set_default_config('on_fail', 'NULL')
         self.set_default_config('dayfirst', False)
 
     def run(self, path=None):
@@ -83,10 +92,11 @@ class DateFields(base.job.BaseModule):
         input_timezone = self.myconfig('input_timezone')
         output_timezone = self.myconfig('output_timezone')
         missing_action = self.myconfig('missing_action').upper()
+        on_fail = self.myconfig('on_fail').upper()
         dayfirst = self.myflag('dayfirst')
 
-        if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'EPOCH', 'NOW']:
-            raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP, EPOCH, NOW')
+        if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'DEFAULT']:
+            raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP')
 
         time_limits = {'EPOCH': datetime.datetime.fromtimestamp(0),
                        'NOW': datetime.datetime.utcnow()}
@@ -96,7 +106,10 @@ class DateFields(base.job.BaseModule):
 
         # Get local time from analyzed machine OS settings
         if input_timezone.lower() == 'local' or output_timezone.lower() == 'local':
-            local_timezone, offset = CharacterizeWindows(config=self.config).get_timezone()  # partition ???
+            # TODO: Consider multiple partitions
+            # TODO: consider OS different than Windows
+            # TODO: Check what plugins are loaded (Windows, Linux, etc...) and get only those
+            local_timezone, offset = CharacterizeWindows(config=self.config).get_timezone()
         if input_timezone.lower() == 'local':
             input_timezone = local_timezone
         if output_timezone.lower() == 'local':
@@ -116,10 +129,9 @@ class DateFields(base.job.BaseModule):
                         continue
                 if field in data:
                     found = True
-                    converted_date = self.__convert_to_localized_date(data[field], tz_name=input_timezone, dayfirst=dayfirst)
-                    converted_date = self.__convert_to_iso(converted_date, sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz) if converted_date else None
-                else:
-                    converted_date = self.__convert_to_iso(time_limits[missing_action], sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz)
+                    converted_date = base.utils.date_to_iso(data[field], input_timezone=input_timezone, output_timezone=output_timezone, on_fail=on_fail, dayfirst=dayfirst, sep=sep, timespec=timespec, hide_tz=hide_tz)
+                else:  # case missing_action == REPLACE
+                    converted_date = base.utils.convert_to_iso(None, sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz, on_fail=on_fail)
                 if converted_date and not new_fields:
                     data[field] = converted_date
                 elif converted_date and new_fields:
@@ -132,55 +144,6 @@ class DateFields(base.job.BaseModule):
 
             if not skip:
                 yield data
-
-    def __convert_to_localized_date(self, source, tz_name='UTC', dayfirst=False):
-        try:
-            if type(source) == int:
-                # convert an integer to a date
-                dt = datetime.datetime.utcfromtimestamp(source)
-            elif type(source) == str and source.isdigit():
-                # convert an string as an integer to a date
-                dt = datetime.datetime.utcfromtimestamp(int(source))
-            else:
-                # default: use dateutil
-                # WARNING: dateutil uses American notation when in doubt: 09/03/2022 is September 3rd
-                # Using dayfirst parameter enforces European notation, but fails interpreting ISO format
-                dt = dateutil.parser.parse(source, dayfirst=dayfirst)
-        except Exception as exc:
-            if self.myflag('stop_on_error'):
-                raise base.job.RVTError(f'Problems parsing date. {exc}')
-            return None
-
-        # Set the timezone:
-        try:
-            if not dt.tzinfo:
-                tz = pytz.timezone(tz_name)
-        except Exception as exc:
-            self.logger().warning(f'Input timezone provided is not valid: {tz_name}. Time will be treated as UTC')
-            return dt.replace(tzinfo=pytz.utc)
-        try:
-            localized_datetime = tz.localize(dt)
-            return localized_datetime
-        except Exception as exc:
-            if self.myflag('stop_on_error'):
-                raise base.job.RVTError(f'Problems setting datezone {tz_name}. {exc}')
-            return None
-
-    def __convert_to_iso(self, source_datetime, sep='T', timespec='auto', tz_name='UTC', hide_tz=False):
-        try:
-            tz = pytz.timezone(tz_name)
-        except Exception as exc:
-            self.logger().warning(f'Output timezone provided is not valid: {tz_name}. Time will be treated as UTC')
-            dt = dt.replace(tzinfo=pytz.utc)
-        try:
-            # Convert the datetime to the specified timezone
-            dt = source_datetime.astimezone(tz)
-            # Display in isoformat
-            return dt.replace(tzinfo=dt.tzinfo if not hide_tz else None).isoformat(sep=sep, timespec=timespec)
-        except Exception as exc:
-            if self.myflag('stop_on_error'):
-                raise base.job.RVTError(f'Problems converting date to ISO format. {exc}')
-            return None
 
 
 class RemoveFields(base.job.BaseModule):
