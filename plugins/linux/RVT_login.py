@@ -13,15 +13,16 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-# TODO finish script and dump to file
-# Linux partitions must be mounted
-
+from functools import partial
 import re
 import os
+import struct
 import base.job
 import subprocess, shlex
 from tqdm import tqdm
 from datetime import datetime, timedelta
+from base.utils import date_to_iso
+from plugins.linux import get_timezone
 
 class Passwd(base.job.BaseModule):
     
@@ -48,6 +49,57 @@ class Passwd(base.job.BaseModule):
                 "login_shell": data[6]
             }
             yield user_account_entry_dict
+
+class Group(base.job.BaseModule):
+    """ Extract the essential information about group file.
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+
+    def run(self, path=None):
+        for line in self.from_module.run(path):
+            data = line.split(":")
+            group_entry_dict = {
+                "group_name": data[0],
+                "password": data[1],
+                "group_ID": data[2],
+                "user_list" : data[3]
+            }
+            yield group_entry_dict
+
+class LastLog(base.job.BaseModule):
+    """ Extract the essential information about lastLog file.
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+
+    def run(self, path=None):
+        structure_block=struct.Struct("I32s256s")
+        with open(path, "rb") as lastlog_file:
+            for uid, block_bytes in enumerate(iter(partial(lastlog_file.read, structure_block.size), b"")):
+                if any(block_bytes):
+                    timestamp, line, host = structure_block.unpack(block_bytes)
+                    dict_output = {
+                        "user_ID" : uid,
+                        "ut_line" : line.rstrip(b"\x00").decode("utf8"),
+                        "ut_host" : host.rstrip(b"\x00").decode("utf8"),
+                        "datetime" : datetime.fromtimestamp(timestamp)
+                    }
+                    # Localtime to UTC
+                    local_tz = get_timezone(self.myconfig('mountdir'))
+                    dict_output["datetime"] = date_to_iso(dict_output["datetime"], input_timezone=local_tz)
+
+                    yield dict_output
 
 class Shadow(base.job.BaseModule):
     
@@ -232,19 +284,21 @@ class Utmpdump(base.job.BaseModule):
 
                 datetime_from = datetime.strptime(time_from, time_format)
                 datetime_to = datetime.strptime(time_to, time_format)
+                datetime_from_iso = date_to_iso(datetime_from)
+                datetime_to_iso = date_to_iso(datetime_to)
 
                 time_difference = datetime_to - datetime_from
                 hours, remainder = divmod(time_difference.seconds, 3600)
                 minutes, _ = divmod(remainder, 60)
 
                 connection_dict = {
-                    "@timestamp": time_from,
+                    "@timestamp": str(datetime_from_iso),
                     "ut_type": "USER_PROCESS",
                     "ut_pid": register_dict[self.ut_type["USER_PROCESS"]]["ut_pid"],
                     "user.name": register_dict[self.ut_type["USER_PROCESS"]]["ut_user"],
                     "ut_line": register_dict[self.ut_type["USER_PROCESS"]]["ut_line"],
                     "ut_host": register_dict[self.ut_type["USER_PROCESS"]]["ut_host"],
-                    "ut_time_to": time_to,
+                    "ut_time_to": str(datetime_to_iso),
                     "ut_time_total": f"{hours}:{minutes:02}"
                 }
 

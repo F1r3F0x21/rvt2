@@ -13,16 +13,13 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-# TODO finish script and dump to file
-# Linux partitions must be mounted
 
 import re
 import time
-import pytz
 import base.job
 import os
 from datetime import datetime
-from base.utils import save_csv, save_dummy
+from base.utils import save_csv, save_dummy, date_to_iso
 from plugins.linux import get_timezone
 
 class Cron(base.job.BaseModule):
@@ -134,11 +131,6 @@ class CronLog(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
         pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*\[\d+\]:\s.*)'
         prog = re.compile(pattern)
-        try:
-            tz = get_timezone(self.myconfig('mountdir'))
-        except base.job.RVTError as error:
-            self.logger().error(error)
-            tz = pytz.timezone("UTC") 
 
         prev_date_str = "Jan 1 00:00:00"
         prev_date = datetime.strptime(prev_date_str, "%b %d %H:%M:%S")
@@ -163,23 +155,14 @@ class CronLog(base.job.BaseModule):
                 prev_date = actual_date
 
                 cron_timestamp_with_year = f"{year + year_passed} {log_entry_dict['@timestamp']}"
+
                 # Parse the timestamp and convert it to ISO format
                 parsed_timestamp = datetime.strptime(cron_timestamp_with_year, "%Y %b %d %H:%M:%S")
-
-                # From LocalTime to UTC
-                localized_datetime = tz.localize(parsed_timestamp)
-                utc_timestamp = localized_datetime.astimezone(pytz.utc)
-                output_string_utc = utc_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+                tz = get_timezone(self.myconfig('mountdir'))
+                output_string_utc = date_to_iso(parsed_timestamp, input_timezone=tz, output_timezone="UTC")
 
                 log_entry_dict['@timestamp'] = output_string_utc
                 yield log_entry_dict
 
             else:
                 self.logger().warning("Regex pattern failed with some logline input " + line)
-
-
-
-        
-
-        
-    

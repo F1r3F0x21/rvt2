@@ -28,7 +28,6 @@ import datetime
 import os
 import ast
 import pytz
-import gzip
 from textwrap import wrap
 from plugins.windows.RVT_os_info import CharacterizeWindows
 from base.utils import sanitize_ip
@@ -54,9 +53,18 @@ class DateFields(base.job.BaseModule):
         - **new_fields**: A space separated list of new fields to create. If not set, original fields will be converted. If `fields` is set, must have the same number of items as `new_fields`
         - **sep**: Parameter used by datetime.isoformat. One-character separator, placed between the date and time portions of the result
         - **timespec**: Parameter used by datetime.isoformat. Specifies the number of additional components of the time to include
-        - **tz_name**: tzdata/Olsen timezone name to set for the dates. Examples: `Europe/Berlin`, `America/New_York`, `UTC`. If `local` is set, timezone will be searched on the registry
+        - **input_timezone**: tzdata/Olsen timezone name of the input dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found. If original input data includes a TZ, it won't be overwritten
+        - **output_timezone**: tzdata/Olsen timezone name to set for the output dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found.
         - **hide_tz**: If True, do not output a timezone offset with the result
-        - **missing_action**: what to do when no date field is present. One of (IGNORE, SKIP_ANY, SKIP_ALL, EPOCH, NOW)
+        - **missing_action**: what to do when date field is not present. One of (IGNORE, SKIP_ANY, SKIP_ALL, REPLACE). Default: IGNORE
+                IGNORE: do not transform the date field not found but yield the rest of data
+                SKIP_ANY: if one of the date `fields` is not present, skip the data
+                SKIP_ALL: if none of the date `fields` are present, skip the data
+                REPLACE: Add a new date field with the `on_fail` value
+        - **on_fail**: what to do when date field is in a wrong format. One of (EPOCH, NOW, NULL). Default: NULL
+                EPOCH: substitute the date by the epoch (1970-01-01)
+                NOW: substitute the date by the present time of execution
+                NULL: return an empty string as the date value
         - **dayfirst**: force this option to interpret 03/07/2022 as July 3rd instead of March 7th. Be careful, since this overrides common ISO notation, and 2022-01-06 will be parsed as 1st of June, not 6th of January.
     """
 
@@ -66,9 +74,11 @@ class DateFields(base.job.BaseModule):
         self.set_default_config('new_fields', '')
         self.set_default_config('sep', 'T')
         self.set_default_config('timespec', 'auto')
-        self.set_default_config('tz_name', 'UTC')
+        self.set_default_config('input_timezone', 'UTC')
+        self.set_default_config('output_timezone', 'UTC')
         self.set_default_config('hide_tz', False)
         self.set_default_config('missing_action', 'IGNORE')
+        self.set_default_config('on_fail', 'NULL')
         self.set_default_config('dayfirst', False)
 
     def run(self, path=None):
@@ -79,21 +89,31 @@ class DateFields(base.job.BaseModule):
         hide_tz = self.myflag('hide_tz')
         fields = self.myarray('fields')
         new_fields = self.myarray('new_fields')
-        tz_name = self.myconfig('tz_name')
+        input_timezone = self.myconfig('input_timezone')
+        output_timezone = self.myconfig('output_timezone')
         missing_action = self.myconfig('missing_action').upper()
+        on_fail = self.myconfig('on_fail').upper()
         dayfirst = self.myflag('dayfirst')
 
-        if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'EPOCH', 'NOW']:
-            raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP, EPOCH, NOW')
+        if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'DEFAULT']:
+            raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP')
 
-        time_limits = {'EPOCH': datetime.datetime.fromtimestamp(0).isoformat(sep=sep, timespec=timespec),
-                       'NOW': datetime.datetime.utcnow().isoformat(sep=sep, timespec=timespec)}
+        time_limits = {'EPOCH': datetime.datetime.fromtimestamp(0),
+                       'NOW': datetime.datetime.utcnow()}
 
         if new_fields and len(new_fields) != len(fields):
             raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
 
-        if tz_name.lower() == 'local':
-            tz_name, offset = CharacterizeWindows(config=self.config).get_timezone()  # partition ???
+        # Get local time from analyzed machine OS settings
+        if input_timezone.lower() == 'local' or output_timezone.lower() == 'local':
+            # TODO: Consider multiple partitions
+            # TODO: consider OS different than Windows
+            # TODO: Check what plugins are loaded (Windows, Linux, etc...) and get only those
+            local_timezone, offset = CharacterizeWindows(config=self.config).get_timezone()
+        if input_timezone.lower() == 'local':
+            input_timezone = local_timezone
+        if output_timezone.lower() == 'local':
+            output_timezone = local_timezone
 
         for data in self.from_module.run(path):
             found = False
@@ -109,9 +129,9 @@ class DateFields(base.job.BaseModule):
                         continue
                 if field in data:
                     found = True
-                    converted_date = self.__convert_date(data[field], sep=sep, timespec=timespec, tz_name=tz_name, hide_tz=hide_tz, dayfirst=dayfirst)
-                else:
-                    converted_date = time_limits[missing_action]
+                    converted_date = base.utils.date_to_iso(data[field], input_timezone=input_timezone, output_timezone=output_timezone, on_fail=on_fail, dayfirst=dayfirst, sep=sep, timespec=timespec, hide_tz=hide_tz)
+                else:  # case missing_action == REPLACE
+                    converted_date = base.utils.convert_to_iso(None, sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz, on_fail=on_fail)
                 if converted_date and not new_fields:
                     data[field] = converted_date
                 elif converted_date and new_fields:
@@ -124,34 +144,6 @@ class DateFields(base.job.BaseModule):
 
             if not skip:
                 yield data
-
-    def __convert_date(self, source, sep='T', timespec='auto', tz_name='UTC', hide_tz=False, dayfirst=False):
-        try:
-            if type(source) == int:
-                # convert an integer to a date
-                dt = datetime.datetime.utcfromtimestamp(source)
-            elif type(source) == str and source.isdigit():
-                # convert an string as an integer to a date
-                dt = datetime.datetime.utcfromtimestamp(int(source))
-            else:
-                # default: use dateutil
-                # WARNING: dateutil uses American notation when in doubt: 09/03/2022 is September 3rd
-                # Using dayfirst parameter enforces European notation, but fails interpreting ISO format
-                dt = dateutil.parser.parse(source, dayfirst=dayfirst)
-
-            # Assume input date is in UTC when no tzinfo is set:
-            if not dt.tzinfo:
-                dt = dt.replace(tzinfo=pytz.utc)
-            tz = pytz.timezone(tz_name)
-            # Convert the datetime to the specified timezone
-            dt = dt.astimezone(tz)
-            # Display in isoformat
-            return dt.replace(tzinfo=dt.tzinfo if not hide_tz else None).isoformat(sep=sep, timespec=timespec)
-
-        except Exception as e:
-            if self.myflag('stop_on_error'):
-                raise
-            return None
 
 
 class RemoveFields(base.job.BaseModule):
@@ -340,7 +332,7 @@ class SetFields(base.job.BaseModule):
                     newdata.update(ast.literal_eval(fieldsStr.format(**data)))
                 except KeyError as exc:
                     if self.myflag('stop_on_error'):
-                        raise
+                        raise base.job.RVTError(exc)
                     self.logger().warning('Key not found: %s', exc)
             yield newdata
 
@@ -407,7 +399,7 @@ class AddFields(base.job.BaseModule):
                     newdata.update(ast.literal_eval(fieldsStr.format(**self.config.config[conf_section])))
                 except KeyError as exc:
                     if self.myflag('stop_on_error'):
-                        raise
+                        raise base.job.RVTError(exc)
                     self.logger().warning('Key not found: %s', exc)
             yield newdata
 
@@ -684,39 +676,6 @@ class AdaptIpFormat(base.job.BaseModule):
                     data[port_field] = port
             yield data
 
-class Descompress(base.job.BaseModule):
-    """ Descompress a file in `path` to the unzip_destination
-
-    Configuration:
-        - **path** (str): Path of the compressed file to descompress
-        - **unzip_destination** (str): Destination path of the descompress file. 
-    """
-
-    def read_config(self):
-        super().read_config()
-        self.set_default_config('unzip_destination', '')
-
-    def run(self, path=None):
-        self.check_params(path, check_path=True, check_path_exists=True, check_from_module=False)
-        destination_path = self.myconfig('unzip_destination')
-        
-        file_name = os.path.basename(path)
-        file_name_without_extension, file_extension = os.path.splitext(file_name)
-
-        if file_extension == ".gz":        
-            try:
-                if not os.path.exists(destination_path):
-                    os.makedirs(destination_path)
-                with gzip.open(path, 'rb') as f_in:
-                    with open(destination_path + file_name_without_extension, 'wb') as f_out:
-                        f_out.write(f_in.read())
-
-            except SyntaxError:
-                raise base.job.RVTError('base.mutation.Descompress failed')
-        else:
-            raise base.job.RVTError('`Extension` Not supported yet. Extension: {}'.format(file_extension))
-
-        
 
 def safe_string_itemgetter(*items):
     """ Variation from operator itemgetter that helps to sort missing keys at first place"""

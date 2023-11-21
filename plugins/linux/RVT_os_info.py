@@ -13,9 +13,6 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-# TODO finish script and dump to file
-# Linux partitions must be mounted
-
 import os
 import re
 import shlex
@@ -24,6 +21,7 @@ import base.job
 import pytz
 from collections import defaultdict
 from datetime import datetime
+from base.utils import date_to_iso
 from plugins.linux import get_timezone
 
 class CharacterizeLinux(base.job.BaseModule):
@@ -129,12 +127,8 @@ class CharacterizeLinux(base.job.BaseModule):
                 # Timezone data
                 if os.path.isfile(os.path.join(part_path, "etc/timezone")):
 
-                    try:
-                        tz = get_timezone(self.myconfig('mountdir'))
-                    except base.job.RVTError as error:
-                        self.logger().error(error)
-                        tz = pytz.timezone("UTC")               
-
+                    tz_str = get_timezone(self.myconfig('mountdir'))
+                    tz = pytz.timezone(tz_str)
                     current_time_in_timezone = datetime.now(tz)
                     utc_offset = current_time_in_timezone.utcoffset()
                     utc_offset_hours = utc_offset.total_seconds() / 3600
@@ -174,21 +168,18 @@ class CharacterizeLinux(base.job.BaseModule):
                     self.os_info[part_to_save]["InstallDate"] = creation_time_UTC
 
                 if os.path.isfile(os.path.join(part_path, "var/log/wtmp")):
-                    try:
-                        tz = get_timezone(self.myconfig('mountdir'))
-                    except base.job.RVTError as error:
-                        self.logger().error(error)
-                        tz = pytz.timezone("UTC")
+                    tz = get_timezone(self.myconfig('mountdir'))
 
                     command = f"last -x shutdown -f {os.path.join(part_path, 'var/log/wtmp')} --time-format iso"
-                    env = {'TZ':str(tz)}
+                    env = {'TZ':tz}
+
                     args = shlex.split(command)
                     process = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     output_string = process.stdout.read().split('\n')
+                    
                     last_shutdown_line = output_string[0]
                     if last_shutdown_line.startswith("shutdown system down"):
                         last_shutdown_time = " ".join(last_shutdown_line.split()[6:7])
                         last_shutdown_time = datetime.fromisoformat(last_shutdown_time)
-                        last_shutdown_time_utc = last_shutdown_time.astimezone(pytz.UTC)
-                        output_string_utc = last_shutdown_time_utc.strftime("%Y-%m-%dT%H:%M:%S%z").replace("+0000", "Z")
-                        self.os_info[part_to_save]["ShutdownTime"] = output_string_utc
+                        last_shutdown_utc = date_to_iso(last_shutdown_time, input_timezone=tz).replace("+00:00", "Z")
+                        self.os_info[part_to_save]["ShutdownTime"] = last_shutdown_utc
