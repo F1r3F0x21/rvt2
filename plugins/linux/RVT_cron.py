@@ -129,7 +129,7 @@ class CronLog(base.job.BaseModule):
 
     def run(self, path=None):        
         self.check_params(path, check_path=True, check_path_exists=True)
-        pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*\[\d+\]:\s.*)'
+        pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*\[\d+\]):(\s.*)'
         prog = re.compile(pattern)
 
         prev_date_str = "Jan 1 00:00:00"
@@ -142,10 +142,11 @@ class CronLog(base.job.BaseModule):
         for line in self.from_module.run(path):
             match = prog.match(line)
             if match:
-                timestamp, host, command = match.groups()
+                timestamp, host, process, command = match.groups()
                 log_entry_dict = {
                     "@timestamp": timestamp,
                     "host.hostname": host,
+                    "process.name": process,
                     "process.command_line": command
                 }
 

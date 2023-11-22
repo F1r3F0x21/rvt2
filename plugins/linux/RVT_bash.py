@@ -17,7 +17,7 @@ import base.job
 import os
 import subprocess, shlex
 from . import get_username
-from base.utils import check_folder
+from base.utils import check_folder, save_csv
 
 
 class BashFilesCp(base.job.BaseModule):
@@ -69,11 +69,17 @@ class BashHistory(base.job.BaseModule):
         self.set_default_config('bashdir', None)
 
     def run(self, path=None):
+        base_path = self.myconfig('bashdir')
         username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=".bash_history")
         
         list_commands = []
+        list_commands_dict = []
         for line in self.from_module.run(path):
             if line != "ls" and line != "clear" :
                 list_commands.append(line)
+                list_commands_dict.append({'command':line})
+        
+        csv_out = os.path.join(base_path, 'bash_history_' + username + '.csv')
+        save_csv(list_commands_dict, outfile=csv_out, file_exists='OVERWRITE') 
         
         yield {username:list_commands}
