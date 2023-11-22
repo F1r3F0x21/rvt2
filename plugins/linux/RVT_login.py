@@ -72,6 +72,28 @@ class Group(base.job.BaseModule):
             }
             yield group_entry_dict
 
+class Gshadow(base.job.BaseModule):
+    """ Extract the essential information about gshadow file.
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+
+    def run(self, path=None):
+        for line in self.from_module.run(path):
+            data = line.split(":")
+            group_entry_dict = {
+                "group_name": data[0],
+                "password": data[1],
+                "administrators": data[2],
+                "members" : data[3]
+            }
+            yield group_entry_dict
+
 class LastLog(base.job.BaseModule):
     """ Extract the essential information about lastLog file.
 

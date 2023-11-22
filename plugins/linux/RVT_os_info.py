@@ -13,6 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+import json
 import os
 import re
 import shlex
@@ -21,7 +22,7 @@ import base.job
 import pytz
 from collections import defaultdict
 from datetime import datetime
-from base.utils import date_to_iso
+from base.utils import check_directory, date_to_iso
 from plugins.linux import get_timezone
 
 class CharacterizeLinux(base.job.BaseModule):
@@ -48,10 +49,20 @@ class CharacterizeLinux(base.job.BaseModule):
         # With GRR dump the structure of folders in diferents partitions. But all partitions are one OS
         oneOS = True
 
-        # Get OS and users information
+        # Get OS information
         for part in self.partitions:
             self.os_information(part, oneOS)
-            #self.users_information(part, oneOS)
+        
+         # Save information in auxiliar file to be used by other modules
+        aux_json_file = self.myconfig('aux_file')
+        aux_json_file_raw = '.'.join(aux_json_file.split('.')[:-1]) + '_raw.json'
+        check_directory(os.path.dirname(aux_json_file), create=True)
+        
+        with open(aux_json_file, 'w') as outfile:
+            json.dump(self.os_info, outfile, indent=4)
+        with open(aux_json_file_raw, 'w') as outfile:
+            json.dump(self.os_info, outfile)
+
         return [dict(os_info=self.os_info, source=self.myconfig('source'))]
 
 
@@ -183,3 +194,41 @@ class CharacterizeLinux(base.job.BaseModule):
                         last_shutdown_time = datetime.fromisoformat(last_shutdown_time)
                         last_shutdown_utc = date_to_iso(last_shutdown_time, input_timezone=tz).replace("+00:00", "Z")
                         self.os_info[part_to_save]["ShutdownTime"] = last_shutdown_utc
+
+class Fstab(base.job.BaseModule):
+    """ Extract the essential information about fstab file.
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+
+    def run(self, path=None):
+        partitions_dict = {}
+        for line in self.from_module.run(path):
+            if not line.startswith('#'):
+                data = line.split()
+                group_entry_dict = {
+                    "device": data[0],
+                    "mount_point": data[1],
+                    "type": data[2],
+                    "options" : data[3],
+                    "backup" : data[4],
+                    "pass" : data[5]
+                }
+                partitions_dict[group_entry_dict["device"]] = group_entry_dict
+        
+        # Save information in auxiliar file to be used by other modules
+        aux_json_file = self.myconfig('aux_file')
+        aux_json_file_raw = '.'.join(aux_json_file.split('.')[:-1]) + '_raw.json'
+        check_directory(os.path.dirname(aux_json_file), create=True)
+        
+        with open(aux_json_file, 'w') as outfile:
+            json.dump(partitions_dict, outfile, indent=4)
+        with open(aux_json_file_raw, 'w') as outfile:
+            json.dump(partitions_dict, outfile)
+                
+        return [dict(partitions=partitions_dict, source=self.myconfig('source'))]
