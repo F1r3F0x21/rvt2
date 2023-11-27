@@ -13,16 +13,19 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-from functools import partial
+import ast
 import re
 import os
 import struct
 import base.job
 import subprocess, shlex
+import pandas as pd
 from tqdm import tqdm
 from datetime import datetime, timedelta
-from base.utils import date_to_iso
+from base.utils import date_to_iso, save_dummy, save_md_table
 from plugins.linux import get_timezone
+from functools import partial
+
 
 class Passwd(base.job.BaseModule):
     
@@ -366,4 +369,123 @@ class Utmpdump(base.job.BaseModule):
                 }
                 list_data.append(connection_dict)
         return list_data
+
+class Analysis(base.job.BaseModule):
+    """ Extract the essential information of the users and groups in a tables
+    """
+
+    def read_config(self):
+        super().read_config()
+
+    def run(self, path=None):
+        self.login_dir = self.myconfig('logindir')
+
+        df_result = pd.DataFrame()
+
+        # User information
+        url_passwd = os.path.join(self.login_dir, "passwd.csv")
+        if os.path.isfile(url_passwd):
+            df_passwd = pd.read_csv(url_passwd, sep=';', quotechar='"')
+            data_passwd = []
+            for index, row in df_passwd.iterrows():
+                if str(row["home_directory"]).startswith("/home") or row["login_shell"] == "/bin/bash":
+                    data_passwd.append(row)
+            df_result = pd.DataFrame(data_passwd)
+            df_result.columns = df_result.columns.str.strip()
+            
+            # Lastlog information
+            df_result = self.lastlog(df_result)
+
+            # Shadow information
+            df_result = self.shadow(df_result)
+
+            # Group information
+            df_result = self.group(df_result)
+
+            df_result_filtered = df_result[['user.name', 'user_ID', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'group']]
+            
+            # Saving table
+            txt_out = os.path.join(self.myconfig('analysisdir'), 'users_summary.md')
+            data = df_result_filtered.to_markdown()
+            with open(txt_out, 'w') as file:
+                file.write(data)
+            df_result_filtered.to_csv(os.path.join(self.myconfig('analysisdir'), 'users_summary.csv'))
+        else:
+            self.logger().error("To make the users table etc/passwd needed, and not found.")
+        
+        # Login information
+        url_wtmp = os.path.join(self.login_dir, "wtmp.csv")
+        if os.path.isfile(url_wtmp):
+            df_wtmp = pd.read_csv(url_wtmp, sep=';', quotechar='"')
+            df_filtered_wtmp = df_wtmp[df_wtmp['ut_type'] == 'USER_PROCESS']
+            df_result_wtmp = df_filtered_wtmp[['user.name', 'ut_host', '@timestamp', 'ut_time_to', 'ut_time_total']]
+
+            # Saving table
+            txt_out = os.path.join(self.myconfig('analysisdir'), 'logins_summary.md')
+            data = df_result_wtmp.to_markdown()
+            with open(txt_out, 'w') as file:
+                file.write(data)
+            df_result_wtmp.to_csv(os.path.join(self.myconfig('analysisdir'), 'logins_summary.csv'))
+
+    def lastlog(self, df_result):
+        url_lastlog = os.path.join(self.login_dir, "lastlog.csv")
+        if os.path.isfile(url_lastlog):
+            df_lastlog = pd.read_csv(url_lastlog, sep=';', quotechar='"')
+            df_result = pd.merge(df_result, df_lastlog, on='user_ID', how='outer')
+            df_result.rename(columns={'ut_line': 'lastlog_ut_line', 'ut_host': 'lastlog_ut_host', 'datetime': 'lastlog_datetime' }, inplace=True)
+            return df_result
+        else:
+            return df_result
+        
+    def shadow(self, df_result):
+        url_shadow = os.path.join(self.login_dir, "shadow.csv")
+        if os.path.isfile(url_shadow):
+            df_shadow = pd.read_csv(url_shadow, sep=';', quotechar='"')
+            df_result = pd.merge(df_result, df_shadow[['user.name', 'last_password_change']], on='user.name', how='left')
+            return df_result
+        else:
+            return df_result
+        
+    def group(self, df_result):
+        url_group_secure = os.path.join(self.login_dir, "group_secure.csv")
+        if os.path.isfile(url_group_secure):
+            df_group_secure = pd.read_csv(url_group_secure, sep=';', quotechar='"')
+            df_result['group'] = None
+            for index, row in df_group_secure.iterrows():
+                if (pd.notna(row['members'])):
+                    for user in str(row["members"]).split(","):
+                        list_group = df_result.loc[df_result['user.name'] == user]
+                        if not list_group.empty:
+                            if list_group['group'].values != None:
+                                list_group = list_group['group'].values[0]
+                                list_group = ast.literal_eval(str(list_group))
+                                list_group.append(row["group_name"])
+                            else:
+                                list_group = [row["group_name"]]
+                            df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)
+                        
+        else:
+            url_group = os.path.join(self.login_dir, "group.csv")
+            if os.path.isfile(url_group):
+                df_group = pd.read_csv(url_group, sep=';', quotechar='"')
+                df_result['group'] = None
+                print(df_group_secure)
+                for index, row in df_group_secure.iterrows():
+                    if (pd.notna(row['user_list'])):
+                        for user in str(row["user_list"]).split(","):
+                            list_group = df_result.loc[df_result['user.name'] == user]
+                            if not list_group.empty:
+                                if list_group['group'].values != None:
+                                    list_group = list_group['group'].values[0]
+                                    list_group = ast.literal_eval(str(list_group))
+                                    list_group.append(row["group_name"])
+                                else:
+                                    list_group = [row["group_name"]]
+                                df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)
+
+        return df_result
+
+
+
+
 
