@@ -639,8 +639,9 @@ class AdaptIpFormat(base.job.BaseModule):
 
     Configuration:
         - **fields**: Space separated keys to adapt to IP format
-        - **port_fields**: Space separated names for the new port field if IP field contains a port. Must hav the same number of items as `fields`. By default, substitute "ip" or "address" by "port" on each of the `fields`
+        - **port_fields**: Space separated names for the new port field if IP field contains a port. Must have the same number of items as `fields`. By default, substitute "ip" or "address" by "port" on each of the `fields`
         - **ignore_port**: If True, ignore the treatment of ports when processing an IP
+        - **null_value**: Output value in case no match found. Common options: (NONE, EMPTY, DASH). Default=None
     """
 
     def read_config(self):
@@ -648,12 +649,15 @@ class AdaptIpFormat(base.job.BaseModule):
         self.set_default_config('fields', '')
         self.set_default_config('port_fields', '')
         self.set_default_config('ignore_port', False)
+        self.set_default_config('null_value', 'NONE')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
         fields = self.myarray('fields')
         port_fields = self.myarray('port_fields')
         ignore_port = self.myconfig('ignore_port')
+        null_value = self.myconfig('null_value')
+        null_values = {"NONE": None, "EMPTY": "", "DASH": "-"}
 
         if not fields:
             yield from self.from_module.run(path)
@@ -663,16 +667,18 @@ class AdaptIpFormat(base.job.BaseModule):
             raise base.job.RVTError('`fields` and `port_fields` must have the same number of items. Fields: {}; Port fields: {}'.format(fields, port_fields))
         if not port_fields:
             port_fields = fields.copy()
-            for name, replacement in zip(['IP', 'Ip', 'ip', 'Address', 'address'],['Port', 'Port', 'port', 'Port', 'port']):
-                port_fields = [f.replace(name,replacement) for f in port_fields]
+            if not ignore_port:
+                for name, replacement in zip(['IP', 'Ip', 'ip', 'Address', 'address'],['Port', 'Port', 'port', 'Port', 'port']):
+                    port_fields = [f.replace(name,replacement) for f in port_fields]
 
         relation = list(zip(fields, port_fields))
         for data in self.from_module.run(path):
             for ip_field, port_field in relation:
                 if ip_field not in data:
                     continue
-                data[ip_field], port = sanitize_ip(data[ip_field])
-                if port:
+                ip, port = sanitize_ip(data[ip_field])
+                data[ip_field] = ip if ip else null_values.get(null_value.upper(), null_value)
+                if port and not ignore_port:
                     data[port_field] = port
             yield data
 

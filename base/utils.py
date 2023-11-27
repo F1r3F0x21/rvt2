@@ -258,10 +258,10 @@ def sanitize_ip(value):
     - ''                        --> null (Ipfield throws error when processing empty string)
     - `-`                       --> null
     - [123.123.123.123]         --> 123.123.123.123
-    - ::ffff:10.100.1.87        --> 10.100.1.87 (Revert the default IPv4 toIPv6 convention to simplify reading)
+    - ::ffff:10.100.1.87        --> 10.100.1.87 (Revert the default IPv4toIPv6 convention to simplify reading)
     - 123.123.123.123::1980     --> ip=123.123.123.123, port=1980 (Ports are treated as separated field)
     - ::1234:5678:1.2.3.4:443   --> ip=::1234:5678:1.2.3.4, port=443
-    - 2603:10a6:7:94:cafe::d6:3 --> ip=2603:10a6:7:94:cafe::d6, port=3
+    - [2603:10a6:7:94:cafe::d6]:3 --> ip=2603:10a6:7:94:cafe::d6, port=3
     - 123.123.123.123           --> 123.123.123.123 (Valid IPv4 format. No changes)
     - 2001:db8:1::ab9:C0A8:102  --> 2001:db8:1::ab9:C0A8:102 (Valid IPv6 format. No changes)
     - ::1234:5678:1.2.3.4       --> ::1234:5678:1.2.3.4 (Valid dual IPv6 format. No changes)
@@ -271,51 +271,47 @@ def sanitize_ip(value):
     Returns tuple (ip, port)
     """
 
-    value = value.replace('[', '').replace(']', '')
     if value == '-' or value == '':
         return (None, None)
 
-    semicolons = value.count(':')
-    if not semicolons:  # Single IPv4 address
-        if not is_valid_ipv4_address(value):
-            logging.warning(f'IP value {value} is not a valid IP')
-            return (None, None)
-        return (value, None)
-    terms = value.split(':')
-    if (semicolons == 1 or (semicolons == 2 and terms[0])):  # IPv4:port or IPv4::por escenarios
-        ip = terms[0]
-        if not is_valid_ipv4_address(ip):
-            logging.warning(f'IP value {value} is not a valid IP')
-            ip = None
-        return ip, check_integer(terms[1])
-    elif semicolons == 2 and not terms[0]:  # Empty IPv6 address (::) or ::IPv4 scenario
-        if not terms[2]:
-            return (None,None)
-        if not is_valid_ipv4_address(terms[2]):
-            logging.warning(f'IP value {terms[2]} is not a valid IP')
-            return (None, None)
-        return (terms[2], None)
-    elif semicolons == 3 and value.lower().startswith('::ffff:') and terms[3]:  # ::ffff:IPv4 scenario
-        if not is_valid_ipv4_address(terms[3]):
-            logging.warning(f'IP value {terms[3]} is not a valid IP')
-            return (None, None)
-        return (terms[3], None)
-    elif semicolons >= 3 and '.' in terms[-2]:  # IPv6:IPv4:port scenario
-        port = check_integer(terms[-1])
-        ip = ':'.join(terms[:-1])
-        if not is_valid_ipv4_address(terms[-2]):
-            logging.warning(f'IP value {ip} is not a valid IP')
-            return (None, None)
-        # TODO: Check if first IPv6 part is valid
-        return (ip, port)
-    elif semicolons == 7:  # IPv6:port scenario
-        ip = ':'.join(terms[:-1])
-        if not is_valid_ipv6_address(ip):
-            logging.warning(f'IP value {ip} is not a valid IP')
-            return (None, None)
-        return ip, check_integer(terms[-1])
+    # Regular expression to match IPv4 or Ipv6 address and optional port
+    ip_pattern = re.compile(r'^\[?(?P<ip>.*?)\]?(?::(?P<port>\d+))?$')
+    # Regular expression to match IPv6 address and optional port. If port included, "[]" brackets are mandatory
+    if ']' in value:
+        ipv6_pattern = re.compile(r'^\[(?P<ip>.*?)\](?::(?P<port>\d+))?$')
     else:
+        ipv6_pattern = re.compile(r'^(?P<ip>.*?)(?P<port>$)')
+
+    match = ip_pattern.match(value)
+    if not match:
         return (None, None)
+    ip = match.group('ip')
+    port = check_integer(match.group('port'))
+
+    # Case when an IPv4 is included. Prioritize over IPv6
+    if '.' in ip:
+        terms = ip.rstrip(':').split(':')
+        ipv4 = terms[-1]
+        ipv6 = ':'.join(terms[:-1])
+        valid_v4 = False
+        if is_valid_ipv4_address(ipv4):
+            valid_v4 = True
+        else:
+            logging.debug(f'IP value {value} is not a valid IPv4')
+        if not is_valid_ipv6_address(ipv6) and not valid_v4:
+            logging.warning(f'IP value {value} is not a valid IP')
+            return (None, None)
+        return (ipv4 if valid_v4 else ipv6, port)
+
+    # Only IPv6 case
+    else:
+        match_ipv6 = ipv6_pattern.match(value)
+        ip = match_ipv6.group('ip')
+        port = check_integer(match_ipv6.group('port'))
+        if not is_valid_ipv6_address(ip):
+            logging.warning(f'IP value {value} is not a valid IPv6')
+            return (None, None)
+        return (ip, port)
 
 
 def is_valid_ipv4_address(address):
@@ -342,7 +338,7 @@ def check_integer(value):
     """ Check if an object can be casted to an integer. Return the casted object or None. """
     try:
         return int(value)
-    except ValueError:
+    except (ValueError, TypeError):
         return None
 
 
