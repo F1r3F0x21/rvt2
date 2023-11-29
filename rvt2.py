@@ -166,6 +166,16 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, elap
         analyst.info(f'RVT2 job="%s" for casename="%s" on source="%s" status="%s"', job, casename, source, status)
 
 
+def job_needs_morgue(job):
+    """ Check if the specified job requires a 'morgue' """
+    return False if job is None else (job not in ['help', 'show_jobs'])
+
+
+def job_needs_source(job):
+    """ Check if the specified job requires a 'morgue' """
+    return False if job is None else (job not in ['help', 'show_jobs', 'status', 'show_cases', 'show_images'])
+
+
 def set_global_vars(config, args):
     """ Update initial variables in globals. Induce client and casename if only source is provided
 
@@ -183,9 +193,14 @@ def set_global_vars(config, args):
         else:
             updated_vars[name] = ar
     # Check morgue folder exists
-    if not os.path.exists(updated_vars['morgue']):
-        logging.error(f"Morgue folder {updated_vars['morgue']} not found in the system. Please, provide a valid 'morgue'")
+    if not os.path.exists(updated_vars['morgue']) and job_needs_morgue(args.job):
+        logging.error(f"Morgue folder ({updated_vars['morgue']}) not found in the system. Please, provide a valid 'morgue' folder")
         sys.exit(1)
+    # Check 'source' is set to a non default value
+    if updated_vars['source'] == 'mysource' and job_needs_source(args.job):
+        logging.error(f"Please, provide non default value for 'source'")
+        sys.exit(1)
+
     # Try to induce 'client' and 'casename' if only 'source' is provided
     # Only 'morgue' value will be taken from configuration if not provided as argument. 'client' and 'casename' should be provided
     # If 'client' and 'casename' are set on a configuration file and are different from 'myclient' and 'mycase', the execution will not stop
@@ -193,18 +208,18 @@ def set_global_vars(config, args):
     #   - source is expressed in a format like the following example: "123456-DR-AB-01-123"
     #   - full path to source is such as: "MORGUEDIR/123456-name/DR-AB-01/123456-DR-AB-01-123" where 123456-name is the 'client' and DR-AB-01 the 'casename'
     pattern = r'^(?P<caseid>\d{6})-(?P<casename>DR-[^-]+-[^_-]+)'
-    arguments = re.search(pattern, args.source)
-    if not arguments:
-        logging.warning(f"Source {args.source} does not follow the expected format. Getting 'client' and 'casename' from parameters or configuration")
-    else:
+    arguments = re.search(pattern, updated_vars['source'])
+    if not arguments and job_needs_source(args.job):
+        logging.warning(f"Source ({updated_vars['source']}) does not follow the expected format. Getting 'client' and 'casename' from parameters or configuration")
+    elif arguments:
         caseid = arguments.group('caseid')
         casename = arguments.group('casename')
-        if not updated_vars["client"].startswith(caseid):
-            logging.warning(f"Client defined {updated_vars['client']} does not match with the suposed client extracted from 'source' {args.source}")
-        if not casename.startswith(updated_vars["casename"]):
-            logging.warning(f"Casename defined {updated_vars['casename']} does not match with the suposed casename extracted from 'source' {args.source}")
-    if ((not args.client) or (not args.casename)) and args.source:
-        if not arguments:
+        if not updated_vars["client"].startswith(caseid) and job_needs_source(args.job):
+            logging.warning(f"'client' defined ({updated_vars['client']}) does not match with the suposed client extracted from 'source' ({updated_vars['source']})")
+        if not casename.startswith(updated_vars["casename"]) and job_needs_source(args.job):
+            logging.warning(f"'casename' defined ({updated_vars['casename']}) does not match with the suposed casename extracted from 'source' ({updated_vars['source']})")
+    if ((updated_vars['client'] == 'myclient') or (updated_vars['casename'] == 'mycase')) and updated_vars['source']:
+        if not arguments and job_needs_source(args.job):
             logging.error(f"Please, provide non default values for both 'client' and 'casename'")
             sys.exit(1)
         if arguments and os.path.exists(updated_vars['morgue']):
@@ -219,16 +234,17 @@ def set_global_vars(config, args):
                             if updated_vars['casename'] == 'mycase':
                                 updated_vars['casename'] = casedirname
                             break
-                        else:
-                            logging.warning(f"Casename folder {casename} extracted from source {args.source} not found in {os.path.join(args.morgue, dirname)}.")
+                        elif casedirname != casename and job_needs_source(args.job):
+                            logging.warning(f"Casename folder ({casename}) extracted from source ({updated_vars['source']}) not found in {os.path.join(args.morgue, dirname)}.")
                             logging.error(f"Please, provide non default values for both 'client' and 'casename'")
                             if updated_vars['casename'] == 'mycase':
                                 sys.exit(1)
                     break
             else:
-                logging.warning(f"Client name not found in {updated_vars['morgue']} given the source {args.source}. Please, provide 'client' and 'casename'")
-                if updated_vars['client'] == 'myclient':
-                    sys.exit(1)
+                if job_needs_source(args.job):
+                    logging.warning(f"Client name not found in ({updated_vars['morgue']}) given the source ({updated_vars['source']}). Please, provide 'client' and 'casename'")
+                    if updated_vars['client'] == 'myclient':
+                        sys.exit(1)
 
     # Update global variables again
     for name in ['morgue', 'client', 'casename', 'source']:
