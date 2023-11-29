@@ -211,9 +211,13 @@ class GlobFilter(base.job.BaseModule):
         - **yields**: whatever *from_module* yields each time it is called.
 
     Configuration:
-        - **recursive**: Passes this parameters to ``glob.iglob``: whether the path must run recursively or not.
-        - **ftype**: either "file", "directory" or "all".
+        - **recursive**: whether the path must run recursively or not
+        - **ftype**: type of file to select. Either "file", "directory" or "all"
         - **path**: path can be also provided as a configuration. If provided, run() will ignore the path
+        - **sorted**: if True, yield the paths in alphabetic order
+        - **reverse**: if True, yield the paths in reverse alphabetic order
+        - **only_extensions**: list of extensions that files must have to be yielded. Default: None
+        - **exclude_extensions**: list of extensions that files must not have to be yielded. Default: None
     """
 
     def read_config(self):
@@ -221,6 +225,10 @@ class GlobFilter(base.job.BaseModule):
         self.set_default_config('recursive', 'True')
         self.set_default_config('ftype', 'all')
         self.set_default_config('path', None)
+        self.set_default_config('sorted', False)
+        self.set_default_config('reverse', False)
+        self.set_default_config('only_extensions', None)
+        self.set_default_config('exclude_extensions', None)
 
     def run(self, path=None):
         """ Parses objects matching a glob pattern.
@@ -240,8 +248,22 @@ class GlobFilter(base.job.BaseModule):
         ftype = self.myconfig('ftype').lower()
 
         self.logger().debug('Searching glob pattern: {}'.format(path))
+
+        if self.myflag('sorted') or self.myflag('reverse'):
+            list_files = glob.glob(path, recursive=self.myflag('recursive'))
+            list_files = sorted(list_files, reverse=self.myflag('reverse'))
+        else:
+            list_files = glob.iglob(path, recursive=self.myflag('recursive'))
+
+        exclude_extensions = self.myarray('exclude_extensions')
+        if exclude_extensions:
+            list_files = [path for path in list_files if not any(path.endswith(ext) for ext in exclude_extensions)]
+        only_extensions = self.myarray('only_extensions')
+        if only_extensions:
+            list_files = [path for path in list_files if any(path.endswith(ext) for ext in only_extensions)]
+
         # parse all files matching the glob
-        for filepath in glob.iglob(path, recursive=self.myflag('recursive')):
+        for filepath in list_files:
             try:
                 if ftype == 'all' or \
                         (ftype == 'file' and os.path.isfile(filepath)) or \
