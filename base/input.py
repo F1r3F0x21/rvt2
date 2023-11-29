@@ -108,10 +108,12 @@ class AllLinesInCompressedFile(base.job.BaseModule):
  
     Configuration:
         - **encoding** (String): The encoding to use. Defaults to utf-8
+        - **progress.disable** (Boolean): If True, disable the progress bar.
     """
     def read_config(self):
         super().read_config()
         self.set_default_config('encoding', 'utf-8')
+        self.set_default_config('progress.disable', 'False')
  
     def run(self, path):
         """ Read all lines from the path and pass them to from_module """
@@ -141,13 +143,21 @@ class AllLinesInCompressedFile(base.job.BaseModule):
             # If many files exist inside the ZIP, it will read them one after another
             for file in f.namelist():
                 with f.open(file, 'r') as internal:
-                    for line in internal:
+                    line_count = sum(1 for line in internal)
+                    internal.seek(0)  # Reset the file pointer to the beginning
+                    for line in tqdm(internal, total=line_count,
+                                    desc='Reading {}'.format(os.path.basename(file)),
+                                    disable=self.myflag('progress.disable')):
                         yield line.strip().decode()
  
     def read_gzip(self, path):
         with gzip.open(path, 'rb') as f:
             # Assuming there is only one file inside GZIP
-            for line in f:
+            line_count = sum(1 for line in f)
+            f.seek(0)  # Reset the file pointer to the beginning
+            for line in tqdm(f, total=line_count,
+                             desc='Reading {}'.format(os.path.basename(path)),
+                             disable=self.myflag('progress.disable')):
                 yield line.strip().decode()
 
 class ForAllLinesInFile(base.job.BaseModule):
