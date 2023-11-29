@@ -26,6 +26,7 @@ import base.job
 import base.config
 import base.commands
 from tqdm import tqdm
+from natsort import natsorted
 
 
 class DirectoryFilter(base.job.BaseModule):
@@ -251,7 +252,7 @@ class GlobFilter(base.job.BaseModule):
 
         if self.myflag('sorted') or self.myflag('reverse'):
             list_files = glob.glob(path, recursive=self.myflag('recursive'))
-            list_files = sorted(list_files, reverse=self.myflag('reverse'))
+            list_files = natsorted(list_files, reverse=self.myflag('reverse'))
         else:
             list_files = glob.iglob(path, recursive=self.myflag('recursive'))
 

@@ -58,6 +58,7 @@ python-magic = "0.4.24"
 packaging = "20.1"
 sshpubkeys = "*"
 tabulate = "*"
+natsort = "*"
 
 [dev-packages]
 sphinx = "*"
