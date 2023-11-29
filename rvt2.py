@@ -19,18 +19,20 @@
 
 """ The entry point to the system. """
 
-__version__ = '20230926'
+__version__ = '20231129'
 
 import os
 import sys
 import argparse
 import logging
+import json
+import datetime
+import pprint
+import re
 
 import base.config
 import base.job
 import base.utils
-import json
-import datetime
 
 
 def load_configpaths(config, configpaths):
@@ -164,18 +166,79 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, elap
         analyst.info(f'RVT2 job="%s" for casename="%s" on source="%s" status="%s"', job, casename, source, status)
 
 
-def load_default_vars(config, morgue, casename, source, jobid):
-    """ Add to the configuration object the default variables: morgue, casename, source and jobid """
-    config.config[base.config.DEFAULTSECT]['cwd'] = os.getcwd()
-    config.config[base.config.DEFAULTSECT]['userhome'] = os.environ.get('HOME')
-    config.config[base.config.DEFAULTSECT]['rvthome'] = os.path.dirname(os.path.abspath(__file__))
-    for ar, name in zip([morgue, client, casename, source], ['morgue', 'client', 'casename', 'source']):
-        if ar is not None:
-            config.config[base.config.DEFAULTSECT][name] = ar
+def set_global_vars(config, args):
+    """ Update initial variables in globals. Induce client and casename if only source is provided
+
+    Params:
+        config: The configuration object
+        args: The argparse object to be updated
+    """
+    # Load main variables from globals, parameters or configuration
+    updated_vars = {}
+    for ar, name in zip([args.morgue, args.client, args.casename, args.source], ['morgue', 'client', 'casename', 'source']):
+        if name in args.globals:
+            updated_vars[name] = args.globals[name]
+        elif name not in args.globals and not ar:
+            updated_vars[name] = config.get('DEFAULT', name)
+        else:
+            updated_vars[name] = ar
+    # Check morgue folder exists
+    if not os.path.exists(updated_vars['morgue']):
+        logging.error(f"Morgue folder {updated_vars['morgue']} not found in the system. Please, provide a valid 'morgue'")
+        sys.exit(1)
+    # Try to induce 'client' and 'casename' if only 'source' is provided
+    # Only 'morgue' value will be taken from configuration if not provided as argument. 'client' and 'casename' should be provided
+    # If 'client' and 'casename' are set on a configuration file and are different from 'myclient' and 'mycase', the execution will not stop
+    # Assumptions:
+    #   - source is expressed in a format like the following example: "123456-DR-AB-01-123"
+    #   - full path to source is such as: "MORGUEDIR/123456-name/DR-AB-01/123456-DR-AB-01-123" where 123456-name is the 'client' and DR-AB-01 the 'casename'
+    pattern = r'^(?P<caseid>\d{6})-(?P<casename>DR-[^-]+-[^_-]+)'
+    arguments = re.search(pattern, args.source)
+    if not arguments:
+        logging.warning(f"Source {args.source} does not follow the expected format. Getting 'client' and 'casename' from parameters or configuration")
+    else:
+        caseid = arguments.group('caseid')
+        casename = arguments.group('casename')
+        if not updated_vars["client"].startswith(caseid):
+            logging.warning(f"Client defined {updated_vars['client']} does not match with the suposed client extracted from 'source' {args.source}")
+        if not casename.startswith(updated_vars["casename"]):
+            logging.warning(f"Casename defined {updated_vars['casename']} does not match with the suposed casename extracted from 'source' {args.source}")
+    if ((not args.client) or (not args.casename)) and args.source:
+        if not arguments:
+            logging.error(f"Please, provide non default values for both 'client' and 'casename'")
+            sys.exit(1)
+        if arguments and os.path.exists(updated_vars['morgue']):
+            for dirname in os.listdir(updated_vars['morgue']):
+                if dirname.startswith(caseid) and os.path.isdir(os.path.join(updated_vars['morgue'], dirname)):
+                    # Update 'client' to new deduced value only if it has not been changed from default value
+                    if updated_vars['client'] == 'myclient':
+                        updated_vars['client'] = dirname
+                    for casedirname in os.listdir(os.path.join(updated_vars['morgue'], dirname)):
+                        if casedirname == casename:
+                            # Update 'casename' to new deduced value only if it has not been changed from default value
+                            if updated_vars['casename'] == 'mycase':
+                                updated_vars['casename'] = casedirname
+                            break
+                        else:
+                            logging.warning(f"Casename folder {casename} extracted from source {args.source} not found in {os.path.join(args.morgue, dirname)}.")
+                            logging.error(f"Please, provide non default values for both 'client' and 'casename'")
+                            if updated_vars['casename'] == 'mycase':
+                                sys.exit(1)
+                    break
+            else:
+                logging.warning(f"Client name not found in {updated_vars['morgue']} given the source {args.source}. Please, provide 'client' and 'casename'")
+                if updated_vars['client'] == 'myclient':
+                    sys.exit(1)
+
+    # Update global variables again
+    for name in ['morgue', 'client', 'casename', 'source']:
+        # WARNING: there is no validation that the new 'client' and 'casename' match the previous. Keep the previous just in case source has an extrange format
+        if ar is not None and name not in args.globals:
+            args.globals[name] = updated_vars[name]
 
 
-def load_global_vars(config, _globals, ignore_errors=False):
-    """ Load  global variables in the configuration object.
+def set_global_config(config, _globals, ignore_errors=False):
+    """ Set global variables in the configuration object.
 
     Params:
         config: The configuration object
@@ -227,11 +290,11 @@ def main(params=sys.argv[1:]):
 
     jobid = str(base.utils.generate_id())
     INITIAL_CONF = {
-        'rvt2:jobid': jobid,
         'rvt2:version': __version__,
         'rvthome': os.path.dirname(os.path.abspath(__file__)),
         'userhome': os.environ.get('HOME'),
-        'cwd': os.getcwd()
+        'cwd': os.getcwd(),
+        'rvt2:jobid': jobid
     }
 
     aparser = argparse.ArgumentParser(description='The Revealer Toolkit for forensic analysis')
@@ -256,22 +319,25 @@ def main(params=sys.argv[1:]):
             args.globals[name] = ar
 
     if args.version:
-        print(args.globals)
+        pprint.pp(args.globals)
         sys.exit(0)
 
-    # First configuration pass, in case the initilization of the system needs these parameters
-    # Will be read again later
-    # read configuration from one or more -c options
+    # First configuration step, in case the initilization of the system needs these parameters. It will be read again later
+    # Read configuration from one or more -c options
     config = base.config.default_config
     load_configpaths(config, args.config)
-    # configure global variables
+    # Configure global variables.
     # Since plugins are not loaded yet, ignore errors of missing sections
-    load_global_vars(config, args.globals, ignore_errors=True)
+    set_global_config(config, args.globals, ignore_errors=True)
 
-    # configure the logging subsystem using a generic configuration
+    # Configure the logging subsystem using a generic configuration
     configure_logging(config, args.verbose, None)
     # NOW we can log the configuration files, since the logging system is already up
     logging.debug('Configuration files: %s', args.config)
+
+    # Induce 'client' and 'casename' if only 'source' is set
+    set_global_vars(config, args)
+    set_global_config(config, args.globals, ignore_errors=True)
 
     # Load additional pythonpath
     for pythonpath in base.config.parse_conf_array(config.get('rvt2', 'pythonpath', '')):
@@ -282,10 +348,10 @@ def main(params=sys.argv[1:]):
     for pluginspath in base.config.parse_conf_array(config.get('rvt2', 'plugins', '')):
         load_plugin(pluginspath, config)
 
-    # read again configuration from one or more -c options. They MUST overwrite the configuration of the plugins
+    # Read again configuration from one or more -c options. They MUST overwrite the configuration of the plugins
     load_configpaths(config, args.config)
-    # configure global variables. They MUST overwrite the configuration
-    load_global_vars(config, args.globals)
+    # Configure global variables. They MUST overwrite the configuration
+    set_global_config(config, args.globals)
 
     # configure the job: if there is a Main section, use it. Else, get the default job from configuration rvt2.default_job
     if args.job is None:
