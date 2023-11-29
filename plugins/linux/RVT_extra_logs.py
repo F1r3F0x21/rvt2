@@ -13,18 +13,23 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+import csv
 import os
 import re
+import subprocess
+import sys
 import time
+from tqdm import tqdm 
+from base.commands import estimate_iterations
 import base.job
+import glob
 from base.utils import date_to_iso
 from plugins.linux import get_timezone
 from datetime import datetime
-
-
-class AuthLog(base.job.BaseModule):
     
-    """ Extract the Auth.Log file
+class LinuxStandardLog(base.job.BaseModule):
+    
+    """ Extract the Logfile
 
     Module description:
         - **from_module**: Data dict.
@@ -35,19 +40,11 @@ class AuthLog(base.job.BaseModule):
         super().read_config() 
 
     def run(self, path=None):
-        self.logger().warning("Please note that reading " + os.path.basename(path) + " could take some time")
+        #self.logger().warning("Please note that reading " + os.path.basename(path) + " could take some time")
 
-        pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(\S+):(\s.*)'
+        pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(\S+):(\s.*)?'
         prog = re.compile(pattern)
-        tz = get_timezone(self.myconfig('mountdir'))
-
-
-        prev_date_str = "Jan 1 00:00:00"
-        prev_date = datetime.strptime(prev_date_str, "%b %d %H:%M:%S")
-        year_passed = 0
-
-        modification_time = os.path.getmtime(path)
-        year = time.localtime(modification_time).tm_year
+        filename = os.path.basename(path)
         
         for line in self.from_module.run(path):
             match = prog.match(line)
@@ -57,20 +54,9 @@ class AuthLog(base.job.BaseModule):
                     "@timestamp": timestamp,
                     "host.hostname": host,
                     "process.name": process,
-                    "process.command_line": command
+                    "process.command_line": command,
+                    "filename": filename
                 }
-
-                actual_date = datetime.strptime(timestamp, "%b %d %H:%M:%S")
-                if (prev_date > actual_date):
-                    year_passed += 1
-                prev_date = actual_date
-
-                AuthLog_timestamp_with_year = f"{year + year_passed} {log_entry_dict['@timestamp']}"
-
-                # Parse the timestamp and convert it to ISO format
-                parsed_timestamp = datetime.strptime(AuthLog_timestamp_with_year, "%Y %b %d %H:%M:%S")     
-                output_string_utc = date_to_iso(parsed_timestamp, input_timezone=tz, output_timezone="UTC")
-                log_entry_dict['@timestamp'] = output_string_utc
                 yield log_entry_dict
 
             else:

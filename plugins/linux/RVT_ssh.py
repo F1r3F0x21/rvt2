@@ -55,6 +55,7 @@ class SshAuthorizedKeys(base.job.BaseModule):
                 else:
                     self.logger().warning("Regex pattern failed with some ssh_authorized_keys " + line)
 
+
 class SshKnownHosts(base.job.BaseModule):
     
     """ Extract the ssh known_hosts
@@ -86,7 +87,8 @@ class SshKnownHosts(base.job.BaseModule):
                 yield sshkeys_entry_dict
             else:
                 self.logger().warning("Regex pattern failed with some ssh_authorized_keys " + line)
-        
+
+       
 class SshConfig(base.job.BaseModule):
     
     """ Extract the ssh config file

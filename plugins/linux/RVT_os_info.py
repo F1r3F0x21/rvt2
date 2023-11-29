@@ -195,6 +195,7 @@ class CharacterizeLinux(base.job.BaseModule):
                         last_shutdown_utc = date_to_iso(last_shutdown_time, input_timezone=tz).replace("+00:00", "Z")
                         self.os_info[part_to_save]["ShutdownTime"] = last_shutdown_utc
 
+
 class Fstab(base.job.BaseModule):
     """ Extract the essential information about fstab file.
 

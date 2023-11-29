@@ -22,7 +22,7 @@ import subprocess, shlex
 import pandas as pd
 from tqdm import tqdm
 from datetime import datetime, timedelta
-from base.utils import date_to_iso, save_dummy, save_md_table
+from base.utils import check_directory, date_to_iso
 from plugins.linux import get_timezone
 from functools import partial
 
@@ -379,6 +379,7 @@ class Analysis(base.job.BaseModule):
 
     def run(self, path=None):
         self.login_dir = self.myconfig('logindir')
+        check_directory(self.myconfig('analysisdir'), create=True)
 
         df_result = pd.DataFrame()
 

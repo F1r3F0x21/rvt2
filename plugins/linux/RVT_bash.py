@@ -31,10 +31,10 @@ class BashFilesCp(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('bashdir', None)
+        self.set_default_config('outdir', None)
 
     def run(self, path=None):
-        bash_dir = self.myconfig('bashdir')
+        bash_dir = self.myconfig('outdir')
 
         sub_folder = os.path.basename(path)
         if sub_folder.startswith('.'):
@@ -55,6 +55,7 @@ class BashFilesCp(base.job.BaseModule):
         if output:
             self.logger().error(output)
 
+
 class BashHistory(base.job.BaseModule):
     
     """ Extract the essential information about bash history in Bash_History file.
@@ -66,10 +67,10 @@ class BashHistory(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('bashdir', None)
+        self.set_default_config('outdir', None)
 
     def run(self, path=None):
-        base_path = self.myconfig('bashdir')
+        base_path = self.myconfig('outdir')
         username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=".bash_history")
         
         list_commands = []

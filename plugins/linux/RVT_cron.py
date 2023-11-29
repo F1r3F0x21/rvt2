@@ -75,6 +75,7 @@ class Cron(base.job.BaseModule):
             csv_out = os.path.join(base_path, 'cronReferences.csv')
             save_csv(extra_data, outfile=csv_out, file_exists='APPEND') 
 
+
 class AnacronTab(base.job.BaseModule):
     
     """ Extract the anacrontab tasks and scripts
@@ -116,6 +117,7 @@ class AnacronTab(base.job.BaseModule):
         csv_out = os.path.join(base_path, 'cronReferences.csv')
         save_csv(extra_data, outfile=csv_out, file_exists='APPEND') 
 
+
 class CronLog(base.job.BaseModule):
     """ Extract the cron logs
 
@@ -129,15 +131,9 @@ class CronLog(base.job.BaseModule):
 
     def run(self, path=None):        
         self.check_params(path, check_path=True, check_path_exists=True)
+        filename = os.path.basename(path)
         pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*\[\d+\]):(\s.*)'
         prog = re.compile(pattern)
-
-        prev_date_str = "Jan 1 00:00:00"
-        prev_date = datetime.strptime(prev_date_str, "%b %d %H:%M:%S")
-        year_passed = 0
-        if os.path.exists(path):
-            modification_time = os.path.getmtime(path)
-            year = time.localtime(modification_time).tm_year
         
         for line in self.from_module.run(path):
             match = prog.match(line)
@@ -147,23 +143,9 @@ class CronLog(base.job.BaseModule):
                     "@timestamp": timestamp,
                     "host.hostname": host,
                     "process.name": process,
-                    "process.command_line": command
+                    "process.command_line": command,
+                    "filename": filename
                 }
-
-                actual_date = datetime.strptime(timestamp, "%b %d %H:%M:%S")
-                if (prev_date > actual_date):
-                    year_passed += 1
-                prev_date = actual_date
-
-                cron_timestamp_with_year = f"{year + year_passed} {log_entry_dict['@timestamp']}"
-
-                # Parse the timestamp and convert it to ISO format
-                parsed_timestamp = datetime.strptime(cron_timestamp_with_year, "%Y %b %d %H:%M:%S")
-                tz = get_timezone(self.myconfig('mountdir'))
-                output_string_utc = date_to_iso(parsed_timestamp, input_timezone=tz, output_timezone="UTC")
-
-                log_entry_dict['@timestamp'] = output_string_utc
                 yield log_entry_dict
-
             else:
                 self.logger().warning("Regex pattern failed with some logline input " + line)
