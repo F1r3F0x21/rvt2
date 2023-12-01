@@ -111,7 +111,7 @@ class SshConfig(base.job.BaseModule):
         aux_dict_host = {}
         for line in self.from_module.run(path):
             if not line.startswith('#') and line != '':
-                data = line.split(" ")
+                data = re.split(r'\s+', line, maxsplit=1)
                 if data[0] == "Include":
                     include_param = True
                     include_data = data
@@ -125,7 +125,10 @@ class SshConfig(base.job.BaseModule):
                         aux_dict_host = {}
                         aux_dict_host[data[0]]=data[1]
                     else:
-                        aux_dict_host[data[0]]=data[1]
+                        if len(data) == 2:
+                            aux_dict_host[data[0]]=data[1]
+                        else:
+                            aux_dict_host[data[0]]=data[0]
         if len(aux_dict_host) != 0:
             if include_param:
                 aux_dict_host[include_data[0]]=include_data[1]

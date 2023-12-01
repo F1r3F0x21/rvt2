@@ -18,6 +18,7 @@ import re
 import os
 import struct
 import base.job
+import copy
 import subprocess, shlex
 import pandas as pd
 from tqdm import tqdm
@@ -224,6 +225,26 @@ class Access(base.job.BaseModule):
                 }
                 yield user_account_entry_dict
 
+class Utmpdump2(base.job.BaseModule):
+    """ Extract the essential information of logins and additional information about system reboots in btmp and wtmp file.
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+    def read_config(self):
+        super().read_config()
+
+    def run(self, path=None):
+        command = f"last -f {path} --time-format iso"
+        tz = get_timezone(self.myconfig('mountdir'))
+        env = {'TZ':tz}
+        args = shlex.split(command)
+        process = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output_string = process.stdout.read().split('\n')
+        for line in output_string:
+            yield line
+
 class Utmpdump(base.job.BaseModule):
     
     """ Extract the essential information of logins and additional information about system reboots in btmp and wtmp file.
@@ -263,25 +284,27 @@ class Utmpdump(base.job.BaseModule):
         for line in tqdm(output_string.split('\n'), total=total_iterations,
                             desc='Reading {}'.format(os.path.basename(path)),
                             disable=self.myflag('progress.disable')):
-            match = prog.match(line)
-            if match:
-                match_group = match.groups()
-                wtmp_entry_dict = {
-                    "ut_type": match_group[0].strip(),
-                    "ut_pid": match_group[1].strip(),
-                    "ut_id": match_group[2].strip(),
-                    "ut_user": match_group[3].strip(),
-                    "ut_line": match_group[4].strip(),
-                    "ut_host": match_group[5].strip(),
-                    "ut_addr_v6": match_group[6].strip(),
-                    "ut_time": match_group[7].strip()
-                }
-                aux_dict, data_to_yield = self.UtmpdumpConnectionsStartedAndEnded(wtmp_entry_dict, aux_dict)
-                if data_to_yield:
-                    yield data_to_yield
-            else:
-                self.logger().warning("Regex pattern failed with some utmp line: " + line)
-        
+            line = line.strip()
+            if line != "":
+                match = prog.match(line)
+                if match:
+                    match_group = match.groups()
+                    wtmp_entry_dict = {
+                        "ut_type": match_group[0].strip(),
+                        "ut_pid": match_group[1].strip(),
+                        "ut_id": match_group[2].strip(),
+                        "ut_user": match_group[3].strip(),
+                        "ut_line": match_group[4].strip(),
+                        "ut_host": match_group[5].strip(),
+                        "ut_addr_v6": match_group[6].strip(),
+                        "ut_time": match_group[7].strip()
+                    }
+                    aux_dict, data_to_yield = self.UtmpdumpConnectionsStartedAndEnded(wtmp_entry_dict, aux_dict)
+                    if data_to_yield:
+                        yield data_to_yield
+                else:
+                    self.logger().warning("Regex pattern failed with some utmp line: " + line)
+            
         connections_to_yield = self.UtmpdumpOtherConnections(aux_dict)
         for conection in connections_to_yield:
             yield conection
@@ -293,19 +316,31 @@ class Utmpdump(base.job.BaseModule):
 
         dict_pid = aux_dict.get(input_dict["ut_pid"],"Empty")
         if dict_pid == "Empty":
-            aux_dict[input_dict["ut_pid"]] = {input_dict["ut_type"]: input_dict}
+            aux_dict[input_dict["ut_pid"]] = {input_dict["ut_type"]: [(input_dict)]}
         else:
-            aux_dict[input_dict["ut_pid"]].update({input_dict["ut_type"]: input_dict})
+            if input_dict["ut_type"] in aux_dict[input_dict["ut_pid"]]:
+                aux_list = aux_dict[input_dict["ut_pid"]][input_dict["ut_type"]]
+                aux_list.append(input_dict)
+                aux_dict[input_dict["ut_pid"]].update({input_dict["ut_type"]:aux_list})
+            else:
+                aux_dict[input_dict["ut_pid"]].update({input_dict["ut_type"]:[(input_dict)]})
 
         if input_dict["ut_type"] == self.ut_type["USER_PROCESS"] or input_dict["ut_type"] == self.ut_type["DEAD_PROCESS"]: 
             if self.ut_type["USER_PROCESS"] in aux_dict[input_dict["ut_pid"]].keys() and self.ut_type["DEAD_PROCESS"] in aux_dict[input_dict["ut_pid"]].keys():
-                register_dict = aux_dict.get(input_dict["ut_pid"])
-                aux_dict.pop(input_dict["ut_pid"])
+                pid_dict = aux_dict.get(input_dict["ut_pid"])
+                # with the same pid only a will have one "USER_PROCESS" and one "DEAD_PROCESS"
+                if len(pid_dict.keys()) == 2:
+                    aux_dict.pop(input_dict["ut_pid"])
+                else:
+                    copy_pid_dict = copy.deepcopy(pid_dict)
+                    copy_pid_dict.pop('7')
+                    copy_pid_dict.pop('8')
+                    aux_dict[input_dict["ut_pid"]].update(copy_pid_dict)
 
                 # time conversion
                 time_format = "%Y-%m-%dT%H:%M:%S,%f%z"
-                time_from = register_dict[self.ut_type["USER_PROCESS"]]["ut_time"]
-                time_to = register_dict[self.ut_type["DEAD_PROCESS"]]["ut_time"]
+                time_from = pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_time"]
+                time_to = pid_dict[self.ut_type["DEAD_PROCESS"]][0]["ut_time"]
 
                 datetime_from = datetime.strptime(time_from, time_format)
                 datetime_to = datetime.strptime(time_to, time_format)
@@ -313,20 +348,22 @@ class Utmpdump(base.job.BaseModule):
                 datetime_to_iso = date_to_iso(datetime_to)
 
                 time_difference = datetime_to - datetime_from
-                hours, remainder = divmod(time_difference.seconds, 3600)
-                minutes, _ = divmod(remainder, 60)
+                total_minutes = int(time_difference.total_seconds()/ 60)
+                hours, minutes = divmod(abs(total_minutes), 60)
+                hours *= -1 if total_minutes < 0 else 1
+                formatted_result = f"{'-' if hours == 0 and total_minutes < 0  else ''}{hours:02}:{minutes:02}"
 
                 connection_dict = {
                     "@timestamp": str(datetime_from_iso),
                     "ut_type": "USER_PROCESS",
-                    "ut_pid": register_dict[self.ut_type["USER_PROCESS"]]["ut_pid"],
-                    "user.name": register_dict[self.ut_type["USER_PROCESS"]]["ut_user"],
-                    "ut_line": register_dict[self.ut_type["USER_PROCESS"]]["ut_line"],
-                    "ut_host": register_dict[self.ut_type["USER_PROCESS"]]["ut_host"],
+                    "ut_id" : pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_id"],
+                    "ut_line": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_line"],
+                    "ut_pid": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_pid"],
+                    "user.name": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_user"],
+                    "ut_host": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_host"],
                     "ut_time_to": str(datetime_to_iso),
-                    "ut_time_total": f"{hours}:{minutes:02}"
+                    "ut_time_total": formatted_result
                 }
-
         return aux_dict, connection_dict
     
     def UtmpdumpOtherConnections(self, aux_dict):
@@ -343,31 +380,33 @@ class Utmpdump(base.job.BaseModule):
             8: "DEAD_PROCESS",
             9: "ACCOUNTING"
         }
-        for tuple_pid_dict in aux_dict.items():
-            for ut_type_key, dict_value in tuple_pid_dict[1].items():
-                
-                ut_type_2 = ut_type_T[int(ut_type_key)]
-                if ut_type_key == self.ut_type["USER_PROCESS"]:
-                    ut_time_to = "-"
-                    ut_time_total = "gone - no logout"
-                    time_from = dict_value["ut_time"]
+        #print(aux_dict.keys())
+        for pid, tuple_pid_dict in aux_dict.items():
+            for ut_type_key, list_dict_value in tuple_pid_dict.items():
+                for utmp_entry in list_dict_value:
+                    ut_type_2 = ut_type_T[int(ut_type_key)]
+                    if ut_type_key == self.ut_type["USER_PROCESS"]:
+                        ut_time_to = "-"
+                        ut_time_total = "down"
+                        time_from = utmp_entry["ut_time"]
 
-                else:
-                    ut_time_to = ""
-                    ut_time_total = ""
-                    time_from = dict_value["ut_time"]
+                    else:
+                        ut_time_to = ""
+                        ut_time_total = ""
+                        time_from = utmp_entry["ut_time"]
 
-                connection_dict = {
-                    "@timestamp": time_from,
-                    "ut_type": ut_type_2,
-                    "ut_pid": dict_value["ut_pid"],
-                    "user.name": dict_value["ut_user"],
-                    "ut_line": dict_value["ut_line"],
-                    "ut_host": dict_value["ut_host"],
-                    "ut_time_to": ut_time_to ,
-                    "ut_time_total": ut_time_total
-                }
-                list_data.append(connection_dict)
+                    connection_dict = {
+                        "@timestamp": time_from,
+                        "ut_type": ut_type_2,
+                        "ut_id" : utmp_entry["ut_id"],
+                        "ut_line": utmp_entry["ut_line"],
+                        "ut_pid": utmp_entry["ut_pid"],
+                        "user.name": utmp_entry["ut_user"],
+                        "ut_host": utmp_entry["ut_host"],
+                        "ut_time_to": ut_time_to ,
+                        "ut_time_total": ut_time_total
+                    }
+                    list_data.append(connection_dict)
         return list_data
 
 class Analysis(base.job.BaseModule):
@@ -402,8 +441,10 @@ class Analysis(base.job.BaseModule):
 
             # Group information
             df_result = self.group(df_result)
-
-            df_result_filtered = df_result[['user.name', 'user_ID', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'group']]
+            
+            desired_columns = ['user.name', 'user_ID', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'group']
+            existing_columns = [col for col in desired_columns if col in df_result.columns]
+            df_result_filtered = df_result[existing_columns]
             
             # Saving table
             txt_out = os.path.join(self.myconfig('analysisdir'), 'users_summary.md')
@@ -431,49 +472,31 @@ class Analysis(base.job.BaseModule):
     def lastlog(self, df_result):
         url_lastlog = os.path.join(self.login_dir, "lastlog.csv")
         if os.path.isfile(url_lastlog):
-            df_lastlog = pd.read_csv(url_lastlog, sep=';', quotechar='"')
-            df_result = pd.merge(df_result, df_lastlog, on='user_ID', how='outer')
-            df_result.rename(columns={'ut_line': 'lastlog_ut_line', 'ut_host': 'lastlog_ut_host', 'datetime': 'lastlog_datetime' }, inplace=True)
+            if os.path.getsize(url_lastlog) != 0:
+                df_lastlog = pd.read_csv(url_lastlog, sep=';', quotechar='"')
+                df_result = pd.merge(df_result, df_lastlog, on='user_ID', how='outer')
+                df_result.rename(columns={'ut_line': 'lastlog_ut_line', 'ut_host': 'lastlog_ut_host', 'datetime': 'lastlog_datetime' }, inplace=True)
             return df_result
-        else:
-            return df_result
+        return df_result
         
     def shadow(self, df_result):
         url_shadow = os.path.join(self.login_dir, "shadow.csv")
         if os.path.isfile(url_shadow):
-            df_shadow = pd.read_csv(url_shadow, sep=';', quotechar='"')
-            df_result = pd.merge(df_result, df_shadow[['user.name', 'last_password_change']], on='user.name', how='left')
+            if os.path.getsize(url_shadow) != 0:
+                df_shadow = pd.read_csv(url_shadow, sep=';', quotechar='"')
+                df_result = pd.merge(df_result, df_shadow[['user.name', 'last_password_change']], on='user.name', how='left')
             return df_result
-        else:
-            return df_result
+        return df_result
         
     def group(self, df_result):
         url_group_secure = os.path.join(self.login_dir, "group_secure.csv")
         if os.path.isfile(url_group_secure):
-            df_group_secure = pd.read_csv(url_group_secure, sep=';', quotechar='"')
-            df_result['group'] = None
-            for index, row in df_group_secure.iterrows():
-                if (pd.notna(row['members'])):
-                    for user in str(row["members"]).split(","):
-                        list_group = df_result.loc[df_result['user.name'] == user]
-                        if not list_group.empty:
-                            if list_group['group'].values != None:
-                                list_group = list_group['group'].values[0]
-                                list_group = ast.literal_eval(str(list_group))
-                                list_group.append(row["group_name"])
-                            else:
-                                list_group = [row["group_name"]]
-                            df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)
-                        
-        else:
-            url_group = os.path.join(self.login_dir, "group.csv")
-            if os.path.isfile(url_group):
-                df_group = pd.read_csv(url_group, sep=';', quotechar='"')
+            if os.path.getsize(url_group_secure) != 0:
+                df_group_secure = pd.read_csv(url_group_secure, sep=';', quotechar='"')
                 df_result['group'] = None
-                print(df_group_secure)
                 for index, row in df_group_secure.iterrows():
-                    if (pd.notna(row['user_list'])):
-                        for user in str(row["user_list"]).split(","):
+                    if (pd.notna(row['members'])):
+                        for user in str(row["members"]).split(","):
                             list_group = df_result.loc[df_result['user.name'] == user]
                             if not list_group.empty:
                                 if list_group['group'].values != None:
@@ -482,8 +505,25 @@ class Analysis(base.job.BaseModule):
                                     list_group.append(row["group_name"])
                                 else:
                                     list_group = [row["group_name"]]
-                                df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)
-
+                                df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)         
+        else:
+            url_group = os.path.join(self.login_dir, "group.csv")
+            if os.path.isfile(url_group):
+                if os.path.getsize(url_group) != 0:
+                    df_group = pd.read_csv(url_group, sep=';', quotechar='"')
+                    df_result['group'] = None
+                    for index, row in df_group.iterrows():
+                        if (pd.notna(row['user_list'])):
+                            for user in str(row["user_list"]).split(","):
+                                list_group = df_result.loc[df_result['user.name'] == user]
+                                if not list_group.empty:
+                                    if list_group['group'].values != None:
+                                        list_group = list_group['group'].values[0]
+                                        list_group = ast.literal_eval(str(list_group))
+                                        list_group.append(row["group_name"])
+                                    else:
+                                        list_group = [row["group_name"]]
+                                    df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)
         return df_result
 
 

@@ -39,6 +39,8 @@ class BashFilesCp(base.job.BaseModule):
         sub_folder = os.path.basename(path)
         if sub_folder.startswith('.'):
             prefix_file = sub_folder[1:]
+        else:
+            prefix_file = "ERROR"
         prefix_file_ = prefix_file + "_"
 
         username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=sub_folder)

@@ -81,7 +81,7 @@ class CharacterizeLinux(base.job.BaseModule):
                 if os.path.isfile(os.path.join(part_path, "etc/os-release")) or os.path.islink(os.path.join(part_path, "etc/os-release")):
                     releas_f = os.path.join(part_path, "etc/os-release")
                     if os.path.islink(releas_f):
-                        releas_f = os.path.join(part_path, os.path.realpath(releas_f)[1:])
+                        releas_f = os.path.join(part_path, os.path.realpath(releas_f))
                     with open(releas_f, 'r') as file:
                         for line in file:
                             values = line.strip().split("=")
@@ -99,27 +99,26 @@ class CharacterizeLinux(base.job.BaseModule):
                                 dist_pretty_name = values[1].strip('"')
                             elif values[0] == "VERSION_CODENAME":
                                 dist_version_codename = values[1].strip('"')
+                if os.path.isfile(os.path.join(part_path, "etc/lsb-release")) or os.path.islink(os.path.join(part_path, "etc/lsb-release")):
+                    releas_f = os.path.join(part_path, "etc/lsb-release")
+                    if os.path.islink(releas_f):
+                        releas_f = os.path.join(part_path, os.path.realpath(releas_f))
                 else:
-                    if os.path.isfile(os.path.join(part_path, "etc/lsb-release")) or os.path.islink(os.path.join(part_path, "etc/lsb-release")):
-                        releas_f = os.path.join(part_path, "etc/lsb-release")
-                        if os.path.islink(releas_f):
-                            releas_f = os.path.join(part_path, os.path.realpath(releas_f)[1:])
-                    else:
-                        for f in os.listdir(os.path.join(part_path, "etc")):
-                            if f.endswith("-release"):
-                                releas_f = os.path.join(part_path, "etc", f)
-                    if releas_f != "":
-                        with open(releas_f, 'r') as file:
-                            for line in file:
-                                values = line.strip().split("=")
-                                if values[0] == "DISTRIB_ID":
-                                    dist_id = values[1].strip('"')
-                                elif values[0] == "DISTRIB_RELEASE":
-                                    dist_version_id = values[1].strip('"')
-                                elif values[0] == "DISTRIB_CODENAME":
-                                    dist_version_codename = values[1].strip('"')
-                                elif values[0] == "DISTRIB_DESCRIPTION":
-                                    dist_pretty_name = values[1].strip('"')
+                    for f in os.listdir(os.path.join(part_path, "etc")):
+                        if f.endswith("-release"):
+                            releas_f = os.path.join(part_path, "etc", f)
+                if releas_f != "":
+                    with open(releas_f, 'r') as file:
+                        for line in file:
+                            values = line.strip().split("=")
+                            if values[0] == "DISTRIB_ID":
+                                dist_id = values[1].strip('"')
+                            elif values[0] == "DISTRIB_RELEASE":
+                                dist_version_id = values[1].strip('"')
+                            elif values[0] == "DISTRIB_CODENAME":
+                                dist_version_codename = values[1].strip('"')
+                            elif values[0] == "DISTRIB_DESCRIPTION":
+                                dist_pretty_name = values[1].strip('"')
                 
                 self.os_info[part_to_save]["ProductName"] = dist_pretty_name
                 if dist_version:
@@ -190,8 +189,12 @@ class CharacterizeLinux(base.job.BaseModule):
                     
                     last_shutdown_line = output_string[0]
                     if last_shutdown_line.startswith("shutdown system down"):
-                        last_shutdown_time = " ".join(last_shutdown_line.split()[6:7])
-                        last_shutdown_time = datetime.fromisoformat(last_shutdown_time)
+                        from_time = datetime.fromisoformat(" ".join(last_shutdown_line.split()[4:5]))
+                        to_time = datetime.fromisoformat(" ".join(last_shutdown_line.split()[6:7]))
+                        if from_time > to_time:
+                            last_shutdown_time = from_time
+                        else:
+                            last_shutdown_time = to_time
                         last_shutdown_utc = date_to_iso(last_shutdown_time, input_timezone=tz).replace("+00:00", "Z")
                         self.os_info[part_to_save]["ShutdownTime"] = last_shutdown_utc
 
