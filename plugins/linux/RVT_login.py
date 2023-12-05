@@ -442,7 +442,7 @@ class Analysis(base.job.BaseModule):
             # Group information
             df_result = self.group(df_result)
             
-            desired_columns = ['user.name', 'user_ID', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'group']
+            desired_columns = ['user.name', 'user_ID', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'encrypted_password', 'group']
             existing_columns = [col for col in desired_columns if col in df_result.columns]
             df_result_filtered = df_result[existing_columns]
             
@@ -484,7 +484,7 @@ class Analysis(base.job.BaseModule):
         if os.path.isfile(url_shadow):
             if os.path.getsize(url_shadow) != 0:
                 df_shadow = pd.read_csv(url_shadow, sep=';', quotechar='"')
-                df_result = pd.merge(df_result, df_shadow[['user.name', 'last_password_change']], on='user.name', how='left')
+                df_result = pd.merge(df_result, df_shadow[['user.name', 'last_password_change','encrypted_password']], on='user.name', how='left')
             return df_result
         return df_result
         
