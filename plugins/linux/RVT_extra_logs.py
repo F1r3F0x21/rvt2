@@ -103,6 +103,30 @@ class LinuxDpkgLog(base.job.BaseModule):
                 self.logger().warning("Regex pattern failed with some logline input " + line)
 
 
+class LinuxAptHistoryLog(base.job.BaseModule):
+    
+    """ Extract the Dpkg
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+
+    def run(self, path=None):
+        aux_dict = {}
+        for line in self.from_module.run(path):
+            if line:
+                linesplited = line.split(":", 1)
+                if linesplited[0] == "Start-Date":
+                    aux_dict = {}
+                aux_dict[linesplited[0]] = linesplited[1]
+                if linesplited[0] == "End-Date":
+                    yield aux_dict
+
+
 class AnalysisLinuxSshLog(base.job.BaseModule):
     """ Analisis the Ssh log
 
@@ -173,18 +197,7 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
                         formatted_result = f"{'-' if hours == 0 and total_minutes < 0  else ''}{hours:02}:{minutes:02}"
 
                         df_sshlogin_aux.at[index, "ut_time_total"] = formatted_result
-                        yield df_sshlogin_aux.loc[index].to_dict()
-
-        # Saving table
-        txt_out = os.path.join(self.myconfig('analysisdir'), 'logins_summary_ssh.md')
-        data = df_sshlogin_aux.to_markdown()
-        with open(txt_out, 'w') as file:
-            file.write(data)
-
-
-
-
-
+                        yield df_sshlogin_aux.loc[index, ['@timestamp', 'host.hostname','user.name', 'method', 'ut_host', 'port', 'ut_time_to', 'ut_time_total']].to_dict()
 
 ''' 
 class LinuxStandardLog2(base.job.BaseModule):
