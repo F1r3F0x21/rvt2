@@ -299,19 +299,19 @@ class Utmpdump(base.job.BaseModule):
                         "ut_addr_v6": match_group[6].strip(),
                         "ut_time": match_group[7].strip()
                     }
-                    aux_dict, data_to_yield = self.UtmpdumpConnectionsStartedAndEnded(wtmp_entry_dict, aux_dict)
+                    aux_dict, data_to_yield = self.utmpdump_connections_started_and_ended(wtmp_entry_dict, aux_dict)
                     if data_to_yield:
                         yield data_to_yield
                 else:
                     self.logger().warning("Regex pattern failed with some utmp line: " + line)
             
-        connections_to_yield = self.UtmpdumpOtherConnections(aux_dict)
+        connections_to_yield = self.utmpdump_other_connections(aux_dict)
         for conection in connections_to_yield:
             yield conection
 
         process.wait()
     
-    def UtmpdumpConnectionsStartedAndEnded(self, input_dict, aux_dict):
+    def utmpdump_connections_started_and_ended(self, input_dict, aux_dict):
         connection_dict = False
 
         dict_pid = aux_dict.get(input_dict["ut_pid"],"Empty")
@@ -366,7 +366,7 @@ class Utmpdump(base.job.BaseModule):
                 }
         return aux_dict, connection_dict
     
-    def UtmpdumpOtherConnections(self, aux_dict):
+    def utmpdump_other_connections(self, aux_dict):
         list_data = []
         ut_type_T = {
             0: "EMPTY",
@@ -380,7 +380,6 @@ class Utmpdump(base.job.BaseModule):
             8: "DEAD_PROCESS",
             9: "ACCOUNTING"
         }
-        #print(aux_dict.keys())
         for pid, tuple_pid_dict in aux_dict.items():
             for ut_type_key, list_dict_value in tuple_pid_dict.items():
                 for utmp_entry in list_dict_value:
