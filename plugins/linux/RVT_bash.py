@@ -27,26 +27,35 @@ class BashFilesCp(base.job.BaseModule):
     Module description:
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
+    
+    Configuration:
+        - **all_users**: False default, True for copy files that are executed when any user account logs in.
     """
 
     def read_config(self):
         super().read_config()
         self.set_default_config('outdir', None)
+        self.set_default_config('all_users', 'False')
 
     def run(self, path=None):
         bash_dir = self.myconfig('outdir')
+        executed_for_all_users = self.myflag('all_users')
 
-        sub_folder = os.path.basename(path)
-        if sub_folder.startswith('.'):
-            prefix_file = sub_folder[1:]
+        if executed_for_all_users:
+            basename = os.path.basename(path)
+            file_out = os.path.join(bash_dir, "all_users", basename + '.txt')
+            folder_out = os.path.join(bash_dir, "all_users")
         else:
-            prefix_file = "ERROR"
-        prefix_file_ = prefix_file + "_"
+            sub_folder = os.path.basename(path)
+            if sub_folder.startswith('.'):
+                prefix_file = sub_folder[1:]
+            else:
+                prefix_file = "ERROR"
+            prefix_file_ = prefix_file + "_"
+            username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=sub_folder)
+            file_out = os.path.join(bash_dir, prefix_file, prefix_file_+ username + '.txt')
+            folder_out = os.path.join(bash_dir, prefix_file)
 
-        username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=sub_folder)
-        file_out = os.path.join(bash_dir, prefix_file, prefix_file_+ username + '.txt')
-
-        folder_out = os.path.join(bash_dir, prefix_file)
         check_folder(folder_out)
         
         command = "cp -r " + path + " " + file_out
