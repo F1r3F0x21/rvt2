@@ -18,6 +18,7 @@ import re
 from . import get_username
 from sshpubkeys import SSHKey
 
+
 class SshAuthorizedKeys(base.job.BaseModule):
     
     """ Extract the ssh authorized_keys
