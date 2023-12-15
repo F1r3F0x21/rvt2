@@ -15,9 +15,14 @@
 
 import os
 import re
+import shlex
+import subprocess
 import pandas as pd
 import base.job
 from datetime import datetime
+
+from base.utils import check_folder
+from plugins.linux import get_timezone
 
 
 class LinuxStandardLog(base.job.BaseModule):
@@ -51,7 +56,7 @@ class LinuxStandardLog(base.job.BaseModule):
                         "@timestamp": timestamp,
                         "host.hostname": host,
                         "process.name": process,
-                        "process.command_line": command,
+                        "message": command,
                         "filename": filename
                     }
                     yield log_entry_dict
@@ -60,6 +65,41 @@ class LinuxStandardLog(base.job.BaseModule):
                     self.logger().warning("Regex pattern failed with some logline input " + line)
         else:
             self.logger().warning("Logtemplete " + self.myconfig('logtemplate') + " Not supported yet")
+
+
+class JournalLogs(base.job.BaseModule):
+    """ Extract the Binary Journal Logfile
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+    def read_config(self):
+        super().read_config()
+    
+    def run(self, path=None):
+        out_dir = self.myconfig('outdir')
+        check_folder(out_dir)
+
+        command = f"journalctl --directory {path} -o short-iso"
+        env = {'TZ':"UTC"}
+        process = subprocess.Popen(command, env=env,shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        command_output = process.stdout.readline()
+
+        self.logger().warning("Extracting Journal logs, this might last some time")
+
+        while command_output:
+            output_splitted = command_output.split(" ", maxsplit=3)
+            data = {
+                '@timestamp' : output_splitted[0],
+                'host.hostname' :  output_splitted[1],
+                'process.name' : output_splitted[2],
+                'message' :  output_splitted[3]
+            }
+            yield data
+            command_output = process.stdout.readline()
+
+
 
 
 class AnalysisLinuxSshLog(base.job.BaseModule):
@@ -88,9 +128,9 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
         for line in self.from_module.run(path):
             #print(line)
             line_pid = pid_prog.match(line["process.name"]).group(1)
-            match_p_accepted = p_prog_accepted.match(line["process.command_line"].strip())
+            match_p_accepted = p_prog_accepted.match(line["message"].strip())
 
-            #print(line["process.command_line"])
+            #print(line["message"])
             if match_p_accepted:
                 method, user_name, ut_host, port = match_p_accepted.groups()
                 data = {'pid': line_pid,
@@ -106,7 +146,7 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
                 new_row_df = pd.DataFrame([data])
                 df_sshlogin_aux = pd.concat([df_sshlogin_aux, new_row_df], ignore_index=True)
             else:
-                match_p_closed = p_prog_closed.match(line["process.command_line"].strip())
+                match_p_closed = p_prog_closed.match(line["message"].strip())
                 if match_p_closed:
                     pid_in_df_sshlogin = df_sshlogin_aux.loc[df_sshlogin_aux['pid'] == line_pid]
                     if not pid_in_df_sshlogin.empty:
