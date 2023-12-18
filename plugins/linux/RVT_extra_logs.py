@@ -15,7 +15,6 @@
 
 import os
 import re
-import shlex
 import subprocess
 import pandas as pd
 import base.job
@@ -68,7 +67,7 @@ class LinuxStandardLog(base.job.BaseModule):
 
 
 class JournalLogs(base.job.BaseModule):
-    """ Extract the Binary Journal Logfile
+    """ Extract from the Binarys Journal Logfile 
 
     Module description:
         - **from_module**: Data dict.
@@ -98,8 +97,6 @@ class JournalLogs(base.job.BaseModule):
             }
             yield data
             command_output = process.stdout.readline()
-
-
 
 
 class AnalysisLinuxSshLog(base.job.BaseModule):

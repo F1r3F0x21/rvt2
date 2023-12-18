@@ -14,69 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import shlex
-import subprocess
 import base.job
 from base.utils import check_folder
-
-
-class StartupScriptsCp(base.job.BaseModule):
-    
-    """ Extract the diferent startup scripts.
-
-    Module description:
-        - **from_module**: Data dict.
-        - **yields**: The updated dict data.
-    """
-
-    def read_config(self):
-        super().read_config()
-        self.set_default_config('outdir', None)
-
-    def run(self, path=None):
-        startup_scripts_dir = self.myconfig('outdir')
-        check_folder(startup_scripts_dir)
-        
-        basename = os.path.basename(path)
-        file_out = os.path.join(startup_scripts_dir, basename + '.txt')
-        
-        command = "cp -s " + path + " " + file_out
-        args = shlex.split(command)
-        process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        output = process.stderr.readline().strip()
-
-        if output:
-            self.logger().error(output)
-
-
-class ServicesCp(base.job.BaseModule):
-    
-    """ Extract the diferent Services.
-
-    Module description:
-        - **from_module**: Data dict.
-        - **yields**: The updated dict data.
-    """
-
-    def read_config(self):
-        super().read_config()
-        self.set_default_config('outdir', None)
-
-    def run(self, path=None):
-        startup_scripts_dir = self.myconfig('outdir')
-        check_folder(startup_scripts_dir)
-        
-        basename = os.path.basename(path)
-
-        file_out = os.path.join(startup_scripts_dir, basename + '.txt')
-        
-        command = "cp -s " + path + " " + file_out
-        args = shlex.split(command)
-        process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        output = process.stderr.readline().strip()
-
-        if output:
-            self.logger().error(output)
 
 
 class AnalysisServicesList(base.job.BaseModule):
