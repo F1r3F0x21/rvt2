@@ -27,6 +27,7 @@ import base.config
 import base.commands
 from tqdm import tqdm
 from natsort import natsorted
+from base.utils import check_folder
 
 
 class DirectoryFilter(base.job.BaseModule):
@@ -443,3 +444,32 @@ class GlobClear(base.job.BaseModule):
                     return []
         self.logger().debug('{} not recognized as file or directory'.format(target_path))
         return []
+
+
+class CopyFile(base.job.BaseModule):
+    
+    """  A module that copy a file set in 'path' to a specific folder
+
+    Configuration:
+        - **outdir** (str): Directory where the files are copied
+        - **outfile** (str) : Destination filename. It is a template that will be formated as ``outfile.format(path=os.path.basename(path))``. By default ``{path}.txt``
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('outdir', None)
+        self.set_default_config('outfile', '{path}.txt')
+
+    def run(self, path=None):
+        outdir = self.myconfig('outdir')
+        if not outdir:
+            self.logger().error('A outdir must be provided')
+        else:
+            check_folder(outdir)
+            basename = os.path.basename(path)
+            outfile = self.myconfig('outfile')
+            file_out = os.path.join(outdir, outfile.format(path=basename))
+            
+            new_permissions = 0o644
+            shutil.copy2(path, file_out)
+            os.chmod(file_out, new_permissions)
