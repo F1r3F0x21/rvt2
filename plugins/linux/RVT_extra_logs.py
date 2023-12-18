@@ -19,9 +19,7 @@ import subprocess
 import pandas as pd
 import base.job
 from datetime import datetime
-
 from base.utils import check_folder
-from plugins.linux import get_timezone
 
 
 class LinuxStandardLog(base.job.BaseModule):
