@@ -18,9 +18,6 @@ from plugins.linux import get_username
 
 
 class CopyFilesWithUsername(base.job.BaseModule):
-    
-    """ Extract the Logfile
-   """
 
     def read_config(self):
         super().read_config()
