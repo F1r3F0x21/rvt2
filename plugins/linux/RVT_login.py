@@ -347,11 +347,15 @@ class Utmpdump(base.job.BaseModule):
                 datetime_from_iso = date_to_iso(datetime_from)
                 datetime_to_iso = date_to_iso(datetime_to)
 
+                negative = ""
                 time_difference = datetime_to - datetime_from
-                total_minutes = int(time_difference.total_seconds()/ 60)
-                hours, minutes = divmod(abs(total_minutes), 60)
-                hours *= -1 if total_minutes < 0 else 1
-                formatted_result = f"{'-' if hours == 0 and total_minutes < 0  else ''}{hours:02}:{minutes:02}"
+                if str(time_difference).startswith("-"):
+                    time_difference = datetime_from - datetime_to
+                    negative="-"
+                total_seconds = int(time_difference.total_seconds())
+                hours, remainder = divmod(abs(total_seconds), 3600)
+                minutes, seconds = divmod(remainder, 60)
+                formatted_result = f"{negative}{hours:02}:{minutes:02}:{seconds:02}"
 
                 connection_dict = {
                     "@timestamp": str(datetime_from_iso),
@@ -450,7 +454,7 @@ class Analysis(base.job.BaseModule):
             data = df_result_filtered.to_markdown()
             with open(txt_out, 'w') as file:
                 file.write(data)
-            df_result_filtered.to_csv(os.path.join(self.myconfig('analysisdir'), 'users_summary.csv'))
+            df_result_filtered.to_csv(os.path.join(self.myconfig('analysisdir'), 'users_summary.csv'), index=False)
         else:
             self.logger().error("To make the users table etc/passwd needed, and not found.")
         
@@ -466,7 +470,7 @@ class Analysis(base.job.BaseModule):
             data = df_result_wtmp.to_markdown()
             with open(txt_out, 'w') as file:
                 file.write(data)
-            df_result_wtmp.to_csv(os.path.join(self.myconfig('analysisdir'), 'logins_summary.csv'))
+            df_result_wtmp.to_csv(os.path.join(self.myconfig('analysisdir'), 'logins_summary.csv'), index=False)
 
     def lastlog(self, df_result):
         url_lastlog = os.path.join(self.login_dir, "lastlog.csv")
@@ -475,6 +479,8 @@ class Analysis(base.job.BaseModule):
                 df_lastlog = pd.read_csv(url_lastlog, sep=';', quotechar='"')
                 df_result = pd.merge(df_result, df_lastlog, on='user_ID', how='outer')
                 df_result.rename(columns={'ut_line': 'lastlog_ut_line', 'ut_host': 'lastlog_ut_host', 'datetime': 'lastlog_datetime' }, inplace=True)
+                columns_to_fill = ["lastlog_ut_host","lastlog_datetime"]
+                df_result[columns_to_fill] = df_result[columns_to_fill].fillna("Unknown")
             return df_result
         return df_result
         

@@ -210,6 +210,8 @@ class AnalysisLinuxAptHistoryLog(base.job.BaseModule):
             action_list = ast.literal_eval(line["action"])
             if any("Requested-By" in x for x in action_list):
                 user_responsible = [x["Requested-By"] for x in action_list if "Requested-By" in x]
+            else:
+                user_responsible = "Unknown"
 
             for action in action_list:
                 package_action, package = list(action.items())[0]
@@ -245,15 +247,15 @@ class AnalysisLinuxAptHistoryLog(base.job.BaseModule):
 
         if upgrade_list:
             csv_upgrade_out = os.path.join(analysisdir, 'apt_packages_upgraded.csv')
-            save_csv(upgrade_list, outfile=csv_upgrade_out)
+            #save_csv(upgrade_list, outfile=csv_upgrade_out)
         
         if remove_list:
             csv_remove_out = os.path.join(analysisdir, 'apt_packages_removed.csv')
-            save_csv(remove_list, outfile=csv_remove_out)
+            #save_csv(remove_list, outfile=csv_remove_out)
 
         if purge_list:
             csv_purge_out = os.path.join(analysisdir, 'apt_packages_purged.csv')
-            save_csv(purge_list, outfile=csv_purge_out)
+            #save_csv(purge_list, outfile=csv_purge_out)
 
 
 class AnalysisLinuxDpkgLog(base.job.BaseModule):

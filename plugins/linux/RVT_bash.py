@@ -91,7 +91,10 @@ class BashHistory(base.job.BaseModule):
                 list_commands.append(line)
                 list_commands_dict.append({'command':line})
         
-        csv_out = os.path.join(base_path, 'bash_history_' + username + '.csv')
+        folder_out = os.path.join(base_path, "bash_history")
+        check_folder(folder_out)
+        
+        csv_out = os.path.join(folder_out, 'bash_history_' + username + '.csv')
         save_csv(list_commands_dict, outfile=csv_out, file_exists='APPEND') 
         
         yield {username:list_commands}

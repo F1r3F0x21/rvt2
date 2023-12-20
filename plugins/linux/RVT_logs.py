@@ -43,26 +43,46 @@ class LinuxStandardLog(base.job.BaseModule):
             pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*)?'
             prog = re.compile(pattern)
             filename = os.path.basename(path)
+            count_lines = 0
+            prev_line_dict = {}
             
             for line in self.from_module.run(path):
                 match = prog.match(line)
                 if match:
+                    count_lines += 1
                     timestamp, host, process_command = match.groups()
                     process, command = process_command.split(":", maxsplit=1)
+
                     log_entry_dict = {
                         "@timestamp": timestamp,
-                        "host.hostname": host,
                         "process.name": process,
                         "message": command,
                         "filename": filename
                     }
-                    yield log_entry_dict
 
+                    if count_lines == 1:
+                        prev_line_dict = log_entry_dict
+                    else:
+                        if ((self.count_leading_spaces(command) > 1) or (process.startswith("python3") and log_entry_dict["@timestamp"] == prev_line_dict["@timestamp"] and log_entry_dict["process.name"] == prev_line_dict["process.name"] )):
+                            prev_line_dict["message"] = prev_line_dict["message"] + log_entry_dict["message"]
+                        else:
+                            yield prev_line_dict
+                            prev_line_dict = log_entry_dict
                 else:
                     self.logger().warning("Regex pattern failed with some logline input " + line)
+            if len(prev_line_dict) != 0:
+                yield prev_line_dict
         else:
             self.logger().warning("Logtemplete " + self.myconfig('logtemplate') + " Not supported yet")
 
+    def count_leading_spaces(self, line):
+        count = 0
+        for char in line:
+            if char == ' ':
+                count += 1
+            else:
+                break  # Stop counting when a non-space character is encountered
+        return count
 
 class JournalLogs(base.job.BaseModule):
     """ Extract from the Binarys Journal Logfile 
@@ -113,23 +133,20 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
         pid_pattern = r'.*\[(\d+)\]'
         pid_prog = re.compile(pid_pattern)
 
-        p_pattern_accepted = r'Accepted\s(\w+)\sfor\s(\S+)\sfrom\s([\d\.]+)\sport\s(\d+).*'
+        p_pattern_accepted = r'.*Accepted\s(\w+)\sfor\s(\S+)\sfrom\s([\d\.]+)\sport\s(\d+).*'
         p_prog_accepted = re.compile(p_pattern_accepted)
 
-        p_pattern_closed = r'pam_unix\(sshd:session\):\ssession\sclosed\sfor\suser\s.*'
+        p_pattern_closed = r'.*pam_unix\(sshd:session\):\ssession\sclosed\sfor\suser\s(\S+).*'
         p_prog_closed = re.compile(p_pattern_closed)
 
         
         for line in self.from_module.run(path):
-            #print(line)
             line_pid = pid_prog.match(line["process.name"]).group(1)
             match_p_accepted = p_prog_accepted.match(line["message"].strip())
 
-            #print(line["message"])
             if match_p_accepted:
                 method, user_name, ut_host, port = match_p_accepted.groups()
                 data = {'pid': line_pid,
-                        'host.hostname': line['host.hostname'], 
                         'user.name': user_name, 
                         'method': method, 
                         'ut_host': ut_host,
@@ -143,28 +160,55 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
             else:
                 match_p_closed = p_prog_closed.match(line["message"].strip())
                 if match_p_closed:
-                    pid_in_df_sshlogin = df_sshlogin_aux.loc[df_sshlogin_aux['pid'] == line_pid]
-                    if not pid_in_df_sshlogin.empty:
-                        # it can be two or more sessions with the same pid
-                        index_lists = [index_value for index_value in pid_in_df_sshlogin.index.values if index_value not in aux_list_pids]
-                        index = index_lists[0]
-                        aux_list_pids.append(index)
+                    if df_sshlogin_aux.get("pid", "None").equals("None"):
+                        data = {'pid': line_pid,
+                                'user.name':  str(match_p_closed.groups()[0]), 
+                                'method': 'Uknown', 
+                                'ut_host': 'Uknown',
+                                'port': 'Uknown',
+                                '@timestamp': line['@timestamp'],
+                                'ut_time_to': '',
+                                'ut_time_total': 'Uknown - Session Closed '
+                                }
+                        yield data
+                    else:
+                        pid_in_df_sshlogin = df_sshlogin_aux.loc[df_sshlogin_aux['pid'] == line_pid]
+                        if not pid_in_df_sshlogin.empty:
+                            # it can be two or more sessions with the same pid
+                            index_lists = [index_value for index_value in pid_in_df_sshlogin.index.values if index_value not in aux_list_pids]
+                            index = index_lists[0]
+                            aux_list_pids.append(index)
 
-                        df_sshlogin_aux.at[index, "ut_time_to"] = line['@timestamp']
+                            df_sshlogin_aux.at[index, "ut_time_to"] = line['@timestamp']
 
-                        # time conversion
-                        time_format = "%b %d %H:%M:%S"
-                        time_from = df_sshlogin_aux.at[index, "@timestamp"]
-                        time_to = line['@timestamp']
+                            # time conversion
+                            time_format = "%b %d %H:%M:%S"
+                            time_from = df_sshlogin_aux.at[index, "@timestamp"]
+                            time_to = line['@timestamp']
 
-                        datetime_from = datetime.strptime(time_from, time_format)
-                        datetime_to = datetime.strptime(time_to, time_format)
+                            datetime_from = datetime.strptime(time_from, time_format)
+                            datetime_to = datetime.strptime(time_to, time_format)
 
-                        time_difference = datetime_to - datetime_from
-                        total_minutes = int(time_difference.total_seconds()/ 60)
-                        hours, minutes = divmod(abs(total_minutes), 60)
-                        hours *= -1 if total_minutes < 0 else 1
-                        formatted_result = f"{'-' if hours == 0 and total_minutes < 0  else ''}{hours:02}:{minutes:02}"
+                            negative = ""
+                            time_difference = datetime_to - datetime_from
+                            if str(time_difference).startswith("-"):
+                                time_difference = datetime_from - datetime_to
+                                negative="-"
+                            total_seconds = int(time_difference.total_seconds())
+                            hours, remainder = divmod(abs(total_seconds), 3600)
+                            minutes, seconds = divmod(remainder, 60)
+                            formatted_result = f"{negative}{hours:02}:{minutes:02}:{seconds:02}"
 
-                        df_sshlogin_aux.at[index, "ut_time_total"] = formatted_result
-                        yield df_sshlogin_aux.loc[index, ['@timestamp', 'host.hostname','user.name', 'method', 'ut_host', 'port', 'ut_time_to', 'ut_time_total']].to_dict()
+                            df_sshlogin_aux.at[index, "ut_time_total"] = formatted_result
+                            yield df_sshlogin_aux.loc[index, ['@timestamp','user.name', 'method', 'ut_host', 'port', 'ut_time_to', 'ut_time_total']].to_dict()
+                        else:
+                            data = {'pid': line_pid,
+                                    'user.name':  str(match_p_closed.groups()[0]), 
+                                    'method': 'Uknown', 
+                                    'ut_host': 'Uknown',
+                                    'port': 'Uknown',
+                                    '@timestamp': line['@timestamp'],
+                                    'ut_time_to': '',
+                                    'ut_time_total': 'Uknown - Session Closed '
+                                    }
+                            yield data
