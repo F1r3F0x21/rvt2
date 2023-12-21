@@ -365,9 +365,57 @@ class Utmpdump(base.job.BaseModule):
                     "ut_pid": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_pid"],
                     "user.name": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_user"],
                     "ut_host": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_host"],
+                    "ut_addr_v6": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_addr_v6"],
                     "ut_time_to": str(datetime_to_iso),
                     "ut_time_total": formatted_result
                 }
+
+        if input_dict["ut_type"] == self.ut_type["RUN_LVL"] and input_dict["ut_user"] == "shutdown":
+            copy_aux_dict = copy.deepcopy(aux_dict)
+            for aux_dict_pid in aux_dict:
+                if self.ut_type["USER_PROCESS"] in aux_dict[aux_dict_pid].keys():
+                    for aux_dict_key in aux_dict[aux_dict_pid]:
+                        if aux_dict_key == self.ut_type["USER_PROCESS"]:
+                            aux_dict_connection = aux_dict[aux_dict_pid][aux_dict_key][0]
+                            
+                            copy_aux_dict.get(aux_dict_pid).pop(aux_dict_key)
+                            if len(aux_dict.get(aux_dict_pid)) == 0:
+                                copy_aux_dict.pop(aux_dict_pid)
+                            
+                            # time conversion
+                            time_format = "%Y-%m-%dT%H:%M:%S,%f%z"
+                            time_from = aux_dict_connection["ut_time"]
+                            time_to = input_dict["ut_time"]
+
+                            datetime_from = datetime.strptime(time_from, time_format)
+                            datetime_to = datetime.strptime(time_to, time_format)
+                            datetime_from_iso = date_to_iso(datetime_from)
+                            datetime_to_iso = date_to_iso(datetime_to)
+
+                            negative = ""
+                            time_difference = datetime_to - datetime_from
+                            if str(time_difference).startswith("-"):
+                                time_difference = datetime_from - datetime_to
+                                negative="-"
+                            total_seconds = int(time_difference.total_seconds())
+                            hours, remainder = divmod(abs(total_seconds), 3600)
+                            minutes, seconds = divmod(remainder, 60)
+                            formatted_result = f"{negative}{hours:02}:{minutes:02}:{seconds:02}"
+
+                            connection_dict = {
+                                "@timestamp": str(datetime_from_iso),
+                                "ut_type": "USER_PROCESS",
+                                "ut_id" : aux_dict_connection["ut_id"],
+                                "ut_line": aux_dict_connection["ut_line"],
+                                "ut_pid": aux_dict_connection["ut_pid"],
+                                "user.name": aux_dict_connection["ut_user"],
+                                "ut_host": aux_dict_connection["ut_host"],
+                                "ut_addr_v6": aux_dict_connection["ut_addr_v6"],
+                                "ut_time_to": "down",
+                                "ut_time_total": formatted_result
+                            }
+            aux_dict = copy_aux_dict
+                            
         return aux_dict, connection_dict
     
     def utmpdump_other_connections(self, aux_dict):
@@ -406,6 +454,7 @@ class Utmpdump(base.job.BaseModule):
                         "ut_pid": utmp_entry["ut_pid"],
                         "user.name": utmp_entry["ut_user"],
                         "ut_host": utmp_entry["ut_host"],
+                        "ut_addr_v6": utmp_entry["ut_addr_v6"],
                         "ut_time_to": ut_time_to ,
                         "ut_time_total": ut_time_total
                     }
@@ -463,8 +512,7 @@ class Analysis(base.job.BaseModule):
         if os.path.isfile(url_wtmp):
             df_wtmp = pd.read_csv(url_wtmp, sep=';', quotechar='"')
             df_filtered_wtmp = df_wtmp[df_wtmp['ut_type'] == 'USER_PROCESS']
-            df_result_wtmp = df_filtered_wtmp[['user.name', 'ut_host', '@timestamp', 'ut_time_to', 'ut_time_total']]
-
+            df_result_wtmp = df_filtered_wtmp[['user.name', 'ut_host', 'ut_addr_v6', '@timestamp', 'ut_time_to', 'ut_time_total']]
             # Saving table
             txt_out = os.path.join(self.myconfig('analysisdir'), 'logins_summary.md')
             data = df_result_wtmp.to_markdown()
