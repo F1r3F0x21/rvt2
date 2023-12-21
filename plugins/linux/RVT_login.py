@@ -289,6 +289,12 @@ class Utmpdump(base.job.BaseModule):
                 match = prog.match(line)
                 if match:
                     match_group = match.groups()
+
+                    if match_group[6].strip() == "0.0.0.0":
+                        ip_converted = "127.0.0.1"
+                    else:
+                        ip_converted = match_group[6].strip()
+
                     wtmp_entry_dict = {
                         "ut_type": match_group[0].strip(),
                         "ut_pid": match_group[1].strip(),
@@ -296,7 +302,7 @@ class Utmpdump(base.job.BaseModule):
                         "ut_user": match_group[3].strip(),
                         "ut_line": match_group[4].strip(),
                         "ut_host": match_group[5].strip(),
-                        "ut_addr_v6": match_group[6].strip(),
+                        "ut_addr_v6": ip_converted,
                         "ut_time": match_group[7].strip()
                     }
                     aux_dict, data_to_yield = self.utmpdump_connections_started_and_ended(wtmp_entry_dict, aux_dict)
