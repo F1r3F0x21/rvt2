@@ -211,7 +211,7 @@
             "ie_version",
             "proxysettings",
             "ie_settings",
-            "typedurls"
+            "typedurlstime"
         ]
     },
     {
@@ -241,8 +241,7 @@
             "wordwheelquery",
             "recentapps",
             "onedrive",
-            "wc_shares",
-            "appassoc"
+            "wc_shares"
         ]
     },
     {

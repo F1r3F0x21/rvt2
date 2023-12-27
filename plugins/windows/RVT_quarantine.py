@@ -124,7 +124,7 @@ class Quarantine(base.job.BaseModule):
             indx = content.rfind(sep)
             try:
                 results['filepath'] = content[indx + 8:].decode('utf-16le')
-            except:
+            except Exception:
                 self.logger().warning("Unable to decode filepath for file in path {}".format(path))
                 results['filepath'] = str(content[indx + 8:])
 
@@ -132,7 +132,7 @@ class Quarantine(base.job.BaseModule):
             indx2 = content.find(b'\x00\x00\x00\x00', indx + 12)
             try:
                 results['Malware type'] = content[indx + 12:indx2 + 1].decode('utf-16le')
-            except:
+            except Exception:
                 self.logger().warning("Unable to decode malware type for file in path {}".format(path))
                 results['Malware type'] = str(content[indx + 12:indx2 + 1])
             return json.dumps(results)

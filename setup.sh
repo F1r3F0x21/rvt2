@@ -394,15 +394,15 @@ install_zimmerman_tools(){
 
 install_hayabusa(){
   # hayabusa installation
-  HAYABUSA_PATH="external_tools/hayabusa-2.8.0"
+  HAYABUSA_PATH="external_tools/hayabusa-2.12.0"
   mkdir $HAYABUSA_PATH
   chown -R rvt:incide $HAYABUSA_PATH
   cd $HAYABUSA_PATH
-  wget https://github.com/Yamato-Security/hayabusa/releases/download/v2.8.0/hayabusa-2.8.0-all-platforms.zip
-  unzip hayabusa-2.8.0-all-platforms.zip
+  wget https://github.com/Yamato-Security/hayabusa/releases/download/v2.12.0/hayabusa-2.12.0-all-platforms.zip
+  unzip hayabusa-2.12.0-all-platforms.zip
   chown -R rvt:incide .
-  rm hayabusa-2.8.0-all-platforms.zip
-  chmod +x ./hayabusa-2.8.0-lin-gnu
+  rm hayabusa-2.12.0-all-platforms.zip
+  chmod +x ./hayabusa-2.12.0-lin-x64-gnu
 }
 
 install_rvt_bin() {
