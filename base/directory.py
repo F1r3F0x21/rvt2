@@ -28,6 +28,7 @@ import base.commands
 from tqdm import tqdm
 from natsort import natsorted
 from base.utils import check_folder
+from plugins.common.RVT_files import GetFiles
 
 
 class DirectoryFilter(base.job.BaseModule):
@@ -462,14 +463,42 @@ class CopyFile(base.job.BaseModule):
 
     def run(self, path=None):
         outdir = self.myconfig('outdir')
+        mountdir = self.myconfig('mountdir')
         if not outdir:
-            self.logger().error('A outdir must be provided')
+            self.logger().error('An outdir must be provided')
         else:
-            check_folder(outdir)
-            basename = os.path.basename(path)
-            outfile = self.myconfig('outfile')
-            file_out = os.path.join(outdir, outfile.format(path=basename))
-            
-            new_permissions = 0o644
-            shutil.copy2(path, file_out)
-            os.chmod(file_out, new_permissions)
+            if os.path.isfile(path):
+                check_folder(outdir)
+                if os.path.islink(path):
+                    # If the path is a symbolic link, get the target
+                    target_path = os.readlink(path)
+                    if not target_path.startswith(mountdir):
+                        search = GetFiles(self.config)
+                        target_path_list = search.search(target_path)
+                        
+                        mountdirlist = mountdir.split(os.path.sep)
+                        target_path_list = target_path_list[0].split(os.path.sep)
+
+                        index = mountdirlist.index(target_path_list[0])
+                        final_list = mountdirlist
+                        
+                        for directory in target_path_list:
+                            if index < len(mountdirlist):
+                                final_list[index] = directory    
+                            else:
+                                final_list.append(directory)
+                            index += 1
+                            
+                        target_path = os.path.sep.join(final_list)
+                    basename = os.path.basename(target_path)
+                else:
+                    # If not a symbolic link, use the provided path
+                    basename = os.path.basename(path)
+                
+                outfile = self.myconfig('outfile')
+                file_out = os.path.join(outdir, outfile.format(path=basename))
+                new_permissions = 0o644
+                shutil.copy2(target_path if os.path.islink(path) else path, file_out)
+                os.chmod(file_out, new_permissions)
+            else:
+                self.logger().warning('The path provided is not a valid file or does not exist: ' + path)

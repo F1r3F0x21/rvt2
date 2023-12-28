@@ -486,7 +486,7 @@ class Analysis(base.job.BaseModule):
             df_passwd = pd.read_csv(url_passwd, sep=';', quotechar='"')
             data_passwd = []
             for index, row in df_passwd.iterrows():
-                if str(row["home_directory"]).startswith("/home") or row["login_shell"] == "/bin/bash":
+                if str(row["home_directory"]).startswith("/home") or (row["login_shell"] != "/usr/sbin/nologin" and row["login_shell"] != "/bin/false"):
                     data_passwd.append(row)
             df_result = pd.DataFrame(data_passwd)
             df_result.columns = df_result.columns.str.strip()

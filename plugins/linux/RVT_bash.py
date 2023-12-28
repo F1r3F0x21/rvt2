@@ -38,33 +38,34 @@ class BashFilesCp(base.job.BaseModule):
         self.set_default_config('all_users', 'False')
 
     def run(self, path=None):
-        bash_dir = self.myconfig('outdir')
-        executed_for_all_users = self.myflag('all_users')
+        if os.path.isfile(path):
+            bash_dir = self.myconfig('outdir')
+            executed_for_all_users = self.myflag('all_users')
 
-        if executed_for_all_users:
-            basename = os.path.basename(path)
-            file_out = os.path.join(bash_dir, "all_users", basename + '.txt')
-            folder_out = os.path.join(bash_dir, "all_users")
-        else:
-            sub_folder = os.path.basename(path)
-            if sub_folder.startswith('.'):
-                prefix_file = sub_folder[1:]
+            if executed_for_all_users:
+                basename = os.path.basename(path)
+                file_out = os.path.join(bash_dir, "all_users", basename + '.txt')
+                folder_out = os.path.join(bash_dir, "all_users")
             else:
-                prefix_file = "ERROR"
-            prefix_file_ = prefix_file + "_"
-            username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=sub_folder)
-            file_out = os.path.join(bash_dir, prefix_file, prefix_file_+ username + '.txt')
-            folder_out = os.path.join(bash_dir, prefix_file)
+                sub_folder = os.path.basename(path)
+                if sub_folder.startswith('.'):
+                    prefix_file = sub_folder[1:]
+                else:
+                    prefix_file = "ERROR"
+                prefix_file_ = prefix_file + "_"
+                username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=sub_folder)
+                file_out = os.path.join(bash_dir, prefix_file, prefix_file_+ username + '.txt')
+                folder_out = os.path.join(bash_dir, prefix_file)
 
-        check_folder(folder_out)
-        
-        command = "cp -r " + path + " " + file_out
-        args = shlex.split(command)
-        process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            check_folder(folder_out)
+            
+            command = "cp -r " + path + " " + file_out
+            args = shlex.split(command)
+            process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-        output = process.stderr.readline().strip()
-        if output:
-            self.logger().error(output)
+            output = process.stderr.readline().strip()
+            if output:
+                self.logger().error(output)
 
 
 class BashHistory(base.job.BaseModule):

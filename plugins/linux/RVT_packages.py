@@ -129,7 +129,7 @@ class LinuxDpkgStatus(base.job.BaseModule):
                     'package.size' : package_dict.get("Installed-Size", ""),
                     'package.architecture' : package_dict.get("Architecture", ""),
                     'package.version' : package_dict.get("Version", ""),
-                    'package.description' : package_dict.get("Description", ""),
+                    'package.description' : package_dict.get("Description", "").replace('\n',''),
                     'maintainer' : package_dict.get("Maintainer", "")
                 }
                 package_dict.clear()
@@ -201,9 +201,7 @@ class AnalysisLinuxAptHistoryLog(base.job.BaseModule):
     def run(self, path=None):
         pkg_pattern = r'([\w\.-]+):(.+)\s\(([\d\~\w\.-]*).*\)'
         pkg_prog = re.compile(pkg_pattern)
-        upgrade_list = []
-        remove_list = []
-        purge_list = []
+        all_list = []
 
         for line in self.from_module.run(path):
             user_responsible = '' 
@@ -227,35 +225,22 @@ class AnalysisLinuxAptHistoryLog(base.job.BaseModule):
                                 'package.name' : package_name,
                                 'package.architecture' : package_architecture,
                                 'package.version' : package_version,
-                                'username' : user_responsible
+                                'username' : user_responsible,
+                                'action' : package_action
                             }
 
                             if package_action == "Install":
                                 yield data_dict
-                            elif package_action == "Upgrade":
-                                upgrade_list.append(data_dict)
-                            elif package_action == "Remove":
-                                remove_list.append(data_dict)
-                            elif package_action == "Purge":
-                                purge_list.append(data_dict)
+                            all_list.append(data_dict)
                         else:
                             self.logger().warning("Regex pattern failed with some package name: " + package_name)
 
-        # Save upgraded, removed and purged packages in diferent csv
         analysisdir = self.myconfig('analysisdir')
         check_directory(analysisdir, create=True)
 
-        if upgrade_list:
-            csv_upgrade_out = os.path.join(analysisdir, 'apt_packages_upgraded.csv')
-            #save_csv(upgrade_list, outfile=csv_upgrade_out)
-        
-        if remove_list:
-            csv_remove_out = os.path.join(analysisdir, 'apt_packages_removed.csv')
-            #save_csv(remove_list, outfile=csv_remove_out)
-
-        if purge_list:
-            csv_purge_out = os.path.join(analysisdir, 'apt_packages_purged.csv')
-            #save_csv(purge_list, outfile=csv_purge_out)
+        if all_list:
+            csv_all_out = os.path.join(analysisdir, 'apt_packages.csv')
+            save_csv(all_list, outfile=csv_all_out)
 
 
 class AnalysisLinuxDpkgLog(base.job.BaseModule):

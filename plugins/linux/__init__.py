@@ -27,8 +27,11 @@ def get_username(path, mount_dir, subfolder=".ssh"):
     if "home" in path_components:
         indexof_subfolder = path_components.index(subfolder)
         username = path_components[indexof_subfolder -1]
-    else:    
+    if "root" in path_components:    
         username = "root"
+    else:
+        username = path_components[-2]
+
     return username
 
 def get_timezone(mount_dir):
