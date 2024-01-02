@@ -63,7 +63,7 @@ class LinuxStandardLog(base.job.BaseModule):
                     if count_lines == 1:
                         prev_line_dict = log_entry_dict
                     else:
-                        if ((self.count_leading_spaces(command) > 1) or (process.startswith("python3") and log_entry_dict["@timestamp"] == prev_line_dict["@timestamp"] and log_entry_dict["process.name"] == prev_line_dict["process.name"] )):
+                        if ((self.count_leading_spaces(command) > 1) or (process.startswith("python3"))) and log_entry_dict["@timestamp"] == prev_line_dict["@timestamp"] and log_entry_dict["process.name"] == prev_line_dict["process.name"] :
                             prev_line_dict["message"] = prev_line_dict["message"] + log_entry_dict["message"]
                         else:
                             yield prev_line_dict
