@@ -231,7 +231,8 @@ class ExtractPathTerms(base.job.BaseModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.patterns = {
-            'user': re.compile("/mnt/.*/(Documents and Settings|Users|home)/(?P<user>[^/]*)/"),
+            # Perform a negative lookahead to avoid getting the user of the host computer
+            'user': re.compile("/mnt/.*/(Documents and Settings|Users|home)/(?P<user>[^/]*)/(?!.*/(Documents and Settings|Users|home)/)"),
             'partition': re.compile("/mnt/(?P<partition>[^/]*)/"),
             'profile': re.compile("/mnt/.*/AppData/Local/.*/User Data/(?P<profile>[^/]*)/")
         }

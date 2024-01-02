@@ -93,10 +93,9 @@ def estimate_iterations(path, cmd, from_dir=None, logger=logging):
     """ Estimate the number of iterations using an external command.
 
     Parameters:
-        cmd (str): The path to use on the command.
-        from_dir (str): If specified, run the external command from this directory.
         cmd (str): The external command to run, as a string or an array. If *cmd* is a string, run the command as a shell command.
-            It is a tempalte that will be formated as ``cmd.format(path=path)``.
+            It is a template that will be formated as ``cmd.format(path=path)``.
+        from_dir (str): If specified, run the external command from this directory.
 
     Returns:
         The estimated number of iterations as an integer number. ``float('inf')`` if the number of iterations cannot be estimated.

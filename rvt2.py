@@ -161,7 +161,7 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, elap
                     f.write(json.dumps(data))
                     f.write('\n')
             except Exception:
-                pass
+                logging.error(f'Unable to register job execution in "{filename}". Check the folder permissions or this may cause errors later.')
         analyst = logging.getLogger('analyst')
         analyst.info(f'RVT2 job="%s" for casename="%s" on source="%s" status="%s"', job, casename, source, status)
 
