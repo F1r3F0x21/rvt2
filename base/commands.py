@@ -205,6 +205,9 @@ class RegexFilter(base.job.BaseModule):
         encoding = self.myconfig('encoding')
 
         kwlist = self.myconfig('keyword_list')
+        # Normally keyword_list will be a python list object, but can also be provided as string in configuration files
+        if kwlist and isinstance(kwlist,str):
+            kwlist = self.myarray('keyword_list')
         if not kwlist:
             if not os.path.exists(keyword_file):
                 raise base.job.RVTError('The keyword file does not exists: {}'.format(keyword_file))

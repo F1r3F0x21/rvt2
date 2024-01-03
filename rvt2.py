@@ -118,7 +118,7 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, elap
     """ Register the execution of the rvt2 in a file with a timestamp.
 
     Attrs:
-        :config: The configuration object. morgue, casename and source will be get from the DEFAULT section.
+        :config: The configuration object. morgue, client, casename and source will be get from the DEFAULT section.
             The filename is in "rvt2:register". If filename is empty, do not register.
             If "jobname:register" is False, do not register
         :conffiles: List of extra configuration files
@@ -130,6 +130,7 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, elap
     """
     filename = config.get('rvt2', 'register', default=None)
     morgue = config.get('DEFAULT', 'morgue')
+    client = config.get('DEFAULT', 'client')
     casename = config.get('DEFAULT', 'casename')
     source = config.get('DEFAULT', 'source')
     casedir = config.get('DEFAULT', 'casedir')
@@ -141,6 +142,7 @@ def registerExecution(jobid, config, conffiles, job, params, paths, status, elap
         rvthome=config.get('DEFAULT', 'rvthome'),
         conffiles=conffiles,
         morgue=morgue,
+        client=client,
         casename=casename,
         source=source,
         job=job,

@@ -400,6 +400,8 @@ class Partition(object):
             run_command(["sudo", umount, '-l', path], logger=self.logger)
         except Exception:
             self.logger.error("Error unmounting {}".format(path))
+        # Remove partition info file if 'remove_info' is True:
+        self.load_partition()
 
     def refreshMountedImages(self):
         """ Updates information about mounting points. """

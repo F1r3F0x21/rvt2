@@ -299,6 +299,36 @@ class ForEach(base.job.BaseModule):
         return []
 
 
+class MirrorOptions(base.job.BaseModule):
+    """ Return the value of the local options.
+
+        Configuration:
+        - **include_section**: If true, include also the configuration in the section.
+        - **relative_path**: If true, return the path relative to casedir.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('include_section', 'False')
+        self.set_default_config('relative_path', 'True')
+
+    def run(self, path=None):
+        if self.myflag('relative_path'):
+            params = dict(path=base.utils.relative_path(path, self.myconfig('casedir')))
+        else:
+            params = dict(path=path)
+        if self.local_config:
+            params.update(self.local_config)
+        if self.myflag('include_section') and hasattr(self, 'section') and hasattr(self, 'config'):
+            if self.config.has_section(self.section):
+                for option in self.config.options(self.section):
+                    params[option] = self.config.get(self.section, option)
+        # Remove useless parameters
+        params.pop('logger_name')
+        params.pop('include_section')
+        return [params]
+
+
 class SetFields(base.job.BaseModule):
     """ Get data from from_module, set or update some of its fields and yield again.
 
