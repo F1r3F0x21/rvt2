@@ -1,6 +1,6 @@
 # Revealer Toolkit 2
 
-![](docs/data/new_logo.png)
+![](docs/data/new_logo.jpeg)
 
 
 ## Introduction
