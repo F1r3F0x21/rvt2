@@ -1,6 +1,6 @@
 # Revealer Toolkit 2
 
-![](docs/data/new_logo.jpeg)<img src="docs/data/new_logo.jpeg"  width="120" height="120">
+<img src="docs/data/new_logo.jpeg"  width="200" height="200">
 
 
 
