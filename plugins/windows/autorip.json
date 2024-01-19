@@ -115,6 +115,7 @@
             "shimcache",
             "syscache_tln",
             "tasks",
+            "taskcache",
             "tracing",
             "at",
             "direct",

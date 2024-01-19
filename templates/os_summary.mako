@@ -10,7 +10,8 @@ subtitle = '##'
 ${subtitle} Partition ${p[1:]} description
 ${subtitle}# OS Information
 
-|Information|Value|
+[[[inlinetable(OS Information,m{4.5cm}m{7cm})]]]
+Data|Value
 --|--
 **ProductName**| ${os_info[p].get("ProductName", 'Unknown')}
 **ComputerName**| ${os_info[p].get("ComputerName", 'Unknown')}
@@ -29,8 +30,8 @@ ${subtitle}# OS Information
 
 ${subtitle}# Users
 
-[[[inlinetable(Users,m{5cm}m{4cm}m{4cm})]]]
-User|Creation date (UTC)|Last login/logoff (UTC)
+[[[inlinetable(Users,m{5cm}m{3.8cm}m{3.8cm})]]]
+User|Creation date (UTC)|Last session (UTC)
 --|--|--
 % for u, user_data in os_info[p].get("users", {}).items():
 ${u}|${user_data['creation_time']}|${user_data['last_write']}
@@ -38,8 +39,8 @@ ${u}|${user_data['creation_time']}|${user_data['last_write']}
 
 ${subtitle}# User profiles
 
-[[[inlinetable(User Profiles,m{4cm}m{2.2cm}m{2.2cm}m{4cm})]]]
-User|Creation date (UTC)|Last login/logoff (UTC)|SID
+[[[inlinetable(User Profiles,m{4.2cm}m{2cm}m{2cm}m{4.2cm})]]]
+User|Creation date (UTC)|Last session (UTC)|SID
 --|--|--|--
 % for u, user_data in os_info[p].get("user_profiles", {}).items():
 ${u}|${user_data['creation_time']}|${user_data['last_write']}|${user_data['sid']}

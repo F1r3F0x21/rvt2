@@ -51,7 +51,6 @@ class Recycle(base.job.BaseModule):
         super().__init__(*args, **kwargs)
         self.vss = self.myflag('vss')
         self.mountdir = self.myconfig('mountdir')
-        print(self.myconfig)
         if not os.path.isdir(self.mountdir):
             raise base.job.RVTError(f'Mount directory does not exist. Please, mount the image or save some artifacts inside {self.mountdir}')
 
