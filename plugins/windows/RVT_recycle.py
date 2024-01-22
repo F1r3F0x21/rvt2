@@ -23,33 +23,19 @@ from itertools import chain, product
 from io import BytesIO
 
 import base.job
-from base.utils import check_directory, check_file, save_csv
+from base.utils import check_directory, check_file, save_csv, parse_microsoft_timestamp
 from plugins.common.RVT_disk import getSourceImage
 from plugins.common.RVT_filesystem import FileSystem
-# from plugins.common.RVT_files import GetFiles
 
 # TODO: extract inode from $R and associate it to file if not in bin_codes, in present timeline or an older vss, loading inode_path association for older vss
 
 
-def ms_time_to_unix(windows_time):
-    # adapted from pylink.py
-    unix_time = windows_time / 10000000.0 - 11644473600
-    return datetime.datetime.utcfromtimestamp(unix_time).strftime("%Y-%m-%d %H:%M:%S")
-
-
-def filter_deleted_ending(path):
-    """ Strips ' (deleted)' or ' (deleted-realloc)' from the end of a path as given by 'fls'. """
-    if path[-1] != ')':
-        return path
-    if path.endswith('(deleted)'):
-        return path[:-10]
-    if path.endswith('-realloc)'):
-        return path[:-18]
-    return path
-
-
 class Recycle(base.job.BaseModule):
-    """ Obtain a summary of all files found in the Recycle Bin
+    """ Obtain a summary of all files found in the Recycle Bin.
+
+    Requirements:
+        - Timeline body file. Run `fs_timeline` or `mft_timeline` before this job
+        - (Optional) SOFTWARE hive to get user SIDs. This file must be inside the partition or among the collected artifacts
 
     Output file fields description:
         * Date: original file deletion date
@@ -64,45 +50,60 @@ class Recycle(base.job.BaseModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.vss = self.myflag('vss')
+        self.mountdir = self.myconfig('mountdir')
+        if not os.path.isdir(self.mountdir):
+            raise base.job.RVTError(f'Mount directory does not exist. Please, mount the image or save some artifacts inside {self.mountdir}')
+
+        # Check if a source image is provided
+        self.filesystem = None
         try:
             self.disk = getSourceImage(self.myconfig, vss=self.vss)
-            self.filesystem = FileSystem(self.config, disk=self.disk)
+            if not self.disk.imagefile:
+                self.logger().info(f'No image found for source {self.myconfig("source")}. Proceeding to find artifacts in {self.mountdir}')
+            else:
+                self.filesystem = FileSystem(self.config, disk=self.disk)
         except Exception as exc:
             raise base.job.RVTError('A source image is needed. {}'.format(exc))
 
         # Associate a partition name with a partition object or a loop device
-        self.partitions = {''.join(['p', p.partition]): p for p in self.disk.partitions if p.isMountable}
-        if not self.partitions:
-            raise base.job.RVTError('No partitions found in image {}'.format(self.disk.imagefile))
-        self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss_mounted.items() if dev}
-        self.logger().debug('Partitions: {}'.format(self.partitions))
-        self.logger().debug('Vss Partitions: {}'.format(self.vss_partitions))
+        if self.filesystem:
+            self.partitions = {''.join(['p', p.partition]): p for p in self.disk.partitions if p.isMountable}
+            if not self.partitions:
+                raise base.job.RVTError('No partitions found in image {}'.format(self.disk.imagefile))
+            self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss_mounted.items() if dev}
+            self.logger().debug('Partitions: {}'.format(self.partitions))
+            self.logger().debug('VSS Partitions: {}'.format(self.vss_partitions))
 
-        self.mountdir = self.myconfig('mountdir')
-
-        if not os.path.isdir(self.mountdir):
-            raise base.job.RVTError("Mount directory {} does not exist".format(self.mountdir))
-
+        # Assert timeline has already been generated
         self.timeline_file = os.path.join(self.myconfig('timelinesdir'), '{}_BODY.csv'.format(self.myconfig('source')))
+        try:
+            check_file(self.timeline_file, error_missing=True)
+        except base.job.RVTError:
+            raise base.job.RVTError('Timeline not found at {}. Please, generate the timeline with fs_timeline or mft_timeline before running the present job for parsing recycle bin'.format(self.timeline_file))
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('vss', False)
 
     def run(self, path=""):
         """ Main function to extract $Recycle.bin files. """
 
         output_path = self.myconfig('outdir')
-        try:
-            check_file(self.timeline_file, error_missing=True)
-        except base.job.RVTError:
-            raise base.job.RVTError('Timeline not found at {}. Please, generate the timeline with fs_timeline or mft_timeline before running the present job for recycle bin'.format(self.timeline_file))
-
         check_directory(output_path, create=True)
 
         # Get the users associated with each SID for every partition or mounted vss
         self.sid_user = {}
-        for p in self.vss_partitions:
-            self.sid_user[p] = self.generate_SID_user(p)
-        if not self.vss:
-            for p in self.partitions:
+        if self.filesystem:
+            for p in self.vss_partitions:
                 self.sid_user[p] = self.generate_SID_user(p)
+            if not self.vss:
+                for p in self.partitions:
+                    self.sid_user[p] = self.generate_SID_user(p)
+        else:
+            # Iterate all pX folders inside mountdir
+            for p in [f for f in os.listdir(self.mountdir) if (os.path.isdir(os.path.join(self.mountdir,f)) and f.startswith('p'))]:
+                self.sid_user[p] = self.generate_SID_user(p)
+                self.logger().debug(f'Obtained the following users in partition {p}: {self.sid_user[p]}')
 
         # RB_codes relates a a six digit recyclebin code with a path for a file. Are updated for each partition or vss?
         self.RB_codes = {}
@@ -179,24 +180,22 @@ class Recycle(base.job.BaseModule):
         # Mark status of the file [allocated, deleted, realloc]. In realloc entries extraction makes no sense
         file_status = 'realloc' if filename[-9:] == '-realloc)' else ('deleted' if filename[-9:] == '(deleted)' else 'allocated')
 
+        partition, SID = fn_splitted[2], fn_splitted[4]
+        # Clean filename stripping the '(deleted)' ending
+        filename = self.filter_deleted_ending(filename)
+        user = self.get_user_from_SID(SID, partition)
+        # Check the obtained partition number is coherent with the filesystem
         if self.vss:
             partition, SID = fn_splitted[2], fn_splitted[4]
             if partition not in self.partitions:
                 self.logger().warning('Partition number {} obtained from timeline does not match any partition'.format(partition))
                 return
-            # Clean filename stripping the '(deleted)' ending
-            filename = filter_deleted_ending(filename)
-            user = self.get_user_from_SID(SID, partition)
-        else:
-            part, SID = fn_splitted[2], fn_splitted[4]
+        elif self.filesystem:
             try:  # Find partition object associated to selected partition number
-                partition = self.partitions[part]
+                partition = self.partitions[partition]
             except KeyError:
-                self.logger().warning('Partition number {} obtained from timeline does not match any partition'.format(part))
+                self.logger().warning('Partition number {} obtained from timeline does not match any partition'.format(partition))
                 return
-            # Clean filename stripping the '(deleted)' ending
-            filename = filter_deleted_ending(filename)
-            user = self.get_user_from_SID(SID, part)
 
         size = int(size)
         inode = int(inode.split('-')[0])
@@ -248,7 +247,6 @@ class Recycle(base.job.BaseModule):
         try:
             sep_char = filename[char_pos + 8:].find('/')
             subfile = True if sep_char != -1 else False
-            # subfile = True if filename[char_pos + 8] == '/' else False
         except IndexError:
             subfile = False
 
@@ -303,6 +301,7 @@ class Recycle(base.job.BaseModule):
         Returns:
             dict: keys = [Date, Size, File, OriginalName, Inode, Status, User]
         """
+        self.logger().debug(f'Parsing {filepath}')
         try:
             with BytesIO(file) as f:  # file is a byte-string
                 data = self.get_metadata(f, filepath)
@@ -347,7 +346,7 @@ class Recycle(base.job.BaseModule):
             self.logger().warning('Problems getting file size for file: {}'.format(filepath))
             size = 0
         try:
-            deleted_time = ms_time_to_unix(struct.unpack_from('<q', data, 16)[0])
+            deleted_time = parse_microsoft_timestamp(struct.unpack_from('<q', data, 16)[0]).strftime("%Y-%m-%d %H:%M:%S")
         except Exception as exc:
             self.logger().warning('Problems getting deleted timestamp for file: {}. Err: {}'.format(filepath, exc))
             deleted_time = datetime.datetime(1970, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
@@ -380,7 +379,6 @@ class Recycle(base.job.BaseModule):
 
         try:
             software = self.locate_hives(partition)['software']
-            # software = GetFiles(self.config, vss=self.myflag("vss")).search('{}/windows/system32/config/SOFTWARE$'.format(partition))[0]
         except (KeyError, TypeError):
             self.logger().debug('No Software registry file found for partition {}'.format(partition))
             return {}
@@ -448,3 +446,13 @@ class Recycle(base.job.BaseModule):
                 continue
 
         return hives
+
+    def filter_deleted_ending(self, path):
+        """ Strips ' (deleted)' or ' (deleted-realloc)' from the end of a path as given by 'fls'. """
+        if path[-1] != ')':
+            return path
+        if path.endswith('(deleted)'):
+            return path[:-10]
+        if path.endswith('-realloc)'):
+            return path[:-18]
+        return path

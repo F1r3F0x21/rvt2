@@ -42,7 +42,7 @@ def load_partition(auxdir):
 
     infile = None
 
-    if os. path. isdir(auxdir):
+    if os.path.isdir(auxdir):
         for part_file in os.listdir(auxdir):
             if part_file.startswith('p') and part_file.endswith('info.json'):
                 infile = os.path.join(auxdir, part_file)

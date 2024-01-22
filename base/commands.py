@@ -93,10 +93,9 @@ def estimate_iterations(path, cmd, from_dir=None, logger=logging):
     """ Estimate the number of iterations using an external command.
 
     Parameters:
-        cmd (str): The path to use on the command.
-        from_dir (str): If specified, run the external command from this directory.
         cmd (str): The external command to run, as a string or an array. If *cmd* is a string, run the command as a shell command.
-            It is a tempalte that will be formated as ``cmd.format(path=path)``.
+            It is a template that will be formated as ``cmd.format(path=path)``.
+        from_dir (str): If specified, run the external command from this directory.
 
     Returns:
         The estimated number of iterations as an integer number. ``float('inf')`` if the number of iterations cannot be estimated.
@@ -206,6 +205,9 @@ class RegexFilter(base.job.BaseModule):
         encoding = self.myconfig('encoding')
 
         kwlist = self.myconfig('keyword_list')
+        # Normally keyword_list will be a python list object, but can also be provided as string in configuration files
+        if kwlist and isinstance(kwlist,str):
+            kwlist = self.myarray('keyword_list')
         if not kwlist:
             if not os.path.exists(keyword_file):
                 raise base.job.RVTError('The keyword file does not exists: {}'.format(keyword_file))

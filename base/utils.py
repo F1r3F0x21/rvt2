@@ -33,6 +33,9 @@ import dateutil.parser
 from functools import lru_cache
 from pathlib import Path, PureWindowsPath
 
+# ----------------------------
+# PATH MANAGEMENT
+# ----------------------------
 
 def check_folder(path):
     """ Check is a path is a folder and create if not exists.
@@ -84,7 +87,14 @@ def check_file(path, error_missing=False, error_exists=False, delete_exists=Fals
     Returns:
         True if the file exists at the end of this function.
     """
-    if os.path.lexists(path):
+    try:
+        exists = os.path.lexists(path)
+        valid_path = True
+    except TypeError:
+        exists = False
+        valid_path = False
+
+    if exists:
         if error_exists:
             raise base.job.RVTError('{} exists'.format(path))
         if not (os.path.isfile(path) or os.path.islink(path)):
@@ -94,9 +104,9 @@ def check_file(path, error_missing=False, error_exists=False, delete_exists=Fals
     else:
         if error_missing:
             raise base.job.RVTError('{} does not exist'.format(path))
-    if create_parent:
+    if create_parent and valid_path:
         check_directory(os.path.dirname(path), create=True)
-    return os.path.lexists(path)
+    return exists
 
 
 def relative_path(path, start):
@@ -121,6 +131,18 @@ def relative_path(path, start):
     except ValueError:
         return None
 
+
+def windows_format_path(path, enclosed=False):
+    """ Return a Windows format path. If 'enclosed', sorround by semicolons so shlex or other functions can process the full path as one """
+    path = str(PureWindowsPath(Path(path)))
+    if enclosed:
+        return '"' + path + '"'
+    return path
+
+
+# ----------------------------
+# OUTPUT MANAGEMENT
+# ----------------------------
 
 def save_output(data, config=None, output_module='base.output.CSVSink', **kwargs):
     """
@@ -178,6 +200,10 @@ def save_md_table(data, config=None, **kwargs):
     save_output(data, config, 'base.output.MDTableSink', **kwargs)
 
 
+# ----------------------------
+# ID AND HASH GENERATION
+# ----------------------------
+
 def generate_id(data=None):
     """ Generate a unique ID for a piece of data. If data is None, returns a random indentifier.
 
@@ -233,23 +259,9 @@ def generate_hash(data=None):
     return dhash.hexdigest()
 
 
-def human_readable_size(num):
-    """ Converts bytes to human readable magnitudes """
-
-    for unit in ['', 'K', 'M', 'G', 'T', 'P']:
-        if abs(num) < 1024.0:
-            return "%3.1f%s" % (num, unit)
-        num /= 1024.0
-    return "%.1f%s" % (num, 'Yi')
-
-
-def windows_format_path(path, enclosed=False):
-    """ Return a Windows format path. If 'enclosed', sorround by semicolons so shlex or other functions can process the full path as one """
-    path = str(PureWindowsPath(Path(path)))
-    if enclosed:
-        return '"' + path + '"'
-    return path
-
+# ----------------------------
+# IP MANAGEMENT
+# ----------------------------
 
 def sanitize_ip(value):
     """ Adapt IP fields to Elastic IPv4 or IPv6 addresses format (see https://www.elastic.co/guide/en/elasticsearch/reference/current/ip.html)
@@ -341,6 +353,9 @@ def check_integer(value):
     except (ValueError, TypeError):
         return None
 
+# ----------------------------
+# DATE MANAGEMENT
+# ----------------------------
 
 def date_to_iso(source, input_timezone="UTC", output_timezone="UTC", on_fail='NULL', dayfirst=False, sep="T", timespec='auto', hide_tz=False):
     """ Get input data representing a date and return a string in ISO format. Both input and output timezones are editable. """
@@ -433,60 +448,27 @@ def _on_fail_dates(on_fail_condition='EPOCH', output_type='DATETIME', tz_name='U
     return on_fail_iso.get(on_fail_condition.upper(), "")
 
 
-class WaitForJob(base.job.BaseModule):
-    """ Manages concurrency of repeated jobs.
-        If there is still an instance running of a job that is to be executed, then the new job waits the first one to finish.
+def parse_microsoft_timestamp(timestamp):
+    """ Converts a Microsoft format timestamp to a datetime object.
 
-        configuration:
-        - **job_name** : name of the job to check it's running. By default it will be the present job name itself.
-        - **exclude_present_job**: Exclude the present job id in the search, since it will always be registered before the present functions is executed.
-        - **step** : time (in seconds) between consecutive state asking.
-        - **timeout** : maximum time (in seconds) to wait. After that, the new job is cancelled.
+    Microsoft file time is a 64-bit value that represents the number of 100-nanosecond intervals
+    that have elapsed since 12:00 A.M. January 1, 1601 Coordinated Universal Time (UTC).
+    UNIX time is specified as the number of seconds since January 1, 1970.
+    There are 134,774 days (or 11,644,473,600 seconds) between these dates.
     """
-
-    def read_config(self):
-        super().read_config()
-        self.set_default_config('job_name', None)
-        self.set_default_config('exclude_present_job', True)
-        self.set_default_config('step', '30')
-        self.set_default_config('timeout', '600')
-
-    def run(self, path=""):
-        base.job.wait_for_job(self.config,
-                              self,
-                              step=int(self.myconfig('step')),
-                              timeout=int(self.myconfig('timeout')),
-                              job_name=self.myconfig('job_name'),
-                              exclude_present_job=self.myflag('exclude_present_job'))
-
-        return []
+    unix_time = float(timestamp) *1e-7 - 11644473600
+    return datetime.datetime.utcfromtimestamp(unix_time)
 
 
-class MirrorOptions(base.job.BaseModule):
-    """ Return the value of the local options.
+# ----------------------------
+# OTHER
+# ----------------------------
 
-        Configuration:
-        - **include_section**: If true, include also the configuration in the section.
-        - **relative_path**: If true, return the path relative to casedir.
-    """
+def human_readable_size(num):
+    """ Converts bytes to human readable magnitudes """
 
-    def read_config(self):
-        super().read_config()
-        self.set_default_config('include_section', 'False')
-        self.set_default_config('relative_path', 'True')
-
-    def run(self, path=None):
-        if self.myflag('relative_path'):
-            params = dict(path=base.utils.relative_path(path, self.myconfig('casedir')))
-        else:
-            params = dict(path=path)
-        if self.local_config:
-            params.update(self.local_config)
-        if self.myflag('include_section') and hasattr(self, 'section') and hasattr(self, 'config'):
-            if self.config.has_section(self.section):
-                for option in self.config.options(self.section):
-                    params[option] = self.config.get(self.section, option)
-        # Remove two not useful parameters
-        params.pop('logger_name')
-        params.pop('include_section')
-        return [params]
+    for unit in ['', 'K', 'M', 'G', 'T', 'P']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s" % (num, unit)
+        num /= 1024.0
+    return "%.1f%s" % (num, 'Yi')

@@ -165,7 +165,7 @@ _build_install_libyal() (
     ln -s ${NAME}-${STAGE}-${VER}.tar.gz ${NAME}_${VER}.orig.tar.gz
     tar xzf ${NAME}-${STAGE}-${VER}.tar.gz
     cd ${NAME}-${VER}/
-    ./configure --enable-python3
+    ./configure --enable-python
     make
     make install
     ldconfig
@@ -221,6 +221,13 @@ build_install_libfvde() {
 
     _build_install_libyal libfvde experimental "${VERSION}"
     # sed -i "s/.user_allow_other/user_allow_other/" /etc/fuser.conf
+}
+
+build_install_libevt() {
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libevt/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
+    | sed -rn "s/.*([0-9]{8}).*/\1/p")
+
+    _build_install_libyal libevt alpha "${VERSION}"
 }
 
 build_install_volatility() {
@@ -436,7 +443,7 @@ create_link_bin() {
 # Remove unnecessary source files
 clean_sources() (
   cd "${SRCDIR}"
-  rm -rf libvshadow* libesedb* libpff* libfvde* apfs-fuse ntfs-3g* liblnk libmsiecf libscca
+  rm -rf libvshadow* libesedb* libpff* libfvde* libscca* libevt* apfs-fuse ntfs-3g* liblnk libmsiecf
   rm -f Parse-Evtx*.zip* RegRipper2*
 )
 
@@ -467,6 +474,7 @@ setup_debian_full() {
     build_install_liblnk
     build_install_libmsiecf
     build_install_libscca
+    build_install_libevt
     build_install_regripper
     build_install_ntfs3g_system_compression
     build_install_apfs_fuse

@@ -428,16 +428,26 @@ class GlobClear(base.job.BaseModule):
 
         ftype = self.myconfig('ftype').lower()
 
-        self.logger().debug('Removing all {} matching glob pattern: {}'.format(ftype, path))
+        items_removed = False
+        self.logger().debug('Removing all {} matching glob pattern: {}'.format(ftype, target_path))
         for filepath in glob.iglob(target_path, recursive=self.myflag('recursive')):
             if ftype == 'all' or \
                     (ftype == 'file' and os.path.isfile(filepath)) or \
                     (ftype == 'directory' and os.path.isdir(filepath)):
                 if os.path.isdir(filepath):
                     shutil.rmtree(filepath)
-                    return []
+                    items_removed = True
+                    self.logger().debug(f'Directory {filepath} has been deleted')
                 elif os.path.isfile(filepath):
                     os.remove(filepath)
-                    return []
-        self.logger().debug('{} not recognized as file or directory'.format(target_path))
-        return []
+                    items_removed = True
+                    self.logger().debug(f'File {filepath} has been deleted')
+
+        if not items_removed:
+            self.logger().debug('No file or directory matching "{}" has been deleted'.format(target_path))
+
+        # If this job is used as a module, continue the module chain
+        if self.from_module is not None:
+            yield from self.from_module.run(path)
+        else:
+            return []

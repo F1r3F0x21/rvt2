@@ -23,15 +23,16 @@ Modules to mutate data yielded by other modules: converte using specific convert
 
 import base.job
 import base.utils
-import dateutil.parser
 import datetime
 import os
 import ast
-import pytz
+import base64
 from textwrap import wrap
 from plugins.windows.RVT_os_info import CharacterizeWindows
 from base.utils import sanitize_ip
 
+
+# TODO: Do not use dependencies from Windows plugin
 
 class DateFields(base.job.BaseModule):
     """ Converts or creates some fields into ISO date strings.
@@ -297,6 +298,36 @@ class ForEach(base.job.BaseModule):
             new_path = data.get('path', None)
             list(base.job.run_job(self.config, run_job, path=new_path, extra_config=data))
         return []
+
+
+class MirrorOptions(base.job.BaseModule):
+    """ Return the value of the local options.
+
+        Configuration:
+        - **include_section**: If true, include also the configuration in the section.
+        - **relative_path**: If true, return the path relative to casedir.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('include_section', 'False')
+        self.set_default_config('relative_path', 'True')
+
+    def run(self, path=None):
+        if self.myflag('relative_path'):
+            params = dict(path=base.utils.relative_path(path, self.myconfig('casedir')))
+        else:
+            params = dict(path=path)
+        if self.local_config:
+            params.update(self.local_config)
+        if self.myflag('include_section') and hasattr(self, 'section') and hasattr(self, 'config'):
+            if self.config.has_section(self.section):
+                for option in self.config.options(self.section):
+                    params[option] = self.config.get(self.section, option)
+        # Remove useless parameters
+        params.pop('logger_name')
+        params.pop('include_section')
+        return [params]
 
 
 class SetFields(base.job.BaseModule):
@@ -632,6 +663,72 @@ class SpaceText(base.job.BaseModule):
                 if field in data:
                     data[field] = ' '.join(wrap(data[field], steps[i]))
             yield data
+
+
+class DecodeFields(base.job.BaseModule):
+    """ Decode input fields binary data.
+
+    Configuration:
+        - **fields**: Space separated keys to decode
+        - **new_fields**: A space separated list of new fields to create. If not set, original fields will be converted. If `fields` is set, must have the same number of items as `new_fields`
+        - **input_encoding**: Original encoding to decode. Options: [hexadecimal, binary, base64]. Assumeing all 'fields' provided have the same encoding. Run this module as many times as necessary if different encodings are present
+        - **output_encoding**: Desired output encoding
+    """
+    # TODO: more encodings
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('fields', '')
+        self.set_default_config('new_fields', '')
+        self.set_default_config('encoding', 'hexadecimal')
+        self.set_default_config('decoding', 'UTF-8')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+        fields = self.myarray('fields')
+        new_fields = self.myarray('new_fields')
+        if new_fields and len(new_fields) != len(fields):
+            raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
+
+        if not fields:
+            yield from self.from_module.run(path)
+            return []
+
+        decoding_functions = {'hexadecimal': self._hex,
+                              'binary': self._binary,
+                              'base64': self._base64}
+        input_encoding = self.myconfig('encoding')
+        output_encoding = self.myconfig('decoding')
+        if input_encoding.lower() not in decoding_functions:
+            self.logger().warning(f'Provided encoding {input_encoding} not supported. Valid options: {decoding_functions.keys()}')
+            yield from self.from_module.run(path)
+            return []
+
+        for data in self.from_module.run(path):
+            for i, field in enumerate(fields):
+                if field in data:
+                    new_value = ''
+                    try:
+                        new_value = decoding_functions[input_encoding](data[field], output_encoding)
+                    except Exception as exc:
+                        self.logger().debug(exc)
+                    # Create a new field and remove the previous one even if no substitution has been made
+                    if new_fields:
+                        data[new_fields[i]] = new_value if new_value else data[field]
+                        data.pop(field)
+                    else:
+                        data[field] = new_value if new_value else data[field]
+            yield data
+
+    def _hex(self, data, output_encoding):
+        return bytearray.fromhex(data).decode(encoding=output_encoding)
+
+    def _binary(self, data, output_encoding):
+        n = int(data, 2)
+        return n.to_bytes((n.bit_length() + 7) // 8, 'big').decode(encoding=output_encoding) or '\0'
+
+    def _base64(self, data, output_encoding):
+        return base64.b64decode(data).decode(encoding=output_encoding)
 
 
 class AdaptIpFormat(base.job.BaseModule):

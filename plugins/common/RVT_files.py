@@ -226,35 +226,32 @@ class GetTimeline(base.job.BaseModule):
 
 
 class ExtractPathTerms(base.job.BaseModule):
-    """ Set new configuration options with user and partition obtained from a file path """
+    """ Set new configuration options with partition, user and profile obtained from a file path """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.regex_user = re.compile("(Documents and Settings|Users|home)/(?P<user>[^/]*)/")
-        self.regex_partition = re.compile("/mnt/(?P<partition>[^/]*)/")
+        self.patterns = {
+            # Perform a negative lookahead to avoid getting the user of the host computer
+            'user': re.compile("/mnt/.*/(Documents and Settings|Users|home)/(?P<user>[^/]*)/(?!.*/(Documents and Settings|Users|home)/)"),
+            'partition': re.compile("/mnt/(?P<partition>[^/]*)/"),
+            'profile': re.compile("/mnt/.*/AppData/Local/.*/User Data/(?P<profile>[^/]*)/")
+        }
 
     def read_config(self):
         super().read_config()
         self.set_default_config('section', 'extract_terms')
 
     def run(self, path):
-        user = self.get_user_from_path(path)
-        partition = self.get_partition_from_path(path)
-        self.config.set(self.myconfig('section'), 'user', user)
-        self.config.set(self.myconfig('section'), 'partition', partition)
+        for category in self.patterns.keys():
+            value = self.get_info_from_path(path, category)
+            self.config.set(self.myconfig('section'), category, value)
         for data in self.from_module.run(path):
             yield data
 
-    def get_user_from_path(self, path):
-        res = self.regex_user.search(path)
-        if res is None:
-            self.logger().error("Couldn't extract user from path: {}".format(path))
+    def get_info_from_path(self, path, category):
+        hit = self.patterns[category].search(path)
+        if hit is None:
+            if category != 'profile':  # profile is only present in some paths. Don not alert if not found
+                self.logger().warning(f"Couldn't extract {category} from path: {path}")
             return ''
-        return res.group('user')
-
-    def get_partition_from_path(self, path):
-        res = self.regex_partition.search(path)
-        if res is None:
-            self.logger().error("Couldn't obtain partition from path: {}".format(path))
-            return ''
-        return res.group('partition')
+        return hit.group(category)
