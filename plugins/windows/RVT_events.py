@@ -390,9 +390,10 @@ class System(EventJob):
                 ev["data.BootTypeStr"] = boot_type.get(ev["data.BootType"], "Unknown")
             if "data.Reason" in ev.keys():
                 ev["data.ReasonStr"] = reason_sleep.get(ev.get('data.Reason'), 'Unknown')
+            # Binary data in event logs is stored in hexadecimal format. Convert to text
             if "data.Binary" in ev.keys() and len(ev['data.Binary']) > 0 and ev['data.Binary'] != 'None':
                 try:
-                    ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
+                    ev['data.Text'] = bytearray.fromhex(ev['data.Binary']).decode()
                     ev.pop('data.Binary')
                 except Exception:
                     pass

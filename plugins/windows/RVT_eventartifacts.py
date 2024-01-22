@@ -21,8 +21,8 @@ import dateutil.parser
 from collections import defaultdict
 
 import base.job
-from base.utils import save_md_table
-
+from base.utils import save_md_table, date_to_iso
+from plugins.windows.RVT_os_info import CharacterizeWindows
 
 class Filter_Events(base.job.BaseModule):
     """ Filters events for generating a csv file """
@@ -184,9 +184,10 @@ class LogonRDP(base.job.BaseModule):
                       file_exists='OVERWRITE')
 
     def extractLogonNetwork(self, logID):
+        """ Only events 4624 and 4634 with LogonType 3 (Network) """
 
         results = []
-        event_types = {'4624': 'Login', '4634': 'Logoff'}
+        event_types = {'4624': 'Login (UTC)', '4634': 'Logoff (UTC)'}
         logons = defaultdict(dict)
         for eventlist in logID.values():
             for e, v in enumerate(eventlist):
@@ -196,21 +197,23 @@ class LogonRDP(base.job.BaseModule):
                     continue
                 logon_id = v['LogonID']
                 event_type = event_types[v['EventID']]
-                logons[logon_id][event_type] = v['TimeCreated']
+                logons[logon_id][event_type] = date_to_iso(v['TimeCreated'], sep=' ', timespec='seconds', hide_tz=True)
                 logons[logon_id]['User'] = v['TargetUser']
                 logons[logon_id]['LogonType'] = v['LogonTypeStr']
-                logons[logon_id]['ProcessName'] = v['Logon.ProcessName']
-                if event_type == 'Login':
+                # The following information is only available in 4624 events
+                if v['EventID'] == "4624":
                     logons[logon_id]['SourceIP'] = v.get('source.ip')
                     logons[logon_id]['SourcePort'] = v.get('source.port')
+                    logons[logon_id]['ProcessName'] = v['Logon.ProcessName']
+                    logons[logon_id]['AuthenticationPackage'] = v['AuthenticationPackageName']
 
         results = [logon for logon in logons.values()]
 
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_network.md'),
-                      fieldnames='Login Logoff User SourceIP SourcePort LogonType ProcessName',
+                      fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
                       backticks_fields='User',
-                      # date_fields='Login Logoff',
+                      date_fields="['Login (UTC)', 'Logoff (UTC)']",
                       file_exists='OVERWRITE')
 
     def extractRDP(self, actID):
@@ -274,7 +277,11 @@ class RDPIncoming(base.job.BaseModule):
 
         self.check_params(path, check_path=True, check_path_exists=True)
 
+        # Events will be categorized by their associated ActivityID. Each key contains a list of events
         aID = {}
+        # Get poweron and poweroff events to manage unfinished sessions
+        # eID 12: The operating system started
+        # eID 13: The operating system is shutting down
         power_ev = []
 
         for event in self.from_module.run(path):
@@ -282,15 +289,15 @@ class RDPIncoming(base.job.BaseModule):
             ev['EventID'] = event.get('event.code', '')
             ev['TimeCreated'] = event.get('event.created', '')
             ev['Description'] = event.get('message', '')
+
             if ev['EventID'] in ("12", "13"):
                 power_ev.append(ev)
                 continue
+
             ev['User'] = event.get('destination.user.name', '')
             ev['SessionID'] = event.get('data.SessionID', '')
             ev['SourceAddress'] = event.get('source.address', '')
-            ev['ActivityID'] = event.get('data.ActivityID', '')
-            if ev['ActivityID'] == '':
-                ev['ActivityID'] = ev['SessionID']
+            ev['ActivityID'] = event.get('data.ActivityID', ev['SessionID'])
             if ev['ActivityID'] not in aID.keys():
                 aID[ev['ActivityID']] = []
             aID[ev['ActivityID']].append(ev)
@@ -327,11 +334,11 @@ class RDPIncoming(base.job.BaseModule):
                         dt, reason = self.find_poweroff(act['LoginDate'], v['TimeCreated'], power_ev)
                         act['LogoffDate'] = dt
                         if reason == 'poweroff':
-                            act['Comments'] += " Poweroff or restart."
+                            act['Comments'] += "Poweroff or restart."
                         elif reason == 'poweron':
-                            act['Comments'] += " Start event, possibly caused by an unexpected poweroff"
+                            act['Comments'] += "Start event, possibly caused by an unexpected poweroff"
                         else:
-                            act['Comments'] += " Unknown date"
+                            act['Comments'] += "Unknown date"
                         written = True
                         yield {
                             'LoginDate': act.get('LoginDate', '-'),
@@ -435,7 +442,8 @@ class RDPOutgoing(base.job.BaseModule):
         """
 
         self.check_params(path, check_path=True, check_path_exists=True)
-
+        # RDP Outgoing events display only user SID. Get user name
+        users_sid = self.get_users_name()
         actID = {}
 
         for event in self.from_module.run(path):
@@ -446,6 +454,7 @@ class RDPOutgoing(base.job.BaseModule):
             ev['ActivityID'] = event.get('data.ActivityID', '')
             ev['Address'] = event.get('destination.address', '')
             ev['user.id'] = event.get('user.id', '')
+            ev['User'] = users_sid.get(ev['user.id'], ev['user.id'])
             ev['B64Hash'] = event.get('data.Base64Hash', '')
 
             if ev['ActivityID'] not in actID.keys():
@@ -454,6 +463,24 @@ class RDPOutgoing(base.job.BaseModule):
 
         for result in self.extractRDP(actID):
             yield result
+
+    def get_users_name(self):
+        # Check registry files to obtain the relation between user SID and name
+        try:
+            os_info = CharacterizeWindows(config=self.config)
+            partitions = os_info.get_available_partitions()
+            if not partitions:
+                return {}
+            # Assume first non empty partition is the right one. This may be problematic if multiple partitions exist
+            users = os_info.get_information("user_profiles", partition=partitions[0])
+            # Reverse the data for easier lookup
+            users_sid = {}
+            for user_name, data in users.items():
+                if "sid" in data:
+                    users_sid[data['sid']] = user_name
+            return users_sid
+        except:
+            return {}
 
     def extractRDP(self, actID):
 
@@ -467,6 +494,7 @@ class RDPOutgoing(base.job.BaseModule):
                 # self.logger().debug("%s %s %s" % (v['TimeCreated'], v['EventID'], v['ActivityID']))
                 if 'SID' not in act.keys() and 'user.id' in v.keys():
                     act['SID'] = v['user.id']
+                    act['User'] = v['User']
                 if v['EventID'] in ('1024', '1102'):
                     act['Address'] = v['Address']
                 elif v['EventID'] == '1025':
@@ -479,6 +507,7 @@ class RDPOutgoing(base.job.BaseModule):
                         'LogoffDate': act.get('LogoffDate', '-'),
                         'Address': act.get('Address', ''),
                         'SID': act.get('SID', '-'),
+                        'User': act.get('User', '-'),
                         'B64Hash': act.get('B64Hash', '')
                     }
                     # self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
@@ -493,6 +522,7 @@ class RDPOutgoing(base.job.BaseModule):
                     'LogoffDate': act.get('LogoffDate', '-'),
                     'Address': act.get('Address', ''),
                     'SID': act.get('SID', '-'),
+                    'User': act.get('User', '-'),
                     'B64Hash': act.get('B64Hash', '')
                 }
 

@@ -26,7 +26,6 @@ import sys
 import argparse
 import logging
 import json
-import datetime
 import pprint
 import re
 
@@ -112,60 +111,6 @@ class StoreDict(argparse.Action):
                 kv[value] = 'True'
         # update the current dictionary
         setattr(namespace, self.dest, kv)
-
-
-def registerExecution(jobid, config, conffiles, job, params, paths, status, elapsed=None):
-    """ Register the execution of the rvt2 in a file with a timestamp.
-
-    Attrs:
-        :config: The configuration object. morgue, client, casename and source will be get from the DEFAULT section.
-            The filename is in "rvt2:register". If filename is empty, do not register.
-            If "jobname:register" is False, do not register
-        :conffiles: List of extra configuration files
-        :job: The name of the job
-        :params: Any extra params
-        :paths: The list of paths
-        :status: either 'start', 'end', 'interrupted' or 'error'
-        :elapsed (datetime.timedelta): elapsed time
-    """
-    filename = config.get('rvt2', 'register', default=None)
-    morgue = config.get('DEFAULT', 'morgue')
-    client = config.get('DEFAULT', 'client')
-    casename = config.get('DEFAULT', 'casename')
-    source = config.get('DEFAULT', 'source')
-    casedir = config.get('DEFAULT', 'casedir')
-
-    data = dict(
-        _id=jobid,
-        date=datetime.datetime.utcnow().isoformat(),
-        cwd=os.getcwd(),
-        rvthome=config.get('DEFAULT', 'rvthome'),
-        conffiles=conffiles,
-        morgue=morgue,
-        client=client,
-        casename=casename,
-        source=source,
-        job=job,
-        params=params,
-        paths=paths,
-        status=status,
-        logfile=base.utils.relative_path(config.get('logging', 'file.logfile', None), casedir),
-        outfile=base.utils.relative_path(config.get(job, 'outfile', None), casedir),
-        elapsed=str(elapsed)
-    )
-    if status == 'start':
-        data['date_start'] = data['date']
-    if config.get(job, 'register', 'True') != 'False':
-        if filename:
-            # errors are ignored
-            try:
-                with open(filename, 'a') as f:
-                    f.write(json.dumps(data))
-                    f.write('\n')
-            except Exception:
-                logging.error(f'Unable to register job execution in "{filename}". Check the folder permissions or this may cause errors later.')
-        analyst = logging.getLogger('analyst')
-        analyst.info(f'RVT2 job="%s" for casename="%s" on source="%s" status="%s"', job, casename, source, status)
 
 
 def job_needs_morgue(job):
@@ -382,17 +327,13 @@ def main(params=sys.argv[1:]):
     configure_logging(config, args.verbose, args.job)
 
     # run job
-    jobstarted = datetime.datetime.now()
-    registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'start')
     try:
-        for results in base.job.run_job(config, args.job, args.paths, extra_config=args.params, nested_logs=1):
+        for results in base.job.run_job(config, args.job, args.paths, extra_config=args.params, nested_logs=2, nested_registers=2, main_job=True, recursive_error=False):
             if args.print:
                 print(json.dumps(results))
-        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'end', (datetime.datetime.now() - jobstarted))
     except KeyboardInterrupt:
-        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'interrupted', (datetime.datetime.now() - jobstarted))
+        pass
     except Exception:
-        registerExecution(jobid, config, args.config, args.job, args.params, args.paths, 'error', (datetime.datetime.now() - jobstarted))
         raise
 
 

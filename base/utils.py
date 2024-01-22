@@ -368,6 +368,8 @@ def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL'):
         Admit either an epoch timestamp, a date string or a non localized datetime object as an input.
         If `source` does not provided a timezone, assign tz_name.
     """
+    if not source or source == "-":
+        return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='DATETIME')
     try:
         # Timestamp input
         if type(source) == int or (type(source) == str and source.isdigit()):
@@ -410,7 +412,7 @@ def convert_to_iso(source_datetime, sep='T', timespec='auto', tz_name='UTC', hid
         tz = pytz.utc
 
     if type(source_datetime) != datetime.datetime:
-        logging.debug(f'Expected a datetime object as input. Input provided: {source_datetime}')
+        #logging.debug(f'Expected a datetime object as input. Input provided: {source_datetime}')
         return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='ISO', tz_name=tz_name, sep=sep, timespec=timespec, hide_tz=hide_tz)
 
     try:
