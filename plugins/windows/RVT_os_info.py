@@ -47,7 +47,7 @@ class CharacterizeWindows(base.job.BaseModule):
         # Check if there's another characterize job running
         base.job.wait_for_job(self.config, self)
 
-        self.partitions = [folder for folder in sorted(os.listdir(self.myconfig('mountdir'))) if folder.startswith('p')]
+        self.partitions = self.get_available_partitions()
         self.os_info = defaultdict(dict)
 
         # Get the autorip outputfile associated with each necessary plugin. Generate output if necessary
@@ -85,28 +85,36 @@ class CharacterizeWindows(base.job.BaseModule):
             dict(os_info=self.os_info, source=self.myconfig('source'))
         ]
 
+    def get_available_partitions(self):
+        # Get partition names of non empty partitions
+        partitions = []
+        for folder in sorted(os.listdir(self.myconfig('mountdir'))):
+            if folder.startswith('p'):
+                full_path = os.path.join(self.myconfig('mountdir'), folder)
+                if not os.path.isfile(full_path) and os.listdir(full_path):
+                    partitions.append(folder)
+        return partitions
+
     def get_ripplugins(self):
         """ Get the autorip outputfile associated with each necessary plugin.
             If autorip results aren't found, generate a subsection of all plugins
         """
         self.hives_dir = self.myconfig('hivesdir')
+        ripplugins_file = self.myconfig('ripplugins')
+        with open(ripplugins_file) as rf:
+            self.ripplugins = json.load(rf)
 
         # Check registry is parsed. Generate the minimum files needed otherwise
-        ripplugins_file = self.myconfig('ripplugins')
         if not check_directory(self.hives_dir):
-            module = base.job.load_module(
-                self.config,
-                'plugins.windows.RVT_autorip.Autorip',
-                extra_config=dict(path=os.path.join(self.myconfig('mountdir'), 'p01'), ripplugins=ripplugins_file))
             try:
-                list(module.run())
+                # Parse only the first available partition
+                partition_to_characterize = self.get_available_partitions()[0]
+                list(base.job.run_job(self.config.copy(), 'windows.autorip_analyze',
+                    path=os.path.join(self.myconfig('mountdir'), partition_to_characterize, '[Ww][Ii][Nn][Dd][Oo][Ww][Ss]/[Ss]ystem32/[Cc]onfig'),
+                    extra_config=dict(volume_id=partition_to_characterize, ripplugins=ripplugins_file)))
             except base.job.RVTError as exc:
                 self.logger().warning(exc)
                 self.ripplugins = {}
-                return
-
-        with open(ripplugins_file) as rf:
-            self.ripplugins = json.load(rf)
 
     def os_information(self, part):
         """ Characterize Windows partitions from registry files. """
@@ -316,13 +324,15 @@ class CharacterizeWindows(base.job.BaseModule):
         else:
             raise base.job.RVTError('Selected item <{}> is not a recognized OS attribute'.format(item))
 
-        # TODO: launch minimalrip if not found
         expected_auxfile = os.path.join(self.config.config['plugins.windows']['auxdir'], 'os_info.json')
+        # Parse the minimal information from hives if not done before
+        if not os.path.exists(expected_auxfile):
+            self.run()
         if os.path.exists(expected_auxfile) and os.path.getsize(expected_auxfile) > 0:
             with open(expected_auxfile, 'r') as infile:
                 info = json.load(infile)
                 return info.get(partition, defaultdict(dict)).get(item, default_output)
-        # return self.info.get(partition, defaultdict(dict)).get(item, default_output)
+
         return default_output
 
     def get_windows_version(self, partition='p01'):

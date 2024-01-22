@@ -27,7 +27,7 @@ from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, save_csv, save_json, relative_path, windows_format_path
+from base.utils import check_directory, check_file, save_csv, save_json, relative_path, windows_format_path
 from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetTimeline
 from plugins.windows.RVT_os_info import CharacterizeWindows
@@ -244,6 +244,9 @@ def registry_key_tree_to_json(volumekey, depth=0, hive='SOFTWARE', data=None, ev
                     event[f'registry.data.{value.name()}'] = services_type.get(value.value(), str(value.value()))
                 else:
                     event[f'registry.data.{value.name()}'] = value.value()
+            # Interesting data for Tasks subkeys, but may yield problems in other subkeys
+            if value.name() == 'DynamicInfo':
+                event[f'registry.data.DynamicInfo'] = value.value()
 
 
 class AllKeys(base.job.BaseModule):
@@ -1052,17 +1055,37 @@ class BaseRegistry(base.job.BaseModule):
 
 
 class RunKeys(BaseRegistry):
-    """ Get autostart key contents from Software hive. """
+    """ Get autostart key contents from registry hives.
+    Run Keys exist for all users in SOFTWARE hive and for individual users in NTUSER.DAT.
+    """
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
         self.get_outfile('run_keys', extension='csv')
         self.logger().debug("Parsing {}".format(path))
 
-        entries = self.parse_run_keys(path)
-        save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
+        regfiles = get_hives(path)
+        if 'ntuser' not in regfiles and 'software' not in regfiles:
+            self.logger().warning('No valid NTUSER.DAT or SOFTWARE registry hives provided')
+            return []
 
-    def parse_run_keys(self, path):
+        # Parse SOFTWARE Run Keys
+        if 'software' in regfiles:
+            # Since in the configuration files (job windows.registry_hives), SOFTWARE is parsed before NTUSER.DAT,
+            # delete the output of any other possible executions of RunKeys jobs
+            check_file(self.outfile, delete_exists=True)
+            entries = self.parse_run_keys(regfiles['software'])
+            save_csv(entries, outfile=self.outfile, file_exists='APPEND', quoting=0)
+            return []
+
+        # Parse NTUSER.DAT Run Keys
+        for user in tqdm(regfiles['ntuser'], total=len(regfiles['ntuser']), desc=self.section):
+            hive = regfiles['ntuser'][user]
+            self.logger().debug("Parsing {}".format(hive))
+            entries = self.parse_run_keys(hive, user=user)
+            save_csv(entries, outfile=self.outfile, file_exists='APPEND', quoting=0)
+
+    def parse_run_keys(self, path, user=None):
 
         run_keys = [
             'Microsoft\\Windows\\CurrentVersion\\Run',
@@ -1083,9 +1106,16 @@ class RunKeys(BaseRegistry):
         except Exception as exc:
             self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
         for regkey in run_keys:
+            if user:
+                # Desired keys in NTUSER.DAT start with SOFTWARE
+                regkey = 'SOFTWARE\\' + regkey
             try:
                 volumekey = registry.open(regkey)
-                yield from registry_key_to_json(volumekey, depth=0, hive='SOFTWARE')
+                for result in registry_key_to_json(volumekey, depth=1, hive='SOFTWARE'):
+                    result['user.name'] = user
+                    result.pop('registry.hive')
+                    result.pop('registry.data.type')
+                    yield result
             except Registry.RegistryKeyNotFoundException:
                 self.logger().debug(f'Key {regkey} not found')
             except KeyError:
@@ -1151,16 +1181,21 @@ class Tasks(BaseRegistry):
         except Exception as exc:
             self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
 
-        #regkey = 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tree'
         regkey = 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tasks'
+        # Key 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tree' won't be parsed since the information is not relevant
 
         try:
             volumekey = registry.open(regkey)
             for subkey in registry_key_tree_to_json(volumekey, depth=1, hive='SOFTWARE'):
+                task_created, last_executed = ("", "")
+                if subkey.get('registry.data.DynamicInfo', ""):
+                    task_created, last_executed = self.convert_hex_dates(subkey['registry.data.DynamicInfo'])
                 yield OrderedDict([("@timestamp", subkey['@timestamp']),
-                                  ('Task', subkey['registry.data.URI']),
-                                  ('Created', subkey.get('registry.data.Date', "")),
-                                  ('Author', subkey.get('registry.data.Author', ""))])
+                                  ('Task', subkey.get('registry.data.Path', "")),
+                                  ('Created', subkey.get('registry.data.Date', task_created)),
+                                  ('LastExecuted', last_executed),
+                                  ('Author', subkey.get('registry.data.Author', "")),
+                                  ('Description', subkey.get('registry.data.Description', ""))])
         except Registry.RegistryKeyNotFoundException:
             self.logger().debug(f'Key {regkey} not found')
         except KeyError:
@@ -1168,6 +1203,11 @@ class Tasks(BaseRegistry):
 
         self.logger().debug("TaskCache Keys parsing finished")
         return []
+
+    def convert_hex_dates(self, binary_stirng):
+        task_created = parse_windows_timestamp(int.from_bytes(binary_stirng[4:12], byteorder='little'))
+        last_executed = parse_windows_timestamp(int.from_bytes(binary_stirng[12:20], byteorder='little'))
+        return task_created, last_executed
 
 
 class TaskFolder(base.job.BaseModule):

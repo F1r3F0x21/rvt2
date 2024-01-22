@@ -192,12 +192,12 @@
     }
   },
   "10028":{
-    "description": "DCOM was unable to communicate with the computer <data.computer> using any of the configured protocols; requested by PID <process.id> (<Path>), while activating CLSID <data.CLSID>.",
+    "description": "DCOM was unable to communicate with the computer {EventData[param1]} using any of the configured protocols; requested by PID {EventData[param2]} ({EventData[param3]}), while activating CLSID {EventData[param4]}.",
     "provider": "Microsoft-Windows-DistributedCOM",
     "path": {
       "EventData": {
         "Name": ["Binary", "param1", "param2", "param3", "param4"],
-         "transform": {"param1": "data.computer", "param2": "process.id", "param3": "Path", "param4": "data.CLSID"}
+         "transform": {"param1": "data.computer", "param2": "process.id", "param3": "file.path", "param4": "data.CLSID"}
       }
     }
   },
