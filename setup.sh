@@ -348,18 +348,6 @@ build_install_yara() (
     make install
 )
 
-build_install_hindsight() (
-    cd ${SRCDIR}
-    git clone --depth 1 https://github.com/obsidianforensics/hindsight.git
-    cd hindsight
-    apt-get install python3-pip
-    yes | pip install -r requirements.txt  # segment violation during protobuf
-    # pip install protobuf scipy xlsxwriter bottle # if segment error
-    chmod 775 ${SRCDIR}/hindsight/hindsight.py  # ???
-    # make a symbolic link to /usr/local/bin ???
-    ln -s ${SRCDIR}/hindsight/hindsight.py /usr/local/bin/hindsight.py
-)
-
 # Clone submodules and make some patches to submodules in order to work as RVT2 expects
 submodules() (
     git submodule init
@@ -481,7 +469,6 @@ setup_debian_full() {
     build_install_yara
     build_install_volatility
     build_install_evtx
-      # build_install_hindsight
 
     install_zimmerman_tools
     install_hayabusa
