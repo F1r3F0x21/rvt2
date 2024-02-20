@@ -209,7 +209,11 @@ class MFTTimeline(BaseTimeline):
     def preceding_path(self, tl_dir, body_filename, substitution='c:'):
         """ Modify preceding path """
         volume_id = self.myconfig('volume_id')
-        cmd = r"sed -i 's@\(\d*|\){}\(.*\)@\1{}/mnt/{}\2@g' {}".format(substitution, self.myconfig('source'), volume_id, os.path.join(tl_dir, body_filename))
+        if substitution:
+            cmd = r"sed -i 's@\(\d*|\){}\(.*\)@\1{}/mnt/{}\2@g' {}".format(substitution, self.myconfig('source'), volume_id, os.path.join(tl_dir, body_filename))
+        else:
+            # For every entry, assume the path will start by "[a-zA-Z]:"
+            cmd = r"sed -i 's@\(\d*|\)[a-zA-Z]:\(.*\)@\1{}/mnt/{}\2@g' {}".format(self.myconfig('source'), volume_id, os.path.join(tl_dir, body_filename))
         run_command(cmd)
 
     def merge_timelines(self, tl_dir, body_pattern, main_body_filename):
@@ -222,8 +226,5 @@ class MFTTimeline(BaseTimeline):
         main_body = os.path.join(tl_dir, main_body_filename)
         cmd = r"cat {} > {}".format(os.path.join(tl_dir, body_pattern), main_body)
         run_command(cmd)
-        # body_files = glob.glob(os.path.join(tl_dir, body_pattern))
-        # with open(main_body, "w") as fout, fileinput.input(body_files) as fin:
-        #     for line in fin:
-        #         fout.write(line)
+
 

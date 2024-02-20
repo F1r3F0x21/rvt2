@@ -23,6 +23,7 @@ from evtx import PyEvtxParser
 import pyevt
 
 import base.job
+from base.utils import check_folder, save_csv
 
 
 def load_fields(filename):
@@ -42,15 +43,11 @@ class GetEvents(object):
     """ Extracts relevant event logs
 
         Args:
-            vss_dir (str): vss folder or empty for normal allocated file
-        """
+            eventfile: absolute path to the .evtx file to parse
+            config_file: JSON configuration file setting transformations for specific events
+    """
 
     def __init__(self, eventfile, config_file, logger=logging):
-        """
-        Attrs:
-            path (str): Absolute path to the parsed Security.xml (from a Security hive)
-        """
-
         self.logger = logger
 
         try:
@@ -65,13 +62,20 @@ class GetEvents(object):
     def parse(self):
         parser = PyEvtxParser(self.eventfile)
 
-        count = 0
+        self.count = 0
+        self.first_date = ''
+        self.last_date = ''
         try:
             for record in parser.records_json():
                 rec = json.loads(record['data'])['Event']
                 data = {}
-                # Common fields
+                # Date management
                 data['event.created'] = record.get('timestamp', rec['System']['TimeCreated']['#attributes']['SystemTime'])
+                if self.count == 0:
+                    self.first_date = self.last_date = data['event.created']
+                self.first_date = data['event.created'] if data['event.created'] < self.first_date else self.first_date
+                self.last_date = data['event.created'] if data['event.created'] > self.last_date else self.last_date
+                # Common fields
                 if isinstance(rec['System']['EventID'], dict):
                     data['event.code'] = str(rec['System']['EventID']['#text'])
                 else:
@@ -118,7 +122,7 @@ class GetEvents(object):
                     self.get_xpath_data(x, item, rec, data)
 
                 yield data
-                count += 1
+                self.count += 1
         except Exception as exc:
             self.logger.warning('Error with pyevtx when reading the {} event from {}: {}'.format(count, self.eventfile, exc))
 
@@ -163,9 +167,20 @@ class GetEvents(object):
                         pass
                     break
 
+    def evtx_stats(self):
+        # Gives general characerization of events in .evtx file
+        return {'oldest': self.first_date,
+                'newest': self.last_date,
+                'source': os.path.basename(self.eventfile),
+                'events': self.count}
+
 
 class EventJob(base.job.BaseModule):
     """ Base class to parse event log sources """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('events_summary', os.path.join(self.myconfig('analysisdir'), 'events', 'events_summary.csv'))
 
     def get_evtx(self, path, regex_search):
         """ Retrieve the evtx file to parse, looking for specific filenames inside a directory.
@@ -185,6 +200,12 @@ class EventJob(base.job.BaseModule):
         self.logger().debug('No evtx file found in {} with name expression {}'.format(path, regex_search))
         return
 
+    def save_stats(self, data):
+        # Keep track of every evtx stats
+        summary_outfile = self.myconfig('events_summary')
+        check_folder(os.path.dirname(summary_outfile))
+        save_csv([data], outfile=summary_outfile, file_exists='APPEND')
+
 
 class ParseEvents(EventJob):
     """ Extracts events of default evtx logs """
@@ -202,8 +223,10 @@ class ParseEvents(EventJob):
         if not evtx_file:
             return []
 
-        for ev in GetEvents(evtx_file, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(evtx_file, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class ParseExtraLogs(EventJob):
@@ -230,8 +253,10 @@ class ParseExtraLogs(EventJob):
                 continue
             self.logger().debug('Parsing event log {}'.format(evtx_file))
             try:
-                for ev in GetEvents(evtx_file, json_file, logger=self.logger()).parse():
+                events_parser = GetEvents(evtx_file, json_file, logger=self.logger())
+                for ev in events_parser.parse():
                     yield ev
+                self.save_stats(events_parser.evtx_stats())
             except Exception:
                 self.logger().warning('Problems parsing file %s' % evtx_file)
 
@@ -309,7 +334,8 @@ class Security(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             if "data.LogonType" in ev.keys():
                 ev["data.LogonTypeStr"] = LogonTypeStr.get(ev["data.LogonType"], "Unknown")
             if "data.SubStatus" in ev.keys() and ev["data.SubStatus"] != "0x00000000":
@@ -350,6 +376,7 @@ class Security(EventJob):
                     if ev['data.TicketEncryptionType'] in encr.keys():
                         ev['data.TicketEncryptionType'] = encr[ev['data.TicketEncryptionType']]
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class System(EventJob):
@@ -385,7 +412,8 @@ class System(EventJob):
                   '20275': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.user', 'connection.name', 'reason']},
                   }
 
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             if "data.BootType" in ev.keys():
                 ev["data.BootTypeStr"] = boot_type.get(ev["data.BootType"], "Unknown")
             if "data.Reason" in ev.keys():
@@ -419,6 +447,7 @@ class System(EventJob):
                     ev[field] = data[e]
                     ev['message'] = ev['message'].replace('<%s>' % field, data[e])
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class SMBServer(EventJob):
@@ -435,10 +464,12 @@ class SMBServer(EventJob):
         errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "smb_error.json"))
 
         json_file = self.config.config[self.config.job_name]['json_conf']
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             if "data.Status" in ev.keys():
                 ev["data.Error"] = errordict.get(ev["data.Status"], ev["data.Status"])
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class RDPLocal(EventJob):
@@ -458,10 +489,12 @@ class RDPLocal(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             if "data.Reason" in ev.keys():
                 ev["data.ReasonStr"] = error_reason.get(ev.get('data.Reason'), '')
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class RDPClient(EventJob):
@@ -480,12 +513,14 @@ class RDPClient(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             if "data.Reason" in ev.keys() and ev["event.code"] == "39":
                 ev['data.ReasonStr'] = "SessionID {} disconnected by session {}".format(ev["data.SessionID"], ev["data.Source"])
             elif "data.Reason" in ev.keys() and ev["event.code"] == "1026":
                 ev["data.ReasonStr"] = error_reason.get(ev.get('data.Reason'), '')
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class OAlerts(EventJob):
@@ -502,13 +537,15 @@ class OAlerts(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             if "#text" in ev.keys():
                 content = ast.literal_eval(ev['#text'])
                 ev['data.office_software'] = content[0].rstrip()
                 ev['data.message_alert'] = content[1].strip()
                 ev.pop('#text')
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class PartitionDiagnostic(EventJob):
@@ -525,7 +562,8 @@ class PartitionDiagnostic(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             try:
                 # if ev['data.device_id'].startswith('USB'):
                 #     _, ev['data.vid_pid'], ev['data.device_sn'] = ev.pop('data.ParentId').split('\\')
@@ -550,6 +588,7 @@ class PartitionDiagnostic(EventJob):
             except Exception:
                 self.logger().warning("Skipping {} event due to error".format(self.config.job_name))
                 continue
+        self.save_stats(events_parser.evtx_stats())
 
 
 class StorageClassPnp(EventJob):
@@ -566,7 +605,8 @@ class StorageClassPnp(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             try:
                 if ev['event.code'] == "507":
                     if int(ev['data.ScsiStatus']) != 0:
@@ -578,6 +618,7 @@ class StorageClassPnp(EventJob):
             except Exception:
                 self.logger().warning("Skipping {} event due to error".format(self.config.job_name))
                 continue
+        self.save_stats(events_parser.evtx_stats())
 
 
 class Application(EventJob):
@@ -617,7 +658,8 @@ class Application(EventJob):
         json_file = self.config.config[self.config.job_name]['json_conf']
 
         error_str = load_fields(os.path.join(self.config.config['windows']['plugindir'], "raserror.json"))
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             if "data.Binary" in ev.keys() and len(ev['data.Binary']) > 0 and ev['data.Binary'] != 'None':
                 ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
                 ev.pop('data.Binary')
@@ -638,6 +680,7 @@ class Application(EventJob):
                     ev[field] = data[e]
                     ev['message'] = ev['message'].replace('<%s>' % field, data[e])
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class PowerShell(EventJob):
@@ -663,7 +706,8 @@ class PowerShell(EventJob):
         script_rgx = re.compile('ScriptName=([^\r]*)\\r\\n')
         cli_rgx = re.compile('CommandLine=(.*)$')
 
-        for ev in GetEvents(path, json_file, logger=self.logger()).parse():
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
             if ev['event.code'] not in ["400", "600", "800"]:
                 continue
             data = ev.pop('data.PSData')
@@ -693,17 +737,13 @@ spaceId=7659aa03-a84d-47e2-91bc-d1671de4cd63\r\n\tPipelineId=\r\n\tCommandName=\
                 ev['message'] = f"Pipeline execution details for command line: {ev['data.CommandLine']}"
 
             yield ev
+        self.save_stats(events_parser.evtx_stats())
 
 
 class ParseEvt(object):
     """ Extracts events from evt logs """
 
     def __init__(self, eventfile, logger=logging):
-        """
-        Attrs:
-            path (str): Absolute path to the parsed Security.xml (from a Security hive)
-        """
-
         self.logger = logger
         self.eventfile = eventfile
         self.description = {
@@ -831,12 +871,24 @@ class ParseEvt(object):
                    "4": "information",
                    "2": "warning"}
 
+        self.count = 0
+        self.first_date = ''
+        self.last_date = ''
+
         evt_file.open(self.eventfile)
         for ev in range(evt_file.number_of_records):
             rec = evt_file.get_record(ev)
             record = {}
-            # record["event.number"] = ev + 1
+
+            # Date management
             record["event.created"] = str(rec.creation_time)
+            self.count = ev
+            if self.count == 0:
+                self.first_date = self.last_date = record['event.created']
+            self.first_date = record['event.created'] if record['event.created'] < self.first_date else self.first_date
+            self.last_date = record['event.created'] if record['event.created'] > self.last_date else self.last_date
+
+            # Rest of fields
             record["event.type"] = ev_type[str(rec.event_type)]
             record["event.code"] = str(rec.event_identifier % 65536)
             record["event.provider"] = rec.source_name.lower()
@@ -924,9 +976,20 @@ class ParseEvt(object):
                     record["String_%s" % e] = data
             yield record
 
+    def evt_stats(self):
+        # Gives general characerization of events in .evt file
+        return {'oldest': self.first_date,
+                'newest': self.last_date,
+                'source': os.path.basename(self.eventfile),
+                'events': self.count}
+
 
 class ParseEvts(base.job.BaseModule):
     """ Extracts events from evt logs """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('events_summary', os.path.join(self.myconfig('analysisdir'), 'events', 'events_summary.csv'))
 
     def run(self, path=None):
         """
@@ -941,7 +1004,15 @@ class ParseEvts(base.job.BaseModule):
                 continue
             self.logger().debug('Parsing event log {}'.format(evt_file))
             try:
-                for ev in ParseEvt(evt_file, logger=self.logger()).parse():
+                events_parser = ParseEvt(evt_file, logger=self.logger())
+                for ev in events_parser.parse():
                     yield ev
+                self.save_stats(events_parser.evt_stats())
             except Exception:
                 self.logger().warning('Problems parsing file %s' % evt_file)
+
+    def save_stats(self, data):
+        # Keep track of every evt stats
+        summary_outfile = self.myconfig('events_summary')
+        check_folder(os.path.dirname(summary_outfile))
+        save_csv([data], outfile=summary_outfile, file_exists='APPEND')
