@@ -69,7 +69,7 @@ def parse_prefetch_file(pf_file):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    logger.debug("Parsing {}".format(pf_file))
+    #logger.debug("Parsing {}".format(pf_file))
     item = {}
 
     try:
@@ -129,77 +129,80 @@ class Prefetch(base.job.BaseModule):
         if not os.path.isdir(path):
             raise base.job.RVTError('Provided path {} is not a directory'.format(path))
 
-        self.parse_Prefetch(path)
-        return []
-
-    def parse_Prefetch(self, path):
-        self.logger().debug("Parsing prefetch files")
-
-        base_path = self.myconfig('outdir')
-        check_directory(base_path, create=True)
-        # prefetch_dir = self.search.search(r"Windows/Prefetch$")
-
+        # Get Prefetch files (.pf) list
         try:
-            file_list = [os.path.join(path, file) for file in os.listdir(path) if file.endswith(".pf")]
+            self.file_list = [os.path.join(path, file) for file in os.listdir(path) if file.endswith(".pf")]
             rel_path_list = [relative_path(os.path.join(path, file), self.myconfig('casedir')) for file in os.listdir(path) if file.endswith(".pf")]
         except IOError:
             raise base.job.RVTError('Unable to list files in directory {}'.format(path))
         except Exception as exc:
             raise base.job.RVTError(exc)
-
-        if len(file_list) == 0:
+        if len(self.file_list) == 0:
             self.logger().warning('No prefetch files found in {}'.format(path))
             return []
 
-        out_file_id = '' if not self.volume_id else '_{}'.format(self.volume_id)
-        csv_file_path = os.path.join(base_path, "prefetch{}.csv".format(out_file_id))
-        pf_output1_path = os.path.join(base_path, "prefetch_dump{}.txt".format(out_file_id))
-        self.logger().debug('Saving output to file {}'.format(csv_file_path))
-        self.logger().debug('Saving output to file {}'.format(pf_output1_path))
-
-        timeline_exists = True
+        # Obtain timeline object to retrieve macb times
         try:
-            tl_files = GetTimeline(config=self.config).get_macb(rel_path_list)
+            self.tl_files = GetTimeline(config=self.config).get_macb(rel_path_list)
         except IOError:
-            timeline_exists = False
+            self.tl_files = None
 
-        with open(pf_output1_path, "w") as pf_output1:
-            with open(csv_file_path, "w") as csv_file:
+        # Define output files
+        base_path = self.myconfig('outdir')
+        check_directory(base_path, create=True)
+        out_file_id = '' if not self.volume_id else '_{}'.format(self.volume_id)
+        detailed_csv = os.path.join(base_path, "prefetch_executions{}.csv".format(out_file_id))
+        self.single_entry_csv = os.path.join(base_path, "prefetch{}.csv".format(out_file_id))
+        self.dump_file = os.path.join(base_path, "prefetch_dump{}.txt".format(out_file_id))
+        self.logger().debug('Saving Prefetch information dump to {}'.format(self.dump_file))
+        self.logger().debug('Saving Prefetch entries to {}'.format(self.single_entry_csv))
+        self.logger().debug('Saving all Prefetch executions to {}'.format(detailed_csv))
+
+        save_csv(self.parse_Prefetch(path), config=self.config, outfile=detailed_csv, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+        self.parse_Prefetch(path)
+        return []
+
+    def parse_Prefetch(self, path):
+
+        with open(self.dump_file, "w") as pf_output1:
+            with open(self.single_entry_csv, "w") as csv_file:
                 writer = csv.writer(csv_file, delimiter=";", quotechar='"')
-                flag = True
-                for prefetch_file in file_list:
+                header_flag = True
+                for prefetch_file in self.file_list:
                     prefetch_rel_path = relative_path(prefetch_file, self.myconfig('casedir'))
-                    file = relative_path(prefetch_file, path)
+                    filename = relative_path(prefetch_file, path)
 
                     if os.path.getsize(prefetch_file) == 0:  # Parse only non empty .pf files
                         continue
 
-                    item = parse_prefetch_file(prefetch_file)
-
                     # If timeline has been generated, take prefetch file birth date from there
                     birth_date = ''
                     mod_date = ''
-                    if timeline_exists and prefetch_rel_path in tl_files:
-                        birth_date = tl_files[prefetch_rel_path]['b']
-                        mod_date = tl_files[prefetch_rel_path]['m']
+                    if self.tl_files and prefetch_rel_path in self.tl_files:
+                        birth_date = self.tl_files[prefetch_rel_path]['b']
+                        mod_date = self.tl_files[prefetch_rel_path]['m']
+
+                    item = parse_prefetch_file(prefetch_file)
 
                     if item == -1:
-                        self.logger().error("Problems parsing {}".format(prefetch_file))
+                        self.logger().warn("Problems parsing {}".format(prefetch_file))
                         pf_output1.write("Filename:\t\t{}\nBirth date:\t\t{}\nPrefetch Hash:\t\t\nExecutable Filename:\t\nRun count:\t\t\n".format(
-                            file, birth_date))
-                        writer.writerow([file, "", "", birth_date, mod_date] + [""] * 7)
+                            filename, birth_date))
+                        pf_output1.write("\n################################################\n")
+                        writer.writerow([filename, "", "", birth_date, mod_date] + [""] * 7)
                         continue
 
-                    if flag:
+                    if header_flag:
                         headers = ["Filename", "Executable", "Run count", "Birth time"] + ["Run time {}".format(str(i)) for i in range(len(item["last run times"]))]
                         writer.writerow(headers)
-                        flag = False
+                        header_flag = False
 
+                    # Write information in dump file
                     pf_output1.write("Filename:\t\t{}\nBirth date:\t\t{}\nPrefetch Hash:\t\t{}\nExecutable Filename:\t{}\nRun count:\t\t{}\n".format(
-                        file, birth_date, item["prefetch hash"], item["filename"], item["run count"]))
+                        filename, birth_date, item["prefetch hash"], item["filename"], item["run count"]))
                     for i, run_date in enumerate(item["last run times"]):
                         pf_output1.write("\tRun time {}:\t\t{}\n".format(str(i), run_date))
-                    pf_output1.write("\nFilenames\nNumber of Filenames:\t{}\n".format(str(len(item["resources loaded"]))))
+                    pf_output1.write("\nResources\nResources Loaded:\t{}\n".format(str(len(item["resources loaded"]))))
                     for i in item["resources loaded"]:
                         pf_output1.write("\t{}\n".format(i))
                     pf_output1.write("\nVolumes\nNumber of Volumes:\t{}\n".format(str(len(item["Volumes"]))))
@@ -207,7 +210,22 @@ class Prefetch(base.job.BaseModule):
                         pf_output1.write("\tDevice path:\t{}\n\tCreation time:\t{}\n\tSerial Number:\t{}\n\n".format(v[0], v[1], v[2]))
                     pf_output1.write("################################################\n")
 
-                    writer.writerow([file, item["filename"], item["run count"], birth_date] + [i for i in item["last run times"]])
+                    # Write a single entry for each item in csv
+                    writer.writerow([filename, item["filename"], item["run count"], birth_date] + [i for i in item["last run times"]])
+
+                    # Yield an event for every execution time
+                    data = {'RunTime': "",
+                            'PrefecthFile': filename,
+                            'Executable': item["filename"],
+                            'RunCount': item["run count"],
+                            'BirthDate': birth_date,
+                            'VolumeSN': item["Volumes"][0][2],
+                            'Partition': self.volume_id}
+                    for execution_time in item["last run times"]:
+                        if not execution_time:
+                            continue
+                        data['RunTime'] = execution_time
+                        yield data
 
         self.logger().debug("Prefetch parsing for {} finished".format(path))
 
