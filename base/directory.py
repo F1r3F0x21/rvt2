@@ -26,6 +26,9 @@ import base.job
 import base.config
 import base.commands
 from tqdm import tqdm
+from natsort import natsorted
+from base.utils import check_folder
+from plugins.common.RVT_files import GetFiles
 
 
 class DirectoryFilter(base.job.BaseModule):
@@ -251,13 +254,14 @@ class GlobFilter(base.job.BaseModule):
 
         if self.myflag('sorted') or self.myflag('reverse'):
             list_files = glob.glob(path, recursive=self.myflag('recursive'))
-            list_files = sorted(list_files, reverse=self.myflag('reverse'))
+            list_files = natsorted(list_files, reverse=self.myflag('reverse'))
         else:
             list_files = glob.iglob(path, recursive=self.myflag('recursive'))
 
         exclude_extensions = self.myarray('exclude_extensions')
         if exclude_extensions:
             list_files = [path for path in list_files if not any(path.endswith(ext) for ext in exclude_extensions)]
+        
         only_extensions = self.myarray('only_extensions')
         if only_extensions:
             list_files = [path for path in list_files if any(path.endswith(ext) for ext in only_extensions)]
@@ -451,3 +455,60 @@ class GlobClear(base.job.BaseModule):
             yield from self.from_module.run(path)
         else:
             return []
+
+
+class CopyFile(base.job.BaseModule):
+    
+    """  A module that copy a file set in 'path' to a specific folder
+
+    Configuration:
+        - **outdir** (str): Directory where the files are copied
+        - **outfile** (str) : Destination filename. It is a template that will be formated as ``outfile.format(path=os.path.basename(path))``. By default ``{path}.txt``
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('outdir', None)
+        self.set_default_config('outfile', '{path}.txt')
+
+    def run(self, path=None):
+        outdir = self.myconfig('outdir')
+        mountdir = self.myconfig('mountdir')
+        if not outdir:
+            self.logger().error('An outdir must be provided')
+        else:
+            if os.path.isfile(path):
+                check_folder(outdir)
+                if os.path.islink(path):
+                    # If the path is a symbolic link, get the target
+                    target_path = os.readlink(path)
+                    if not target_path.startswith(mountdir):
+                        search = GetFiles(self.config)
+                        target_path_list = search.search(target_path)
+                        
+                        mountdirlist = mountdir.split(os.path.sep)
+                        target_path_list = target_path_list[0].split(os.path.sep)
+
+                        index = mountdirlist.index(target_path_list[0])
+                        final_list = mountdirlist
+                        
+                        for directory in target_path_list:
+                            if index < len(mountdirlist):
+                                final_list[index] = directory    
+                            else:
+                                final_list.append(directory)
+                            index += 1
+                            
+                        target_path = os.path.sep.join(final_list)
+                    basename = os.path.basename(target_path)
+                else:
+                    # If not a symbolic link, use the provided path
+                    basename = os.path.basename(path)
+                
+                outfile = self.myconfig('outfile')
+                file_out = os.path.join(outdir, outfile.format(path=basename))
+                new_permissions = 0o644
+                shutil.copy2(target_path if os.path.islink(path) else path, file_out)
+                os.chmod(file_out, new_permissions)
+            else:
+                self.logger().warning('The path provided is not a valid file or does not exist: ' + path)

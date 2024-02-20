@@ -1,6 +1,8 @@
 # Revealer Toolkit 2
 
-![](docs/data/rvt2_logo.png)
+<img src="docs/data/new_logo.jpeg"  width="200" height="200">
+
+
 
 ## Introduction
 
@@ -107,3 +109,5 @@ There are dozens of predefined jobs with a default configuration you won't need 
 ```bash
 rvt2
 ```
+
+![](docs/data/rvt2_logo.png)
