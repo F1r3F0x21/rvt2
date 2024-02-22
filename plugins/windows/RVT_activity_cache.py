@@ -56,3 +56,38 @@ class ActivitiesCache(base.job.BaseModule):
         save_csv(module.run(path), outfile=outfile, file_exists='OVERWRITE', quoting=1)
 
         return []
+
+
+class ActivitiesCacheAnalysis(base.job.BaseModule):
+
+    def run(self, path=""):
+        """ Creates a report based on the output of ActivitiesCache.
+
+            Arguments:
+                - ** path **: Path to directory where output files from ActivitiesCache are stored
+        """
+        check_directory(path, error_missing=True)
+        outfile = self.myconfig('outfile')
+        check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
+
+        save_csv(self.report_activities_cache(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+
+        return []
+
+    def report_activities_cache(self, path):
+        """ Create a unique activitiescache csv for all users."""
+
+        fields = ["StartTime", "EndTime", "Application", "DisplayName", "Full Path", "AppActivityId", "App/Uri", "Activity_type", "Active Duration", "LastModified"]
+
+        for file in sorted(os.listdir(path)):
+            if file.startswith('activitycache'):
+                # Expected file format: `activitiescache_L.user_partition.csv`
+                user = file[16:-8]  # delete the prefix "L."
+                partition = file[-7:-4]
+                for line in base.job.run_job(self.config,
+                                             'base.input.CSVReader',
+                                             path=os.path.join(path, file),
+                                             extra_config={'delimiter': ';', 'encoding': 'utf-8'}):
+                    res = {field: line.get(field, '') for field in fields}
+                    res.update({'User': user, 'Partition': partition})
+                    yield res
