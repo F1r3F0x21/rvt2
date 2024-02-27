@@ -54,5 +54,15 @@
          "transform": {"UserID": "user.id"}
       }
     }
+  },
+  "28115": {
+    "description": "Description Shortcut creation log after program installation",
+    "provider": "Microsoft-Windows-Shell-Core",
+    "type": ["end"],
+    "path": {
+      "EventData": {
+         "Name": ["Name", "AppID"]
+      }
+    }
   }
 }

@@ -250,8 +250,8 @@ def generate_id(data=None):
         return uuid.uuid4()
 
 
-def generate_hash(data=None):
-    """ Generate an MD5 for a dictionary. If data is None, returns a random indentifier.
+def generate_hash(data=None, algorithm='md5'):
+    """ Generate a hash (MD5 by default) for a dictionary. If data is None, returns a random indentifier.
 
     The identifier is created using the encoded input data.
 
@@ -264,11 +264,44 @@ def generate_hash(data=None):
     if '_id' in data:
         return data.pop('_id')
 
-    dhash = hashlib.md5()
+    dhash = _select_hash_algorithm(algorithm)
     encoded = json.dumps(data, sort_keys=True).encode()
     dhash.update(encoded)
     return dhash.hexdigest()
 
+
+def get_filehash(filepath, sha=None, algorithm='sha256'):
+    """ Calculates or updates the hash (SHA256 by default) of a file """
+    # Specify how many bytes of the file you want to open at a time
+    BLOCKSIZE = 65536
+
+    # Take the input sha if provided, or create a new one
+    digest = False
+    if not sha:
+        digest = True
+        sha = _select_hash_algorithm(algorithm)
+
+    with open(filepath, 'rb') as f:
+        file_buffer = f.read(BLOCKSIZE)
+        while len(file_buffer) > 0:
+            sha.update(file_buffer)
+            file_buffer = f.read(BLOCKSIZE)
+    if digest:
+        return sha.hexdigest()
+    else:
+        return sha
+
+
+def _select_hash_algorithm(name='sha256'):
+    "Return hashlib object with the desired algorithm"
+    algorithms = {'sha1': hashlib.sha1(),
+                  'sha256': hashlib.sha256(),
+                  'sha512': hashlib.sha512(),
+                  'md5': hashlib.md5(),}
+    if name.lower() not in algorithms:
+        logging.warning(f'Selected hash algorithm name "{name}" not supported. Available options: {algorithms.keys()}. Taking default algorithm sha256')
+        name = 'sha256'
+    return algorithms[name]
 
 # ----------------------------
 # IP MANAGEMENT

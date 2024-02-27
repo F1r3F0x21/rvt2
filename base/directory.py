@@ -22,12 +22,13 @@ import os
 import glob
 import re
 import shutil
+from tqdm import tqdm
+from natsort import natsorted
+
 import base.job
 import base.config
 import base.commands
-from tqdm import tqdm
-from natsort import natsorted
-from base.utils import check_folder
+import base.utils
 from plugins.common.RVT_files import GetFiles
 
 
@@ -478,7 +479,7 @@ class CopyFile(base.job.BaseModule):
             self.logger().error('An outdir must be provided')
         else:
             if os.path.isfile(path):
-                check_folder(outdir)
+                base.utils.check_folder(outdir)
                 if os.path.islink(path):
                     # If the path is a symbolic link, get the target
                     target_path = os.readlink(path)
