@@ -313,6 +313,7 @@ class AmCache(base.job.BaseModule):
         super().read_config()
         self.set_default_config('path', '')
         self.set_default_config('volume_id', '')
+        self.set_default_config('max_days', 90)
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
@@ -325,7 +326,7 @@ class AmCache(base.job.BaseModule):
         outfolder = self.myconfig('outdir')
         check_directory(outfolder, create=True)
         self.outfile = os.path.join(outfolder, 'amcache{}.csv'.format('_{}'.format(id) if id else ''))
-        self.alienvault = alienvault()
+        self.alienvault = alienvault(api_key=self.config.get('IP_API_keys', 'alienvault_key', None))
         self.days = int(self.myconfig('max_days'))
 
         self.logger().debug("Parsing {}".format(self.amcache_path))
@@ -426,7 +427,7 @@ class AmCache(base.job.BaseModule):
         """ Parses File subkey entries for amcache hive """
 
         fields = {'LastModified': "17", 'Created': "12", 'AppPath': "15", 'AppName': "0", 'Sha1Hash': "101"}
-        av = alienvault()
+        av = self.alienvault
         for volumekey in volumes.subkeys():
             for filekey in volumekey.subkeys():
                 app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppName', ''), ('AppPath', ''),
@@ -442,9 +443,9 @@ class AmCache(base.job.BaseModule):
                             val = val[4:].rstrip()
                             if val in self.hash_dict.keys():
                                 app.update({'ismalware': self.hash_dict[val]})
-                            elif av.apikey is not None and check_file_date(app['KeyLastWrite'], self.days):
+                            elif av.apikey is not None and not check_file_date(app['KeyLastWrite'], self.days):
                                 try:
-                                    self.hash_dict[val] = len(av.file(val)) > 0
+                                    self.hash_dict[val] = av.file(val)['malicious']
                                 except Exception:
                                     self.hash_dict[val] = False
                                 app.update({'ismalware': self.hash_dict[val]})
@@ -459,7 +460,7 @@ class AmCache(base.job.BaseModule):
         """ Parses Programs subkey entries for amcache hive """
 
         fields = {'AppName': "0", 'AppPath': "d", 'Version': "1", 'Installed': "a", 'Uninstalled': "b"}
-        av = alienvault()
+        av = self.alienvault
         for volumekey in volumes.subkeys():
             for filekey in volumekey.subkeys():
                 app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppName', ''), ('AppPath', ''),
@@ -470,9 +471,9 @@ class AmCache(base.job.BaseModule):
                 app['KeyLastWrite'] = filekey.timestamp()
                 if app['Sha1Hash'].rstrip() in self.hash_dict.keys():
                     app.update({'ismalware': self.hash_dict[app['Sha1Hash'].rstrip()]})
-                elif av.apikey is not None and check_file_date(app['KeyLastWrite'], self.days):
+                elif av.apikey is not None and not check_file_date(app['KeyLastWrite'], self.days):
                     try:
-                        self.hash_dict[app['Sha1Hash'].rstrip()] = len(av.file(app['Sha1Hash'].rstrip())) > 0
+                        self.hash_dict[app['Sha1Hash'].rstrip()] = av.file(app['Sha1Hash'].rstrip())['malicious']
                     except Exception:
                         self.hash_dict[app['Sha1Hash'].rstrip()] = False
                     app.update({'ismalware': self.hash_dict[app['Sha1Hash'].rstrip()]})
@@ -496,7 +497,7 @@ class AmCache(base.job.BaseModule):
                  'Name': 'AppName',
                  'Version': 'Version'}
 
-        av = alienvault()
+        av = self.alienvault
 
         for volumekey in volumes.subkeys():
             app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppName', ''), ('AppPath', ''),
@@ -513,9 +514,9 @@ class AmCache(base.job.BaseModule):
                     app.update({names.get(v.name(), v.name()): sha})
                     if sha in self.hash_dict.keys():
                         app.update({'ismalware': self.hash_dict[sha]})
-                    elif av.apikey is not None and check_file_date(app['KeyLastWrite'], self.days):
+                    elif av.apikey is not None and not check_file_date(app['KeyLastWrite'], self.days):
                         try:
-                            self.hash_dict[sha] = len(av.file(sha)) > 0
+                            self.hash_dict[sha] = av.file(sha)['malicious']
                         except Exception:
                             self.hash_dict[sha] = False
                         app.update({'ismalware': self.hash_dict[sha]})
@@ -538,7 +539,7 @@ class AmCache(base.job.BaseModule):
                  'Version': 'Version',
                  'ismalware': ''}
 
-        av = alienvault()
+        av = self.alienvault
 
         for volumekey in volumes.subkeys():
             app = OrderedDict([('KeyLastWrite', WINDOWS_TIMESTAMP_ZERO), ('AppName', ''), ('AppPath', ''),
@@ -554,14 +555,15 @@ class AmCache(base.job.BaseModule):
                     sha = v.value()[4:]  # SHA-1 hash is registered 4 0's padded
                     app.update({names.get(v.name(), v.name()): sha})
                 elif v.name == 'ismalware':
-                    if val in self.hash_dict.keys():
-                        app.update({'ismalware': self.hash_dict[app['Sha1Hash'].rstrip()]})
-                    elif av.apikey is not None and check_file_date(app['KeyLastWrite'], self.days):
+                    sha = app['Sha1Hash'].rstrip()
+                    if sha in self.hash_dict.keys():
+                        app.update({'ismalware': self.hash_dict[sha]})
+                    elif av.apikey is not None and not check_file_date(app['KeyLastWrite'], self.days):
                         try:
-                            self.hash_dict[app['Sha1Hash'].rstrip()] = len(av.file(app['Sha1Hash'].rstrip())) > 0
+                            self.hash_dict[sha] = av.file(sha)['malicious']
                         except Exception:
-                            self.hash_dict[app['Sha1Hash'].rstrip()] = False
-                        app.update({'ismalware': self.hash_dict[app['Sha1Hash'].rstrip()]})
+                            self.hash_dict[sha] = False
+                        app.update({'ismalware': self.hash_dict[sha]})
                 elif v.name() == 'LinkDate':
                     link_date = ''
                     if v.value():
@@ -638,18 +640,21 @@ class SysCache(base.job.BaseModule):
         super().read_config()
         self.set_default_config('path', '')
         self.set_default_config('volume_id', '')
+        self.set_default_config('max_days', 90)
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         # Determine output filename
-        id = self.myconfig('volume_id', None)
-        self.partition = id if id else 'p01'  # needed to get inode information
+        # Partition is needed to get inode information
+        self.partition = self.myconfig('volume_id', None)
+        if not self.partition:
+            self.partition = relative_path(path, self.myconfig('mountdir')).split('/')[0] or 'p01'
         outfolder = self.myconfig('outdir')
-        self.days = int(self.myconfig('max_days'))
         check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'syscache{}.csv'.format('_{}'.format(id) if id else ''))
+        self.outfile = os.path.join(outfolder, f'syscache_{self.partition}.csv')
 
+        self.days = int(self.myconfig('max_days'))
         self.logger().debug("Parsing SysCache hive: {}".format(path))
         save_csv(self.parse_SysCache_hive(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
         self.logger().debug("Finished extraction from SysCache")
@@ -668,29 +673,53 @@ class SysCache(base.job.BaseModule):
 
         hash_dict = {}
 
-        av = alienvault()
+        av = alienvault(api_key=self.config.get('IP_API_keys', 'alienvault_key', None))
+        # Since get_path_from_inode traverses the timeline every time, get all the inodes first and pass it as a list
+        results = list()
         for line in output_text.split('\n')[:-1]:
-            line = line.split(",")
+            # line expected format: date_string,inode,sha1  (the last fragment ",sha1" is optional)
+            line = line.strip().split(",")
+            keydate = line[0]
             fileID = line[1]
             inode = line[1].split('/')[0]
+
+            if len(line) == 2:  # Hash not included
+                results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")),
+                    ("Name", ""), ("Sha1", ""), ("Malware", ""), ("FileID", fileID), ("inode", inode), ("filename_from_hash", "")]))
+                continue
+
             ismalware = ''
-            # Get filename from inode if timeline is present
-            name = '' if not timeline else timeline.get_path_from_inode(inode, partition=self.partition)
-            if len(line) > 2:
-                if line[2].rstrip() in hash_dict.keys():
-                    ismalware = hash_dict[line[2].rstrip()]
-                elif av.apikey is not None and check_file_date(line[0], self.days):
-                    try:
-                        hash_dict[line[2].rstrip()] = len(av.file(line[2].rstrip())) > 0
-                        ismalware = hash_dict[line[2].rstrip()]
-                    except Exception:
-                        ismalware = False
-                        hash_dict[line[2].rstrip()] = False
-                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                                   ("Name", name), ("FileID", fileID), ("Sha1", line[2]), ("malware", ismalware)])
-            else:
-                yield OrderedDict([("Date", dateutil.parser.parse(line[0]).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                                   ("Name", name), ("FileID", fileID), ("Sha1", ""), ("malware", ismalware)])
+            original_filename = ''   # Value later extracted from alienvault
+            sha1 = line[2].rstrip()
+            if sha1 in hash_dict.keys():
+                ismalware = hash_dict[sha1]
+            elif av.apikey is not None and not check_file_date(keydate, self.days):
+                try:
+                    av_results = av.file(sha1)
+                    original_filename = av_results['filename']
+                    hash_dict[sha1] = av_results['malicious']
+                    ismalware = hash_dict[sha1]
+                except Exception:
+                    ismalware = False
+                    hash_dict[sha1] = False
+            results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")),
+                ("Name", ""), ("Sha1", sha1), ("Malware", ismalware), ("FileID", fileID), ("inode", inode), ("filename_from_hash", original_filename)]))
+
+        # Get filename from inode if timeline is present
+        filenames = {}
+        if timeline:
+            try:
+                filenames = timeline.get_path_from_inode([r["inode"] for r in results], partition=self.partition)
+            except Exception as exc:
+                self.logger().warn(exc)
+        for result in results:
+            # Get path starting from partition (timeline returns in format "SOURCE/mnt/pX/path")
+            if filenames:
+                filename = '/'.join(filenames.get(result["inode"], "").split('/')[2:])
+                if filename:
+                    result["Name"] = filename
+            result.pop("inode")
+            yield result
 
 
 class AppCompat(base.job.BaseModule):

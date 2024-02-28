@@ -26,7 +26,7 @@ def check_file_date(fdate, days):
     else:
         fdate = dateutil.parser.parse(fdate).replace(tzinfo=None)
 
-    if (datetime.datetime.now() - fdate).days > days:
+    if (datetime.datetime.now() - fdate).days > int(days):
         return True
     return False
 
@@ -182,7 +182,7 @@ class alienvault(object):
             if config:
                 self.apikey = config.get('IP_API_keys', 'alienvault_key', None)
             if not self.apikey:
-                logging.getLogger(__name__).error(f'No API key provided for alientvault')
+                logging.getLogger(__name__).error(f'No API key provided for alienvault')
 
         self.otx_server = otx_server
         self.otx = OTXv2(self.apikey, server=otx_server)
@@ -218,7 +218,7 @@ class alienvault(object):
         if not ip or ip.lower() in ['local', '-']:
             return res
 
-        logging.getLogger(__name__).debug(f'Getting AlienVault data for {ip}')
+        logging.getLogger(__name__).debug(f'Getting AlienVault data for IP {ip}')
         try:
             result = self.otx.get_indicator_details_by_section(IndicatorTypes.IPv4, ip, 'general')
         except Exception:
@@ -258,7 +258,7 @@ class alienvault(object):
         has_analysis = getValue(result, ['url_list', 'url_list', 'result', 'urlworker', 'has_file_analysis'])
         if has_analysis:
             hash = getValue(result, ['url_list', 'url_list', 'result', 'urlworker', 'sha256'])
-            file_alerts = file(self.otx, hash)
+            file_alerts = self.file(hash)['alerts']
             if file_alerts:
                 for alert in file_alerts:
                     alerts.append(alert)
@@ -268,8 +268,7 @@ class alienvault(object):
         return alerts
 
     def file(self, hash):
-
-        alerts = []
+        logging.getLogger(__name__).debug(f'Getting AlienVault data for hash {hash}')
 
         hash_type = IndicatorTypes.FILE_HASH_MD5
         if len(hash) == 64:
@@ -279,11 +278,28 @@ class alienvault(object):
 
         result = self.otx.get_indicator_details_full(hash_type, hash)
 
+        malicious_indicators = self._is_malicious_file(result)
+        a = {
+            'indicator': getValue(result, ['general', 'indicator']),
+            'type': getValue(result, ['general', 'type']),
+            'file_class': getValue(result, ['analysis', 'analysis', 'info', 'results', 'file_class']),
+            'filesize': getValue(result, ['analysis', 'analysis', 'info', 'results', 'filesize']),
+            'filename': getValue(result, ['analysis', 'analysis', 'plugins', 'exiftool', 'results', 'Original_Filename']) or getValue(result, ['analysis', 'analysis', 'plugins', 'exiftool', 'results', 'EXE:OriginalFileName']),
+            'alerts': malicious_indicators,
+            'malicious': len(malicious_indicators) > 0,
+            'full_result': result
+        }
+        return a
+
+    def _is_malicious_file(self, result):
+        ''' Check if a file hash has known malicious indicators. Expected input: result of self.file(hash) '''
+        alerts = []
         n_av = 0
         pos_av = 0
 
-        if 'virustotal' in result['analysis']['analysis']['plugins']['cuckoo']['result'].keys():
-            for av in result['analysis']['analysis']['plugins']['cuckoo']['result']['virustotal']['scans'].keys():
+        virustotal = getValue(result, ['analysis', 'analysis', 'plugins', 'cuckoo', 'results', 'virustotal', 'scans'])
+        if virustotal:
+            for av in virustotal.keys():
                 n_av += 1
                 if getValue(result, ['analysis', 'analysis', 'plugins', 'cuckoo', 'result', 'virustotal', 'scans', av, 'result']):
                     pos_av += 1
@@ -336,7 +352,7 @@ class IP_info(base.job.BaseModule):
         self.set_default_config('section', 'DEFAULT')
         self.set_default_config('tor_db_file', os.path.join(self.myconfig('rvthome'), 'external_tools', 'tor_list.gz'))
         self.set_default_config('max_days', 90)
-        self.set_default_config('alientvault_key', None)
+        self.set_default_config('alienvault_key', None)
         self.set_default_config('abuseipdb_key', None)
 
     def run(self, path=None):

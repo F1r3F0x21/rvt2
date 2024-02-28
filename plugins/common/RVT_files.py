@@ -203,26 +203,33 @@ class GetTimeline(base.job.BaseModule):
 
         return dates
 
-    def get_path_from_inode(self, inode, partition='p01', inode_full=False):
-        """ Get File path given an inode searching in timeline BODY file
+    def get_path_from_inode(self, inode_list, partition='p01', inode_full=False):
+        """ Get file paths given an inode list searching in timeline BODY file
         Warning: Slow function. Use only with short or moderate list of inodes.
 
         Parameters:
-            inode (str): inode number to be searched for
+            inode_list (list): inode numbers to be searched.
             inode_full (boolean): if True, search for the 3 numbers. If False, just the base inode
 
         Returns:
-            filename (str): path relative to casedir
+            files (dict): keys are inodes from 'inode_list' and values are paths relative to casedir
         """
-        with open(self.timeline_body_file, 'r') as infile:
-            for line in infile:
-                inode_to_compare = line[2] if inode_full else line[2].split('-')[0]
-                if inode_to_compare == inode:
-                    part = line[1].split('/')[2]
-                    if part == partition:
-                        return line[1]
 
-        return ''
+        files_list = dict()
+        for line in base.job.run_job(self.config,
+                                     'base.input.CSVReader',
+                                     path=self.timeline_body_file,
+                                     extra_config={'delimiter': '|', 'fieldnames':'["md5","path","inode","mode","uid","gid","size","a","m","c","b"]'}):
+            if line["path"].endswith(' ($FILE_NAME)'):  # Skip all FILE_NAME
+                continue
+            for inode in set(inode_list):
+                inode_to_compare = line["inode"] if inode_full else line["inode"].split('-')[0]
+                if inode_to_compare == inode:
+                    part = line["path"].split('/')[2]
+                    if part == partition:
+                        files_list[inode] = line["path"]
+
+        return files_list
 
 
 class ExtractPathTerms(base.job.BaseModule):

@@ -268,6 +268,7 @@ class DateFields(base.job.BaseModule):
                 EPOCH: substitute the date by the epoch (1970-01-01)
                 NOW: substitute the date by the present time of execution
                 NULL: return an empty string as the date value
+                DELETE: remove the field from the output
         - **dayfirst**: force this option to interpret 03/07/2022 as July 3rd instead of March 7th. Be careful, since this overrides common ISO notation, and 2022-01-06 will be parsed as 1st of June, not 6th of January.
     """
 
@@ -295,8 +296,12 @@ class DateFields(base.job.BaseModule):
         input_timezone = self.myconfig('input_timezone')
         output_timezone = self.myconfig('output_timezone')
         missing_action = self.myconfig('missing_action').upper()
-        on_fail = self.myconfig('on_fail').upper()
         dayfirst = self.myflag('dayfirst')
+        on_fail = self.myconfig('on_fail').upper()
+        on_fail_delete = False
+        if on_fail == 'DELETE':
+            on_fail == 'NULL'
+            on_fail_delete = True
 
         if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'DEFAULT']:
             raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP')
@@ -339,7 +344,7 @@ class DateFields(base.job.BaseModule):
                     data[field] = converted_date
                 elif converted_date and new_fields:
                     data[new_fields[i]] = converted_date
-                else:
+                elif not converted_date and on_fail_delete:
                     data.pop(field)
 
             if not found and missing_action == 'SKIP_ALL':
