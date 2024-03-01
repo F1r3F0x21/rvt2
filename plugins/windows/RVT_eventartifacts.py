@@ -625,6 +625,62 @@ class Poweron(base.job.BaseModule):
                 guess.append(line)
 
 
+class Hash(base.job.BaseModule):
+    """ Extracts events containing file hashes """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed events.json
+        """
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        for event in self.from_module.run(path):
+            if event['event.code'] == '2050' and event['event.provider'] == 'Microsoft-Windows-Windows Defender':
+                yield {
+                    'artifact': 'events',
+                    'path': event['EventData']['Filename'],
+                    'file_birth': '',
+                    'file_modified': '',
+                    'hash': event['EventData']['Sha256']                
+                    }
+                
+            if event['event.provider'] == 'Microsoft-Windows-AppLocker':
+                if event['event.code'] in ['8002','8004','8005']:
+                    yield {
+                        'artifact': 'events',
+                        'path': event['UserData']['RuleAndFileData']["FullFilePath"],
+                        'file_birth': '',
+                        'file_modified': '',
+                        'hash': event['UserData']['RuleAndFileData']['FileHash']                
+                        }
+            
+            if event['event.provider'] == 'Microsoft-Windows-Sysmon':
+                print(event)
+                if event['event.code'] in ['15']:
+                    hash_pairs = event['EventData']['Hash'].split(",")
+                    hash_dict = {}
+                    for hash_pair in hash_pairs:
+                        algorithm, hash_value = hash_pair.split('=')
+                        hash_dict[algorithm] = hash_value
+
+                    if "SHA256" in hash_dict.keys():
+                        hash_value = hash_dict["SHA256"]
+                    elif "MD5" in hash_dict.keys():
+                        hash_value = hash_dict["MD5"]
+                    else:
+                        hash_value = event['EventData']['Hash']
+
+                    yield {
+                        'artifact': 'events',
+                        'path': event['EventData']['TargetFilename'],
+                        'file_birth': '',
+                        'file_modified': '',
+                        'hash': hash_value                
+                        }
+
+
 class Network(base.job.BaseModule):
     """ Extracts events related with wireless networking
 
