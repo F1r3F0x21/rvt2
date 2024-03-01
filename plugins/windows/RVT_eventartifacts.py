@@ -638,8 +638,9 @@ class Hash(base.job.BaseModule):
 
         for event in self.from_module.run(path):
             if event['event.code'] == '2050' and event['event.provider'] == 'Microsoft-Windows-Windows Defender':
+                event_name = self.get_event_name(event['event.code'], event['event.provider'])
                 yield {
-                    'artifact': 'events',
+                    'artifact': event_name,
                     'path': event['EventData']['Filename'],
                     'file_birth': '',
                     'file_modified': '',
@@ -648,8 +649,9 @@ class Hash(base.job.BaseModule):
                 
             if event['event.provider'] == 'Microsoft-Windows-AppLocker':
                 if event['event.code'] in ['8002','8004','8005']:
+                    event_name = self.get_event_name(event['event.code'], event['event.provider'])
                     yield {
-                        'artifact': 'events',
+                        'artifact': event_name,
                         'path': event['UserData']['RuleAndFileData']["FullFilePath"],
                         'file_birth': '',
                         'file_modified': '',
@@ -657,28 +659,62 @@ class Hash(base.job.BaseModule):
                         }
             
             if event['event.provider'] == 'Microsoft-Windows-Sysmon':
-                print(event)
-                if event['event.code'] in ['15']:
-                    hash_pairs = event['EventData']['Hash'].split(",")
-                    hash_dict = {}
-                    for hash_pair in hash_pairs:
-                        algorithm, hash_value = hash_pair.split('=')
-                        hash_dict[algorithm] = hash_value
-
-                    if "SHA256" in hash_dict.keys():
-                        hash_value = hash_dict["SHA256"]
-                    elif "MD5" in hash_dict.keys():
-                        hash_value = hash_dict["MD5"]
-                    else:
-                        hash_value = event['EventData']['Hash']
+                event_name = self.get_event_name(event['event.code'], event['event.provider'])
+                if event['event.code'] in ['1']:
+                    string_hashes = event['EventData']['Hashes']
+                    hash_value = self.get_dict_hashes(string_hashes)
 
                     yield {
-                        'artifact': 'events',
-                        'path': event['EventData']['TargetFilename'],
+                        'artifact': event_name,
+                        'path': event['EventData']['Image'],
                         'file_birth': '',
                         'file_modified': '',
                         'hash': hash_value                
                         }
+                    
+                if event['event.code'] in ['6']:
+                    string_hashes = event['EventData']['Hashes']
+                    hash_value = self.get_dict_hashes(string_hashes)
+
+                    yield {
+                        'artifact': event_name,
+                        'path': event['EventData']['ImageLoaded'],
+                        'file_birth': '',
+                        'file_modified': '',
+                        'hash': hash_value                
+                        }
+
+                if event['event.code'] in ['15']:
+                    string_hashes = event['EventData']['Hash']
+                    hash_value = self.get_dict_hashes(string_hashes)
+
+                    yield {
+                        'artifact': event_name,
+                        'path': event['EventData']['TargetFilename'],
+                        'file_birth': event['event.created'],
+                        'file_modified': '',
+                        'hash': hash_value                
+                        }
+    
+    def get_dict_hashes(self, string_hashes):
+        hash_pairs = string_hashes.split(",")
+        hash_dict = {}
+        for hash_pair in hash_pairs:
+            algorithm, hash_value = hash_pair.split('=')
+            hash_dict[algorithm] = hash_value
+
+        if "SHA256" in hash_dict.keys():
+            hash_value = hash_dict["SHA256"]
+        elif "MD5" in hash_dict.keys():
+            hash_value = hash_dict["MD5"]
+        else:
+            hash_value = string_hashes
+
+        return hash_value
+    
+    def get_event_name(self, event_code, event_provider):
+        
+        return "event-" + str(event_code) + "-" + str(event_provider.split("-")[2])
 
 
 class Network(base.job.BaseModule):
