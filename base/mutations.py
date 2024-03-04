@@ -705,9 +705,9 @@ class SkipResults(base.job.BaseModule):
                 else:
                     yield data
                     continue
-            if condition == 'any' and any(semicolon_copy):
+            if condition == 'any' and all(semicolon_copy):
                 yield data
-            if condition != 'any' and all(semicolon_copy):
+            if condition != 'any' and any(semicolon_copy):
                 yield data
 
 
