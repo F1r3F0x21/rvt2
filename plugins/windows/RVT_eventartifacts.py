@@ -634,12 +634,13 @@ class Hash(base.job.BaseModule):
             path (str): Absolute path to the parsed events.json
         """
 
-        self.check_params(path, check_path=True, check_path_exists=True)
+        #self.check_params(path, check_path=True, check_path_exists=True)
 
         for event in self.from_module.run(path):
             if event['event.code'] == '2050' and event['event.provider'] == 'Microsoft-Windows-Windows Defender':
                 event_name = self.get_event_name(event['event.code'], event['event.provider'])
                 yield {
+                    '@timestamp': event['event.created'],
                     'artifact': event_name,
                     'path': event['EventData']['Filename'],
                     'file_birth': '',
@@ -651,6 +652,7 @@ class Hash(base.job.BaseModule):
                 if event['event.code'] in ['8002','8004','8005']:
                     event_name = self.get_event_name(event['event.code'], event['event.provider'])
                     yield {
+                        '@timestamp': event['event.created'],
                         'artifact': event_name,
                         'path': event['UserData']['RuleAndFileData']["FullFilePath"],
                         'file_birth': '',
@@ -665,6 +667,7 @@ class Hash(base.job.BaseModule):
                     hash_value = self.get_dict_hashes(string_hashes)
 
                     yield {
+                        '@timestamp': event['event.created'],
                         'artifact': event_name,
                         'path': event['EventData']['Image'],
                         'file_birth': '',
@@ -677,6 +680,7 @@ class Hash(base.job.BaseModule):
                     hash_value = self.get_dict_hashes(string_hashes)
 
                     yield {
+                        '@timestamp': event['event.created'],
                         'artifact': event_name,
                         'path': event['EventData']['ImageLoaded'],
                         'file_birth': '',
@@ -689,6 +693,7 @@ class Hash(base.job.BaseModule):
                     hash_value = self.get_dict_hashes(string_hashes)
 
                     yield {
+                        '@timestamp': event['event.created'],
                         'artifact': event_name,
                         'path': event['EventData']['TargetFilename'],
                         'file_birth': event['event.created'],
