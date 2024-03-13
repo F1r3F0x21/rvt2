@@ -802,6 +802,8 @@ class Prefetch(SuperTimeline):
 
             common = self.common_fields()
             common.update({
+                '@timestamp': to_iso_format(d['RunTime']),
+                'process.start': to_iso_format(d['RunTime']),
                 'tags': ['execution'],
                 'event.category': ['package'],
                 'event.module': 'prefetch',
@@ -809,18 +811,16 @@ class Prefetch(SuperTimeline):
                 'event.action': 'application-executed',
                 'event.type': ['start'],
                 'message': "Executed process: {}".format(d['Executable']),
-                'file.name': d['Filename'],
+                'file.name': d['PrefecthFile'],
                 'file.group': 'plain',
                 'process.executable': d['Executable'],
-                'process.run_count': d['Run count'],
-                'process.first_run': d['Birth time']
+                'process.run_count': d['RunCount'],
+                'process.run_total': d['RunTotal'],
+                'process.first_run': d['BirthDate'],
+                'container.id': d['Partition'],
+                'device.id': d['VolumeSN']
             })
-            for t in range(8):
-                field = 'Run time {}'.format(t)
-                if d[field]:
-                    common['@timestamp'] = common['process.start'] = to_iso_format(d[field])
-                    common['process.run_time'] = t
-                    yield common
+            yield common
 
 
 class AmCache(SuperTimeline):
