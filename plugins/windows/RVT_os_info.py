@@ -121,7 +121,7 @@ class CharacterizeWindows(base.job.BaseModule):
 
         os_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'nic2']
 
-        plugin_fields = {'winver2': ['ProductName', 'CurrentVersion', 'InstallationType', 'EditionID', 'CurrentBuild', 'ProductId', 'RegisteredOwner', 'RegisteredOrganization', 'InstallDate'],
+        plugin_fields = {'winver2': ['ProductName', 'InstallationType', 'EditionID', 'CurrentBuild', 'ProductId', 'RegisteredOwner', 'RegisteredOrganization', 'InstallDate'],
                          'shutdown': ['ShutdownTime'],
                          'processor_architecture': ['PROCESSOR_ARCHITECTURE'],
                          'compname': ['ComputerName']}
@@ -315,7 +315,7 @@ class CharacterizeWindows(base.job.BaseModule):
         """ Get selected OS or user information by reading a previously defined json file where information is stored """
 
         self.logger().debug('Getting {} information about partition {}'.format(item, partition))
-        os_info_keys = ["productname", "currentversion", "installationtype", "editionid", "currentbuild", "productid", "registeredowner", "registeredorganization", "installdate", "shutdowntime", "timezone", "lastloggedon", "processorarchitecture", "computername"]
+        os_info_keys = ["productname", "installationtype", "editionid", "currentbuild", "productid", "registeredowner", "registeredorganization", "installdate", "shutdowntime", "timezone", "lastloggedon", "processorarchitecture", "computername"]
         users_info_keys = ["users", "user_profiles"]
         if item.lower() in os_info_keys:
             default_output = ''
@@ -344,7 +344,6 @@ class CharacterizeWindows(base.job.BaseModule):
         """
         product = self.get_information("ProductName", partition)
         server = True if product.find('Server') != -1 else False
-        version = self.get_information("CurrentVersion", partition)
         build = self.get_information("CurrentBuild", partition)
         architecture = self.get_information("ProcessorArchitecture", partition)
 

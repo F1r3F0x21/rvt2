@@ -88,12 +88,14 @@ class CommonFields(base.job.BaseModule):
 
         Configuration:
             - **calculate_id**: if True, calls base.utils.generate_id to generate an identifier in the *_id* field.
+            - **filename_stem**: if True, output also the filename without last extension.
             - **disabled**: if True, do not add anything and just yield the result. Useful in configurable module chains
     """
     def read_config(self):
         super().read_config()
         self.set_default_config('generate_id', 'False')
         self.set_default_config('disabled', 'False')
+        self.set_default_config('filename_stem', 'False')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
@@ -124,6 +126,8 @@ class CommonFields(base.job.BaseModule):
             dirname=os.path.dirname(relfilepath),
             extension=os.path.splitext(relfilepath)[1]
         )
+        if self.myflag('filename_stem'):
+            cfields['filename_stem'] = os.path.basename(relfilepath).split('.')[0]
 
         content_type = self.myconfig('content_type')
         if content_type:
@@ -158,18 +162,31 @@ class AddFields(base.job.BaseModule):
 
         for data in self.from_module.run(path):
             newdata = data
+            new_conf_section = conf_section
+            # Try to substitute values from incoming data. Usual jobs do not contain '{}'
+            if '{' in conf_section:
+                try:
+                    new_conf_section = conf_section.format(**newdata)
+                except Exception as exc:
+                    if self.myflag('stop_on_error'):
+                        raise base.job.RVTError(exc)
+                    self.logger().warning(f'Configuration section not valid: {exc}')
+                    yield newdata
+                    continue
+            # Try to substitute values from fields
             if fieldsStr:
                 try:
-                    newdata.update(ast.literal_eval(fieldsStr.format(**self.config.config[conf_section])))
+                    newdata.update(ast.literal_eval(fieldsStr.format(**self.config.config[new_conf_section])))
                 except KeyError as exc:
                     if self.myflag('stop_on_error'):
                         raise base.job.RVTError(exc)
-                    self.logger().warning('Key not found: %s', exc)
+                    self.logger().warning(f'Key not found: {exc}')
             yield newdata
 
 
 class GetFields(base.job.BaseModule):
     """ Get data from from_module, yield only the specified fields.
+        It may be also used to set the fields order of appearence.
 
     Module description:
         - **path**: not used, passed to *from_module*.
@@ -259,17 +276,17 @@ class DateFields(base.job.BaseModule):
         - **input_timezone**: tzdata/Olsen timezone name of the input dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found. If original input data includes a TZ, it won't be overwritten
         - **output_timezone**: tzdata/Olsen timezone name to set for the output dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found.
         - **hide_tz**: If True, do not output a timezone offset with the result
-        - **missing_action**: what to do when date field is not present. One of (IGNORE, SKIP_ANY, SKIP_ALL, REPLACE). Default: IGNORE
+        - **missing_action**: What to do when date field is not present. One of (IGNORE, SKIP_ANY, SKIP_ALL, REPLACE). Default: IGNORE
                 IGNORE: do not transform the date field not found but yield the rest of data
                 SKIP_ANY: if one of the date `fields` is not present, skip the data
                 SKIP_ALL: if none of the date `fields` are present, skip the data
                 REPLACE: Add a new date field with the `on_fail` value
-        - **on_fail**: what to do when date field is in a wrong format. One of (EPOCH, NOW, NULL). Default: NULL
+        - **on_fail**: What to do when date field is in a wrong format. One of (EPOCH, NOW, NULL, DELETE). Default: NULL
                 EPOCH: substitute the date by the epoch (1970-01-01)
                 NOW: substitute the date by the present time of execution
                 NULL: return an empty string as the date value
                 DELETE: remove the field from the output
-        - **dayfirst**: force this option to interpret 03/07/2022 as July 3rd instead of March 7th. Be careful, since this overrides common ISO notation, and 2022-01-06 will be parsed as 1st of June, not 6th of January.
+        - **dayfirst**: Force this option to interpret 03/07/2022 as July 3rd instead of March 7th. Be careful, since this overrides common ISO notation, and 2022-01-06 will be parsed as 1st of June, not 6th of January.
     """
 
     def read_config(self):
@@ -303,11 +320,8 @@ class DateFields(base.job.BaseModule):
             on_fail == 'NULL'
             on_fail_delete = True
 
-        if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'DEFAULT']:
-            raise base.job.RVTError('`missing_action` must be one of IGNORE, SKIP')
-
-        time_limits = {'EPOCH': datetime.datetime.fromtimestamp(0),
-                       'NOW': datetime.datetime.utcnow()}
+        if missing_action not in ['IGNORE', 'SKIP_ANY', 'SKIP_ALL', 'REPLACE']:
+            raise base.job.RVTError('`missing_action` must be one of (IGNORE, SKIP_ANY, SKIP_ALL, REPLACE')
 
         if new_fields and len(new_fields) != len(fields):
             raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
@@ -691,7 +705,7 @@ class SkipResults(base.job.BaseModule):
         self.check_params(path, check_from_module=True)
 
         fields = self.myarray('fields')
-        condition = self.myconfig('condition')  # values not in ['all', 'any'] will default to 'all'
+        condition = self.myconfig('condition').lower()
         not_present = self.myconfig('fields_not_present').lower()
 
         for data in self.from_module.run(path):
@@ -705,9 +719,9 @@ class SkipResults(base.job.BaseModule):
                 else:
                     yield data
                     continue
-            if condition == 'any' and any(semicolon_copy):
+            if condition == 'any' and all(semicolon_copy):
                 yield data
-            if condition != 'any' and all(semicolon_copy):
+            elif condition != 'any' and any(semicolon_copy):  # when condition not in ['all', 'any'], assume it is 'all'
                 yield data
 
 
@@ -734,6 +748,11 @@ class FilterData(base.job.BaseModule):
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
+
+        # If no conditions are set, this module is transparent
+        if not self.myconfig('conditions'):
+            yield from self.from_module.run(path)
+            return
         try:
             events = ast.literal_eval(self.myconfig('conditions'))
         except Exception as exc:
@@ -768,8 +787,79 @@ class FilterData(base.job.BaseModule):
                     if (field not in data.keys()) or (not is_regex and data[field] != reference) or (is_regex and not reference.search(data[field])):
                         discard = True
                         break
-                    if not discard:
-                        yield data
+                if not discard:
+                    yield data
+
+
+class DateRange(base.job.BaseModule):
+    """ Keep only input data within the date range between 'start' and 'end'.
+
+    Module description:
+        - **path**: not used, passed to *from_module*.
+        - **from_module**: mandatory. Get data from here.
+        - **yields**: The original data if criteria is met, or nothing.
+
+    Configuration:
+        - **field**: Name of the field containing the dates to filter.
+        - **start**: Starting date. Although it accepts many date formats, try to conform to the following notation: 'YYYY-mm-ddTHH:MM:SS'. Set 'dayfirst' paramenter if using notation such as 24/03/2024.
+        - **end**: Ending date. If only 'start' is set, 'end' will default to the current execution time.
+        - **action_if_missing**: What to do with data when date field is not present. One of (KEEP, SKIP). Default: SKIP.
+        - **on_fail**: What to do when date field is in a wrong format and 'action_if_missing' is KEEP. One of (EPOCH, NOW, NULL). Default: NULL.
+                EPOCH: substitute the date by the epoch (1970-01-01)
+                NOW: substitute the date by the present time of execution
+                NULL: return an empty string as the date value
+        - **dayfirst**: Force this option to interpret 03/07/2022 as July 3rd instead of March 7th. Be careful, since this overrides common ISO notation, and 2022-01-06 will be parsed as 1st of June, not 6th of January.
+    """
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('field', '')
+        self.set_default_config('start', None)
+        self.set_default_config('end', None)
+        self.set_default_config('action_if_missing', 'SKIP')
+        self.set_default_config('on_fail', 'NULL')
+        self.set_default_config('dayfirst', False)
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+        field = self.myconfig('field')
+        start = self.myconfig('start')
+        end = self.myconfig('end')
+        missing_action = self.myconfig('action_if_missing').upper()
+        dayfirst = self.myflag('dayfirst')
+        on_fail = self.myconfig('on_fail').upper()
+
+        if missing_action not in ['KEEP', 'SKIP']:
+            raise base.job.RVTError(f'Wrong `action_if_missing` parameter provided ({missing_action}). It must be one of (KEEP, SKIP)')
+
+        if not start and not end:   # No filter is applied. Module is transparent
+            yield from self.from_module.run(path)
+            return []
+
+        if not start:
+            start = datetime.datetime.fromtimestamp(0)
+        else:
+            start = base.utils.to_localized_date(start, on_fail=on_fail, dayfirst=dayfirst)
+        if not end:
+            end = datetime.datetime.utcnow()
+        else:
+            end = base.utils.to_localized_date(end, on_fail=on_fail, dayfirst=dayfirst)
+
+        if not start and not end:   # Check again in case date parsing was incorrect
+            yield from self.from_module.run(path)
+            return []
+
+        self.logger().debug(f'Filtering data by field "{field}" between {start} and {end}')
+        for data in self.from_module.run(path):
+            if field not in data:
+                if missing_action == 'KEEP':
+                    yield data
+                continue
+            timestamp = base.utils.to_localized_date(data.get(field, None), on_fail=on_fail, dayfirst=dayfirst)
+            if not timestamp:
+                continue
+            if timestamp > start and timestamp < end:
+                yield data
+
 
 # ----------------------------
 # GLOBAL MUTATIONS
@@ -833,6 +923,54 @@ class MirrorOptions(base.job.BaseModule):
         return [params]
 
 
+class FeedJobsParameters(base.job.BaseModule):
+    """ The module gets a list of sections/jobs names, and runs to *from_module* all value options for every section/job.
+
+        Configuration:
+        - **sections**: List of sections/jobs to load options from.
+        - **include_section**: If true, include also the configuration in the section.
+        - **relative_path**: If true, return the path relative to casedir.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('sections', None)
+        self.set_default_config('include_section', 'False')
+        self.set_default_config('relative_path', 'True')
+
+    def run(self, path=None):
+        if path:
+            if self.myflag('relative_path'):
+                params = dict(path=base.utils.relative_path(path, self.myconfig('casedir')))
+            else:
+                params = dict(path=path)
+        else:
+            params=dict()
+
+        if self.local_config:
+            params.update(self.local_config)
+        if self.myflag('include_section') and hasattr(self, 'section') and hasattr(self, 'config'):
+            if self.config.has_section(self.section):
+                for option in self.config.options(self.section):
+                    params[option] = self.config.get(self.section, option)
+
+        # Remove useless parameters
+        params.pop('logger_name', None)
+        params.pop('include_section', None)
+        params.pop('sections', None)
+
+        sections = self.myarray('sections')
+        for module_section in sections:
+            self.logger().debug(f'Yielding parameters for module {module_section}')
+            if self.config.has_section(module_section):
+                final_params = params.copy()
+                for option in self.config.options(module_section):
+                    final_params[option] = self.config.get(module_section, option)
+                yield final_params
+
+        return []
+
+
 class Collapse(base.job.BaseModule):
     """ Collapse different documents sent by from_module with a common field into just one document.
 
@@ -889,6 +1027,7 @@ class SortResults(base.job.BaseModule):
         if not fields:
             yield from self.from_module.run(path)
         else:
+            self.logger().debug(f'Sorting by fields "{fields}" results from path "{path}"')
             yield from sorted(self.from_module.run(path), key=safe_string_itemgetter(*fields), reverse=reverse)
 
 

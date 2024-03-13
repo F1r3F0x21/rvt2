@@ -90,7 +90,7 @@ class ActivitiesCacheAnalysis(base.job.BaseModule):
 
         for file in sorted(os.listdir(path)):
             if file.startswith('activitycache'):
-                # Expected file format: `activitiescache_L.user_partition.csv`
+                # Expected file format: `activitycache_L.user_partition.csv`
                 user = file[16:-8]  # delete the prefix "L."
                 partition = file[-7:-4]
                 for line in base.job.run_job(self.config,
