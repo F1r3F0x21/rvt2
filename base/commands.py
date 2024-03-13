@@ -179,7 +179,8 @@ class RegexFilter(base.job.BaseModule):
         - **keyword_dir**: Load keyword files form this directory.
         - **cmd**: Run this external command to perform a search.
         - **from_dir**: Run the external command from this directory. If ``None``, run from current directory.
-        - **encoding**: The encoding to decode subprocess binary output
+        - **encoding**: The encoding to decode subprocess binary output.
+        - **logging_disable**: If True, do not log every search.
     """
 
     def read_config(self):
@@ -189,6 +190,7 @@ class RegexFilter(base.job.BaseModule):
         self.set_default_config('cmd', 'grep -iP "{regex}" "{path}"')
         self.set_default_config('encoding', 'utf-8')
         self.set_default_config('from_dir', '')
+        self.set_default_config('logging_disable', False)
 
     def run(self, path=None):
         """
@@ -203,6 +205,7 @@ class RegexFilter(base.job.BaseModule):
 
         keyword_file = self.myconfig('keyword_file')
         encoding = self.myconfig('encoding')
+        not_logged = self.myflag('logging_disable')
 
         kwlist = self.myconfig('keyword_list')
         # Normally keyword_list will be a python list object, but can also be provided as string in configuration files
@@ -228,9 +231,10 @@ class RegexFilter(base.job.BaseModule):
                     keyword_tag = keyword_regex = keyword_line.strip()
                 if not keyword_regex:
                     continue
-                self.logger().debug('Searching for keyword {} on file: {}'.format(keyword_regex, path))
                 command = self.myconfig('cmd').format(regex=keyword_regex, path=relative_path(path, from_dir))
-                self.logger().debug("Running: cmd='{}', from_dir='{}'".format(command, from_dir if from_dir else os.getcwd()))
+                if not not_logged:
+                    self.logger().debug('Searching for keyword {} on file: {}'.format(keyword_regex, path))
+                    #self.logger().debug("Running: cmd='{}', from_dir='{}'".format(command, from_dir if from_dir else os.getcwd()))
                 with subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE) as proc:
                     for line in proc.stdout:
                         line = line.strip().decode(encoding)

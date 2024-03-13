@@ -186,7 +186,7 @@ class GetTimeline(base.job.BaseModule):
             search_command = 'grep -iP "{regex}" "{path}"'
             # filename_list = ['/'.join(f.split('/')[3:]) for f in file_list]
 
-        module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=file_list))
+        module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=file_list, logging_disable=True))
         dates = defaultdict(dict)
 
         # In case tqdm is not needed: for line in module.run(self.timeline_body_file):

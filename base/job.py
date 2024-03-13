@@ -191,10 +191,10 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
                 return list()
             yield from results
         except KeyboardInterrupt:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'interrupted', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'abort', (datetime.datetime.utcnow() - jobstarted))
             raise
         except RVTCritical:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'critical', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
             raise
         except RVTErrorResumeExecution:
             # If the error is not critical and it is not the main job, raise special exception in order to tell an error ocurred to any jobs loop, but keep the loop running
@@ -228,10 +228,10 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
                 except Exception:
                     raise
         except KeyboardInterrupt:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'interrupted', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'abort', (datetime.datetime.utcnow() - jobstarted))
             raise
         except RVTCritical:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'critical', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
             raise
         except Exception as exc:
             (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
@@ -311,7 +311,7 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
             for data in results:
                 yield data
         except KeyboardInterrupt:
-            logging.warning('INTERRUPTED job={} on path="{}". client={} casename={} source={}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source')))
+            logging.warn('INTERRUPTED job={} on path="{}". client={} casename={} source={}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source')))
             raise
         except RVTCritical as exc:
             logging.critical('CRITICAL job={} on path="{}". client={} casename={} source={}. {}. {}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc()))
@@ -411,37 +411,42 @@ def registerExecution(jobid, config, job, params, paths, status, elapsed=None):
     """ Register the execution of the rvt2 in a file with a timestamp.
 
     Attrs:
-        :config: The configuration object. morgue, client, casename and source will be get from the DEFAULT section.
+        :config: The configuration object. client, casename and source will be get from the DEFAULT section.
             The filename is in "rvt2:register". If filename is empty, do not register.
             If "jobname:register" is False, do not register
         :job: The name of the job
         :params: Any extra params
         :paths: The list of paths
-        :status: either 'start', 'end', 'interrupted' or 'error'
+        :status: either 'start', 'end', 'abort' or 'error'
         :elapsed (datetime.timedelta): elapsed time
     """
     filename = config.get('rvt2', 'register', default=None)
-    morgue = config.get('DEFAULT', 'morgue')
     client = config.get('DEFAULT', 'client')
     casename = config.get('DEFAULT', 'casename')
     source = config.get('DEFAULT', 'source')
     casedir = config.get('DEFAULT', 'casedir')
+    try:
+        parameters = ast.literal_eval(config.get(job, 'default_params', '{}'))
+        if params:
+            parameters.update(params)
+    except Exception as exc:
+        logging.warn(f'Problems evaluating "default_params" for job "{job}"')
 
     data = dict(
         _id=jobid,
         date=datetime.datetime.utcnow().isoformat(),
-        cwd=os.getcwd(),
-        rvthome=config.get('DEFAULT', 'rvthome'),
-        morgue=morgue,
+        job=job,
+        status=status,
+        #cwd=os.getcwd(),
+        #rvthome=config.get('DEFAULT', 'rvthome'),
         client=client,
         casename=casename,
         source=source,
-        job=job,
+        user=os.getlogin(),
         params=params,
         paths=paths,
-        status=status,
         logfile=base.utils.relative_path(config.get('logging', 'file.logfile', None), casedir),
-        outfile=base.utils.relative_path(config.get(job, 'outfile', None), casedir),
+        outfile=base.utils.relative_path(parameters.get('outfile', None), casedir),
         elapsed=str(elapsed)
     )
     if status == 'start':
@@ -624,7 +629,7 @@ class BaseModule(object):
             exclude_jobid (str): Exclude the present job id in the search, since it will always be registered before the present functions is executed.
 
         Returns:
-            The last registered state for a job as such. Options: 'new', 'start', 'end', 'interrupted', 'error'.
+            The last registered state for a job as such. Options: 'new', 'start', 'end', 'abort', 'error'.
         """
         if not job_name:
             job_name = self.config.job_name
