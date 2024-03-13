@@ -313,7 +313,7 @@
     "path": {
       "EventData":{
         "Name": ["AccountName", "AccountDomain", "LogonID", "SessionName", "ClientName", "ClientAddress"],
-        "transform": {"AccountName": "destination.user.name", "AccountDomain": "destination.domain", "ClientName": "client.user.name", "ClientAddress": "client.address"}
+        "transform": {"AccountName": "destination.user.name", "AccountDomain": "destination.domain", "ClientName": "client.hostname", "ClientAddress": "client.address"}
       }
     }
   },
@@ -323,7 +323,7 @@
     "path": {
       "EventData":{
         "Name": ["AccountName", "AccountDomain", "LogonID", "SessionName", "ClientName", "ClientAddress"],
-        "transform": {"AccountName": "destination.user.name", "AccountDomain": "destination.domain", "ClientName": "client.user.name", "ClientAddress": "client.address"}
+        "transform": {"AccountName": "destination.user.name", "AccountDomain": "destination.domain", "ClientName": "client.hostname", "ClientAddress": "client.address"}
       }
     }
   },

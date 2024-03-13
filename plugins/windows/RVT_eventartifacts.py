@@ -63,13 +63,11 @@ class LogonRDP(base.job.BaseModule):
             ev['ProcessName'] = event.get('process.name', '')
             ev['Logon.ProcessName'] = event.get('data.LogonProcessName', '')
             ev['AuthenticationPackageName'] = event.get('data.AuthenticationPackageName', '')
+            ev['client.hostname'] = event.get('client.hostname', '')   # Only events 4778 and 4779
 
-            if "client.ip" in event.keys():
-                ev['source.ip'] = event['client.ip']
-            elif "source.ip" in event.keys():
-                ev['source.ip'] = event['source.ip']
-            elif "source.address" in event.keys():
-                ev['source.ip'] = event['source.address']
+            for ip_name in ['client.ip', 'client.address', 'source.ip', 'source.address']:
+                if ip_name in event.keys():
+                    ev['source.ip'] = event[ip_name]
 
             if "data.ConnectionName" in event.keys():
                 ev['ConnectionName'] = event['data.ConnectionName']

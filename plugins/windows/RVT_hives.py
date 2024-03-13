@@ -685,7 +685,7 @@ class SysCache(base.job.BaseModule):
 
             if len(line) == 2:  # Hash not included
                 results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                    ("Name", ""), ("Sha1", ""), ("Malware", ""), ("FileID", fileID), ("inode", inode), ("filename_from_hash", "")]))
+                    ("Name", ""), ("Sha1", ""), ("Malware", ""), ("FileID", fileID), ("Inode", inode), ("FilenameFromHash", "")]))
                 continue
 
             ismalware = ''
@@ -703,7 +703,7 @@ class SysCache(base.job.BaseModule):
                     ismalware = False
                     hash_dict[sha1] = False
             results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                ("Name", ""), ("Sha1", sha1), ("Malware", ismalware), ("FileID", fileID), ("inode", inode), ("filename_from_hash", original_filename)]))
+                ("Name", ""), ("Sha1", sha1), ("Malware", ismalware), ("FileID", fileID), ("Inode", inode), ("FilenameFromHash", original_filename)]))
 
         # Get filename from inode if timeline is present
         filenames = {}
@@ -753,6 +753,7 @@ class AppCompat(base.job.BaseModule):
         outfolder = self.myconfig('outdir')
         check_directory(outfolder, create=True)
         self.outfile = os.path.join(outfolder, 'appcompatcache{}.csv'.format('_{}'.format(id) if id else ''))
+        tmp_file = os.path.join(os.path.dirname(self.outfile), 'temp_' + os.path.basename(self.outfile))
 
         cmd = self.myconfig('cmd', None)
         self.logger().debug("Parsing appcompatcache on registry hive {}".format(path))
@@ -766,14 +767,13 @@ class AppCompat(base.job.BaseModule):
                         'executable': windows_format_path(self.myconfig('executable'), enclosed=True) if convert_paths else self.myconfig('executable'),
                         'path': windows_format_path(path, enclosed=True) if convert_paths else path,
                         'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True) if convert_paths else self.myconfig('outdir'),
-                        'filename': windows_format_path(os.path.basename(self.outfile), enclosed=True) if convert_paths else self.outfile}
+                        'filename': windows_format_path(os.path.basename(self.outfile), enclosed=True) if convert_paths else tmp_file}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
 
             run_command(cmd_args)
 
-            # Assuming AppCompatCacheParser is used, rearrange the default output
-            tmp_file = os.path.join(os.path.dirname(self.outfile), 'temp_' + os.path.basename(self.outfile))
-            run_command("rg -v ',True' {} | awk -F, '{{ print $4\";\"$3\";\"$2\";\"$5 }}' > {}".format(self.outfile, tmp_file))
+            # Assuming AppCompatCacheParser is used, rearrange the default output and skip entries with Duplicate=True
+            run_command("rg -v ',True,' {} | awk -F, '{{ print $4\";\"$3\";\"$2\";\"$5 }}' > {}".format(tmp_file, self.outfile))
             #run_command('mv {} {}'.format(tmp_file, self.outfile))
 
         self.logger().debug("Finished extraction from AppCompatCache")
