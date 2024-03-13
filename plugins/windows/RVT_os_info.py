@@ -126,7 +126,7 @@ class CharacterizeWindows(base.job.BaseModule):
                          'processor_architecture': ['PROCESSOR_ARCHITECTURE'],
                          'compname': ['ComputerName']}
 
-        field_names = {'ProductName': 'ProductName', 'CurrentVersion': 'CurrentVersion', 'InstallationType': 'InstallationType',
+        field_names = {'ProductName': 'ProductName', 'InstallationType': 'InstallationType',
                        'EditionID': 'EditionID', 'CurrentBuild': 'CurrentBuild', 'ProductId': 'ProductId', 'RegisteredOwner': 'RegisteredOwner',
                        'RegisteredOrganization': 'RegisteredOrganization', 'InstallDate': 'InstallDate', 'ShutdownTime': 'ShutdownTime',
                        '  TimeZoneKeyName': 'TimeZone', 'PROCESSOR_ARCHITECTURE': 'ProcessorArchitecture', 'ComputerName': 'ComputerName'}
