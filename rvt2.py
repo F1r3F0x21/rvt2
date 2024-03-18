@@ -119,7 +119,7 @@ def job_needs_morgue(job):
 
 
 def job_needs_source(job):
-    """ Check if the specified job requires a 'morgue' """
+    """ Check if the specified job requires a 'source' """
     return False if job is None else (job not in ['help', 'show_jobs', 'status', 'show_cases', 'show_images'])
 
 
@@ -274,6 +274,12 @@ def main(params=sys.argv[1:]):
     aparser.add_argument('-p', '--print', help='print the results of the job as JSON', action='store_true', default=False)
     aparser.add_argument('paths', type=str, nargs='*', help='Filename or directories to parse')
     args = aparser.parse_args(params)
+
+    # Sanitize morgue variables
+    if args.morgue:
+        args.morgue = args.morgue.rstrip('/')
+    if args.globals.get('morgue',''):
+        args.globals['morgue'] = args.globals['morgue'].rstrip('/')
 
     # Update initial variables in globals
     # Notice "--globals morgue=SOMETHING" has preference over "--morgue SOMETHING"

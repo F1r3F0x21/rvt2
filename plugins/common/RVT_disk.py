@@ -14,9 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 """
-
 Manages images
-
 """
 
 import os
@@ -34,11 +32,9 @@ import json
 from tqdm import tqdm
 import shutil
 
-__maintainer__ = 'Juan Vera'
 
-
-def load_partition(auxdir):
-    """ Load partition variables from JSON file. """
+def load_imagefile(auxdir):
+    """ Load imagefile path from configuration JSON file. """
 
     infile = None
 
@@ -46,6 +42,7 @@ def load_partition(auxdir):
         for part_file in os.listdir(auxdir):
             if part_file.startswith('p') and part_file.endswith('info.json'):
                 infile = os.path.join(auxdir, part_file)
+                # Get information from the first mountable partition. Imagefile should be the same for all
                 break
 
     if infile and os.path.getsize(infile) != 0:
@@ -87,16 +84,17 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
     Known images are in the KNOWN_IMAGETYPES directory.
     """
 
-    imfile = load_partition(myconfig('auxdir'))
-    if imfile and not imagefile:
-        imagefile = imfile
-
     if imagefile:
-        # check for device files
-        if imagefile.startswith('/dev'):
-            return KNOWN_IMAGETYPES['/dev']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['/dev']['type'], params=myconfig)
         check_file(imagefile, error_missing=True)
-        # check for known extensions
+
+    if not imagefile:
+        # Load imagefile path from previous runs to speed up the guessing process
+        imagefile = load_imagefile(myconfig('auxdir'))
+
+    # check for known extensions
+    if imagefile and check_file(imagefile):
+        if imagefile.startswith('/dev'):  # check for device files
+            return KNOWN_IMAGETYPES['/dev']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['/dev']['type'], params=myconfig)
         try:
             ext = os.path.basename(imagefile).split('.')[-1]
             if test_magic_image(imagefile):
@@ -108,7 +106,8 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
             # not a know extension: assume RAW image
             return BaseImage(imagefile=imagefile, imagetype='raw', params=myconfig)
 
-    # No imagefile is provided. Search in imagedir files with known extensions
+    # No imagefile is provided or imagefile is an old temporary mount point.
+    # Search in imagedir files with known extensions
     source = myconfig('source')
     imagedir = myconfig('imagedir')
     if vss:  # Deduce original source name from vss source name
@@ -235,7 +234,7 @@ class BaseImage(object):
             volume = None
 
         if not volume:
-            self.logger.warning("File imagefile=%s has not a partition table or is malformed. Trying to manage as a single partition" % self.imagefile)
+            self.logger.info("File imagefile=%s has not a partition table or is malformed. Trying to manage as a single partition" % self.imagefile)
             try:
                 fs = pytsk3.FS_Info(img)
                 filesystem = self.fs_descr[fs.info.ftype]

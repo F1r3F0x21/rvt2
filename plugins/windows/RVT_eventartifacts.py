@@ -441,7 +441,10 @@ class RDPOutgoing(base.job.BaseModule):
 
         self.check_params(path, check_path=True, check_path_exists=True)
         # RDP Outgoing events display only user SID. Get user name
-        users_sid = self.get_users_name()
+        # TODO: events.json should have a way to identify partition
+        partition = None
+        os_info = CharacterizeWindows(config=self.config)
+        users_sid = os_info.get_users_names(partition=partition)
         actID = {}
 
         for event in self.from_module.run(path):
@@ -461,24 +464,6 @@ class RDPOutgoing(base.job.BaseModule):
 
         for result in self.extractRDP(actID):
             yield result
-
-    def get_users_name(self):
-        # Check registry files to obtain the relation between user SID and name
-        try:
-            os_info = CharacterizeWindows(config=self.config)
-            partitions = os_info.get_available_partitions()
-            if not partitions:
-                return {}
-            # Assume first non empty partition is the right one. This may be problematic if multiple partitions exist
-            users = os_info.get_information("user_profiles", partition=partitions[0])
-            # Reverse the data for easier lookup
-            users_sid = {}
-            for user_name, data in users.items():
-                if "sid" in data:
-                    users_sid[data['sid']] = user_name
-            return users_sid
-        except:
-            return {}
 
     def extractRDP(self, actID):
 
