@@ -1,0 +1,87 @@
+{
+    "*":{
+        "description": "-- GENERAL description, TODO specific parser in eventlist/Kaspersky Event Log.json --",
+        "provider": "klnagent",
+        "dataset" : "Kaspersky Event Log",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    },
+    "7694":{
+      "description": "Third-party software update has been installed successfully",
+      "provider": "klnagent",
+      "path": {
+        "EventData/Data": {
+          "Name": ["#text"],
+          "transform": {"#text": "data.text"}
+        },
+        "EventData": {
+          "Name": ["Binary"],
+          "transform": {"Binary": "data.binary"}
+        }
+      }
+    },
+    "7695":{
+      "description": "Third-party software update installation has started",
+      "provider": "klnagent",
+      "path": {
+        "EventData/Data": {
+          "Name": ["#text"],
+          "transform": {"#text": "data.text"}
+        },
+        "EventData": {
+          "Name": ["Binary"],
+          "transform": {"Binary": "data.binary"}
+        }
+      }
+    },
+    "7697":{
+      "description": "Failed to install the third-party software update",
+      "provider": "klnagent",
+      "path": {
+        "EventData/Data": {
+          "Name": ["#text"],
+          "transform": {"#text": "data.text"}
+        },
+        "EventData": {
+          "Name": ["Binary"],
+          "transform": {"Binary": "data.binary"}
+        }
+      }
+    },
+    "7700":{
+      "description": "Installation of the software module update has started",
+      "provider": "klnagent",
+      "path": {
+        "EventData/Data": {
+          "Name": ["#text"],
+          "transform": {"#text": "data.text"}
+        },
+        "EventData": {
+          "Name": ["Binary"],
+          "transform": {"Binary": "data.binary"}
+        }
+      }
+    },
+    "7699":{
+      "description": "Update for software modules has been installed successfully",
+      "provider": "klnagent",
+      "path": {
+        "EventData/Data": {
+          "Name": ["#text"],
+          "transform": {"#text": "data.text"}
+        },
+        "EventData": {
+          "Name": ["Binary"],
+          "transform": {"Binary": "data.binary"}
+        }
+      }
+    }
+}

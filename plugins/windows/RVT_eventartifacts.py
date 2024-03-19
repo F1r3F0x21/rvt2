@@ -17,10 +17,10 @@
 import os
 import ast
 import datetime
+import re
 import dateutil.parser
-from collections import defaultdict
-
 import base.job
+from collections import defaultdict
 from base.utils import save_md_table, date_to_iso
 from plugins.windows.RVT_os_info import CharacterizeWindows
 
@@ -32,6 +32,8 @@ class Filter_Events(base.job.BaseModule):
 
         for event in self.from_module.run(path):
             if event['event.code'] in events.keys() and event['event.provider'] == events[event['event.code']]:
+                yield event
+            if "*" in events.keys() and event['event.provider'] == events["*"]:
                 yield event
 
 
@@ -1065,3 +1067,75 @@ class TGT_attack(base.job.BaseModule):
                             print("There are no previous TGT for ticket created (or it has created more than %s hours before) on %s of user %s with service name %s, ip %s, status: %s" % (hours, ticket['event.created'], user, ticket['service.name'], ticket['ip'], ticket['status']))
                 else:
                     print("There are no TGT ticket of user %s. This ticket is created on %s with service name %s, ip %s, status: %s" % (user, ticket['event.created'], ticket['service.name'], ticket['ip'], ticket['status']))
+
+
+class EDR_PaloAlto(base.job.BaseModule):
+    """ Extracts specific fields from Palo Alto events 
+
+    """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed events.json
+        """
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        # To add more specific events 
+        eventlist = ["88", "85"]
+
+        for event in list(self.from_module.run(path)):
+            if event["event.code"] in eventlist:
+                message_list = eval(event["message"])
+                extra_data = eval(message_list[5])
+
+                event["object"] = extra_data["filePath"]
+                event["hash"] = extra_data["fileHash"]["sha256"]
+                if extra_data["verdict"] == 1:
+                    event["level"] = "Potentially harmful"
+
+                if "yaraDetails" in extra_data.keys():
+                    event_rules = extra_data["yaraDetails"]["rules"][0]
+                    
+                    event["level"] = event_rules["severity"]
+                    event["action"] = event_rules["action"]
+                    event["event.message"] = event_rules["description"]
+            yield event
+
+class EDR_Symantec(base.job.BaseModule):
+    """ Extracts specific fields from Symantec events 
+
+    """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed events.json
+        """
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+
+        for event in list(self.from_module.run(path)):
+            action = r'Action:([\w\s]*)\.'
+            prog_action = re.compile(action)
+            actionDescription = r'Action Description:([\w\s]*)\.'
+            prog_actionDescription = re.compile(actionDescription)
+            file = r'File:\s*(\S*)'
+            prog_file= re.compile(file)
+
+            if event["event.code"] == "51":
+                string_data = event["event.message"]
+
+                match_action = prog_action.search(string_data)
+                if match_action:
+                    event["action"] = match_action.group(1) + ", "
+                
+                match_actionDescription = prog_actionDescription.search(string_data)
+                if match_actionDescription:
+                    event["action"] += match_actionDescription.group(1)
+
+                match_file = prog_file.search(string_data)
+                if match_file:
+                    event["object"] = match_file.group(1)
+
+            yield event

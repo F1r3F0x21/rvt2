@@ -1,0 +1,92 @@
+{
+    "*":{
+        "description": "-- GENERAL description, TODO specific parser in eventlist/Kaspersky Endpoint Security.json --",
+        "provider": "avp",
+        "dataset" : "Kaspersky Endpoint Security",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    },
+    "218":{
+        "description": "Configuración de la aplicación modificada.",
+        "provider": "avp",
+        "dataset" : "Kaspersky Endpoint Security",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    },
+    "219":{
+        "description": "Directiva de grupo aplicada.",
+        "provider": "avp",
+        "dataset" : "Kaspersky Endpoint Security",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    },
+    "235":{
+        "description": "Aplicación iniciada.",
+        "provider": "avp",
+        "dataset" : "Kaspersky Endpoint Security",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    },
+    "237":{
+        "description": "La aplicación falló durante una sesión anterior.",
+        "provider": "avp",
+        "dataset" : "Kaspersky Endpoint Security",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    },
+    "317":{
+        "description": "La aplicación falló durante una sesión anterior.",
+        "provider": "avp",
+        "dataset" : "Kaspersky Endpoint Security",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    }
+}
