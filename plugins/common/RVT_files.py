@@ -199,7 +199,7 @@ class GetTimeline(base.job.BaseModule):
             # WARNING: Current documentation for tsk at https://wiki.sleuthkit.org/index.php?title=Body_file is wrong.
             # The actual order for dates is 'amcb'.
             for date_index, date_type in zip([8, 7, 9, 10], ['m', 'a', 'c', 'b']):
-                dates[filename][date_type] = datetime.datetime.utcfromtimestamp(int(line[date_index])).strftime("%Y-%m-%dT%H:%M:%SZ")
+                dates[filename][date_type] = datetime.datetime.fromtimestamp(int(line[date_index]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return dates
 

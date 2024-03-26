@@ -275,7 +275,7 @@ class ParseSkypeLevelDB(ParseLevelDB):
             try:
                 timestamp = struct.unpack('<d', v[1:9])[0]
                 # Timestamp is in miliseconds and must be divided by 1000.
-                v = datetime.datetime.utcfromtimestamp(timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S")
+                v = datetime.datetime.fromtimestamp(timestamp / 1000, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 return v
             except Exception:
                 return self.decode_value(v)
@@ -323,7 +323,7 @@ class ParseTeamsLevelDB(ParseLevelDB):
             try:
                 timestamp = struct.unpack('<d', v[1:9])[0]
                 # Timestamp is in miliseconds and must be divided by 1000.
-                v = datetime.datetime.utcfromtimestamp(timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S")
+                v = datetime.datetime.fromtimestamp(timestamp / 1000, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 return v
             except Exception:
                 return self.decode_value(v)

@@ -30,14 +30,12 @@ from base.utils import sanitize_ip
 
 def to_date(strtimestamp):
     """ Converts a timestamp string in UNIX into a date """
-    #return datetime.datetime.utcfromtimestamp(int(strtimestamp)).isoformat()
     return datetime.datetime.fromtimestamp(int(strtimestamp), datetime.timezone.utc).isoformat()
 
 
 def to_iso_format(timestring):
     """ Converts a date string into iso format date """
     if not timestring or timestring == 'Never' or timestring == '-':
-        #return datetime.datetime.utcfromtimestamp(0).isoformat()
         return datetime.datetime.fromtimestamp(0, datetime.timezone.utc).isoformat()
     try:
         return datetime.datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S').isoformat()
@@ -302,7 +300,6 @@ class Characterize(SuperTimeline):
 
             common = self.common_fields()
             common.update({
-                # '@timestamp': datetime.datetime.utcnow().isoformat(),
                 'tags': ['characterize'],
                 'event.category': ['configuration'],
                 'event.type': ['info'],

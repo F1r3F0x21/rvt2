@@ -147,7 +147,7 @@ class Characterization(base.job.BaseModule):
         ldBackup = biplist.readPlist(os.path.join(self.path, 'HomeDomain/Library/Preferences/com.apple.mobile.ldbackup.plist'))
         macOSFormatDate = ldBackup.get('LastiTunesBackupDate', None)
         if macOSFormatDate:
-            data['LastiTunesBackupDate'] = datetime.datetime.utcfromtimestamp(int(macOSFormatDate) + 978307200).strftime("%Y-%m-%d %H:%M:%S")
+            data['LastiTunesBackupDate'] = datetime.datetime.fromtimestamp(int(macOSFormatDate) + 978307200, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         data['LastiTunesBackupTZ'] = ldBackup.get('LastiTunesBackupTZ', 'None')
         data['RequiresEncryption'] = str(ldBackup.get('RequiresEncryption', '')) or str(ldBackup.get('WillEncrypt', '')) or 'Undefined'
 

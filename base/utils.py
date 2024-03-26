@@ -479,7 +479,7 @@ def _on_fail_dates(on_fail_condition='EPOCH', output_type='DATETIME', tz_name='U
     # Case datetime output
     utc_tz = pytz.timezone('UTC')
     on_fail_datetime = {'EPOCH': utc_tz.localize(datetime.datetime.fromtimestamp(0)),
-                        'NOW': utc_tz.localize(datetime.datetime.utcnow()),
+                        'NOW': utc_tz.localize(datetime.datetime.now(datetime.timezone.utc)),
                         'NULL': None}
     if output_type.upper() == 'DATETIME':
         return on_fail_datetime.get(on_fail_condition.upper(), None)

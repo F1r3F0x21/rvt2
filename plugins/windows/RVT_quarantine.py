@@ -112,13 +112,13 @@ class Quarantine(base.job.BaseModule):
             indx = content.find(b'NIWI')
             lw = int.from_bytes(content[indx + 8:indx + 12], byteorder='little')
             hg = int.from_bytes(content[indx + 12:indx + 16], byteorder='little')
-            results['Modification'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            results['Modification'] = datetime.datetime.fromtimestamp(getFileTime(hg, lw), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             lw = int.from_bytes(content[indx + 16:indx + 20], byteorder='little')
             hg = int.from_bytes(content[indx + 20:indx + 24], byteorder='little')
-            results['Access'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            results['Access'] = datetime.datetime.fromtimestamp(getFileTime(hg, lw), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             lw = int.from_bytes(content[indx + 24:indx + 28], byteorder='little')
             hg = int.from_bytes(content[indx + 28:indx + 32], byteorder='little')
-            results['Change metadata'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            results['Change metadata'] = datetime.datetime.fromtimestamp(getFileTime(hg, lw), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             results['size'] = struct.unpack('<L', content[20:24])[0]
 
             indx = content.rfind(sep)
@@ -159,7 +159,7 @@ class Quarantine(base.job.BaseModule):
 
             lw = int.from_bytes(content[96:100], byteorder='little')
             hg = int.from_bytes(content[100:104], byteorder='little')
-            results['Detection'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            results['Detection'] = datetime.datetime.fromtimestamp(getFileTime(hg, lw), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
             # Next timestamps should be tested deeply
             try:
@@ -168,13 +168,13 @@ class Quarantine(base.job.BaseModule):
                 indx = content.find(b'\x00\x00\x08\x00', indx2) + 10
                 lw = int.from_bytes(content[indx:indx + 4], byteorder='little')
                 hg = int.from_bytes(content[indx + 4:indx + 8], byteorder='little')
-                results['Modification'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                results['Modification'] = datetime.datetime.fromtimestamp(getFileTime(hg, lw), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                 lw = int.from_bytes(content[indx + 12:indx + 16], byteorder='little')
                 hg = int.from_bytes(content[indx + 16:indx + 20], byteorder='little')
-                results['Access'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                results['Access'] = datetime.datetime.fromtimestamp(getFileTime(hg, lw), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                 lw = int.from_bytes(content[indx + 24:indx + 28], byteorder='little')
                 hg = int.from_bytes(content[indx + 28:indx + 32], byteorder='little')
-                results['Change metadata'] = datetime.datetime.utcfromtimestamp(getFileTime(hg, lw)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                results['Change metadata'] = datetime.datetime.fromtimestamp(getFileTime(hg, lw), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             except Exception:
                 pass
 

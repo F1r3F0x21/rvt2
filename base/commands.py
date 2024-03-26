@@ -25,8 +25,6 @@ import logging
 import shlex
 from base.utils import relative_path
 
-__maintainer__ = 'Juanvi Vera'
-
 
 def run_command(cmd, stdout=None, stderr=None, logger=logging, from_dir=None):
     """ Runs an external command using *subprocess*.

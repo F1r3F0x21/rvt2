@@ -177,7 +177,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     job_error = False
 
     # Register the start of the execution
-    jobstarted = datetime.datetime.utcnow()
+    jobstarted = datetime.datetime.now(datetime.timezone.utc)
     (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'start')
     (nested_logs > 0) and logging.info('STARTED job={} client={} casename={} source={}'.format(
         job_name, config.get('DEFAULT', 'client'), config.get('DEFAULT', 'casename'), config.get('DEFAULT', 'source')))
@@ -191,21 +191,21 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
                 return list()
             yield from results
         except KeyboardInterrupt:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'abort', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'abort', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
             raise
         except RVTCritical:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
             raise
         except RVTErrorResumeExecution:
             # If the error is not critical and it is not the main job, raise special exception in order to tell an error ocurred to any jobs loop, but keep the loop running
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
             if not main_job:
                 raise
             else:
                 return list()
         except Exception as exc:
             # Include exceptions when loading modules
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
             if main_job:
                 raise
             else:
@@ -228,13 +228,13 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
                 except Exception:
                     raise
         except KeyboardInterrupt:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'abort', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'abort', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
             raise
         except RVTCritical:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
             raise
         except Exception as exc:
-            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
+            (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
             if not main_job:
                 # If the error is not critical, return special error to any outer loop in the recursion of jobs
                 raise RVTErrorResumeExecution from exc
@@ -243,9 +243,9 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
 
     # Register a job as error if any of its subjobs has errors. This is done recursively if 'recursive_error' is True. Otherwise it just affects the parent job
     if job_error:
-        (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.utcnow() - jobstarted))
+        (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'error', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
     else:
-        (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'end', (datetime.datetime.utcnow() - jobstarted))
+        (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'end', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
 
     (nested_logs > 0) and logging.info('FINISHED job={} client={} casename={} source={}'.format(
         job_name, config.get('DEFAULT', 'client'), config.get('DEFAULT', 'casename'), config.get('DEFAULT', 'source')))
@@ -387,7 +387,7 @@ def wait_for_job(config, job, step=30, timeout=600, job_name=None, exclude_prese
         exclude_jobid (str): Exclude the present job id in the search, since it will always be registered before the present functions is executed.
     """
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     elapsed_time = datetime.timedelta(seconds=0)
     timeout = datetime.timedelta(seconds=timeout)
     available = False
@@ -396,7 +396,7 @@ def wait_for_job(config, job, step=30, timeout=600, job_name=None, exclude_prese
         if job.get_job_status(job_name=job_name, exclude_present_job=exclude_present_job) == 'start':
             job.logger().debug('There is already an instance of the same job name "{}" running. Waiting to complete. elapsed_time={}'.format(job_name, str(elapsed_time)))
             time.sleep(step)
-            elapsed_time = datetime.datetime.utcnow() - now
+            elapsed_time = datetime.datetime.now(datetime.timezone.utc) - now
         else:
             available = True
             break
@@ -434,7 +434,7 @@ def registerExecution(jobid, config, job, params, paths, status, elapsed=None):
 
     data = dict(
         _id=jobid,
-        date=datetime.datetime.utcnow().isoformat(),
+        date=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         job=job,
         status=status,
         #cwd=os.getcwd(),

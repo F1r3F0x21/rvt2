@@ -840,7 +840,7 @@ class DateRange(base.job.BaseModule):
         else:
             start = base.utils.to_localized_date(start, on_fail=on_fail, dayfirst=dayfirst)
         if not end:
-            end = datetime.datetime.utcnow()
+            end = datetime.datetime.now(datetime.timezone.utc)
         else:
             end = base.utils.to_localized_date(end, on_fail=on_fail, dayfirst=dayfirst)
 

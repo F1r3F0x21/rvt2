@@ -51,8 +51,6 @@ import base.job
 import base.config
 import base.utils
 
-__maintainer__ = 'Juanvi Vera'
-
 # metadata fields mapped to this string are not indexed, even if include_unknown is True
 IGNORE_FIELD = 'IGNORE'
 

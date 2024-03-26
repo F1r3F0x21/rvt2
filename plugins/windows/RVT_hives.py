@@ -861,7 +861,7 @@ name" are automatically set by the job. The rest are the same ones specified in 
                         'filename': windows_format_path(output_filename, enclosed=True) if convert_paths else output_filename}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
 
-            output_folder_to_remove = datetime.datetime.utcnow().strftime("%Y%m%d%H")
+            output_folder_to_remove = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H")
             run_command(cmd_args)
 
             # RECmd.exe creates an additional folder containing details. Remove those contents

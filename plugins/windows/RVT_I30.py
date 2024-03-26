@@ -24,7 +24,7 @@ import os
 import subprocess
 import shlex
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import OrderedDict
 from tqdm import tqdm
 
@@ -42,7 +42,7 @@ INDEX_NODE_BLOCK_SIZE = 4096
 def parse_windows_timestamp(timestamp):
     """ Return a datetime object from a windows timestamp (only up to the second precission, strips nanoseconds). """
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
-    return datetime.utcfromtimestamp(int(float(timestamp) * 1e-7 - 11644473600))
+    return datetime.fromtimestamp(int(float(timestamp) * 1e-7 - 11644473600), timezone.utc)
 
 
 def datetime_to_windows_timestamp(dt):

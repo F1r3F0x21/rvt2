@@ -645,10 +645,10 @@ def get_macb_from_body(bodyfile, file_list):
         for row in r:
             file = row[1]
             if file in files_set:
-                dates[file] = [datetime.datetime.utcfromtimestamp(int(row[8])).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(int(row[7])).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(int(row[9])).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(int(row[10])).strftime("%Y-%m-%dT%H:%M:%SZ")]
+                dates[file] = [datetime.datetime.fromtimestamp(int(row[8]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(int(row[7]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(int(row[9]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(int(row[10]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")]
 
         for file in file_list:
             if file not in dates:
