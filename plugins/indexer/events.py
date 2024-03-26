@@ -30,13 +30,15 @@ from base.utils import sanitize_ip
 
 def to_date(strtimestamp):
     """ Converts a timestamp string in UNIX into a date """
-    return datetime.datetime.utcfromtimestamp(int(strtimestamp)).isoformat()
+    #return datetime.datetime.utcfromtimestamp(int(strtimestamp)).isoformat()
+    return datetime.datetime.fromtimestamp(int(strtimestamp), datetime.timezone.utc).isoformat()
 
 
 def to_iso_format(timestring):
     """ Converts a date string into iso format date """
-    if not timestring or timestring == 'Never':
-        return datetime.datetime.utcfromtimestamp(0).isoformat()
+    if not timestring or timestring == 'Never' or timestring == '-':
+        #return datetime.datetime.utcfromtimestamp(0).isoformat()
+        return datetime.datetime.fromtimestamp(0, datetime.timezone.utc).isoformat()
     try:
         return datetime.datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S').isoformat()
     except Exception:
@@ -178,7 +180,7 @@ class ECSFields(SuperTimeline):
 
     def run(self, path=None):
         for d in self.from_module.run(path):
-            common = self.common_fields(kind=self.myconfig('source'),
+            common = self.common_fields(kind=self.myconfig('kind'),
                                         category=self.myconfig('category'),
                                         type=self.myconfig('type'),
                                         module=self.myconfig('module'))
@@ -288,7 +290,7 @@ class Characterize(SuperTimeline):
             'os.kernel': 'CurrentBuild',
             'os.name': 'ComputerName',
             'os.type': 'windows',
-            'os.version': 'CurrentVersion',
+            # 'os.version': 'CurrentVersion',
             # 'os.family': 'NONE',
             'event.timezone': 'TimeZone',
             'user.name': 'RegisteredOwner',
@@ -415,6 +417,88 @@ class Status_GRR(SuperTimeline):
                 yield common
 
 
+class RDPIncoming(SuperTimeline):
+    """ Converts event logs output files for RDP incoming connections to events. After this, you can save this file using events.save.
+    """
+
+    def run(self, path=None):
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                'tags': ['rdp'],
+                'event.category': ['session'],
+                'event.module': 'event_logs',
+                'event.dataset': 'rdp',
+                'network.direction': 'inbound',
+                'event.start': to_iso_format(d.get('LoginDate', None)),
+                'event.end': to_iso_format(d.get('LogoffDate', None)),
+                'user.name': d.get('User', ''),
+                'source.ip': d.get('SourceAddress', None),
+                'source.address': d.get('SourceAddress', None),
+                'event.data.ConnectionType': d.get('Comments', '')
+            })
+
+            if d.get('LoginDate', None):
+                common.update({
+                    '@timestamp': common['event.start'],
+                    'event.action': 'incoming-session-start',
+                    'message': 'Incoming RDP session started',
+                    'event.type': ['connection', 'start']
+                })
+                yield common
+            if d.get('LogoffDate', None):
+                common.update({
+                    '@timestamp': common['event.end'],
+                    'event.action': 'incoming-session-end',
+                    'message': 'Incoming RDP session finished',
+                    'event.type': ['connection', 'end']
+                })
+                yield common
+
+
+class RDPOutgoing(SuperTimeline):
+    """ Converts event logs output files for RDP outgoing connections to events. After this, you can save this file using events.save.
+    """
+
+    def run(self, path=None):
+
+        for d in self.from_module.run(path):
+
+            common = self.common_fields()
+            common.update({
+                'tags': ['rdp'],
+                'event.category': ['session'],
+                'event.module': 'event_logs',
+                'event.dataset': 'rdp',
+                'network.direction': 'outbound',
+                'event.start': to_iso_format(d.get('LoginDate', None)),
+                'event.end': to_iso_format(d.get('LogoffDate', None)),
+                'user.name': d.get('User', ''),
+                'user.id': d.get('SID', ''),
+                'destination.ip': d.get('Address', None),
+                'destination.address': d.get('Address', None)
+            })
+
+            if d.get('LoginDate', None):
+                common.update({
+                    '@timestamp': common['event.start'],
+                    'event.action': 'outgoing-session-start',
+                    'message': 'Outgoing RDP session started',
+                    'event.type': ['connection', 'start']
+                })
+                yield common
+            if d.get('LogoffDate', None):
+                common.update({
+                    '@timestamp': common['event.end'],
+                    'event.action': 'outgoing-session-end',
+                    'message': 'Outgoing RDP session finished',
+                    'event.type': ['connection', 'end']
+                })
+                yield common
+
+
 class RecentFiles(SuperTimeline):
     """ Converts Lnk and Jumplists to events. After this, you can save this file using events.save.
 
@@ -438,14 +522,13 @@ class RecentFiles(SuperTimeline):
                 'event.type': ['access'],
                 'event.module': 'recentfiles',
                 'event.dataset': d['artifact'],
-                'recent.application': d['application'],
+                'process.name': d['application'],
                 'recent.last_open': to_iso_format(d['last_open_date']),
                 'recent.first_open': to_iso_format(d['first_open_date']),
-                'recent.network_path': d['network_path'],
-                'recent.drive_type': d['drive_type'],
-                'recent.drive_sn': d['drive_sn'],
-                'recent.machine_id': d['machine_id'],
-                'recent.file': d['file'],
+                'volume.device_type': d['drive_type'],
+                'volume.serial_number': d['drive_sn'],
+                'volume.device_name': d['machine_id'],
+                'log.file.path': d['file'],
                 'user.name': d['user'],
                 'file.size': d['size'],
             })
@@ -1012,8 +1095,42 @@ class Shellbags(SuperTimeline):
                 yield common
 
 
+class RegistryTasks(SuperTimeline):
+    """ Converts registry tasks keys to ecs format. After this, you can save this file using events.save.
+    """
+
+    def run(self, path=None):
+
+        for d in self.from_module.run(path):
+            common = self.common_fields()
+            common.update({
+                '@timestamp': to_iso_format(d.get('@timestamp', None)),
+                'tags': ['tasks'],
+                'event.category': ['registry'],
+                'event.module': 'registry',
+                'event.dataset': 'tasks',
+                'event.data.Author': d.get('Author'),
+                'event.data.TaskName': d.get('Task'),
+                'event.data.Description': d.get('Description')
+            })
+
+            if d.get('LastExecuted', None):
+                common.update({
+                    '@timestamp': to_iso_format(d['LastExecuted']),
+                    'event.action': 'task-last-executed',
+                    'message': 'Task last executed: {}'.format(d.get('Task', ''))})
+                yield common
+
+            if d.get('Created', None):
+                common.update({
+                    '@timestamp': to_iso_format(d['Created']),
+                    'event.action': 'task-created',
+                    'message': 'Task created: {}'.format(d.get('Task', ''))})
+                yield common
+
+
 class Tasks(SuperTimeline):
-    """ Converts tasks files to ecs format. After this, you can save this file using events.save.
+    """ Converts scheduled tasks files to ecs format. After this, you can save this file using events.save.
     """
 
     def run(self, path=None):
@@ -1027,16 +1144,38 @@ class Tasks(SuperTimeline):
                 'event.module': 'tasks',
                 'event.dataset': 'scheduled',
                 'user.id': d.get('UserId', None),
-                'file.owner': d.get('Author'),
+                'user.name': d.get('User', None),
+                'event.data.TaskName': d.get('URI', ''),
+                'process.command_line': '',
+                'process.args': [],
                 'message': 'Scheduled Task Details'
             })
 
             for field, value in d.items():
-                if field in ['Author', 'Date', 'UserId']:
+                if field in ['Triggers', 'Actions', 'UserId', 'User', 'URI', 'Date']:
                     continue
                 common[f'event.data.{field}'] = value
 
-            yield common
+            # TODO: consider more than one action
+            if d.get('Actions', None):
+                common['process.command_line'] = d['Actions'][0].get('Exec/Command', '')
+                common['process.args'].append(d['Actions'][0].get('Exec/Arguments', ''))
+
+            if d.get('Triggers', None):
+                for t in d['Triggers']:
+                    if 'StartBoundary' in t:
+                        common.update({
+                            '@timestamp': to_iso_format(t.get('StartBoundary', None)),
+                            'event.action': 'task-start',
+                            'message': f'Start Boundary for Scheduled Task {d.get("URI", "")}'
+                        })
+                    for field, value in t.items():
+                        if field == 'StartBoundary':
+                            continue
+                        common[f'event.data.{field}'] = value
+                    yield common
+            else:
+                yield common
 
 
 class UsnJrnl(SuperTimeline):

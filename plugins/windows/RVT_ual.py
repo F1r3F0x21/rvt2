@@ -17,7 +17,7 @@
 import os
 import subprocess
 import base.job
-from base.utils import check_directory, save_md_table
+from base.utils import check_directory, save_md_table, save_csv
 from base.commands import yield_command
 
 
@@ -39,14 +39,24 @@ class UAL(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
         base_path = self.myconfig('outdir')
         check_directory(base_path, create=True)
+        global_outfile_csv = os.path.join(base_path,'ual.csv')
+        write_method = 'APPEND'
+        if os.path.exists(global_outfile_csv) and os.path.getsize(global_outfile_csv) > 0:
+            write_method = 'OVERWRITE'
+
         for file_in in os.listdir(path):
             if not file_in.lower().endswith('.mdb'):
                 continue
             outfile_dump = os.path.join(base_path, "%s.txt" % file_in.split('.')[0])
             outfile_md = os.path.join(base_path, "%s.md" % file_in.split('.')[0])
-            results = self.parse(os.path.join(os.path.abspath(path), file_in), outfile_dump)
+            results = list(self.parse(os.path.join(os.path.abspath(path), file_in), outfile_dump))
             save_md_table(list(results), config=None, outfile=outfile_md, file_exists='OVERWRITE',
                           fieldnames='LastAccess InsertDate AuthenticatedUserName ConvertedAddress RoleName TotalAccesses')
+            # Gather all UAL logs in a single CSV file
+            save_csv(results, config=None, outfile=global_outfile_csv, file_exists=write_method,
+                          fieldnames='LastAccess InsertDate AuthenticatedUserName ConvertedAddress RoleName TotalAccesses')
+            if results and write_method == 'OVERWRITE':
+                write_method = 'APPEND'
 
         return []
 

@@ -430,7 +430,7 @@ def registerExecution(jobid, config, job, params, paths, status, elapsed=None):
         if params:
             parameters.update(params)
     except Exception as exc:
-        logging.warn(f'Problems evaluating "default_params" for job "{job}"')
+        logging.warn(f'Problems evaluating "default_params" for job "{job}": {exc}')
 
     data = dict(
         _id=jobid,

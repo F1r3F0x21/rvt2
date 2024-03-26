@@ -251,13 +251,14 @@ class MDTableSink(BaseSink):
     Configuration:
         - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
-        - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. Values are sepparated using spaces or new lines. If not provided, they are taken from first input keys.
-        - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct md visualization. Values are sepparated using spaces or new lines.
-        - **path_fields** (str): Sorround selected fields with LaTeX path command to ensure correct md visualization. Values are sepparated using spaces or new lines.
+        - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. If not provided, they are taken from first input keys.
+        - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct MD visualization.
+        - **path_fields** (str): Sorround selected fields with LaTeX path command to ensure correct MD visualization.
         - **first_line** (str): Write a first line before headers.
         - **skip_headers** (bool): If True, do not print table headers. Default=False.
         - **empty_str** (str): String to fill empty fields.
-        - **chars_scaped** (str): characters to scape in the values. Sepparated using spaces or new lines.
+        - **chars_escaped** (str): List of characters to escape.
+        - **path_chars_escaped** (str): List of characters to escape only in the 'path_fields', in addition to those set in 'chars_escaped'.
     """
 
     def read_config(self):
@@ -270,6 +271,7 @@ class MDTableSink(BaseSink):
         self.set_default_config('skip_headers', False)
         self.set_default_config('empty_str', '-')
         self.set_default_config('chars_escaped', '|')
+        self.set_default_config('path_chars_escaped', '')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
@@ -281,6 +283,8 @@ class MDTableSink(BaseSink):
         empty_str = self.myconfig('empty_str')
         chars_escaped = self.myarray('chars_escaped')
         escaped_table = str.maketrans({c: '\\' + c for c in chars_escaped})
+        path_chars_escaped = self.myarray('path_chars_escaped')
+        path_escaped_table = str.maketrans({c: '\\' + c for c in path_chars_escaped})
         skip_headers = self.myflag('skip_headers')
         act = {field: '' for field in fields}
         data_to_compare = act.copy()
@@ -313,9 +317,11 @@ class MDTableSink(BaseSink):
                     if escaped_table:
                         act[fld] = str(act[fld]).translate(escaped_table)
                     if fld in backticks_fields and fileinfo.get(fld, ''):
-                        act[fld] = '`' + fileinfo[fld] + '`'
+                        act[fld] = '`' + act[fld] + '`'
                     if fld in path_fields and fileinfo.get(fld, ''):
-                        act[fld] = r'`\path{' + fileinfo[fld] + r'}`{=latex}'
+                        if path_escaped_table:
+                            act[fld] = str(act[fld]).translate(path_escaped_table)
+                        act[fld] = r'`\path{' + act[fld] + r'}`{=latex}'
                 if repeated:
                     continue
                 outputfile.write("|".join([act.get(field, empty_str) for field in fields]))

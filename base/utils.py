@@ -313,6 +313,7 @@ def sanitize_ip(value):
     Possible inputs to convert:
     - ''                        --> null (Ipfield throws error when processing empty string)
     - `-`                       --> null
+    - LOCAL                     --> ::1
     - [123.123.123.123]         --> 123.123.123.123
     - ::ffff:10.100.1.87        --> 10.100.1.87 (Revert the default IPv4toIPv6 convention to simplify reading)
     - 123.123.123.123::1980     --> ip=123.123.123.123, port=1980 (Ports are treated as separated field)
@@ -327,8 +328,10 @@ def sanitize_ip(value):
     Returns tuple (ip, port)
     """
 
-    if value == '-' or value == '':
+    if not value or value == '-':
         return (None, None)
+    if value.lower().startswith('local'):
+        return ('::1', None)
 
     # Regular expression to match IPv4 or Ipv6 address and optional port
     ip_pattern = re.compile(r'^\[?(?P<ip>.*?)\]?(?::(?P<port>\d+))?$')
@@ -353,9 +356,9 @@ def sanitize_ip(value):
         if is_valid_ipv4_address(ipv4):
             valid_v4 = True
         else:
-            logging.debug(f'IP value {value} is not a valid IPv4')
+            logging.debug(f'IP value "{value}" is not a valid IPv4')
         if not is_valid_ipv6_address(ipv6) and not valid_v4:
-            logging.warning(f'IP value {value} is not a valid IP')
+            logging.warning(f'IP value "{value}" is not a valid IP')
             return (None, None)
         return (ipv4 if valid_v4 else ipv6, port)
 
@@ -365,7 +368,7 @@ def sanitize_ip(value):
         ip = match_ipv6.group('ip')
         port = check_integer(match_ipv6.group('port'))
         if not is_valid_ipv6_address(ip):
-            logging.warning(f'IP value {value} is not a valid IPv6')
+            logging.warning(f'IP value "{value}" is not a valid IPv6')
             return (None, None)
         return (ip, port)
 
@@ -417,7 +420,7 @@ def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL'):
     try:
         # Timestamp input
         if type(source) == int or (type(source) == str and source.isdigit()):
-            dt = datetime.datetime.utcfromtimestamp(int(source))
+            dt = datetime.datetime.fromtimestamp(int(source), datetime.timezone.utc)
         # Datetime input
         elif type(source) == datetime.datetime:
             dt = source
@@ -503,7 +506,7 @@ def parse_microsoft_timestamp(timestamp):
     There are 134,774 days (or 11,644,473,600 seconds) between these dates.
     """
     unix_time = float(timestamp) *1e-7 - 11644473600
-    return datetime.datetime.utcfromtimestamp(unix_time)
+    return datetime.datetime.fromtimestamp(unix_time, datetime.timezone.utc)
 
 
 # ----------------------------

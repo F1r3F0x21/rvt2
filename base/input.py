@@ -228,7 +228,7 @@ class CSVReader(base.job.BaseModule):
         - **ignore_lines** (int): Ignore this number of initial lines. If fieldnames is provided, the first line is also ignored.
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file.
-        - **check_path_exists** (Boolean): If True and provided path does not exist, raise an error. I False, just warn and continue
+        - **check_path_exists** (Boolean): If True and provided path does not exist, raise an error. If False, just warn and continue
     """
 
     def read_config(self):

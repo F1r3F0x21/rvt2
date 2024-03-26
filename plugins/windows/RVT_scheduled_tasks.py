@@ -24,6 +24,7 @@ from tqdm import tqdm
 from plugins.external import jobparser
 import base.job
 from base.utils import check_directory, save_csv, save_json
+from plugins.windows.RVT_os_info import CharacterizeWindows
 
 
 class ScheduledTasks(base.job.BaseModule):
@@ -90,21 +91,24 @@ class ScheduledTasks(base.job.BaseModule):
 
         self.outfolder = self.myconfig('outdir')
         check_directory(self.outfolder, create=True)
+        outfile_jobs = os.path.join(self.outfolder, "jobs_files_{}.csv".format(self.volume_id))
+        outfile_sched = os.path.join(self.outfolder, 'schedlgu_{}.csv'.format(self.volume_id))
+        outfile_tasks_json = os.path.join(self.outfolder, 'tasks_{}.json'.format(self.volume_id))
+        outfile_tasks_csv = os.path.join(self.outfolder, 'tasks_{}.csv'.format(self.volume_id))
 
         self.logger().debug("Parsing artifacts from scheduled tasks files (.job)")
-        outfile_jobs = os.path.join(self.outfolder, "jobs_files_{}.csv".format(self.volume_id))
         save_csv(self.parse_Task(path), outfile=outfile_jobs, file_exists='APPEND', quoting=0)
 
         self.logger().debug("Parsing artifacts from Task Scheduler Service log files (schedlgu.txt)")
-        outfile_sched = os.path.join(self.outfolder, 'schedlgu_{}.csv'.format(self.volume_id))
         save_csv(self.parse_schedlgu(path), config=self.config,
                  outfile=outfile_sched, file_exists='APPEND', quoting=0)
 
         self.logger().debug("Parsing XML files from Tasks directory")
-        outfile_tasks = os.path.join(self.outfolder, 'tasks_{}.json'.format(self.volume_id))
-        save_json(self.parse_task_xml(path), config=self.config,
-                  outfile=outfile_tasks, file_exists='APPEND')
-        # TODO: convert to csv (select fields)
+        xml_tasks = list(self.parse_task_xml(path))
+        save_json(xml_tasks, config=self.config,
+                  outfile=outfile_tasks_json, file_exists='APPEND')
+        save_csv(self.summarize_xml_tasks(xml_tasks), config=self.config,
+                 outfile=outfile_tasks_csv, file_exists='APPEND')
 
         return []
 
@@ -172,6 +176,8 @@ class ScheduledTasks(base.job.BaseModule):
                 if not file.endswith('.job') and not file.lower().endswith('schedlgu.txt'):
                     task_xml_files.append(os.path.join(root_folder, file))
 
+        os_info = CharacterizeWindows(config=self.config)
+
         for file in tqdm(task_xml_files, total=len(task_xml_files), desc=self.section):
             res = {}
             # res = {'File': os.path.basename(file)}
@@ -198,7 +204,36 @@ class ScheduledTasks(base.job.BaseModule):
             # Parse Triggers and Actions fields
             res['Triggers'] = list(self._parse_triggers(st, ns))
             res['Actions'] = list(self._parse_actions(st, ns))
+
+            # Get user name from UserID
+            res['User'] = os_info.get_user_name_from_sid(res['UserId'], partition=self.volume_id, sid_default=True)
+
             yield res
+
+    def summarize_xml_tasks(self, xml_tasks):
+        """ Get most relevant fields from task definitions"""
+        for t in xml_tasks:
+            res = {'StartBoundary': '',
+                   'TaskName': t.get('URI', ''),
+                   'User': t.get('User', ''),
+                   'Command': '',
+                   'Arguments': '',
+                   'Enabled': t.get('Enabled', ''),
+                   'RunLevel': t.get('RunLevel', ''),
+                   'Description': t.get('Description', '')
+                  }
+
+            # TODO: consider more than one action
+            if t.get('Actions', None):
+                res['Command'] = t['Actions'][0].get('Exec/Command', '')
+                res['Arguments'] = t['Actions'][0].get('Exec/Arguments', '')
+
+            if t.get('Triggers', None):
+                for trig in t['Triggers']:
+                    if 'StartBoundary' in trig:
+                        res['StartBoundary'] = trig['StartBoundary']
+                        yield res
+
 
     def _parse_triggers(self, tree, ns={'ns': ''}):
         result = {}
