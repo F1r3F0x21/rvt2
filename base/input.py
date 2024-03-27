@@ -215,17 +215,18 @@ class JSONReader(AllLinesInFile):
 
 
 class CSVReader(base.job.BaseModule):
-    """ Yields every line in a CSV file.
+    """ Yields every line in a CSV file or generator object.
 
     Configuration:
+        - **is_file** (Boolean): If True, take the 'path' as the input file to read. If False, assume a generator is passed from previous module and read it as a CSV file. Defaults to True.
         - **encoding** (String): The encoding to use. Defaults to "utf-8"
         - **delimiter** (String): The delimiter to use. Use `AUTO` to dinamically find out. Defaults to ;
         - **quotechar** (String): The quotechar. Defaults to \"
         - **restkey** (String): The restkey of the DictReader. Defaults to "extra".
         - **restval** (String): The restval of the DictReader. Defaults to the empty string.
-        - **fieldnames**: A space separated list of header names. If None, use the first line.
+        - **fieldnames** (List or String): A list of header names. If None, use the first line.
           Warning: If provided, the first line will be considered data unless ignore_lines is set to >0
-        - **ignore_lines** (int): Ignore this number of initial lines. If fieldnames is provided, the first line is also ignored.
+        - **ignore_lines** (Int): Ignore this number of initial lines. If fieldnames is provided, the first line is also ignored.
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file.
         - **check_path_exists** (Boolean): If True and provided path does not exist, raise an error. If False, just warn and continue
@@ -233,6 +234,7 @@ class CSVReader(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
+        self.set_default_config('is_file', True)
         self.set_default_config('encoding', 'utf-8')
         self.set_default_config('delimiter', ';')
         self.set_default_config('quotechar', '"')
@@ -245,9 +247,18 @@ class CSVReader(base.job.BaseModule):
         self.set_default_config('field_size_limit', sys.maxsize)  # Default csv max is 131072
         self.set_default_config('check_path_exists', True)
 
-
     def run(self, path):
         """ Read CSV file in the path. from_module is ignored """
+        csv.field_size_limit(int(self.myconfig('field_size_limit')))
+        self.ignore_lines = int(self.myconfig('ignore_lines'))
+        self.fieldnames = self.myarray('fieldnames', None)
+
+        # Case where input is a generator object
+        if not self.myflag('is_file'):
+            yield from self._iter_csv(path)
+            return []
+
+        # Case where input is a file
         try:
             self.check_params(path, check_path=True, check_path_exists=True)
         except base.job.RVTErrorNotExistingPath as exc:
@@ -255,11 +266,8 @@ class CSVReader(base.job.BaseModule):
                 self.logger().warning(exc)
                 return []
             raise exc
-        csv.field_size_limit(int(self.myconfig('field_size_limit')))
         with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
-            ignore_lines = int(self.myconfig('ignore_lines'))
-            fieldnames = self.myarray('fieldnames', None)
-            for i in range(0, ignore_lines):
+            for i in range(0, self.ignore_lines):
                 infile.readline()
             if self.myconfig('delimiter') == 'AUTO':
                 delimiter = csv.Sniffer().sniff(infile.readline()).delimiter
@@ -268,22 +276,32 @@ class CSVReader(base.job.BaseModule):
                 delimiter = self.myconfig('delimiter')
             reader = csv.DictReader(
                 infile,
-                fieldnames=fieldnames,
+                fieldnames=self.fieldnames,
                 restval=self.myconfig('restval'), restkey=self.myconfig('restkey'),
                 delimiter=delimiter, quotechar=self.myconfig('quotechar'))
             # progress management
             total_iterations = estimate_iterations(path, self.myconfig('progress.cmd'))
             # if fieldnames is None, the first line is header. Add one to progress
-            if fieldnames:
-                initial_progress = ignore_lines
+            if self.fieldnames:
+                initial_progress = self.ignore_lines
             else:
-                initial_progress = ignore_lines + 1
+                initial_progress = self.ignore_lines + 1
             # main loop
             for data in tqdm(reader, total=total_iterations,
                              initial=initial_progress,
                              desc='Reading {}'.format(os.path.basename(path)),
                              disable=self.myflag('progress.disable')):
                 yield data
+
+    def _iter_csv(self, path=None):
+        input_object = self.from_module.run(path)
+        reader = csv.DictReader(
+            input_object,
+            fieldnames=self.fieldnames,
+            restval=self.myconfig('restval'), restkey=self.myconfig('restkey'),
+            delimiter=self.myconfig('delimiter'), quotechar=self.myconfig('quotechar'))
+        for data in reader:
+            yield data
 
 
 def _dict_factory(cursor, row):

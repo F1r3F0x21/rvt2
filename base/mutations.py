@@ -207,6 +207,7 @@ class GetFields(base.job.BaseModule):
         self.check_params(path, check_from_module=True)
 
         fields = self.myarray('fields')
+        self.logger().debug(f'Getting fields: {fields}')
 
         results = self.from_module.run(path)
         if results is not None:

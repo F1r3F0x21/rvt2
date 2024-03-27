@@ -108,16 +108,15 @@ def estimate_iterations(path, cmd, from_dir=None, logger=logging):
 
 
 class Command(base.job.BaseModule):
-    """ Run a command before or after the execution of other modules.
+    """ Run a command before or after the execution of other modules. Or run a command and yield the results to the following modules.
 
     Configuration section:
+        :cmd: The external command to run. It is a python string template with the optional parameter ``path``.
         :run_before: If True, run the command before the execution of ``from_module``.
         :run_after: If True, run the command after the execution of ``from_module``.
-        :from_dir: Run the external command from this directory
-        :cmd: The external command to run. It is a python string template with two optional parameters: ``infile`` and ``outfile``
-        :infile: The ``infile`` parameter, if needed. Default: empty.
-        :outfile: The ``outfile`` parameter, if needed. Default: empty.
-        :delete_exists: If *True*, delete the ``outfile``, if exists
+        :run_and_yield: If True, run the command and yield the results to the following modules. Default: False.
+        :from_dir: Run the external command from this directory.
+        :delete_exists: If *True*, delete the ``outfile``, if exists.
         :stdout: If empty, do not overwrite ``stdout``. If provided, save ``stdout`` to this filename
         :append: If *True*, append to the ``output`` file. If *False* and the file exists, remove it
     """
@@ -125,17 +124,16 @@ class Command(base.job.BaseModule):
         super().read_config()
         self.set_default_config('cmd', '')
         self.set_default_config('stdout', '')
-        self.set_default_config('infile', '')
-        self.set_default_config('outfile', '')
         self.set_default_config('append', 'False')
         self.set_default_config('run_before', 'False')
         self.set_default_config('run_after', 'True')
+        self.set_default_config('run_and_yield', 'False')
         self.set_default_config('from_dir', self.myconfig('casedir'))
         self.set_default_config('delete_exists', 'True')
 
-    def _run_command(self):
+    def _run_command(self, path=None):
         """ Run a command """
-        cmd = self.myconfig('cmd').format(infile=self.myconfig('infile', None), outfile=self.myconfig('outfile', None))
+        cmd = self.myconfig('cmd').format(path=path)
 
         stdout = None
         try:
@@ -152,16 +150,25 @@ class Command(base.job.BaseModule):
             if stdout is not None:
                 stdout.close()
 
+    def _yield_command(self, path=None):
+        """ Yield the results of a command """
+        cmd = self.myconfig('cmd').format(path=path)
+        yield from yield_command(cmd, logger=self.logger(), from_dir=self.myconfig('from_dir'))
+
     def run(self, path=None):
         if self.myflag('run_before'):
-            self._run_command()
+            self._run_command(path)
+
+        if self.myflag('run_and_yield'):
+            for r in self._yield_command(path):
+                yield r
 
         if self.from_module:
             for data in self.from_module.run(path):
                 yield data
 
         if self.myflag('run_after'):
-            self._run_command()
+            self._run_command(path)
 
 
 class RegexFilter(base.job.BaseModule):
