@@ -217,14 +217,15 @@ class Prefetch(base.job.BaseModule):
                     data = {'RunTime': "",
                             'PrefecthFile': filename,
                             'Executable': item["filename"],
-                            'RunCount': item["run count"],
                             'BirthDate': birth_date,
                             'VolumeSN': item["Volumes"][0][2],
-                            'Partition': self.volume_id}
-                    for execution_time in item["last run times"]:
+                            'Partition': self.volume_id,
+                            'RunTotal': item["run count"],}
+                    for i, execution_time in enumerate(item["last run times"]):
                         if not execution_time:
                             continue
                         data['RunTime'] = execution_time
+                        data['RunCount'] = i + 1
                         yield data
 
         self.logger().debug("Prefetch parsing for {} finished".format(path))

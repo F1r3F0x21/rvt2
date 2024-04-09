@@ -21,7 +21,7 @@ import subprocess
 import base.job
 import pytz
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from base.utils import check_directory, date_to_iso
 from plugins.linux import get_timezone
 
@@ -174,7 +174,7 @@ class CharacterizeLinux(base.job.BaseModule):
 
                 if os.path.isfile(os.path.join(part_path, "var/log/installer/syslog")):
                     creation_time = os.path.getctime(os.path.join(part_path, "var/log/installer/syslog"))
-                    creation_time_UTC = datetime.utcfromtimestamp(creation_time).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    creation_time_UTC = datetime.fromtimestamp(creation_time, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                     self.os_info[part_to_save]["InstallDate"] = creation_time_UTC
 
                 if os.path.isfile(os.path.join(part_path, "var/log/wtmp")):

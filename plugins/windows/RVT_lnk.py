@@ -530,7 +530,6 @@ class LnkExtractAnalysis(base.job.BaseModule):
         self.logger().info("Generating lnk files report")
 
         self.mountdir = self.myconfig('mountdir')
-
         lnk_path = self.myconfig('lnk_dir')
         report_lnk_path = self.myconfig('outdir')
 
@@ -546,22 +545,25 @@ class LnkExtractAnalysis(base.job.BaseModule):
         """ Create a unique csv combining output from lnk and jumplists """
 
         file_types = {'lnk': '_lnk.csv', 'jlauto': '_autodest.csv', 'jlcustom': '_customdest.csv'}
-        headers = ["last_open_date", "first_open_date", "application", "path", "network_path", "drive_type", "drive_sn", "machine_id", "size", "file"]
+        headers = ["last_open_date", "first_open_date", "application", "path", "drive_type", "drive_sn", "machine_id", "size", "file"]
         transform_name = {'lnk': {"last_open_date": "mtime", "first_open_date": "btime"},
-                          'jlauto': {"last_open_date": "Open date", "application": "Application"}, 'jlcustom': {"application": "Application"}}
+                          'jlauto': {"last_open_date": "Open date", "application": "Application"},
+                          'jlcustom': {"last_open_date": "f_atime", "application": "Application"}}
 
         for file in sorted(os.listdir(path)):
-            for typ, ends in file_types.items():
+            for t, ends in file_types.items():
                 if file.endswith(ends):
-                    t = typ
+                    typ = t
                     break
             else:
                 continue
             partition = file.split('_')[0]
-            user = file[len(partition) + 1:-len(file_types[t])]
+            user = file[len(partition) + 1:-len(file_types[typ])]
             for line in base.job.run_job(self.config, 'base.input.CSVReader', path=[os.path.join(path, file)]):
-                res = OrderedDict([(h, line.get(transform_name[t].get(h, h), '')) for h in headers])
-                res.update({'artifact': t, 'user': user, 'partition': partition})
+                # Merge 'path' and 'network_path' fields. One of them is usually empty and the origin can be obtained anyway with 'machine_id' field
+                line['path'] = line.get('path', '') or line.get('network_path', '')
+                res = OrderedDict([(h, line.get(transform_name[typ].get(h, h), '')) for h in headers])
+                res.update({'artifact': typ, 'user': user, 'partition': partition})
                 yield res
 
 
@@ -643,10 +645,10 @@ def get_macb_from_body(bodyfile, file_list):
         for row in r:
             file = row[1]
             if file in files_set:
-                dates[file] = [datetime.datetime.utcfromtimestamp(int(row[8])).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(int(row[7])).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(int(row[9])).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(int(row[10])).strftime("%Y-%m-%dT%H:%M:%SZ")]
+                dates[file] = [datetime.datetime.fromtimestamp(int(row[8]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(int(row[7]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(int(row[9]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(int(row[10]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")]
 
         for file in file_list:
             if file not in dates:

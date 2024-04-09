@@ -90,7 +90,7 @@ class BaseSink(base.job.BaseModule):
             outputfile = sys.stdout
         else:
             # print to outfilename
-            self.logger().debug('Saving output in outfile=%s', outfilename)
+            self.logger().info(f'Saving output in outfile "{outfilename}"')
             file_mode = 'w'
             if os.path.exists(outfilename):
                 if self.myconfig('file_exists') == 'APPEND':
@@ -98,7 +98,7 @@ class BaseSink(base.job.BaseModule):
                 elif self.myconfig('file_exists') == 'OVERWRITE':
                     file_mode = 'w'
                 else:
-                    self.logger().error('Outfile already exist: %s', outfilename)
+                    self.logger().error(f'Outfile already exist: "{outfilename}"')
                     raise TypeError('Outfile already exists: {}'.format(outfilename))
 
             # create the dirname, if not exists
@@ -154,28 +154,30 @@ class JSONSink(BaseSink):
                 if self.myflag('stop_on_error'):
                     raise
                 else:
-                    self.logger().warning('%s: %s', exc, fileinfo.get('path', ''))
+                    self.logger().warning('{}: {}'.format(exc, fileinfo.get('path', '')))
 
         try:
             if not outputfile == sys.stdout:
                 outputfile.close()
         except Exception as exc:
-            self.logger().warning('Exception while closing the file: %s', exc)
+            self.logger().warning(f'Exception while closing the file: {exc}')
 
 
 class CSVSink(BaseSink):
     """ A module that prints the results from other modules to a file or the standard output as a CSV.
 
     Configuration::
-        - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name to force printing to the standard output
+        - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name to force printing to the standard output.
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
+        - **fieldnames**: If present, use these names instead of the input dictionary keys. You can use this option to order the fields.
         - **delimiter** (String): The delimiter parameter of the csv.DictWriter. "TAB" means tabulator.
-        - **quotechar** (String): The quotechar of the csv.DictWriter. Defaults to \"
+        - **quotechar** (String): The quotechar of the csv.DictWriter. Defaults to \".
         - **extrasaction** (String): The extrasaction parameter of the csv.DictWriter. Defaults to "raise".
         - **restval** (String): The restval parameter of the csv.DictWriter. Defaults to the empty string.
         - **write_header** (boolean): If True (default), writes the header of the CSV file.
         - **quoting** (int): The quoting parameter of the csv.DictWriter.
-        - **fieldnames**: If present, use these fieldsnames instead of the fields in the dictionary. You can use this option to order the fields
+        - **doublequote**: When True, the quotechar character is doubled if found. When False, the escapechar is used as a prefix to the quotechar.
+        - **escapechar**: Character string to escape the delimiter if 'quoting' is set to 0. If defined, it will also escape/double itself. By default (None), it will not escape the delimiter.
         - **field_size_limit**: maximum field size allowed by the parser. Default "sys.maxsize". Lower the value to skip writing large inputs.
 
     Current job section:
@@ -191,6 +193,8 @@ class CSVSink(BaseSink):
         self.set_default_config('restval', '')
         self.set_default_config('write_header', 'True')
         self.set_default_config('quoting', '2')  # QUOTE_MINIMAL=0, QUOTE_ALL=1, QUOTE_NONNUMERIC=2, QUOTE_NONE=3
+        self.set_default_config('doublequote', True)
+        self.set_default_config('escapechar', None)
         self.set_default_config('field_size_limit', sys.maxsize)  # Default csv max is 131072
 
     def run(self, path=None):
@@ -220,7 +224,9 @@ class CSVSink(BaseSink):
                     restval=self.myconfig('restval'),
                     delimiter=delimiter,
                     quotechar=self.myconfig('quotechar'),
-                    quoting=int(self.myconfig('quoting')))
+                    quoting=int(self.myconfig('quoting')),
+                    escapechar=self.myconfig('escapechar'),
+                    doublequote=self.myconfig('doublequote'))
                 if write_header:
                     csvwriter.writeheader()
             try:
@@ -228,7 +234,7 @@ class CSVSink(BaseSink):
             except Exception as exc:
                 if self.myflag('stop_on_error'):
                     raise
-                self.logger().warning('Exception while writing to the file: %s', exc)
+                self.logger().warning(f'Exception while writing to the file: {exc}')
 
             yield fileinfo
 
@@ -236,7 +242,7 @@ class CSVSink(BaseSink):
             if not outputfile == sys.stdout:
                 outputfile.close()
         except Exception as exc:
-            self.logger().warning('Exception while closing the file: %s', exc)
+            self.logger().warning(f'Exception while closing the file: {exc}')
 
 
 class MDTableSink(BaseSink):
@@ -245,13 +251,14 @@ class MDTableSink(BaseSink):
     Configuration:
         - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
-        - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. Mandatory parameter. Values are sepparated using spaces or new lines.
-        - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct md visualization. Values are sepparated using spaces or new lines.
-        - **path_fields** (str): Sorround selected fields with LaTeX path command to ensure correct md visualization. Values are sepparated using spaces or new lines.
-        - **first_line** (str): Write a first line before headers
-        - **skip_headers** (bool): If True, do not print table headers. Default=False
-        - **empty_str** (str): String to fill empty fields with
-        - **chars_scaped** (str): characters to scape in the values. Sepparated using spaces or new lines
+        - **fieldnames** (str): Use these field names as columns. Use this option to order the fields. If not provided, they are taken from first input keys.
+        - **backticks_fields** (str): Sorround selected fields with backticks to ensure correct MD visualization.
+        - **path_fields** (str): Sorround selected fields with LaTeX path command to ensure correct MD visualization.
+        - **first_line** (str): Write a first line before headers.
+        - **skip_headers** (bool): If True, do not print table headers. Default=False.
+        - **empty_str** (str): String to fill empty fields.
+        - **chars_escaped** (str): List of characters to escape.
+        - **path_chars_escaped** (str): List of characters to escape only in the 'path_fields', in addition to those set in 'chars_escaped'.
     """
 
     def read_config(self):
@@ -264,6 +271,7 @@ class MDTableSink(BaseSink):
         self.set_default_config('skip_headers', False)
         self.set_default_config('empty_str', '-')
         self.set_default_config('chars_escaped', '|')
+        self.set_default_config('path_chars_escaped', '')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
@@ -275,53 +283,63 @@ class MDTableSink(BaseSink):
         empty_str = self.myconfig('empty_str')
         chars_escaped = self.myarray('chars_escaped')
         escaped_table = str.maketrans({c: '\\' + c for c in chars_escaped})
+        path_chars_escaped = self.myarray('path_chars_escaped')
+        path_escaped_table = str.maketrans({c: '\\' + c for c in path_chars_escaped})
         skip_headers = self.myflag('skip_headers')
         act = {field: '' for field in fields}
+        data_to_compare = act.copy()
 
         first_line = self.myconfig('first_line')
         if first_line:
             outputfile.write(first_line.replace('\\n', '\n'))
             outputfile.write("\n")
 
-        # Headers
-        if not skip_headers:
-            outputfile.write("|".join(fields))
-            outputfile.write("\n")
-            outputfile.write("|".join(["--"] * len(fields)))
-            outputfile.write("\n")
-
         # Items
+        write_header = not skip_headers
         for fileinfo in self._source(path):
+            if not fields:
+                fields = fileinfo.keys()
+                act = {field: '' for field in fields}
+                data_to_compare = act.copy()
+            if write_header:
+                outputfile.write("|".join(fields))
+                outputfile.write("\n")
+                outputfile.write("|".join(["--"] * len(fields)))
+                outputfile.write("\n")
+                write_header = False
             try:
                 # Exclude consecutive repeated entries
                 repeated = True
                 for fld in fields:
-                    if fileinfo.get(fld, '') != act[fld]:
+                    if fileinfo.get(fld, '') != data_to_compare.get(fld, ''):
                         repeated = False
                     act[fld] = fileinfo.get(fld, '')
                     if escaped_table:
                         act[fld] = str(act[fld]).translate(escaped_table)
                     if fld in backticks_fields and fileinfo.get(fld, ''):
-                        act[fld] = '`' + fileinfo[fld] + '`'
+                        act[fld] = '`' + act[fld] + '`'
                     if fld in path_fields and fileinfo.get(fld, ''):
-                        act[fld] = r'`\path{' + fileinfo[fld] + r'}`{=latex}'
+                        if path_escaped_table:
+                            act[fld] = str(act[fld]).translate(path_escaped_table)
+                        act[fld] = r'`\path{' + act[fld] + r'}`{=latex}'
                 if repeated:
                     continue
                 outputfile.write("|".join([act.get(field, empty_str) for field in fields]))
                 outputfile.write("\n")
+                data_to_compare = fileinfo.copy()
                 yield fileinfo
             except TypeError as exc:
                 if self.myflag('stop_on_error'):
                     raise
                 else:
-                    self.logger().warning('%s: %s', exc, fileinfo.get('path', ''))
+                    self.logger().warning('{}: {}'.format(exc, fileinfo.get('path', '')))
 
         # outputfile.write("\n")  # Prepare room for next table in case appending outputs
         try:
             if not outputfile == sys.stdout:
                 outputfile.close()
         except Exception as exc:
-            self.logger().warning('Exception while closing the file: %s', exc)
+            self.logger().warning(f'Exception while closing the file: {exc}')
 
 class DummySink(BaseSink):
     """ A module that prints the results from other modules to a file or standard output.
@@ -348,13 +366,13 @@ class DummySink(BaseSink):
                 if self.myflag('stop_on_error'):
                     raise
                 else:
-                    self.logger().warning('%s: %s', exc, path)
+                    self.logger().warning('{}: {}'.format(exc, fileinfo.get('path', '')))
  
         try:
             if not outputfile == sys.stdout:
                 outputfile.close()
         except Exception as exc:
-            self.logger().warning('Exception while closing the file: %s', exc)
+            self.logger().warning(f'Exception while closing the file: {exc}')
 
 class MirrorPath(base.job.BaseModule):
     """ A basic module that yields the path. """

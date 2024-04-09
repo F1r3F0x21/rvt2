@@ -35,8 +35,6 @@ from base.commands import estimate_iterations
 from base.utils import generate_id, generate_hash
 import uuid
 
-__maintainer__ = 'Juanvi Vera'
-
 
 class _CustomSerializer(JSONSerializer):
     """ A custom serializer for types we might find and are not supported by the standard serializer """

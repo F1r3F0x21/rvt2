@@ -186,7 +186,7 @@ class GetTimeline(base.job.BaseModule):
             search_command = 'grep -iP "{regex}" "{path}"'
             # filename_list = ['/'.join(f.split('/')[3:]) for f in file_list]
 
-        module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=file_list))
+        module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=file_list, logging_disable=True))
         dates = defaultdict(dict)
 
         # In case tqdm is not needed: for line in module.run(self.timeline_body_file):
@@ -199,7 +199,7 @@ class GetTimeline(base.job.BaseModule):
             # WARNING: Current documentation for tsk at https://wiki.sleuthkit.org/index.php?title=Body_file is wrong.
             # The actual order for dates is 'amcb'.
             for date_index, date_type in zip([8, 7, 9, 10], ['m', 'a', 'c', 'b']):
-                dates[filename][date_type] = datetime.datetime.utcfromtimestamp(int(line[date_index])).strftime("%Y-%m-%dT%H:%M:%SZ")
+                dates[filename][date_type] = datetime.datetime.fromtimestamp(int(line[date_index]), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return dates
 

@@ -118,10 +118,10 @@ class Cookies(base.job.BaseModule):
                 cookie.read(8)                          # end of cookie
 
                 date_expiration_epoch = unpack('<d', cookie.read(8))[0] + 978307200          # Expiry date is in Mac epoch format: Starts from 1/Jan/2001
-                date_expiration = datetime.datetime.utcfromtimestamp(date_expiration_epoch).strftime("%Y-%m-%dT%H:%M:%SZ")  # 978307200 is unix epoch of  1/Jan/2001 //[:-1] strips the last space
+                date_expiration = datetime.datetime.fromtimestamp(date_expiration_epoch, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # 978307200 is unix epoch of  1/Jan/2001 //[:-1] strips the last space
 
                 date_creation_epoch = unpack('<d', cookie.read(8))[0] + 978307200           # Cookies creation time
-                date_creation = datetime.datetime.utcfromtimestamp(date_creation_epoch).strftime("%Y-%m-%dT%H:%M:%SZ")
+                date_creation = datetime.datetime.fromtimestamp(date_creation_epoch, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
                 cookie.seek(domainoffset - 4)                            # fetch domain value from domain offset
                 domain = " "

@@ -77,17 +77,26 @@ class ActivitiesCacheAnalysis(base.job.BaseModule):
     def report_activities_cache(self, path):
         """ Create a unique activitiescache csv for all users."""
 
-        fields = ["StartTime", "EndTime", "Application", "DisplayName", "Full Path", "AppActivityId", "App/Uri", "Activity_type", "Active Duration", "LastModified"]
+        fields_renaming = {"StartTime": "StartTime",
+                           "EndTime": "EndTime",
+                           "Application": "Application",
+                           "DisplayName": "DisplayName",
+                           "Full Path": "FullPath",
+                           "AppActivityId": "AppActivityId",
+                           "App/Uri": "App/Uri",
+                           "Activity_type": "ActivityType",
+                           "Active Duration": "ActiveDuration",
+                           "LastModified": "LastModified"}
 
         for file in sorted(os.listdir(path)):
             if file.startswith('activitycache'):
-                # Expected file format: `activitiescache_L.user_partition.csv`
+                # Expected file format: `activitycache_L.user_partition.csv`
                 user = file[16:-8]  # delete the prefix "L."
                 partition = file[-7:-4]
                 for line in base.job.run_job(self.config,
                                              'base.input.CSVReader',
                                              path=os.path.join(path, file),
                                              extra_config={'delimiter': ';', 'encoding': 'utf-8'}):
-                    res = {field: line.get(field, '') for field in fields}
+                    res = {new_field: line.get(field, '') for field, new_field in fields_renaming.items()}
                     res.update({'User': user, 'Partition': partition})
                     yield res

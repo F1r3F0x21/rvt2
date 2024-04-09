@@ -149,10 +149,10 @@ class FileSystem(base.job.BaseModule):
                 self.logger().warning('FileSystem object not loaded. Error: {}'.format(exc))
             try:
                 f = fs.open('/'.join(file.split("/")[3:]))
-                dates[file] = [datetime.datetime.utcfromtimestamp(f.info.meta.mtime).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(f.info.meta.atime).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(f.info.meta.ctime).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                               datetime.datetime.utcfromtimestamp(f.info.meta.crtime).strftime("%Y-%m-%dT%H:%M:%SZ")]
+                dates[file] = [datetime.datetime.fromtimestamp(f.info.meta.mtime, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(f.info.meta.atime, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(f.info.meta.ctime, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               datetime.datetime.fromtimestamp(f.info.meta.crtime, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")]
             except Exception as exc:
                 self.logger().warning('Filename not found in FileSystem. Error: {}'.format(exc))
                 dates[file] = ['1601-01-01T00:00:00Z'] * 4

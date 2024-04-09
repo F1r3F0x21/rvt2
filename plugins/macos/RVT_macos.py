@@ -434,7 +434,7 @@ class BasicInfo(base.job.BaseModule):
 
                 # Install date
                 try:
-                    out.write("Install date:\t%s\n\n" % datetime.datetime.utcfromtimestamp(os.path.getmtime(os.path.join(base_path, "var/db/.AppleSetupDone"))).strftime("%Y-%m-%dT%H:%M:%SZ"))
+                    out.write("Install date:\t%s\n\n" % datetime.datetime.fromtimestamp(os.path.getmtime(os.path.join(base_path, "var/db/.AppleSetupDone")), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
                 except Exception:
                     pass
 
@@ -453,9 +453,9 @@ class BasicInfo(base.job.BaseModule):
                                 plist = biplist.readPlist(os.path.join(aux_path, file))
                                 pl2 = biplist.readPlistFromString(plist['accountPolicyData'][0])
                                 if "creationTime" in pl2.keys():
-                                    table_data[1] = datetime.datetime.utcfromtimestamp(pl2["creationTime"]).strftime("%Y-%m-%dT%H:%M:%SZ")
+                                    table_data[1] = datetime.datetime.fromtimestamp(pl2["creationTime"], datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                                 if "passwordLastSetTime" in pl2.keys():
-                                    table_data[2] = datetime.datetime.utcfromtimestamp(pl2["passwordLastSetTime"]).strftime("%Y-%m-%dT%H:%M:%SZ")
+                                    table_data[2] = datetime.datetime.fromtimestamp(pl2["passwordLastSetTime"], datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                             except Exception:
                                 pass
                             if table_data[1] != "" or table_data[2] != "":

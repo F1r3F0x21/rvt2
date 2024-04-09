@@ -29,8 +29,6 @@ import base.job
 import email
 from tqdm import tqdm
 
-__maintainer__ = 'Juanvi Vera'
-
 
 # ##################### Utility functions
 

@@ -27,13 +27,19 @@ from plugins.windows.windows_tz import win_tz
 
 
 class CharacterizeWindows(base.job.BaseModule):
-    """ Extract summary info about Windows partitions Os general information and users.
+    """ Extract summary info about Windows partitions OS general information and users.
 
     Timeline and Regripper output files must had been previously generated.
 
     Parameters:
         :ripplugins (str): path to json containing the list of essential plugins executed by 'autorip' job
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.users_sid = {}
+        #self.aux_file = self.config.config['.'.join([__name__, self.__class__.__name__])]['aux_file']
+        self.aux_file = self.myconfig('aux_file')
 
     def read_config(self):
         super().read_config()
@@ -73,10 +79,9 @@ class CharacterizeWindows(base.job.BaseModule):
         self.logger().debug('Windows OS characterization finished')
 
         # Save information in auxiliar file to be used by other modules
-        aux_json_file = self.myconfig('aux_file')
-        aux_json_file_raw = '.'.join(aux_json_file.split('.')[:-1]) + '_raw.json'
-        check_directory(os.path.dirname(aux_json_file), create=True)
-        with open(aux_json_file, 'w') as outfile:
+        aux_json_file_raw = '.'.join(self.aux_file.split('.')[:-1]) + '_raw.json'
+        check_directory(os.path.dirname(self.aux_file), create=True)
+        with open(self.aux_file, 'w') as outfile:
             json.dump(self.os_info, outfile, indent=4)
         with open(aux_json_file_raw, 'w') as outfile:
             json.dump(self.os_info, outfile)
@@ -104,29 +109,28 @@ class CharacterizeWindows(base.job.BaseModule):
         with open(ripplugins_file) as rf:
             self.ripplugins = json.load(rf)
 
-        # Check registry is parsed. Generate the minimum files needed otherwise
+        # Check if registry is already parsed. Generate the minimum files needed otherwise
         if not check_directory(self.hives_dir):
-            try:
-                # Parse only the first available partition
-                partition_to_characterize = self.get_available_partitions()[0]
-                list(base.job.run_job(self.config.copy(), 'windows.autorip_analyze',
-                    path=os.path.join(self.myconfig('mountdir'), partition_to_characterize, '[Ww][Ii][Nn][Dd][Oo][Ww][Ss]/[Ss]ystem32/[Cc]onfig'),
-                    extra_config=dict(volume_id=partition_to_characterize, ripplugins=ripplugins_file)))
-            except base.job.RVTError as exc:
-                self.logger().warning(exc)
-                self.ripplugins = {}
+            for partition_to_characterize in self.get_available_partitions():
+                try:
+                    list(base.job.run_job(self.config.copy(), 'windows.autorip_analyze',
+                        path=os.path.join(self.myconfig('mountdir'), partition_to_characterize, '[Ww][Ii][Nn][Dd][Oo][Ww][Ss]/[Ss]ystem32/[Cc]onfig'),
+                        extra_config=dict(volume_id=partition_to_characterize, ripplugins=ripplugins_file)))
+                except base.job.RVTError as exc:
+                    self.logger().warning(exc)
+                    self.ripplugins = {}
 
     def os_information(self, part):
         """ Characterize Windows partitions from registry files. """
 
         os_plugins = ['winver2', 'shutdown', 'timezone', 'lastloggedon', 'processor_architecture', 'compname', 'nic2']
 
-        plugin_fields = {'winver2': ['ProductName', 'CurrentVersion', 'InstallationType', 'EditionID', 'CurrentBuild', 'ProductId', 'RegisteredOwner', 'RegisteredOrganization', 'InstallDate'],
+        plugin_fields = {'winver2': ['ProductName', 'InstallationType', 'EditionID', 'CurrentBuild', 'ProductId', 'RegisteredOwner', 'RegisteredOrganization', 'InstallDate'],
                          'shutdown': ['ShutdownTime'],
                          'processor_architecture': ['PROCESSOR_ARCHITECTURE'],
                          'compname': ['ComputerName']}
 
-        field_names = {'ProductName': 'ProductName', 'CurrentVersion': 'CurrentVersion', 'InstallationType': 'InstallationType',
+        field_names = {'ProductName': 'ProductName', 'InstallationType': 'InstallationType',
                        'EditionID': 'EditionID', 'CurrentBuild': 'CurrentBuild', 'ProductId': 'ProductId', 'RegisteredOwner': 'RegisteredOwner',
                        'RegisteredOrganization': 'RegisteredOrganization', 'InstallDate': 'InstallDate', 'ShutdownTime': 'ShutdownTime',
                        '  TimeZoneKeyName': 'TimeZone', 'PROCESSOR_ARCHITECTURE': 'ProcessorArchitecture', 'ComputerName': 'ComputerName'}
@@ -315,7 +319,8 @@ class CharacterizeWindows(base.job.BaseModule):
         """ Get selected OS or user information by reading a previously defined json file where information is stored """
 
         self.logger().debug('Getting {} information about partition {}'.format(item, partition))
-        os_info_keys = ["productname", "currentversion", "installationtype", "editionid", "currentbuild", "productid", "registeredowner", "registeredorganization", "installdate", "shutdowntime", "timezone", "lastloggedon", "processorarchitecture", "computername"]
+        os_info_keys = ["productname", "installationtype", "editionid", "currentbuild", "productid", "registeredowner", "registeredorganization",
+                        "installdate", "shutdowntime", "timezone", "lastloggedon", "processorarchitecture", "computername"]
         users_info_keys = ["users", "user_profiles"]
         if item.lower() in os_info_keys:
             default_output = ''
@@ -324,16 +329,57 @@ class CharacterizeWindows(base.job.BaseModule):
         else:
             raise base.job.RVTError('Selected item <{}> is not a recognized OS attribute'.format(item))
 
-        expected_auxfile = os.path.join(self.config.config['plugins.windows']['auxdir'], 'os_info.json')
         # Parse the minimal information from hives if not done before
-        if not os.path.exists(expected_auxfile):
+        if not os.path.exists(self.aux_file):
             self.run()
-        if os.path.exists(expected_auxfile) and os.path.getsize(expected_auxfile) > 0:
-            with open(expected_auxfile, 'r') as infile:
-                info = json.load(infile)
-                return info.get(partition, defaultdict(dict)).get(item, default_output)
+        info = self.load_saved_os_info()
+        if info:
+            return info.get(partition, defaultdict(dict)).get(item, default_output)
 
         return default_output
+
+    def load_saved_os_info(self):
+        """ Load all OS info data from a previously saved json file """
+        if os.path.exists(self.aux_file) and os.path.getsize(self.aux_file) > 0:
+            with open(self.aux_file, 'r') as infile:
+                return json.load(infile)
+        return {}
+
+    def get_users_names(self, partition=None):
+        """ Check registry files to obtain the relation between user SID and name. """
+        if self.users_sid:
+            return self.users_sid
+
+        # Parse the minimal information from hives if not done before
+        if not os.path.exists(self.aux_file):
+            self.run()
+
+        # Assume first valid Windows partition is the right one. This may be problematic if multiple partitions exist
+        if not partition:
+            parsed_partitions = list(self.load_saved_os_info().keys())
+            if parsed_partitions:
+                partition = parsed_partitions[0]
+
+        # Return if no registry information about users is available
+        if not partition:
+                return {}
+
+        try:
+            users = self.get_information("user_profiles", partition=partition)
+            # Reverse the data for easier lookup
+            self.users_sid = {}
+            for user_name, data in users.items():
+                if "sid" in data:
+                    self.users_sid[data['sid']] = user_name
+            return self.users_sid
+        except Exception as exc:
+            self.logger().warn(exc)
+            return {}
+
+    def get_user_name_from_sid(self, sid, partition=None, sid_default=True):
+        # Return the name of a local user profile given a SID. IF not found, return the SID itself.
+        users_sid = self.get_users_names(partition=partition)
+        return users_sid.get(sid, sid if sid_default else '')
 
     def get_windows_version(self, partition='p01'):
         """ Get general version information about partition OS.
@@ -344,7 +390,6 @@ class CharacterizeWindows(base.job.BaseModule):
         """
         product = self.get_information("ProductName", partition)
         server = True if product.find('Server') != -1 else False
-        version = self.get_information("CurrentVersion", partition)
         build = self.get_information("CurrentBuild", partition)
         architecture = self.get_information("ProcessorArchitecture", partition)
 
@@ -381,3 +426,64 @@ class CharacterizeWindows(base.job.BaseModule):
             bias = 0
 
         return (tzdata_name, bias)
+
+
+class GetUserFromSID(base.job.BaseModule):
+    """ Substitute or add a 'user_field' given a 'sid_field' containing a user SID by consulting the user_profiles registry.
+
+    Module description:
+        - **path**: not used, passed to *from_module*.
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+
+    Configuration:
+        - **sid_field**: Names of the fiels containing the SID string. If not provided, this module is transparent.
+        - **user_field**: Name for the new field containing user name. If not provided, overwrite 'sid_field'.
+        - **keep_sid*: If True and 'user_field' is set, keep also the original 'sid_field'.
+        - **sid_default**: If True, the value assigned to the user name if the SID is not found will be the SID itself. If False, it will be ''.
+        - **partiton**: partition number to seek for user profiles. Exemple: 'p01'.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('sid_field', None)
+        self.set_default_config('user_field', None)
+        self.set_default_config('keep_sid', '')
+        self.set_default_config('sid_default', True)
+        self.set_default_config('partition', None)
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        sid_field = self.myconfig('sid_field')
+        user_field = self.myconfig('user_field')
+        if not sid_field:
+            yield from self.from_module.run(path)
+            return []
+
+        keep_sid = self.myflag('keep_sid')
+        sid_default = self.myflag('sid_default')
+        partition = self.myconfig('partition')
+        if not user_field:
+            user_field = sid_field
+
+        os_info = CharacterizeWindows(config=self.config)
+        for data in self.from_module.run(path):
+            if sid_field not in data:
+                # Create user_field anyway
+                data[user_field] = data.get(user_field, '') or ''
+                yield data
+                continue
+            try:
+                new_value = os_info.get_user_name_from_sid(data[sid_field], partition=partition, sid_default=sid_default)
+                if sid_default and not new_value:
+                    data[user_field] = data[sid_field]
+                else:
+                    data[user_field] = new_value
+            except Exception as exc:
+                self.logger().warn(exc)
+                data[user_field] = data.get(user_field, '') or ''
+            finally:
+                if not keep_sid and sid_field != user_field:
+                    data.pop(sid_field)
+                yield data

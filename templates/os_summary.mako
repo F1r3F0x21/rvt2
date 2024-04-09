@@ -18,7 +18,6 @@ Data|Value
 **ProductId**| ${os_info[p].get("ProductId", 'Unknown')}
 **RegisteredOwner**| ${os_info[p].get("RegisteredOwner", 'Unknown')}
 **RegisteredOrganization**| ${os_info[p].get("RegisteredOrganization", 'Unknown')}
-**CurrentVersion**| ${os_info[p].get("CurrentVersion", 'Unknown')}
 **CurrentBuild**| ${os_info[p].get("CurrentBuild", 'Unknown')}
 **InstallationType**| ${os_info[p].get("InstallationType", 'Unknown')}
 **EditionID**| ${os_info[p].get("EditionID", 'Unknown')}
