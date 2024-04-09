@@ -1086,8 +1086,8 @@ class EDR_PaloAlto(base.job.BaseModule):
 
         for event in list(self.from_module.run(path)):
             if event["event.code"] in eventlist:
-                message_list = eval(event["message"])
-                extra_data = eval(message_list[5])
+                message_list = ast.literal_eval(event["message"])
+                extra_data = ast.literal_eval(message_list[5])
 
                 event["object"] = extra_data["filePath"]
                 event["hash"] = extra_data["fileHash"]["sha256"]
@@ -1102,6 +1102,7 @@ class EDR_PaloAlto(base.job.BaseModule):
                     event["event.message"] = event_rules["description"]
             yield event
 
+
 class EDR_Symantec(base.job.BaseModule):
     """ Extracts specific fields from Symantec events 
 
@@ -1114,27 +1115,43 @@ class EDR_Symantec(base.job.BaseModule):
         """
         self.check_params(path, check_path=True, check_path_exists=True)
 
+        # Regex for event 51
+        action = r'Action:([\w\s]*)\.'
+        prog_action = re.compile(action)
+        actionDescription = r'Action Description:([\w\s]*)\.'
+        prog_actionDescription = re.compile(actionDescription)
+        file = r'File:\s*(\S*)'
+        prog_file= re.compile(file)
+
+        # Regex for event 45
+        action_45 = r'Action\staken:([\s\w]*)'
+        prog_action_45 = re.compile(action_45)
+        file_45 = r'File:\s+(.*?)\\r\\n'
+        prog_file_45 = re.compile(file_45)
 
         for event in list(self.from_module.run(path)):
-            action = r'Action:([\w\s]*)\.'
-            prog_action = re.compile(action)
-            actionDescription = r'Action Description:([\w\s]*)\.'
-            prog_actionDescription = re.compile(actionDescription)
-            file = r'File:\s*(\S*)'
-            prog_file= re.compile(file)
+            string_data = event["event.message"]
+
 
             if event["event.code"] == "51":
-                string_data = event["event.message"]
-
                 match_action = prog_action.search(string_data)
                 if match_action:
                     event["action"] = match_action.group(1) + ", "
                 
                 match_actionDescription = prog_actionDescription.search(string_data)
                 if match_actionDescription:
-                    event["action"] += match_actionDescription.group(1)
+                    event["action"] = event.get("action","") + match_actionDescription.group(1)
 
                 match_file = prog_file.search(string_data)
+                if match_file:
+                    event["object"] = match_file.group(1)
+
+            if event["event.code"] == "45":
+                match_action = prog_action_45.search(string_data)
+                if match_action:
+                    event["action"] = match_action.group(1) 
+
+                match_file = prog_file_45.search(string_data)
                 if match_file:
                     event["object"] = match_file.group(1)
 
