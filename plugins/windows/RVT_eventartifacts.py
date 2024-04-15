@@ -313,8 +313,9 @@ class RDPIncoming(base.job.BaseModule):
             act['User'] = ''
             act['SourceAddress'] = ''
             act['Comments'] = ''
+            length = len(eventlist) - 1
 
-            for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
+            for e, v in enumerate(sorted(eventlist, key=lambda k: k['TimeCreated'])):
                 # self.logger().debug("%s %s" % (v['TimeCreated'], v['EventID']))
 
                 if written:  # New login
@@ -366,6 +367,14 @@ class RDPIncoming(base.job.BaseModule):
                         act['SourceAddress'] = ''
                         act['Comments'] = ''
                         written = True
+                if length == e and not written:
+                    yield {
+                            'LoginDate': act.get('LoginDate', '-'),
+                            'LogoffDate': act.get('LogoffDate', '-'),
+                            'User': act.get('User', ''),
+                            'SourceAddress': act.get('SourceAddress', ''),
+                            'Comments': act.get('Comments', '')
+                        }
 
     def find_poweroff(self, previous_time, actual_time, power_ev):
         """ Finds date of poweroff or poweron as logout date """
@@ -1048,3 +1057,26 @@ class TGT_attack(base.job.BaseModule):
                             print("There are no previous TGT for ticket created (or it has created more than %s hours before) on %s of user %s with service name %s, ip %s, status: %s" % (hours, ticket['event.created'], user, ticket['service.name'], ticket['ip'], ticket['status']))
                 else:
                     print("There are no TGT ticket of user %s. This ticket is created on %s with service name %s, ip %s, status: %s" % (user, ticket['event.created'], ticket['service.name'], ticket['ip'], ticket['status']))
+
+class MSSQL(base.job.BaseModule):
+    """ Extracts events related with MSSQL """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed Application.evtx
+        """
+
+        import re
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        regex = re.compile("CLIENTE: (.*)\]")
+
+        for event in self.from_module.run(path):
+
+            if event['event.code'] == '18456':
+                event['reason'] = event['reason'][1:]
+                temp_address = regex.search(event['source.address'])
+                event['source.address'] = temp_address.group(1)
+            yield event

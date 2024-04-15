@@ -645,6 +645,8 @@ class Application(EventJob):
                   '10005': {'provider': 'MsiInstaller', 'fields': ['error', 'arg1', 'arg2', 'arg3', 'arg4', 'arg5']},
                   '11707': {'provider': 'MsiInstaller', 'fields': ['status']},
                   '11708': {'provider': 'MsiInstaller', 'fields': ['status']},
+                  '17806': {'provider': 'MSSQLSERVER', 'fields': ['error.code', 'state', 'reason', 'reason2', 'source.address']},
+                  '18456': {'provider': 'MSSQLSERVER', 'fields': ['destination.user.name', 'reason', 'source.address']},
                   '20220': {'provider': 'RasClient', 'fields': []},
                   '20221': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection', 'connection.type', 'connection.name', 'others']},
                   '20222': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection.name', 'others']},
