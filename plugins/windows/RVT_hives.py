@@ -85,7 +85,8 @@ def get_hives(path):
         'sam': 'sam',
         'security': 'security',
         'amcache.hve': 'amcache',
-        'syscache.hve': 'syscache'}
+        'syscache.hve': 'syscache',
+        'bcd': 'bcd'}
 
     # Search only first level, not subfolders. File names MUST BE the expected Windows hives names. If names had been changed, they will be ommited
     for file in os.listdir(path):
