@@ -203,6 +203,30 @@
       }
     }
   },
+  "17806": {
+    "description": "SSPI handshake failed with error code <error.code>, state <state> while establishing a connection with integrated security; the connection has been closed",
+    "provider": "MSSQLSERVER",
+    "path": {
+      "EventData":{
+        "Name": ["Binary"]
+      },
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "18456": {
+    "description": "Login failed for user <destination.user.name>.",
+    "provider": "MSSQLSERVER",
+    "path": {
+      "EventData":{
+        "Name": ["Binary"]
+      },
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
   "20220": {
     "description": "The connection to <Server Name> made using device <Device Name> was terminated. The error code returned on failure is <err_code>",
     "provider": "RasClient",

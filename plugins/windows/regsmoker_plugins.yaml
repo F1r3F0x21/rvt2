@@ -1,0 +1,305 @@
+amcache:
+  amcache:
+    filename: execution/amcache.csv
+    output: csv
+system:
+  appcompatcache:
+    filename: execution/appcompatcache.csv
+    output: csv
+  bam:
+    filename: execution/bam.csv
+    output: csv
+  prefetch:
+    filename: execution/prefetch.json
+  backuprestore:
+    filename: os_info/backuprestore.json
+  compname:
+    filename: os_info/compname.json
+  crashcontrol:
+    filename: os_info/crashcontrol.json
+  dc_info:
+    filename: os_info/dc_info.json
+  diag_sr:
+    filename: os_info/diag_sr.json
+  disablelastaccess:
+    filename: os_info/disablelastaccess.json
+  environment:
+    filename: os_info/environment.json
+  pagefile:
+    filename: os_info/pagefile.json
+  previous_winver:
+    filename: os_info/previous_winver.json
+  processor_architecture:
+    filename: os_info/processor_architecture.json
+  codepage:
+    filename: os_info/codepage.json
+  lsa:
+    filename: os_info/lsa.json
+  timezone:
+    filename: os_info/timezone.json
+  shutdown:
+    filename: os_info/shutdown.json
+  netlogon:
+    filename: user_account/netlogon.json
+  eventlog:
+    filename: eventlog_info/eventlog.csv
+    output: csv
+  securityproviders:
+    filename: persistence/securityproviders.json
+  services:
+    filename: persistence/services.csv
+    output: csv
+  svcdlls:
+    filename: persistence/svcdlls.csv
+    output: csv
+  rdpport:
+    filename: lateral_movement/rdpport.json
+  remoteaccess:
+    filename: lateral_movement/remoteaccess.json
+  termserv:
+    filename: lateral_movement/termserv.json
+  fw_config:
+    filename: network_information/fw_config.json
+  ips:
+    filename: network_information/ips.json
+  networksetup2:
+    filename: network_information/networksetup2.json
+  portproxy:
+    filename: network_information/portproxy.json
+  routes:
+    filename: network_information/routes.json
+  shares:
+    filename: network_information/shares.json
+  mountdev:
+    filename: storage_information/mountdev.json
+  usb:
+    filename: storage_information/usb.json
+  usbstor:
+    filename: storage_information/usbstor.json
+  wpdbusenum:
+    filename: storage_information/wpdbusenum.json
+software:
+  antivirus:
+    filename: installed_programs/antivirus.json
+    output: csv
+  direct:
+    filename: execution/direct.json
+  heap:
+    filename: execution/heap.csv
+    output: csv
+  disablemru:
+    filename: os_info/disablemru.json
+  printdemon:
+    filename: os_info/printdemon.json
+  uac:
+    filename: os_info/uac.json
+  winver:
+    filename: os_info/winver.json
+  profilelist:
+    filename: user_account/profilelist.csv
+    output: csv
+  lastloggedon:
+    filename: user_account/lastloggedon.json
+  execpolicy:
+    filename: policies/execpolicy.json
+  gpohist:
+    filename: policies/gpohist.json
+  winevts:
+    filename: eventlog_info/winevts.csv
+    output: csv
+  clsid:
+    filename: file_associations/clsid.json
+  cmd_shell:
+    filename: file_associations/cmd_shell.csv
+    output: csv
+  apppaths:
+    filename: installed_programs/apppaths.csv
+    output: csv
+  defender:
+    filename: installed_programs/defender.json
+  installer:
+    filename: installed_programs/installer.csv
+    output: csv
+  msis:
+    filename: installed_programs/msis.csv
+    output: csv
+  powershellcore:
+    filename: installed_programs/powershellcore.json
+  pslogging:
+    filename: installed_programs/pslogging.json
+  uninstall:
+    filename: installed_programs/uninstall.csv
+    output: csv
+  drivers32:
+    filename: persistence/drivers32.json
+  run:
+    filename: persistence/run.csv
+    output: csv
+  schedagent:
+    filename: persistence/schedagent.json
+  tasks:
+    filename: persistence/tasks.json
+  citrix_sessions:
+    filename: lateral_movement/citrix_sessions.csv
+    output: csv
+  ica_sessions:
+    filename: lateral_movement/ica_sessions.csv
+    output: csv
+  rdpnla:
+    filename: lateral_movement/rdpnla.json
+  teamviewer:
+    filename: lateral_movement/teamviewer.json
+  networkcards:
+    filename: network_information/networkcards.json
+  portdev:
+    filename: storage_information/portdev.json
+  spp_clients:
+    filename: storage_information/spp_clients.json
+  susclient:
+    filename: storage_information/susclient.json
+  appcompatflags:
+    filename: execution/appcompatflags.json
+  defbrowser:
+    filename: web_browsing_info/defbrowser.json
+  ie_version:
+    filename: web_browsing_info/ie_version.json
+
+ntuser:
+  appcompatflags:
+    filename: execution/appcompatflags_user.json
+  pslogging:
+    filename: installed_programs/pslogging_user.json
+  environment:
+    filename: user_config/environment_user.json
+  featureusage:
+    filename: execution/featureusage_user.json
+  muicache:
+    filename: execution/muicache_user.csv
+    output: csv
+  recentapps:
+    filename: execution/recentapps_user.json
+  runmru:
+    filename: execution/runmru_user.csv
+    output: csv
+  userassist:
+    filename: execution/userassist_user.csv
+    output: csv
+  compdesc:
+    filename: os_info/compdesc_user.json
+  disablemru:
+    filename: user_config/disablemru.json
+  nation:
+    filename: user_config/nation_user.csv
+    output: csv
+  onedrive:
+    filename: user_config/onedrive_user.json
+  sysinternals:
+    filename: user_config/sysinternals_user.csv
+    output: csv
+  logonstats:
+    filename: user_account/logonstats_user.json
+  advanced_ip_scanner:
+    filename: scan_programs/advanced_ip_scanner_user.json
+  adobe:
+    filename: recentdocs/adobe_user.csv
+    output: csv
+  applets:
+    filename: recentdocs/applets_user.json
+  comdlg32:
+    filename: recentdocs/comdlg32_user.csv
+    output: csv
+  jumplistdata:
+    filename: recentdocs/jumplistdata_user.csv
+    output: csv
+  msoffice:
+    filename: recentdocs/msoffice_user.json
+  oisc:
+    filename: recentdocs/oisc_user.json
+  recentdocs:
+    filename: recentdocs/recentdocs_user.csv
+    output: csv
+  sevenzip:
+    filename: recentdocs/sevenzip_user.json
+  winrar:
+    filename: recentdocs/winrar_user.json
+  winzip:
+    filename: recentdocs/winzip_user.json
+  appassoc:
+    filename: file_associations/appassoc_user.json
+  apppaths:
+    filename: installed_programs/apppaths_user.csv
+    output: csv
+  listsoft:
+    filename: installed_programs/listsoft_user.csv
+    output: csv
+  uninstall:
+    filename: installed_programs/uninstall_user.csv
+    output: csv
+  run:
+    filename: persistence/run_user.csv
+    output: csv
+  shellfolders:
+    filename: persistence/shellfolders_user.json
+  atera:
+    filename: lateral_movement/atera_user.json
+  mndmru:
+    filename: lateral_movement/mndmru.json
+  putty_hostkeys:
+    filename: lateral_movement/putty_hostkeys_user.csv
+    output: csv
+  putty_recent:
+    filename: lateral_movement/putty_recent_user.json
+  putty_sessions:
+    filename: lateral_movement/putty_sessions_user..csv
+    output: csv
+  tsclient:
+    filename: lateral_movement/tsclient_user.json
+  winscp_connections:
+    filename: lateral_movement/winscp_connections_user.json
+  winscp_history:
+    filename: lateral_movement/winscp_history_user.json
+  winscp_last_paths:
+    filename: lateral_movement/winscp_last_paths_user.json
+  winscp_lifetimecounters:
+    filename: lateral_movement/winscp_lifetimecounters_user.csv
+    output: csv
+  winscp_sessions:
+    filename: lateral_movement/winscp_sessions_user.csv
+    output: csv
+  winscp_ssh_fingerprint:
+    filename: lateral_movement/winscp_ssh_fingerprint_user.csv
+    output: csv
+  winscp_ssh_host_keys:
+    filename: lateral_movement/winscp_ssh_host_keys_user.json
+
+  knowndev:
+    filename: storage_information/knowndev_user.json
+  ie_settings:
+    filename: web_browsing_info/ie_settings_user.json
+  typedurls:
+    filename: web_browsing_info/typedurls_user.json
+  mmc:
+    filename: general_usr_activity/mmc.json
+  typedpaths:
+    filename: general_usr_activity/typedpaths_user.json
+  wordwheelquery:
+    filename: general_usr_activity/wordwheelquery_user.csv
+    output: csv
+
+usrclass:
+  muicache:
+    filename: execution/muicache_user.csv
+    output: csv
+sam:
+  samparse:
+    filename: user_account/samparse.json
+security:
+  polacdms:
+    filename: user_account/polacdms.json
+  auditpol:
+    filename: eventlog_info/auditpol.csv
+    output: json_to_csv
+bcd:
+  bcd:
+    filename: persistence/bcd.csv
+    output: csv

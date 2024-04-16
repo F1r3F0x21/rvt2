@@ -316,8 +316,9 @@ class RDPIncoming(base.job.BaseModule):
             act['User'] = ''
             act['SourceAddress'] = ''
             act['Comments'] = ''
+            length = len(eventlist) - 1
 
-            for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
+            for e, v in enumerate(sorted(eventlist, key=lambda k: k['TimeCreated'])):
                 # self.logger().debug("%s %s" % (v['TimeCreated'], v['EventID']))
 
                 if written:  # New login
@@ -369,6 +370,14 @@ class RDPIncoming(base.job.BaseModule):
                         act['SourceAddress'] = ''
                         act['Comments'] = ''
                         written = True
+                if length == e and not written:
+                    yield {
+                            'LoginDate': act.get('LoginDate', '-'),
+                            'LogoffDate': act.get('LogoffDate', '-'),
+                            'User': act.get('User', ''),
+                            'SourceAddress': act.get('SourceAddress', ''),
+                            'Comments': act.get('Comments', '')
+                        }
 
     def find_poweroff(self, previous_time, actual_time, power_ev):
         """ Finds date of poweroff or poweron as logout date """
@@ -1057,7 +1066,7 @@ class EDR_PaloAlto(base.job.BaseModule):
     """ Extracts specific fields from Palo Alto events 
 
     """
-
+    
     def run(self, path=None):
         """
         Attrs:
@@ -1162,4 +1171,28 @@ class EDR_Symantec(base.job.BaseModule):
                 if match_file:
                     event["object"] = match_file.group(1)
 
+            yield event
+
+
+class MSSQL(base.job.BaseModule):
+    """ Extracts events related with MSSQL """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed Application.evtx
+        """
+
+        import re
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        regex = re.compile("CLIENTE: (.*)\]")
+
+        for event in self.from_module.run(path):
+
+            if event['event.code'] == '18456':
+                event['reason'] = event['reason'][1:]
+                temp_address = regex.search(event['source.address'])
+                event['source.address'] = temp_address.group(1)
             yield event
