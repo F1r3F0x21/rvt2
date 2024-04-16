@@ -14,14 +14,16 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
+import lzma
 import os
 import re
 import shlex
 import subprocess
+import pytz
 import base.job
 import binascii
 import xmltodict
-from datetime import datetime, timedelta
+import datetime
 from plistlib import InvalidFileException
 
 class CortexLogs(base.job.BaseModule):
@@ -553,3 +555,178 @@ class DefenderLogs(base.job.BaseModule):
                 break 
 
             return parsed_value_dict
+
+
+class SophosEndpointLogs(base.job.BaseModule):
+    
+    """ Parser the SophosEndpointLogs Logfile
+
+    Module description:
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('logname', 'default')
+        
+    def run(self, path=None):
+        logname = self.myconfig('logname')
+
+        if logname == 'default':
+            self.logger().error("logname is not specified")
+            return []
+        
+        else:
+            if logname == "sed":
+                pattern = r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s(\S+)(.*)'
+                prog = re.compile(pattern)
+                filename = os.path.basename(path)
+                count_lines = 0
+                prev_line_dict = {}
+                for line in self.from_module.run(path):
+                    match = prog.search(line.strip())
+                    if match:
+                        if count_lines != 0:
+                            count_lines = 0
+                            yield prev_line_dict
+
+                        count_lines = 1
+                        timestamp, logname, message = match.groups(default='')
+                        log_entry_dict = {
+                            "@timestamp": timestamp.strip(),
+                            "logname": logname.strip(),
+                            "message": message.strip(), 
+                            "filename": filename
+                        }
+                        prev_line_dict = log_entry_dict
+                    else:
+                        if (line.strip() != "" and count_lines != 0):
+                            prev_line_dict["message"] = prev_line_dict["message"] + line
+
+                if len(prev_line_dict) != 0:
+                    yield prev_line_dict
+            
+            elif logname == "sam":
+                pattern = r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s(.*)'
+                prog = re.compile(pattern)
+                filename = os.path.basename(path)
+                count_lines = 0
+                prev_line_dict = {}
+                for line in self.from_module.run(path):
+                    match = prog.search(line.strip())
+                    if match:
+                        if count_lines != 0:
+                            count_lines = 0
+                            yield prev_line_dict
+
+                        count_lines = 1
+                        timestamp, message = match.groups(default='')
+                        log_entry_dict = {
+                            "@timestamp": timestamp.strip(),
+                            "message": message.strip(), 
+                            "filename": filename
+                        }
+                        prev_line_dict = log_entry_dict
+                    else:
+                        if (line.strip() != "" and count_lines != 0):
+                            prev_line_dict["message"] = prev_line_dict["message"] + line
+
+                if len(prev_line_dict) != 0:
+                    yield prev_line_dict
+            
+            elif logname == "sna":
+                pattern = r'(\S+)\s(\S+)(.*)'
+                prog = re.compile(pattern)
+                filename = os.path.basename(path)
+                count_lines = 0
+                prev_line_dict = {}
+                for line in self.from_module.run(path):
+                    match = prog.search(line)
+                    if match:
+                        if count_lines != 0:
+                            count_lines = 0
+                            yield prev_line_dict
+
+                        count_lines = 1
+                        timestamp, logname, message = match.groups(default='')
+                        log_entry_dict = {
+                            "@timestamp": timestamp.strip(),
+                            "logname": logname.strip(),
+                            "message": message.strip(), 
+                            "filename": filename
+                        }
+                        prev_line_dict = log_entry_dict
+                    else:
+                        if (line.strip() != "" and count_lines != 0):
+                            prev_line_dict["message"] = prev_line_dict["message"] + line
+
+                if len(prev_line_dict) != 0:
+                    yield prev_line_dict
+
+
+class EventJournals(base.job.BaseModule):
+
+    """ Parser the Sophos EventJournals files
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+    
+    def run(self, path=None):
+        pattern = r'^(\w+)-(\w+)-(\w+)-(\d+)-(\d+)(\..+)?'
+        prog = re.compile(pattern)
+        filename = os.path.basename(path)
+
+        match = prog.search(filename)
+        if match:
+            app, proc1, proc2, timestamp1, timestamp2, extension = match.groups(default='')
+
+            datetime1 = self.ldap_to_datetime(int(timestamp1))
+            datetime2 = self.ldap_to_datetime(int(timestamp2))
+            if extension ==".xz":
+                with lzma.open(path, 'rb') as f:
+                    data = f.read()
+                    decoded_data = data.decode('utf-8', errors='ignore')
+                    printable_strings = re.findall(r'[\x20-\x7E]{5,}', decoded_data)
+                    for string in printable_strings:
+                        log_dict = {
+                            "@timestamp": datetime1,
+                            "timestamp2": datetime2,
+                            "process1": proc1,
+                            "process2": proc2,
+                            "data": string
+                        }
+                        yield log_dict
+            else:
+                with open(path, 'rb') as f:
+                    data = f.read()
+                    decoded_data = data.decode('utf-8', errors='ignore')
+                    printable_strings = re.findall(r'[\x20-\x7E]{5,}', decoded_data)
+                    for string in printable_strings:
+                        log_dict = {
+                            "@timestamp": datetime1,
+                            "timestamp2": datetime2,
+                            "process1": proc1,
+                            "process2": proc2,
+                            "data": string
+                        }
+                        yield log_dict
+        else:
+            self.logger().error(f"Filename: {filename}, doesn't have the expected structure")
+            return[]
+    
+    def ldap_to_datetime(self, timestamp):
+        # Convert LDAP timestamp to seconds since January 1, 1601 (UTC)
+        seconds_since_1601 = timestamp / 10000000
+        delta = datetime.timedelta(seconds=seconds_since_1601)
+        start_date = datetime.datetime(1601, 1, 1)
+        result_date = start_date + delta
+        # Convert to UTC
+        utc_timezone = pytz.utc
+        result_utc_date = result_date.astimezone(utc_timezone)
+        return result_utc_date
+        

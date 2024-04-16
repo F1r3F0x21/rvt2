@@ -14,6 +14,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
+import json
 import os
 import ast
 import datetime
@@ -1083,6 +1084,29 @@ class EDR_PaloAlto(base.job.BaseModule):
                     event["level"] = event_rules["severity"]
                     event["action"] = event_rules["action"]
                     event["event.message"] = event_rules["description"]
+            yield event
+
+
+class EDR_Sophos(base.job.BaseModule):
+    """ Extracts specific fields from Sophos events 
+
+    """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed events.json
+        """
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        for event in list(self.from_module.run(path)):
+            if event["event.code"] == "42" and event["event.provider"] == "Sophos System Protection" :
+                message_list = ast.literal_eval(event["event.message"])
+                event["object"] = message_list[1]
+                event["threat"] = message_list[2]
+                file_data = json.loads(message_list[4])
+                event["hash"] = file_data.get("sha256FileHash")
+                event["size"] = file_data.get("fileSize")
             yield event
 
 
