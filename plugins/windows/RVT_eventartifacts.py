@@ -1066,7 +1066,7 @@ class EDR_PaloAlto(base.job.BaseModule):
     """ Extracts specific fields from Palo Alto events 
 
     """
-    
+
     def run(self, path=None):
         """
         Attrs:
@@ -1078,21 +1078,21 @@ class EDR_PaloAlto(base.job.BaseModule):
         eventlist = ["88", "85"]
 
         for event in list(self.from_module.run(path)):
-            if event["event.code"] in eventlist:
-                message_list = ast.literal_eval(event["message"])
+            if event["EventID"] in eventlist:
+                message_list = ast.literal_eval(event["Message"])
                 extra_data = ast.literal_eval(message_list[5])
 
-                event["object"] = extra_data["filePath"]
-                event["hash"] = extra_data["fileHash"]["sha256"]
+                event["Object"] = extra_data["filePath"]
+                event["Hash"] = extra_data["fileHash"]["sha256"]
                 if extra_data["verdict"] == 1:
-                    event["level"] = "Potentially harmful"
+                    event["Level"] = "Potentially harmful"
 
                 if "yaraDetails" in extra_data.keys():
                     event_rules = extra_data["yaraDetails"]["rules"][0]
                     
-                    event["level"] = event_rules["severity"]
-                    event["action"] = event_rules["action"]
-                    event["event.message"] = event_rules["description"]
+                    event["Level"] = event_rules["severity"]
+                    event["Action"] = event_rules["action"]
+                    event["Message"] = event_rules["description"]
             yield event
 
 
@@ -1109,13 +1109,19 @@ class EDR_Sophos(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         for event in list(self.from_module.run(path)):
-            if event["event.code"] == "42" and event["event.provider"] == "Sophos System Protection" :
-                message_list = ast.literal_eval(event["event.message"])
-                event["object"] = message_list[1]
-                event["threat"] = message_list[2]
+            if event["EventID"] == "42" and event["event.provider"] == "Sophos System Protection" :
+                message_list = ast.literal_eval(event["data.#text"])
+                event["Object"] = message_list[1]
+                event["Threat"] = message_list[2]
                 file_data = json.loads(message_list[4])
-                event["hash"] = file_data.get("sha256FileHash")
-                event["size"] = file_data.get("fileSize")
+                event["Hash"] = file_data.get("sha256FileHash")
+                event["Size"] = file_data.get("fileSize")
+            
+            if event["EventID"] == "52" and event["event.provider"] == "Sophos System Protection" :
+                message_list = ast.literal_eval(event["data.#text"])
+                event["Object"] = message_list[1]
+                event["Message"] += f" {message_list[2]}" 
+            
             yield event
 
 
@@ -1146,30 +1152,30 @@ class EDR_Symantec(base.job.BaseModule):
         prog_file_45 = re.compile(file_45)
 
         for event in list(self.from_module.run(path)):
-            string_data = event["event.message"]
+            string_data = event["Message"]
+            event["Message"] = event["Message"].strip("[']")
 
-
-            if event["event.code"] == "51":
+            if event["EventID"] == "51":
                 match_action = prog_action.search(string_data)
                 if match_action:
-                    event["action"] = match_action.group(1) + ", "
+                    event["Action"] = match_action.group(1) + ", "
                 
                 match_actionDescription = prog_actionDescription.search(string_data)
                 if match_actionDescription:
-                    event["action"] = event.get("action","") + match_actionDescription.group(1)
+                    event["Action"] = event.get("Action","") + match_actionDescription.group(1)
 
                 match_file = prog_file.search(string_data)
                 if match_file:
-                    event["object"] = match_file.group(1)
+                    event["Object"] = match_file.group(1)
 
-            if event["event.code"] == "45":
+            if event["EventID"] == "45":
                 match_action = prog_action_45.search(string_data)
                 if match_action:
-                    event["action"] = match_action.group(1) 
+                    event["Action"] = match_action.group(1) 
 
                 match_file = prog_file_45.search(string_data)
                 if match_file:
-                    event["object"] = match_file.group(1)
+                    event["Object"] = match_file.group(1)
 
             yield event
 

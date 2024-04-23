@@ -23,7 +23,7 @@ import pytz
 import base.job
 import binascii
 import xmltodict
-import datetime
+from datetime import datetime, timedelta
 from plistlib import InvalidFileException
 
 class CortexLogs(base.job.BaseModule):
@@ -64,18 +64,18 @@ class CortexLogs(base.job.BaseModule):
                     timestamp, type, process, action, thread, message = match.groups()
 
                     log_entry_dict = {
-                        "@timestamp": timestamp.strip(),
+                        "Time": timestamp.strip(),
+                        "Message": message.strip(),
                         "type": type.strip(),
-                        "process.id": process.strip(),
+                        "ProcessId": process.strip(),
                         "action": action.strip(),
                         "thread": thread.strip(),
-                        "message": message.strip(),
-                        "filename": filename.strip()
+                        "LogFilename": filename.strip()
                     }
 
                     prev_line_dict = log_entry_dict
                 else:
-                    prev_line_dict["message"] = prev_line_dict["message"] + line
+                    prev_line_dict["Message"] = prev_line_dict["Message"] + line
 
             if len(prev_line_dict) != 0:
                 yield prev_line_dict
@@ -100,18 +100,18 @@ class CortexLogs(base.job.BaseModule):
                     timestamp, severity, hostname, thread, context, message = match.groups(default='')
 
                     log_entry_dict = {
-                        "@timestamp": timestamp.strip(),
-                        "severity": severity.strip(),
+                        "Time": timestamp.strip(),
+                        "Message": message.strip(),
+                        "Level": severity.strip(),
                         "hostname": hostname.strip(),
                         "thread": thread.strip(),
                         "context": context.strip().strip('{}'),
-                        "message": message.strip(),
-                        "filename": filename.strip()
+                        "LogFilename": filename.strip()
                     }
                     prev_line_dict = log_entry_dict
                 
                 else:
-                    prev_line_dict["message"] = prev_line_dict["message"] + line
+                    prev_line_dict["Message"] = prev_line_dict["Message"] + line
 
             if len(prev_line_dict) != 0:
                 yield prev_line_dict
@@ -157,7 +157,7 @@ class McAfeeEndpointSecurityLogs(base.job.BaseModule):
     def run(self, path=None):
         pattern = r'(\d+\/\d+\/\d+\s\d+:\d+:\d+\.?\d*\s(?:AM|PM))\s*([\w.]+\(?\d+\.\d+\)?)\s*<([\w\d-]+)>\s*(?:\(([^)]+)\))?\s*([\w.]+)\s*\:?\s*(.+)'
         prog = re.compile(pattern)
-        filename = os.path.basename(path)
+        filename = f"{os.path.basename(os.path.dirname(path))}/{os.path.basename(path)}"
         count_lines = 0
         prev_line_dict = {}
 
@@ -173,19 +173,19 @@ class McAfeeEndpointSecurityLogs(base.job.BaseModule):
 
                 timestamp, process, user, session, context, message = match.groups(default='')
                 log_entry_dict = {
-                    "@timestamp": timestamp.strip(),
-                    "process": process.strip(),
-                    "user": user.strip(),
-                    "session": session.strip(),
-                    "context": context.strip(),
-                    "message": message.strip(), 
-                    "filename": filename
+                    "Time": timestamp.strip(),
+                    "Message": message.strip(),
+                    "User": user.strip(),
+                    "Process": process.strip(),
+                    "LogFilename": filename,
+                    "Session": session.strip(),
+                    "Context": context.strip()
                 }
                 prev_line_dict = log_entry_dict
                 
             else:
                 if (line.strip() != "" and count_lines != 0):
-                        prev_line_dict["message"] = prev_line_dict["message"] + line
+                        prev_line_dict["Message"] = prev_line_dict["Message"] + line
 
         if len(prev_line_dict) != 0:
             yield prev_line_dict
@@ -210,8 +210,10 @@ class BitdefenderLogs(base.job.BaseModule):
         parsed_dict = xmltodict.parse(xml_content)
         if "ScanSession" in parsed_dict:
             parsed_dict = parsed_dict["ScanSession"]
-            parsed_dict["@timestamp"] = parsed_dict.pop("@creationDate")
-            parsed_dict["filename"] = parsed_dict.pop("@originalPath")
+            parsed_dict["Time"] = parsed_dict.pop("@creationDate")
+            parsed_dict["LogFilename"] = parsed_dict.pop("@originalPath")
+            parsed_dict["Message"] = parsed_dict.pop("@name")
+
 
             yield parsed_dict
         else:
@@ -233,6 +235,10 @@ class McAfeeDesktopProtectionLogs(base.job.BaseModule):
     def run(self, path=None):
         pattern = r'(\d+\/\d+\/\d+\s\d+:\d+:\d+\.?\d*)\s*(.*)'
         prog = re.compile(pattern)
+        would_blocked = r'(Would\sbe\sblocked\sby\sAccess\sProtection\srule\s*\(.*?\))\s*(\S*)\s(.*?\.\S*)\s(.*?\.\S*).*(Action\sblocked\s:\s\w+)'
+        prog_would_blocked = re.compile(would_blocked)
+        blocked_by = r'Blocked by Access Protection rule\s+([^\s]+)\s+(.*?\.\S+).*(Action\sblocked\s:\s\w+)'
+        prog_blocked_by = re.compile(blocked_by)
         filename = os.path.basename(path)
         count_lines = 0
         prev_line_dict = {}
@@ -249,15 +255,32 @@ class McAfeeDesktopProtectionLogs(base.job.BaseModule):
 
                 timestamp, message = match.groups(default='')
                 log_entry_dict = {
-                    "@timestamp": timestamp.strip(),
-                    "message": message.strip(), 
-                    "filename": filename
+                    "Time": timestamp.strip(),
+                    "Message": message.strip(), 
+                    "LogFilename": filename
                 }
+
+                match_would_blocked = prog_would_blocked.search(log_entry_dict["Message"])
+                if match_would_blocked:
+                    message_aux, user, process, object, action = match_would_blocked.groups(default='')
+                    log_entry_dict["Message"] = message_aux
+                    log_entry_dict["Object"] = object
+                    log_entry_dict["User"] = user
+                    log_entry_dict["Process"] = process
+                    log_entry_dict["Action"] = action
+                
+                match_blocked_by = prog_blocked_by.search(log_entry_dict["Message"])
+                if match_blocked_by:
+                    user, object, action = match_blocked_by.groups(default='')
+                    log_entry_dict["Object"] = object
+                    log_entry_dict["User"] = user
+                    log_entry_dict["Action"] = action
+
                 prev_line_dict = log_entry_dict
                 
             else:
                 if (line.strip() != "" and count_lines != 0):
-                        prev_line_dict["message"] = prev_line_dict["message"] + line
+                        prev_line_dict["Message"] = prev_line_dict["Message"] + line
 
         if len(prev_line_dict) != 0:
             yield prev_line_dict
@@ -593,15 +616,14 @@ class SophosEndpointLogs(base.job.BaseModule):
                         count_lines = 1
                         timestamp, logname, message = match.groups(default='')
                         log_entry_dict = {
-                            "@timestamp": timestamp.strip(),
-                            "logname": logname.strip(),
-                            "message": message.strip(), 
-                            "filename": filename
+                            "Time": timestamp.strip(),
+                            "Message": message.strip(), 
+                            "LogFilename": filename
                         }
                         prev_line_dict = log_entry_dict
                     else:
                         if (line.strip() != "" and count_lines != 0):
-                            prev_line_dict["message"] = prev_line_dict["message"] + line
+                            prev_line_dict["Message"] = prev_line_dict["Message"] + line
 
                 if len(prev_line_dict) != 0:
                     yield prev_line_dict
@@ -622,14 +644,14 @@ class SophosEndpointLogs(base.job.BaseModule):
                         count_lines = 1
                         timestamp, message = match.groups(default='')
                         log_entry_dict = {
-                            "@timestamp": timestamp.strip(),
-                            "message": message.strip(), 
-                            "filename": filename
+                            "Time": timestamp.strip(),
+                            "Message": message.strip(), 
+                            "LogFilename": filename
                         }
                         prev_line_dict = log_entry_dict
                     else:
                         if (line.strip() != "" and count_lines != 0):
-                            prev_line_dict["message"] = prev_line_dict["message"] + line
+                            prev_line_dict["Message"] = prev_line_dict["Message"] + line
 
                 if len(prev_line_dict) != 0:
                     yield prev_line_dict
@@ -650,15 +672,14 @@ class SophosEndpointLogs(base.job.BaseModule):
                         count_lines = 1
                         timestamp, logname, message = match.groups(default='')
                         log_entry_dict = {
-                            "@timestamp": timestamp.strip(),
-                            "logname": logname.strip(),
-                            "message": message.strip(), 
-                            "filename": filename
+                            "Time": timestamp.strip(),
+                            "Message": message.strip(), 
+                            "LogFilename": filename
                         }
                         prev_line_dict = log_entry_dict
                     else:
                         if (line.strip() != "" and count_lines != 0):
-                            prev_line_dict["message"] = prev_line_dict["message"] + line
+                            prev_line_dict["Message"] = prev_line_dict["Message"] + line
 
                 if len(prev_line_dict) != 0:
                     yield prev_line_dict
@@ -691,7 +712,8 @@ class EventJournals(base.job.BaseModule):
                 with lzma.open(path, 'rb') as f:
                     data = f.read()
                     decoded_data = data.decode('utf-8', errors='ignore')
-                    printable_strings = re.findall(r'[\x20-\x7E]{5,}', decoded_data)
+                    printable_strings = re.findall(r'[\x20-\x7E]{6,}', decoded_data)
+                    printable_strings = list( dict.fromkeys(printable_strings) )
                     for string in printable_strings:
                         log_dict = {
                             "@timestamp": datetime1,
@@ -705,7 +727,8 @@ class EventJournals(base.job.BaseModule):
                 with open(path, 'rb') as f:
                     data = f.read()
                     decoded_data = data.decode('utf-8', errors='ignore')
-                    printable_strings = re.findall(r'[\x20-\x7E]{5,}', decoded_data)
+                    printable_strings = re.findall(r'[\x20-\x7E]{6,}', decoded_data)
+                    printable_strings = list( dict.fromkeys(printable_strings) )
                     for string in printable_strings:
                         log_dict = {
                             "@timestamp": datetime1,
@@ -722,11 +745,52 @@ class EventJournals(base.job.BaseModule):
     def ldap_to_datetime(self, timestamp):
         # Convert LDAP timestamp to seconds since January 1, 1601 (UTC)
         seconds_since_1601 = timestamp / 10000000
-        delta = datetime.timedelta(seconds=seconds_since_1601)
-        start_date = datetime.datetime(1601, 1, 1)
+        delta = timedelta(seconds=seconds_since_1601)
+        start_date = datetime(1601, 1, 1)
         result_date = start_date + delta
         # Convert to UTC
         utc_timezone = pytz.utc
         result_utc_date = result_date.astimezone(utc_timezone)
         return result_utc_date
+    
+
+class KasperskyEndpoint(base.job.BaseModule):
+
+    """ Parser the KasperskyEndpoint Message windows events
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+    
+    def run(self, path=None):
+        pattern_path = r'Ruta\sde\sla\saplicación:\s?(.*?)\\r'
+        prog_path = re.compile(pattern_path)
+        pattern_name = r'Nombre:\s?(.*?)\\r'
+        prog_name = re.compile(pattern_name)
+        pattern_user = r'Usuario:\s?(.*?)\\r'
+        prog_user = re.compile(pattern_user)  
+
+        for line in self.from_module.run(path):
+            message = line["Message"]
+
+            match_path = prog_path.search(message)
+            if match_path:
+                path = match_path.groups(default='')[0]
+                line["Object"] = path
+
+            match_namefile = prog_name.search(message)
+            if match_namefile:
+                namefile = match_namefile.groups(default='')[0]
+                line["Object"] = line.get("Object","") + "\\" + namefile
+
+            match_user = prog_user.search(message)
+            if match_user:
+                user = match_user.groups(default='')[0]
+                line["User"] = user
+
+            yield line
         
