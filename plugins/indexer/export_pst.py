@@ -352,6 +352,25 @@ class CreatePstHtml(base.job.BaseModule):
             yield item
         return []
 
+    def get_content_links(self, dirname, body):
+        """ dsfa """
+
+        regex = re.compile('<a href="([^"]+)"[^>]+>([^<]+)')
+        outfile = os.path.join(self.config.config['common']['analysisdir'], 'mail', 'body_links.csv')
+        headers = True
+        if os.path.isfile(outfile):
+            headers = False
+        with open(outfile, 'a') as f_out:
+            if headers:
+                f_out.write("Path;href;link\n")
+            for line in body.split('\n'):
+                a = regex.findall(line)
+                if a:
+                    for item in a:
+                        f_out.write(f"{dirname};{item[0]};{item[1]}\n")
+                    # for href, item in a:
+                    #     print(body, href, item)
+
     def _export_item(self, item):
         """ Exports item to html.
 
@@ -431,6 +450,9 @@ class CreatePstHtml(base.job.BaseModule):
                         body = f.read().replace("\n", "<br>\n")
 
         attach_info = "no"
+
+        if fich.startswith("Message"):
+            self.get_content_links(item['dirname'], body)
 
         att_dir = os.path.join(base_path, "Attachments")
 

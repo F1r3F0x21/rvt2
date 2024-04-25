@@ -176,8 +176,13 @@ class ExportPst(base.job.BaseModule):
                             base.utils.check_directory(directory, delete_exists=True)
                         else:
                             continue
-                run_command([pffexport, '-f', 'text', '-m', 'all', '-q', '-t', out_path, pst_file], stderr=subprocess.DEVNULL,
-                            from_dir=self.myconfig('casedir'))
+                try:
+                    run_command([pffexport, '-f', 'text', '-m', 'all', '-q', '-t', out_path, pst_file], stderr=subprocess.DEVNULL,
+                                from_dir=self.myconfig('casedir'))
+                except Exception:
+                    self.logger().warning(f"Error parsing {pst_file}. Trying without recovery mails")
+                    run_command([pffexport, '-f', 'text', '-q', '-t', out_path, pst_file], stderr=subprocess.DEVNULL,
+                                from_dir=self.myconfig('casedir'))
             except Exception as exc:
                 if self.myflag('stop_on_error'):
                     self.logger().error('Exception %s: %s', type(exc).__name__, exc)
@@ -254,6 +259,11 @@ class MailboxCSV(base.job.BaseModule):
                 res['x_originating_ip'] = fileinfo.get('email_x_originating_ip', '')
                 res['email_references'] = fileinfo.get('email_references', '')
                 res['conversation_topic'] = fileinfo.get('email_conversation_topic', '')
+                res['attachments'] = ''
+                if res['flags'].find('Has attachments') > -1:
+                    att_path = os.path.join(self.myconfig('casedir'), fileinfo['dirname'], 'Attachments')
+                    if os.path.isdir(att_path):
+                        res['attachments'] = ",".join(os.listdir(att_path))
                 yield res
 
 
@@ -415,6 +425,7 @@ class PffExportParseMessage(PffExportParseObject):
     Yields:
         Information about the Message but not its attachments.
     """
+
     def run(self, path, containerid=None):
         info = {}
         # parse the Message.html or Message.rtf file in the directory: this is the content

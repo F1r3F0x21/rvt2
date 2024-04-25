@@ -81,7 +81,7 @@ install_pip_deps() (
 
 build_install_evtx() (
     cd "${SRCDIR}"
-    EVTX=$(curl --silent "https://api.github.com/repos/omerbenamram/evtx/releases/latest"| grep -oP '"browser_download_url": "\K(.*)(?=")' |grep linux-gnu)
+    EVTX=$(curl --silent "https://api.github.com/repos/omerbenamram/evtx/releases/latest"| grep -oP '"browser_download_url": "\K(.*)(?=")' |grep linux-gnu| grep x86_64)
     wget $EVTX
     chmod 755 evtx_dump*
     mv evtx_dump* /usr/local/bin/evtx_dump
@@ -94,7 +94,7 @@ build_install_sleuthkit() (
     FILENAME=${SLEUTHKIT##*/}
     tar xzvf $FILENAME
     rm $FILENAME
-    cd ${FILENAME::-7}
+    cd "${FILENAME%.tar.gz}"
     ./configure
     make
     make install
@@ -435,7 +435,7 @@ clean_sources() (
   rm -f Parse-Evtx*.zip* RegRipper2*
 )
 
-# Use this function to install all dependencies on Debian bullseye and setup rvt2
+# Use this function to install all dependencies on ubuntu 22.04 and setup rvt2
 setup_debian_full() {
 
     # Basic preparation
@@ -464,7 +464,7 @@ setup_debian_full() {
     build_install_libscca
     build_install_libevt
     build_install_regripper
-    build_install_ntfs3g_system_compression
+    # build_install_ntfs3g_system_compression
     build_install_apfs_fuse
     build_install_yara
     build_install_volatility
