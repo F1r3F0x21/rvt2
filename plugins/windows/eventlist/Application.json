@@ -1,4 +1,88 @@
 {
+  "201": {
+    "description": "Transferred files",
+    "provider": "ScreenConnect",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
+  "200": {
+    "description": "Executed command",
+    "provider": "ScreenConnect",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
+  "20": {
+    "description": "Network information",
+    "provider": "ScreenConnect",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
+  "101": {
+    "description": "Account Disconnected",
+    "provider": "ScreenConnect",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
+  "100": {
+    "description": "Account Connected",
+    "provider": "ScreenConnect",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
+  "0": {
+    "description": "-- GENERAL description --",
+    "provider": "ScreenConnect",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
   "52": {
     "description": "Application Control",
     "provider": "Sophos System Protection",
