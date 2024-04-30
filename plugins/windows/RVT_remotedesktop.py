@@ -120,3 +120,51 @@ class Anydesk(base.job.BaseModule):
                     result['message'] = line[97:].strip()
                     yield result
 
+
+class Supremo(base.job.BaseModule):
+    """ Extracts information about supremo logs """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the trace file
+        """
+        pattern_log = r'\[(.*?)\]\s*(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}:\d{3})\s+\[(TID\s*\d+)\s*\]\s*\[(.*?)\]\s*(.*)$'
+        prog_log = re.compile(pattern_log)
+        filename = os.path.basename(path)
+        count_lines = 0
+        prev_line_dict = {}
+
+
+        for line in self.from_module.run(path):
+            match = prog_log.match(line)
+            if match:
+
+                if count_lines != 0:
+                    count_lines = 0
+                    yield prev_line_dict
+
+                count_lines = 1
+                version, timestamp, thread, level, message = match.groups()
+                date_object = datetime.datetime.strptime(timestamp.strip(), "%Y-%m-%d %H:%M:%S:%f")
+                # Format the datetime object into ISO format
+                iso_date = date_object.isoformat()
+
+                log_entry_dict = {
+                    "Time": iso_date,
+                    "Message": message.strip(),
+                    "Level": level.strip(),
+                    "Version": version.strip(),
+                    "Thread": thread.strip(),
+                    "LogFilename": filename.strip()
+                }
+
+                prev_line_dict = log_entry_dict
+            else:
+                prev_line_dict["Message"] = prev_line_dict["Message"] + line
+
+        if len(prev_line_dict) != 0:
+            yield prev_line_dict
+
+
+
