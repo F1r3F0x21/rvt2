@@ -1,4 +1,60 @@
 {
+  "1": {
+    "description": "Client connected",
+    "provider": "chromoting",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
+  "2": {
+    "description": "Client disconnected",
+    "provider": "chromoting",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
+  "4": {
+    "description": "Channel IP for client",
+    "provider": "chromoting",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
+  "5": {
+    "description": "Host started for user",
+    "provider": "chromoting",
+    "path": {
+      "EventData/Data": {
+        "Name": ["#text"],
+        "transform": {"#text": "data.text"}
+      },
+      "EventData": {
+        "Name": ["Binary"],
+        "transform": {"Binary": "data.binary"}
+      }
+    }
+  },
   "201": {
     "description": "Transferred files",
     "provider": "ScreenConnect",

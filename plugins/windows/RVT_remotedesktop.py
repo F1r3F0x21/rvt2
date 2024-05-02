@@ -17,7 +17,7 @@
 import datetime
 import re
 import os
-
+import ast
 import base.job
 from base.utils import check_folder, save_csv
 
@@ -167,4 +167,33 @@ class Supremo(base.job.BaseModule):
             yield prev_line_dict
 
 
+class GoogleChromeRemoteDesktop(base.job.BaseModule):
+    """ Extracts information about supremo logs """
 
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the trace file
+        """
+        for event in self.from_module.run(path):
+            if event["event.code"] == '4':
+                message_dict = ast.literal_eval(event["data.text"])
+                event["Client"] = message_dict[0]
+                event["IP"] = message_dict[1]
+                event["HostIP"] = message_dict[2]
+                event["Channel"] = message_dict[3]
+                event["Connection"] = message_dict[4]
+            
+            if event["event.code"] == '1':
+                 message_dict = ast.literal_eval(event["data.text"])
+                 event["Client"] = message_dict[0]
+
+            if event["event.code"] == '5':
+                 message_dict = ast.literal_eval(event["data.text"])
+                 event["Client"] = message_dict[0]
+
+            if event["event.code"] == '2':
+                 message_dict = ast.literal_eval(event["data.text"])
+                 event["Client"] = message_dict[0]
+            
+            yield event
