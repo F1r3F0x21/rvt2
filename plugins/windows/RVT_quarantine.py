@@ -54,6 +54,10 @@ class Quarantine(base.job.BaseModule):
         check_directory(base_path, create=True)
 
         eset_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'Local/ESET/ESET Security/Quarantine/.*\.N(Q|D)F$')]
+        symantec_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'Local/Symantec/.*\.(V|Q)B(N|D)$')]
+        mcafee_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'ProgramData/McAfee/.*\.BUP$')]
+        kaspersky_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'ProgramData/Kaspersky Lab/.*\.KLQ$')]
+        bitdefener_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'ProgramData/Bitdefender/.*\.BDQ$')]
         defender_dirs = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'ProgramData/Microsoft/Windows Defender/Quarantine/(ResourceData|Entries)$')]
         defender_list = []
         for defdir in defender_dirs:
@@ -64,13 +68,13 @@ class Quarantine(base.job.BaseModule):
         self.dexray = os.path.join(self.myconfig('rvthome'), "plugins/external/DeXRAY.pl")
         self.dexray = '/usr/local/ncd-scripts/DeXRAY.pl'
 
-        self.logger().info('Found {} eset quarantine files and {} defender quarantine files'.format(len(eset_list), len(defender_list)))
+        self.logger().info('Found {} eset quarantine files, {} defender quarantine files, {} symantec quarantine files, {} McAfee quarantine files, {} Kaspersky quarantine files, {} Bitdefender quarantine files'.format(len(eset_list), len(defender_list), len(symantec_list), len(mcafee_list), len(kaspersky_list), len(bitdefener_list)))
         outdir = os.path.join(base_path)
         check_directory(outdir, create=True)
 
         body_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), '{}_BODY.csv'.format(self.config.config['DEFAULT']['source']))
         data = {}
-        files_list = defender_list + eset_list
+        files_list = defender_list + eset_list + symantec_list + mcafee_list + kaspersky_list + bitdefener_list
         relative_files_list = files_list
         if len(files_list) > 0 and files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
             relative_files_list = [relative_path(file, self.myconfig('casedir')) for file in files_list]
@@ -95,6 +99,22 @@ class Quarantine(base.job.BaseModule):
                     f_out.write(self.parse_defender(defender_file))
                 else:
                     self.decrypt(defender_file, 'Defender')
+
+            for symantec_file in symantec_list:
+                # TODO write metadata to the file
+                self.decrypt(symantec_file, 'Symantec')
+            
+            for mcafee_file in mcafee_list:
+                # TODO write metadata to the file
+                self.decrypt(mcafee_file, 'McAfee')
+                
+            for kaspersky_file in kaspersky_list:
+                # TODO write metadata to the file
+                self.decrypt(kaspersky_file, 'Kaspersky')
+            
+            for bitdefener_file in bitdefener_list:
+                # TODO write metadata to the file
+                self.decrypt(bitdefener_file, 'Bitdefender')
         return []
 
     def parse_eset(self, path):
