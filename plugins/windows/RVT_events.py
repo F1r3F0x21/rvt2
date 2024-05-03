@@ -93,32 +93,49 @@ class GetEvents(object):
                 except Exception:
                     pass
 
-                # Events not defined in data_json
-                if not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
-                    # EventData, UserData are just reproduced as dictionaries
-                    if 'EventData' in rec:
-                        data['EventData'] = rec['EventData']
-                    if 'UserData' in rec:
-                        data['UserData'] = rec['UserData']
-                    yield data
-                    continue
+                # Events with default parser in the .json file
+                default_parser = False
+                exist_specific_parser = False
+
+                if "*" in self.data_json.keys():
+                    if self.data_json["*"]["provider"] == data['event.provider'] and self.data_json["*"]["dataset"] == data['event.dataset']:
+                        default_parser = True
+
+                    if data['event.code'] in self.data_json.keys() and re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
+                        exist_specific_parser = True 
+
+                event_code = data['event.code']
+                if default_parser and not exist_specific_parser:
+                    event_code = "*"
+
+                if not default_parser:
+                    # Events not defined in data_json
+                    if not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
+                        # EventData, UserData are just reproduced as dictionaries
+                        if 'EventData' in rec:
+                            data['EventData'] = rec['EventData']
+                        if 'UserData' in rec:
+                            data['UserData'] = rec['UserData']
+                        yield data
+                        continue
 
                 # Selected events
                 try:
-                    description = self.data_json[data['event.code']]["description"].format(**rec)
+                    description = self.data_json[event_code]["description"].format(**rec)
                 except Exception:
-                    description = re.sub(r'{.*?}', '<>', self.data_json[data['event.code']]["description"])
+                    description = re.sub(r'{.*?}', '<>', self.data_json[event_code]["description"])
 
                 data['message'] = description
                 for field in ['category', 'type', 'action']:
-                    if field in self.data_json[data['event.code']]:
-                        data['event.{}'.format(field)] = self.data_json[data['event.code']][field]
-                if 'path' not in self.data_json[data['event.code']].keys():
+                    if field in self.data_json[event_code]:
+                        data['event.{}'.format(field)] = self.data_json[event_code][field]
+
+                if 'path' not in self.data_json[event_code].keys():
                     yield data
                     continue
 
                 # Extra fields
-                for x, item in self.data_json[data['event.code']]['path'].items():
+                for x, item in self.data_json[event_code]['path'].items():
                     self.get_xpath_data(x, item, rec, data)
 
                 yield data
