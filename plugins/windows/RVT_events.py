@@ -93,38 +93,52 @@ class GetEvents(object):
                 except Exception:
                     pass
 
-                # Events not defined in data_json
-                if not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
-                    # EventData, UserData are just reproduced as dictionaries
-                    if 'EventData' in rec:
-                        data['EventData'] = rec['EventData']
-                    if 'UserData' in rec:
-                        data['UserData'] = rec['UserData']
-                    yield data
-                    continue
+                # Events with default parser in the .json file
+                default_parser = False
+                exist_specific_parser = False
+                if "*" in self.data_json.keys():
+                    if self.data_json["*"]["provider"] == data['event.provider'] and self.data_json["*"]["dataset"] == data['event.dataset']:
+                        default_parser = True
+                    if data['event.code'] in self.data_json.keys() and re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
+                        exist_specific_parser = True 
+                
+                event_code = data['event.code']
+                if default_parser and not exist_specific_parser:
+                    event_code = "*"
+                
+                if not default_parser:
+                    # Events not defined in data_json
+                    if not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
+                        # EventData, UserData are just reproduced as dictionaries
+                        if 'EventData' in rec:
+                            data['EventData'] = rec['EventData']
+                        if 'UserData' in rec:
+                            data['UserData'] = rec['UserData']
+                        yield data
+                        continue
 
                 # Selected events
                 try:
-                    description = self.data_json[data['event.code']]["description"].format(**rec)
+                    description = self.data_json[event_code]["description"].format(**rec)
                 except Exception:
-                    description = re.sub(r'{.*?}', '<>', self.data_json[data['event.code']]["description"])
+                    description = re.sub(r'{.*?}', '<>', self.data_json[event_code]["description"])
 
                 data['message'] = description
                 for field in ['category', 'type', 'action']:
-                    if field in self.data_json[data['event.code']]:
-                        data['event.{}'.format(field)] = self.data_json[data['event.code']][field]
-                if 'path' not in self.data_json[data['event.code']].keys():
+                    if field in self.data_json[event_code]:
+                        data['event.{}'.format(field)] = self.data_json[event_code][field]
+                if 'path' not in self.data_json[event_code].keys():
                     yield data
                     continue
-
+                
                 # Extra fields
-                for x, item in self.data_json[data['event.code']]['path'].items():
+                for x, item in self.data_json[event_code]['path'].items():
                     self.get_xpath_data(x, item, rec, data)
 
                 yield data
                 self.count += 1
         except Exception as exc:
-            self.logger.warning('Error with pyevtx when reading the {} event from {}: {}'.format(count, self.eventfile, exc))
+            self.logger.warning('Error with pyevtx when reading the {} event from {}: {}'.format(self.count, self.eventfile, exc))
 
     def get_xpath_data(self, path, item, event, data):
         split_path = path.split('/')
@@ -666,21 +680,22 @@ class Application(EventJob):
                 ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
                 ev.pop('data.Binary')
             if ev['event.code'] in fields.keys() and ev['event.provider'] == fields[ev['event.code']]['provider']:
-                data = ast.literal_eval(ev["data.#text"])
-                ev.pop('data.#text')
-                for e, field in enumerate(fields[ev['event.code']]['fields']):
-                    if data[e] == '(NULL)' or data[e] == '':
-                        continue
-                    if field == 'reason' and ev['event.provider'] == 'RasClient':
-                        ev['reasonStr'] = error_str.get(data[e], '')
-                    if field == 'others':
-                        for item in data[e][1:].split('\n'):
-                            aux_fields = re.search("(.*) = (.*)", item)
-                            ev[aux_fields.group(1)] = aux_fields.group(2)
-                            ev['message'] = ev['message'].replace('<%s>' % aux_fields.group(1), aux_fields.group(2))
-                        continue
-                    ev[field] = data[e]
-                    ev['message'] = ev['message'].replace('<%s>' % field, data[e])
+                data = ast.literal_eval(ev.get('data.#text',"{}"))
+                ev.pop('data.#text',"")
+                if data:
+                    for e, field in enumerate(fields[ev['event.code']]['fields']):
+                        if data[e] == '(NULL)' or data[e] == '':
+                            continue
+                        if field == 'reason' and ev['event.provider'] == 'RasClient':
+                            ev['reasonStr'] = error_str.get(data[e], '')
+                        if field == 'others':
+                            for item in data[e][1:].split('\n'):
+                                aux_fields = re.search("(.*) = (.*)", item)
+                                ev[aux_fields.group(1)] = aux_fields.group(2)
+                                ev['message'] = ev['message'].replace('<%s>' % aux_fields.group(1), aux_fields.group(2))
+                            continue
+                        ev[field] = data[e]
+                        ev['message'] = ev['message'].replace('<%s>' % field, data[e])
             yield ev
         self.save_stats(events_parser.evtx_stats())
 

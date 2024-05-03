@@ -1,4 +1,40 @@
 {
+  "52": {
+    "description": "Application Control",
+    "provider": "Sophos System Protection",
+    "path": {
+      "EventData":{
+        "Name": ["Binary"]
+      },
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "42": {
+    "description": "Sophos Malware events",
+    "provider": "Sophos System Protection",
+    "path": {
+      "EventData":{
+        "Name": ["Binary"]
+      },
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
+  "8001": {
+    "description": "The Sophos Management Communications System client service has received an HTTP status 503 from the server",
+    "provider": "Sophos Management Communications System",
+    "path": {
+      "EventData":{
+        "Name": ["Binary"]
+      },
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
   "1000": {
     "description": "Faulting application <product.name>, version <product.version>, faulting module <module.name>, version <module.version>, fault address <offset>",
     "provider": "Application Error",

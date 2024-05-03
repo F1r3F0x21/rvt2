@@ -1,0 +1,17 @@
+{
+    "*":{
+        "description": "-- GENERAL description --",
+        "provider": "TrapsV2",
+        "dataset" : "Palo Alto Networks",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    }
+}

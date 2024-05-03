@@ -1,0 +1,17 @@
+{
+    "*":{
+        "description": "-- GENERAL description --",
+        "provider": "Symantec Endpoint Protection Client",
+        "dataset" : "Symantec Endpoint Protection Client",
+        "path": {
+          "EventData/Data": {
+            "Name": ["#text"],
+            "transform": {"#text": "data.text"}
+          },
+          "EventData": {
+            "Name": ["Binary"],
+            "transform": {"Binary": "data.binary"}
+          }
+        }
+    }
+}

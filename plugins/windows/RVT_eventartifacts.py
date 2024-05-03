@@ -14,13 +14,14 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
+import json
 import os
 import ast
 import datetime
+import re
 import dateutil.parser
-from collections import defaultdict
-
 import base.job
+from collections import defaultdict
 from base.utils import save_md_table, date_to_iso
 from plugins.windows.RVT_os_info import CharacterizeWindows
 
@@ -32,6 +33,8 @@ class Filter_Events(base.job.BaseModule):
 
         for event in self.from_module.run(path):
             if event['event.code'] in events.keys() and event['event.provider'] == events[event['event.code']]:
+                yield event
+            if "*" in events.keys() and event['event.provider'] == events["*"]:
                 yield event
 
 
@@ -1057,6 +1060,125 @@ class TGT_attack(base.job.BaseModule):
                             print("There are no previous TGT for ticket created (or it has created more than %s hours before) on %s of user %s with service name %s, ip %s, status: %s" % (hours, ticket['event.created'], user, ticket['service.name'], ticket['ip'], ticket['status']))
                 else:
                     print("There are no TGT ticket of user %s. This ticket is created on %s with service name %s, ip %s, status: %s" % (user, ticket['event.created'], ticket['service.name'], ticket['ip'], ticket['status']))
+
+
+class EDR_PaloAlto(base.job.BaseModule):
+    """ Extracts specific fields from Palo Alto events 
+
+    """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed events.json
+        """
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        # To add more specific events 
+        eventlist = ["88", "85"]
+
+        for event in list(self.from_module.run(path)):
+            if event["EventID"] in eventlist:
+                message_list = ast.literal_eval(event["Message"])
+                extra_data = ast.literal_eval(message_list[5])
+
+                event["Object"] = extra_data["filePath"]
+                event["Hash"] = extra_data["fileHash"]["sha256"]
+                if extra_data["verdict"] == 1:
+                    event["Level"] = "Potentially harmful"
+
+                if "yaraDetails" in extra_data.keys():
+                    event_rules = extra_data["yaraDetails"]["rules"][0]
+                    
+                    event["Level"] = event_rules["severity"]
+                    event["Action"] = event_rules["action"]
+                    event["Message"] = event_rules["description"]
+            yield event
+
+
+class EDR_Sophos(base.job.BaseModule):
+    """ Extracts specific fields from Sophos events 
+
+    """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed events.json
+        """
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        for event in list(self.from_module.run(path)):
+            if event["EventID"] == "42" and event["event.provider"] == "Sophos System Protection" :
+                message_list = ast.literal_eval(event["data.#text"])
+                event["Object"] = message_list[1]
+                event["Threat"] = message_list[2]
+                file_data = json.loads(message_list[4])
+                event["Hash"] = file_data.get("sha256FileHash")
+                event["Size"] = file_data.get("fileSize")
+            
+            if event["EventID"] == "52" and event["event.provider"] == "Sophos System Protection" :
+                message_list = ast.literal_eval(event["data.#text"])
+                event["Object"] = message_list[1]
+                event["Message"] += f" {message_list[2]}" 
+            
+            yield event
+
+
+class EDR_Symantec(base.job.BaseModule):
+    """ Extracts specific fields from Symantec events 
+
+    """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the parsed events.json
+        """
+        self.check_params(path, check_path=True, check_path_exists=True)
+
+        # Regex for event 51
+        action = r'Action:([\w\s]*)\.'
+        prog_action = re.compile(action)
+        actionDescription = r'Action Description:([\w\s]*)\.'
+        prog_actionDescription = re.compile(actionDescription)
+        file = r'File:\s*(\S*)'
+        prog_file= re.compile(file)
+
+        # Regex for event 45
+        action_45 = r'Action\staken:([\s\w]*)'
+        prog_action_45 = re.compile(action_45)
+        file_45 = r'File:\s+(.*?)\\r\\n'
+        prog_file_45 = re.compile(file_45)
+
+        for event in list(self.from_module.run(path)):
+            string_data = event["Message"]
+            event["Message"] = event["Message"].strip("[']")
+
+            if event["EventID"] == "51":
+                match_action = prog_action.search(string_data)
+                if match_action:
+                    event["Action"] = match_action.group(1) + ", "
+                
+                match_actionDescription = prog_actionDescription.search(string_data)
+                if match_actionDescription:
+                    event["Action"] = event.get("Action","") + match_actionDescription.group(1)
+
+                match_file = prog_file.search(string_data)
+                if match_file:
+                    event["Object"] = match_file.group(1)
+
+            if event["EventID"] == "45":
+                match_action = prog_action_45.search(string_data)
+                if match_action:
+                    event["Action"] = match_action.group(1) 
+
+                match_file = prog_file_45.search(string_data)
+                if match_file:
+                    event["Object"] = match_file.group(1)
+
+            yield event
+
 
 class MSSQL(base.job.BaseModule):
     """ Extracts events related with MSSQL """

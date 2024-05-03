@@ -31,3 +31,6 @@
 [submodule "plugins/external/sidr"]
 	path = plugins/external/sidr
 	url = https://github.com/strozfriedberg/sidr
+[submodule "plugins/external/ESETLogParser"]
+	path = plugins/external/ESETLogParser
+	url = https://github.com/laciKE/EsetLogParser.git
