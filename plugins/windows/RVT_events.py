@@ -680,21 +680,22 @@ class Application(EventJob):
                 ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
                 ev.pop('data.Binary')
             if ev['event.code'] in fields.keys() and ev['event.provider'] == fields[ev['event.code']]['provider']:
-                data = ast.literal_eval(ev["data.#text"])
-                ev.pop('data.#text')
-                for e, field in enumerate(fields[ev['event.code']]['fields']):
-                    if data[e] == '(NULL)' or data[e] == '':
-                        continue
-                    if field == 'reason' and ev['event.provider'] == 'RasClient':
-                        ev['reasonStr'] = error_str.get(data[e], '')
-                    if field == 'others':
-                        for item in data[e][1:].split('\n'):
-                            aux_fields = re.search("(.*) = (.*)", item)
-                            ev[aux_fields.group(1)] = aux_fields.group(2)
-                            ev['message'] = ev['message'].replace('<%s>' % aux_fields.group(1), aux_fields.group(2))
-                        continue
-                    ev[field] = data[e]
-                    ev['message'] = ev['message'].replace('<%s>' % field, data[e])
+                data = ast.literal_eval(ev.get('data.#text',"{}"))
+                ev.pop('data.#text',"")
+                if data:
+                    for e, field in enumerate(fields[ev['event.code']]['fields']):
+                        if data[e] == '(NULL)' or data[e] == '':
+                            continue
+                        if field == 'reason' and ev['event.provider'] == 'RasClient':
+                            ev['reasonStr'] = error_str.get(data[e], '')
+                        if field == 'others':
+                            for item in data[e][1:].split('\n'):
+                                aux_fields = re.search("(.*) = (.*)", item)
+                                ev[aux_fields.group(1)] = aux_fields.group(2)
+                                ev['message'] = ev['message'].replace('<%s>' % aux_fields.group(1), aux_fields.group(2))
+                            continue
+                        ev[field] = data[e]
+                        ev['message'] = ev['message'].replace('<%s>' % field, data[e])
             yield ev
         self.save_stats(events_parser.evtx_stats())
 
