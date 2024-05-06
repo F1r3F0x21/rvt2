@@ -8,8 +8,6 @@
 # - Install rvt2 binary dependencies from APT (those that aren't python3 modules).
 # - Download, build and install rvt2 binary dependencies that aren't available in Debian Stretch.
 
-# TODO: give user permissions to group 'disk'
-
 set -ex
 
 RVT2HOME="/opt/rvt2"
@@ -414,6 +412,9 @@ prepare_sudo() {
     useradd --user-group --create-home --shell /bin/bash rvt
     APPS='/bin/mount, /bin/umount, /sbin/losetup, /usr/local/bin/vshadowmount, /usr/bin/bindfs, /usr/local/bin/icat, /usr/local/bin/apfs-fuse'
     echo "%rvt ALL=(root) NOPASSWD: ${APPS}" >> /etc/sudoers
+    if grep -q "^disk:" /etc/group; then
+        sudo usermod -aG disk rvt
+    fi
 }
 
 # Give /morgue group rvt permissions
