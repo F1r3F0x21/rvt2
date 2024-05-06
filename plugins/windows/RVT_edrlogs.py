@@ -767,31 +767,24 @@ class KasperskyEndpoint(base.job.BaseModule):
         super().read_config()
     
     def run(self, path=None):
-        pattern_path = r'Ruta\sde\sla\saplicación:\s?(.*?)\\r|Application\spath:\s?(.*?)\\r'
-        prog_path = re.compile(pattern_path)
-        pattern_name = r'Nombre:\s?(.*?)\\r|Name:\s?(.*?)\\r'
-        prog_name = re.compile(pattern_name)
-        pattern_user = r'Usuario:\s?(.*?)\\r|User:\s?(.*?)\\r'
-        prog_user = re.compile(pattern_user)  
+        prog_path = re.compile(r'(?:Ruta\sde\sla\saplicación|Application\spath):\s?(.*?)\\r')
+        prog_name = re.compile(r'(?:Nombre|Name):\s?(.*?)\\r')
+        prog_user = re.compile(r'(?:Usuario|User):\s?(.*?)\\r')  
 
         for line in self.from_module.run(path):
             message = line["Message"]
 
             match_path = prog_path.search(message)
             if match_path:
-                path = match_path.groups(default='')
-                line["Object"] = "".join(path).strip()
+                line["Object"] = match_path.group(1)
 
             match_namefile = prog_name.search(message)
             if match_namefile:
-                namefilelist = match_namefile.groups(default='')
-                namefile = "".join(namefilelist).strip()
-                line["Object"] = line.get("Object","") + "\\" + namefile
+                line["Object"] = line.get("Object","") + "\\" + match_namefile.group(1)
 
             match_user = prog_user.search(message)
             if match_user:
-                user = match_user.groups(default='')
-                line["User"] = "".join(user).strip()
+                line["User"] = match_user.group(1)
 
             yield line
         
