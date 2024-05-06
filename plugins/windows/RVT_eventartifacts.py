@@ -985,15 +985,7 @@ class TGT_attack(base.job.BaseModule):
 
         eventlist = {'4768': 'tgt', '4769': 'tgs', '4770': 'renew'}
 
-        for event in list(self.from_module.run(path)):
-            # ev = dict()
-            # ev['EventID'] = event.get('event.code', '')
-            # ev['TimeCreated'] = event.get('event.created', '')
-            # ev['User'] = event.get('destination.user.name', '')
-            # ev['Domain'] = event.get('destination.domain', '')
-            # ev['Service'] = event.get('service.name', '')
-            # ev['Encryption'] = event.get('data.TicketEncryptionType', '')
-            # ev['SourceAddress'] = event.get('source.ip', '')
+        for event in self.from_module.run(path):
             if event['destination.user.name'] not in ev[eventlist[event['event.code']]].keys():
                 ev[eventlist[event['event.code']]][event['destination.user.name']] = []
             ev[eventlist[event['event.code']]][event['destination.user.name']].append({'event.created': event['event.created'], 'service.name': event['service.name'], 'TicketEncryptionType': event['data.TicketEncryptionType'], 'ip': event['source.ip'], 'TicketOptions': event['data.TicketOptions'], 'status': event.get('data.Error', '')})
@@ -1077,7 +1069,7 @@ class EDR_PaloAlto(base.job.BaseModule):
         # To add more specific events 
         eventlist = ["88", "85"]
 
-        for event in list(self.from_module.run(path)):
+        for event in self.from_module.run(path):
             if event["EventID"] in eventlist:
                 message_list = ast.literal_eval(event["Message"])
                 extra_data = ast.literal_eval(message_list[5])
@@ -1108,7 +1100,7 @@ class EDR_Sophos(base.job.BaseModule):
         """
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        for event in list(self.from_module.run(path)):
+        for event in self.from_module.run(path):
             if event["EventID"] == "42" and event["event.provider"] == "Sophos System Protection" :
                 message_list = ast.literal_eval(event["data.#text"])
                 event["Object"] = message_list[1]
@@ -1151,7 +1143,7 @@ class EDR_Symantec(base.job.BaseModule):
         file_45 = r'File:\s+(.*?)\\r\\n'
         prog_file_45 = re.compile(file_45)
 
-        for event in list(self.from_module.run(path)):
+        for event in self.from_module.run(path):
             string_data = event["Message"]
             event["Message"] = event["Message"].strip("[']")
 

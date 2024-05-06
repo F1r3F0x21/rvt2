@@ -210,9 +210,9 @@ class BitdefenderLogs(base.job.BaseModule):
         parsed_dict = xmltodict.parse(xml_content)
         if "ScanSession" in parsed_dict:
             parsed_dict = parsed_dict["ScanSession"]
-            parsed_dict["Time"] = parsed_dict.pop("@creationDate")
-            parsed_dict["LogFilename"] = parsed_dict.pop("@originalPath")
-            parsed_dict["Message"] = parsed_dict.pop("@name")
+            parsed_dict["Time"] = parsed_dict.pop("@creationDate","")
+            parsed_dict["LogFilename"] = parsed_dict.pop("@originalPath","")
+            parsed_dict["Message"] = parsed_dict.pop("@name","")
 
 
             yield parsed_dict
@@ -300,8 +300,8 @@ class DefenderLogs(base.job.BaseModule):
     def run(self, path=None):
 
         line_dict = self.parse_detection_history(path)
-        line_dict["object"] = line_dict.pop("file")
-        line_dict["hash"] = line_dict.pop("ThreatTrackingSha256")
+        line_dict["object"] = line_dict.pop("file","")
+        line_dict["hash"] = line_dict.pop("ThreatTrackingSha256","")
 
         yield line_dict
 
@@ -334,7 +334,7 @@ class DefenderLogs(base.job.BaseModule):
 
         header = file.read(6) # 6 = known DetectionHistory header size
         if header != b'\x08\x00\x00\x00\x08\x00': # check file header against known valid DetectionHistory file header
-            #print("Invalid DetectionHistory file!")
+            #Invalid DetectionHistory file!
             raise(InvalidFileException)
         file.read(18) # skipping over some zeroes, and an unknown 3-byte sequence between offset 08-0A
         guid_oct = list()
@@ -445,7 +445,7 @@ class DefenderLogs(base.job.BaseModule):
                 while MAGIC_VERSION_SECTION:
                     chunk = f.read(2)
                     if not chunk:
-                        #print("End of section or file detected. Moving on...")
+                        # End of section or file detected. Moving on...
                         MAGIC_VERSION_SECTION = 0 # break out of this section
                         break
                     if CURRENT_MODE==KEY_READ_MODE: 
@@ -456,7 +456,7 @@ class DefenderLogs(base.job.BaseModule):
                         else:
                             temp_key = temp_key+chunk.decode('windows-1252')
                             if "f\x00i\x00l\x00e" in temp_key: # file key/value pair signifies end of values delimited by colons (or \x3A)
-                                #print("End of Magic Version section!")
+                                # End of Magic Version section!
                                 temp_key = re.sub("\x00", "", temp_key)
                                 parsed_value_dict[temp_key] = "" # make sure "file" key gets assigned
                                 CURRENT_MODE = VALUE_READ_MODE
@@ -482,7 +482,7 @@ class DefenderLogs(base.job.BaseModule):
                 while GENERAL_SECTION:
                     chunk = f.read(2)
                     if not chunk:
-                        #print("End of section or file detected. Moving on...")
+                        # End of section or file detected. Moving on...
                         GENERAL_SECTION = 0 # break out of this section
                         break
                     elif CURRENT_MODE==NULL_DATA_MODE:
@@ -500,7 +500,7 @@ class DefenderLogs(base.job.BaseModule):
                             chunk = f.read(4)
                             if chunk==b'\x15\x00\x00\x00' or chunk==chunk==b'\x00\x15\x00\x00': # false positives
                                 continue
-                            #print("End of General Section!")
+                            # End of General Section!
                             f.read(4) # skip over unneeded section of hex
                             GENERAL_SECTION = 0 # break out of this section
                     else: # Applies to KEY_READ or VALUE_READ mode
@@ -508,7 +508,7 @@ class DefenderLogs(base.job.BaseModule):
                             if CURRENT_MODE==KEY_READ_MODE:
                                 temp_key = re.sub("\x00", "", temp_key)
                                 if "Magic." in temp_key[0:6]:
-                                    #print("WARNING: Extraneous \"Magic Version\" key detected! Continuing...")
+                                    # WARNING: Extraneous \"Magic Version\" key detected! Continuing...
                                     temp_key = "" # reset for next KEY_READ_MODE run
                                     LAST_READ_MODE = VALUE_READ_MODE # skip over this key, read in next key
                                 elif "Time" in temp_key:
@@ -530,7 +530,7 @@ class DefenderLogs(base.job.BaseModule):
                             elif CURRENT_MODE==VALUE_READ_MODE:
                                 final_value = re.sub("\x00", "", parsed_value_dict[temp_key])
                                 if "Threat" in final_value[0:6] or "regkey" in final_value[0:6]: # check for values that should be keys
-                                    #print(f"WARNING: Irregularity in file/empty value caused skip in parsing for keys \"{temp_key}\" and \"{final_value}\". Configuring...")
+                                    # WARNING: Irregularity in file/empty value caused skip in parsing for keys \"{temp_key}\" and \"{final_value}\". Configuring...
                                     parsed_value_dict[temp_key] = "" # reset extraneous value for temp_key
                                     parsed_value_dict[final_value] = "" # this value containing "Threat" or "regkey" should have been a key
                                     temp_key = final_value # set the final_value to the new key
@@ -767,11 +767,11 @@ class KasperskyEndpoint(base.job.BaseModule):
         super().read_config()
     
     def run(self, path=None):
-        pattern_path = r'Ruta\sde\sla\saplicación:\s?(.*?)\\r'
+        pattern_path = r'Ruta\sde\sla\saplicación:\s?(.*?)\\r|Application\spath:\s?(.*?)\\r'
         prog_path = re.compile(pattern_path)
-        pattern_name = r'Nombre:\s?(.*?)\\r'
+        pattern_name = r'Nombre:\s?(.*?)\\r|Name:\s?(.*?)\\r'
         prog_name = re.compile(pattern_name)
-        pattern_user = r'Usuario:\s?(.*?)\\r'
+        pattern_user = r'Usuario:\s?(.*?)\\r|User:\s?(.*?)\\r'
         prog_user = re.compile(pattern_user)  
 
         for line in self.from_module.run(path):
@@ -779,18 +779,19 @@ class KasperskyEndpoint(base.job.BaseModule):
 
             match_path = prog_path.search(message)
             if match_path:
-                path = match_path.groups(default='')[0]
-                line["Object"] = path
+                path = match_path.groups(default='')
+                line["Object"] = "".join(path).strip()
 
             match_namefile = prog_name.search(message)
             if match_namefile:
-                namefile = match_namefile.groups(default='')[0]
+                namefilelist = match_namefile.groups(default='')
+                namefile = "".join(namefilelist).strip()
                 line["Object"] = line.get("Object","") + "\\" + namefile
 
             match_user = prog_user.search(message)
             if match_user:
-                user = match_user.groups(default='')[0]
-                line["User"] = user
+                user = match_user.groups(default='')
+                line["User"] = "".join(user).strip()
 
             yield line
         
