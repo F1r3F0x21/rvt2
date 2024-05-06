@@ -168,7 +168,7 @@ class Supremo(base.job.BaseModule):
 
 
 class GoogleChromeRemoteDesktop(base.job.BaseModule):
-    """ Extracts information about supremo logs """
+    """ Extracts information about GoogleChromeRemoteDesktop logs """
 
     def run(self, path=None):
         """
@@ -197,3 +197,42 @@ class GoogleChromeRemoteDesktop(base.job.BaseModule):
                  event["Client"] = message_dict[0]
             
             yield event
+    
+class DWAgent(base.job.BaseModule):
+    """ Extracts information about DWAgent logs """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the trace file
+        """
+        pattern_log = r'(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3})\s(\w+)\s(\S+)\s?(.*)'
+        prog_log = re.compile(pattern_log)
+
+        pattern_ip = r'.*ip:\s((?:\d+\.?){4}).*'
+        prog_ip = re.compile(pattern_ip)
+
+        filename = os.path.basename(path)
+
+        for line in self.from_module.run(path):
+            log_match = prog_log.match(line)
+            if log_match:
+                timestamp, level, thread, message = log_match.groups()
+                log_entry_dict = {
+                    "Time": timestamp,
+                    "Message": message.strip(),
+                    "Level": level.strip(),
+                    "Thread": thread.strip(),
+                    "LogFilename": filename.strip()
+                }
+
+                ip_match = prog_ip.match(message)
+                if ip_match:
+                    ip = ip_match.group(1)
+                    log_entry_dict["IP"] = ip
+
+                yield log_entry_dict
+            
+            else:
+                self.logger().warning("Regex pattern failed parsering: " + line)
+            
