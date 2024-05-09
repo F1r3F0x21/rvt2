@@ -82,51 +82,57 @@ class Regsmoker(base.job.BaseModule):
         for hive, hivefile in regfiles.items():
             if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd'):
                 for plugin, values in tqdm(self.hivedict[hive].items()):
-                    output_filename = os.path.join(output_path, values['filename'])
-                    check_directory(os.path.dirname(output_filename), create=True)
-                    with open(output_filename, 'w') as f_out:
-                        self.logger().debug('Launching plugin {} against {}'.format(plugin, hivefile))
-                        self.logger().debug("writting file {}".format(output_filename))
-                        if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
-                            write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
-                        if "output" in values.keys() and values["output"] == "json_to_csv":
-                            write.writerow(["Data", "Value"])
-                        for item in self.get_data(hivefile, plugin):
-                            if "output" in values.keys() and values["output"] == "json_to_csv":
-                                write.writerows(self.json_to_csv(item))
-                            elif "output" in values.keys() and values["output"] == "csv":
-                                write.writerow(item)
-                            else:
-                                f_out.write(f"{json.dumps(item)}\n")
-            elif hive in ('ntuser', 'usrclass'):
-                for username, file in hivefile.items():
-                    for plugin, values in tqdm(self.hivedict[hive].items()):
-                        output_filename = os.path.join(output_path, f"{values['filename'].replace('_user', '_%s' % username)}")
+                    try:
+                        output_filename = os.path.join(output_path, values['filename'])
                         check_directory(os.path.dirname(output_filename), create=True)
-                        to_remove = []
                         with open(output_filename, 'w') as f_out:
-                            self.logger().debug('Launching plugin {} against {}'.format(plugin, file))
+                            self.logger().debug('Launching plugin {} against {}'.format(plugin, hivefile))
                             self.logger().debug("writting file {}".format(output_filename))
                             if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
                                 write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
                             if "output" in values.keys() and values["output"] == "json_to_csv":
                                 write.writerow(["Data", "Value"])
-                            nlines = False
-                            for e, item in enumerate(self.get_data(file, plugin)):
-                                nlines = True
+                            for item in self.get_data(hivefile, plugin):
                                 if "output" in values.keys() and values["output"] == "json_to_csv":
-                                    write.writerows(self.json_to_md(item))
+                                    write.writerows(self.json_to_csv(item))
                                 elif "output" in values.keys() and values["output"] == "csv":
-                                    if e == 0:
-                                        nlines = False
                                     write.writerow(item)
                                 else:
-                                    f_out.write(json.dumps(item))
-                            if not nlines:
-                                to_remove.append(output_filename)
-                        for f in to_remove:
-                            self.logger().debug('file {} has no lines'.format(output_filename))
-                            os.remove(f)
+                                    f_out.write(f"{json.dumps(item)}\n")
+                    except Exception:
+                        self.logger().warning(f"Problems with plugin {plugin} against file {hivefile}")
+            elif hive in ('ntuser', 'usrclass'):
+                for username, file in hivefile.items():
+                    for plugin, values in tqdm(self.hivedict[hive].items()):
+                        try:
+                            output_filename = os.path.join(output_path, f"{values['filename'].replace('_user', '_%s' % username)}")
+                            check_directory(os.path.dirname(output_filename), create=True)
+                            to_remove = []
+                            with open(output_filename, 'w') as f_out:
+                                self.logger().debug('Launching plugin {} against {}'.format(plugin, file))
+                                self.logger().debug("writting file {}".format(output_filename))
+                                if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
+                                    write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
+                                if "output" in values.keys() and values["output"] == "json_to_csv":
+                                    write.writerow(["Data", "Value"])
+                                nlines = False
+                                for e, item in enumerate(self.get_data(file, plugin)):
+                                    nlines = True
+                                    if "output" in values.keys() and values["output"] == "json_to_csv":
+                                        write.writerows(self.json_to_md(item))
+                                    elif "output" in values.keys() and values["output"] == "csv":
+                                        if e == 0:
+                                            nlines = False
+                                        write.writerow(item)
+                                    else:
+                                        f_out.write(json.dumps(item))
+                                if not nlines:
+                                    to_remove.append(output_filename)
+                            for f in to_remove:
+                                self.logger().debug('file {} has no lines'.format(output_filename))
+                                os.remove(f)
+                        except Exception:
+                            self.logger().warning(f"Problems with plugin {plugin} against file {file}")
 
         return []
 

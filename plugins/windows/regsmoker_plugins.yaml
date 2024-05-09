@@ -9,6 +9,9 @@ system:
   bam:
     filename: execution/bam.csv
     output: csv
+  dam:
+    filename: execution/bam.csv
+    output: csv
   prefetch:
     filename: execution/prefetch.json
   backuprestore:
@@ -58,6 +61,8 @@ system:
     filename: lateral_movement/remoteaccess.json
   termserv:
     filename: lateral_movement/termserv.json
+  firewallrules:
+    filename: network_information/firewallrules.json
   fw_config:
     filename: network_information/fw_config.json
   ips:
@@ -132,11 +137,17 @@ software:
     output: csv
   drivers32:
     filename: persistence/drivers32.json
+  imagefile:
+    filename: persistence/imagefile.json
   run:
     filename: persistence/run.csv
     output: csv
   schedagent:
     filename: persistence/schedagent.json
+  shellserviceobjectdelayload:
+    filename: persistence/shellserviceobjectdelayload.csv
+  silentprocessexit:
+    filename: persistence/silentprocessexit.json
   tasks:
     filename: persistence/tasks.json
   citrix_sessions:
@@ -157,6 +168,8 @@ software:
     filename: storage_information/spp_clients.json
   susclient:
     filename: storage_information/susclient.json
+  volumeinfocache:
+    filename: storage_information/volumeinfocache.json
   appcompatflags:
     filename: execution/appcompatflags.json
   defbrowser:
@@ -243,7 +256,9 @@ ntuser:
   atera:
     filename: lateral_movement/atera_user.json
   mndmru:
-    filename: lateral_movement/mndmru.json
+    filename: lateral_movement/mndmru_user.json
+  network_shares:
+    filename: lateral_movement/network_shares_user.csv
   putty_hostkeys:
     filename: lateral_movement/putty_hostkeys_user.csv
     output: csv
