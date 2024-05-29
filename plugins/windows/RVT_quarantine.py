@@ -59,6 +59,7 @@ class Quarantine(base.job.BaseModule):
         kaspersky_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'ProgramData/Kaspersky Lab/.*\.KLQ$')]
         bitdefener_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'ProgramData/Bitdefender/.*\.BDQ$')]
         defender_dirs = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'ProgramData/Microsoft/Windows Defender/Quarantine/(ResourceData|Entries)$')]
+        malwarebytes_list = [os.path.join(self.myconfig('casedir'), f) for f in self.Files.search(r'ProgramData/Malwarebytes/MBAMService/Quarantine/.*\.(quar|data)')]
         defender_list = []
         for defdir in defender_dirs:
             for root, dirs, files in os.walk(defdir):
@@ -74,7 +75,7 @@ class Quarantine(base.job.BaseModule):
 
         body_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), '{}_BODY.csv'.format(self.config.config['DEFAULT']['source']))
         data = {}
-        files_list = defender_list + eset_list + symantec_list + mcafee_list + kaspersky_list + bitdefener_list
+        files_list = defender_list + eset_list + symantec_list + mcafee_list + kaspersky_list + bitdefener_list + malwarebytes_list
         relative_files_list = files_list
         if len(files_list) > 0 and files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
             relative_files_list = [relative_path(file, self.myconfig('casedir')) for file in files_list]
@@ -115,6 +116,10 @@ class Quarantine(base.job.BaseModule):
             for bitdefener_file in bitdefener_list:
                 # TODO write metadata to the file
                 self.decrypt(bitdefener_file, 'Bitdefender')
+
+            for malwarebytes_file in malwarebytes_list:
+                # TODO write metadata to the file
+                self.decrypt(malwarebytes_file, 'MalwareBytes')
         return []
 
     def parse_eset(self, path):
