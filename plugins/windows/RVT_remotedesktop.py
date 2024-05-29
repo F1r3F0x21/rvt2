@@ -13,7 +13,6 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-
 import datetime
 import re
 import os
@@ -63,7 +62,7 @@ class Teamviewer_connections(base.job.BaseModule):
                            'startdate': str(datetime.datetime.strptime(fields.group(3), "%d-%m-%Y %H:%M:%S")),
                            'enddate': str(datetime.datetime.strptime(fields.group(4), "%d-%m-%Y %H:%M:%S")),
                            'teamviewer.hostname': fields.group(2).strip(),
-                           'id_connection': fields.group(1),
+                           'id.connection': fields.group(1),
                            'machine.hostname': fields.group(5),
                            'mode': fields.group(6),
                            'partition': partition}
@@ -160,7 +159,7 @@ class Anydesk(base.job.BaseModule):
         srch = re.search(r'/p\d{1,2}/Users/([^/]*)/', path)
         if srch:
             user = srch.group(1)
-        outfile = os.path.join(base_path, 'anydesk_{}{}.csv'.format(partition, f'_{user}' if user else ''))
+        outfile = os.path.join(base_path, 'Anydesk_{}{}.csv'.format(partition, f'_{user}' if user else ''))
         save_csv(self._process_anydesk_log(path), outfile=outfile, file_exists='OVERWRITE', quoting=0)
 
     def _process_anydesk_log(self, path):
@@ -199,7 +198,6 @@ class Supremo(base.job.BaseModule):
         filename = os.path.basename(path)
         count_lines = 0
         prev_line_dict = {}
-
 
         for line in self.from_module.run(path):
             match = prog_log.match(line)
@@ -313,6 +311,7 @@ class Splashtop(base.job.BaseModule):
         """
         ft_log = re.compile(r'^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})\t(.*?)\t(.*?)\t(\w*\t\w*)\t(\S*)\s\((.*?)\)')
         other_log = re.compile(r'^<(\d+)>(\w{3}\d{1,2}\s\d{2}:\d{2}:\d{2}\.\d{3})\s+\w+\[(\S+)\]\s(.+)$')
+        other_2_log = re.compile(r'^<(\d+)>(\w{3}\d{1,2}\s\d{2}:\d{2}:\d{2}\.\d{3})\s(.+)$')
         get_date_log = re.compile(r'<\d+>(\w{3}\d{1,2})\s\d{2}:\d{2}:\d{2}\.\d{3}.*')
         filename = os.path.basename(path)
         
@@ -333,6 +332,8 @@ class Splashtop(base.job.BaseModule):
 
         aux_date = datetime.datetime(1900, 1, 1)
         for line in self.from_module.run(path):
+            other_match = other_log.match(line)
+            other_match_2 = other_2_log.match(line)
             if filename == "FTCLog.txt":
                 ft_match = ft_log.match(line)
                 if ft_match:
@@ -349,11 +350,30 @@ class Splashtop(base.job.BaseModule):
                     yield log_dict
                 else:
                     self.logger().warning("Regex pattern failed parsering: " + line)
-            else:
-                other_match = other_log.match(line)
-                if other_match:
-                    level_int, timestamp_str, process, message = other_match.groups(default='')
+            elif other_match:
+                level_int, timestamp_str, process, message = other_match.groups(default='')
 
+                level = self.getLevel(int(level_int))
+                timestamp = datetime.datetime.strptime(timestamp_str, "%b%d %H:%M:%S.%f")
+                actual_date = datetime.datetime(1900, timestamp.month, timestamp.day)
+
+                if actual_date < aux_date:
+                    aux_year -= 1
+                aux_date = actual_date
+                
+                timestamp = timestamp.replace(year=m_time_year - aux_year)
+
+                log_dict = {
+                    "Time": timestamp ,
+                    "Message": message.strip(),
+                    "Process": process,
+                    "Level": level,
+                    "LogFilename": filename
+                }
+                yield log_dict
+            else:
+                if other_match_2:
+                    level_int, timestamp_str, message = other_match_2.groups(default='')
                     level = self.getLevel(int(level_int))
                     timestamp = datetime.datetime.strptime(timestamp_str, "%b%d %H:%M:%S.%f")
                     actual_date = datetime.datetime(1900, timestamp.month, timestamp.day)
@@ -361,9 +381,7 @@ class Splashtop(base.job.BaseModule):
                     if actual_date < aux_date:
                         aux_year -= 1
                     aux_date = actual_date
-                    
                     timestamp = timestamp.replace(year=m_time_year - aux_year)
-
                     log_dict = {
                         "Time": timestamp ,
                         "Message": message.strip(),
@@ -451,7 +469,6 @@ class Zoho(base.job.BaseModule):
                 yield log_dict
             
             elif log2_match:
-                print(line)
                 timestamp, level, message = log2_match.groups(default='')
                 log_dict = {
                     "Time": timestamp ,
@@ -488,3 +505,376 @@ class Zoho(base.job.BaseModule):
                     "LogFilename": filename.strip()
                 }
                 yield log_dict
+
+
+class Summary(base.job.BaseModule):
+    """ Search for the connections and makes the summary table of remotedesktop """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the trace file
+        """
+        filename = os.path.basename(path)
+        Anydesk_match = re.compile(r'^Anydesk_(?!connection_trace\.csv$).*').match(filename)
+
+        Teamviewer_inc_con = os.path.basename(self.myconfig('Teamviewer_inc_con'))
+        Teamviewer_out_con = os.path.basename(self.myconfig('Teamviewer_out_con'))
+        Anydesk_inc_con = os.path.basename(self.myconfig('Anydesk_in_con'))
+        Supremo = os.path.basename(self.myconfig('Supremo'))
+        Dwagent = os.path.basename(self.myconfig('Dwagent'))
+        Zoho = os.path.basename(self.myconfig('Zoho'))
+        Splashtop = os.path.basename(self.myconfig('Splashtop'))
+        Chrome = os.path.basename(self.myconfig('Chrome'))
+        Screenconnect = os.path.basename(self.myconfig('Screenconnect'))
+
+        if filename == Teamviewer_inc_con:
+            for line in self.from_module.run(path):
+                yield {
+                        "Type": "Incoming",
+                        "Startdate": line.get("startdate",""),
+                        "Enddate": line.get("enddate",""),
+                        "Teamviewer.hostname": line.get("teamviewer.hostname",""),
+                        "Id.connection": line.get("id.connection",""),
+                        "Machine.hostname": line.get("machine.hostname",""),
+                        "Mode": line.get("mode",""),
+                        "Partition": line.get("partition",""),
+                        "Program": "TeamViewer",
+                        "LogFilename": filename.strip()
+                }            
+        elif filename == Teamviewer_out_con:
+            for line in self.from_module.run(path):
+                yield {
+                        "Type": "Outgoing",
+                        "Startdate": line.get("startdate",""),
+                        "Enddate": line.get("enddate",""),
+                        "Id.connection": line.get("id.connection",""),
+                        "Machine.hostname": line.get("machine.hostname",""),
+                        "Mode": line.get("mode",""),
+                        "Partition": line.get("partition",""),
+                        "Program": "TeamViewer",
+                        "LogFilename": filename.strip()
+                }
+        elif filename == Anydesk_inc_con:
+            for line in self.from_module.run(path):
+                yield {
+                        "Type": line.get("Type",""),
+                        "Startdate": line.get("Time",""),
+                        "Id.connection": line.get("ID",""),
+                        "Alias": line.get("Alias",""),
+                        "Program": "AnyDesk",
+                        "LogFilename": filename.strip()
+                }
+        elif Anydesk_match:
+            yield from self.anyDeskMatch(path, filename)
+        elif filename == Supremo:
+            yield from self.supremo(path, filename)
+        elif filename == Dwagent:
+            yield from self.dwagent(path, filename)
+        elif filename == Zoho:
+            yield from self.zoho(path, filename)
+        elif filename == Splashtop:
+            yield from self.splashtop(path, filename)
+        elif filename == Chrome:
+            yield from self.chrome(path, filename)
+        elif filename == Screenconnect:
+            yield from self.screenconnect(path, filename)
+
+    def screenconnect(self, path, filename):
+        data_inc = {}
+        for line in self.from_module.run(path):
+            event_id = int(line.get("EventID"))
+            if event_id == 100:
+                if data_inc:
+                    yield data_inc
+                    data_inc = {}
+                data_inc["Type"] = "Incoming"
+                data_inc["Startdate"] = line.get("Time","")
+                data_inc["Program"] = "Screenconnect"
+                data_inc["LogFilename"] = filename.strip()
+            elif event_id == 101:
+                data_inc["Enddate"] = line.get("Time","")
+                data_inc["Type"] = "Incoming"
+                data_inc["Program"] = "Screenconnect"
+                data_inc["LogFilename"] = filename.strip()
+                yield data_inc
+                data_inc = {}
+        if data_inc:
+            yield data_inc
+    
+    def chrome(self, path, filename):
+        connected = re.compile(r'Client\sconnected')
+        disconnected = re.compile(r'Client\sdisconnected')
+        ip_channel = re.compile(r'Channel\sIP\sfor\sclient')
+        ip_channel_connection = re.compile(r'(.*?)\/(.*)')
+        data_inc = {}
+
+        for line in self.from_module.run(path):
+            message = line.get("Message")
+            connected_match = connected.match(message)
+            disconnected_match = disconnected.match(message)
+            ip_channel_match = ip_channel.match(message)
+
+            if connected_match:
+                if data_inc:
+                    yield data_inc
+                    data_inc = {}
+                data_inc["Type"] = "Incoming"
+                data_inc["Startdate"] = line.get("Time","")
+                data_inc["Program"] = "ChromeRemoteDesktop"
+                data_inc["LogFilename"] = filename.strip()
+                ip_channel_connection_match = ip_channel_connection.match(line.get("Client"))
+                if ip_channel_connection_match:
+                    data_inc["Alias"] = ip_channel_connection_match.group(1)
+                    data_inc["Id.connection"] = ip_channel_connection_match.group(2)
+                else:
+                    if line.get("Client", "") != "":
+                        data_inc["Id.connection"] = line.get("Client")
+
+            elif ip_channel_match:
+                ip = line.get("IP")
+                host_ip = line.get("HostIP")
+                ip_channel_connection_match = ip_channel_connection.match(line.get("Client"))
+                if ip_channel_connection_match:
+                    if (data_inc["Alias"] == ip_channel_connection_match.group(1) and data_inc["Id.connection"] == ip_channel_connection_match.group(2)):
+                        data_inc["IP"] = data_inc.get("IP", "") + "[IP: " + ip + " Host IP: " + host_ip + "]"
+                elif data_inc["Id.connection"] == line.get("Client"):
+                     data_inc["IP"] = data_inc.get("IP", "") + "[IP: " + ip + " Host IP: " + host_ip + "]"
+                     
+            elif disconnected_match:
+                data_inc["Enddate"] = line.get("Time","")
+                yield data_inc
+                data_inc = {}
+        if data_inc:
+            yield data_inc
+    
+    def splashtop(self, path, filename):
+        start_can_connect = re.compile(r'ok,\sclient\s\((.*?)\)\scan\sconnect\sto\sAV\sserver')
+        start_disp_name = re.compile(r'disp\sname\s(.*)')
+        start_ip = re.compile(r'Got\sclient\s\d+\spublic\sIP\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
+        stop_closed = re.compile(r'\[SRF\]\sClosed')
+        data_inc = {}
+        for line in self.from_module.run(path):
+            message = line.get("Message")
+            start_can_connect_match = start_can_connect.match(message)
+            inc_end_match_connect = start_disp_name.match(message)
+            start_ip_match = start_ip.match(message)
+            stop_closed_match = stop_closed.match(message)
+
+            if start_can_connect_match:
+                if data_inc:
+                    yield data_inc
+                    data_inc = {}
+                data_inc["Type"] = "Incoming"
+                data_inc["Startdate"] = line.get("Time","")
+                data_inc["Machine.hostname"] = start_can_connect_match.group(1)
+                data_inc["Program"] = "Splashtop"
+                data_inc["LogFilename"] = filename.strip()
+
+            elif inc_end_match_connect:
+                data_inc["Alias"] = inc_end_match_connect.group(1)
+
+            elif start_ip_match:
+                data_inc["IP"] = start_ip_match.group(1)
+
+            elif stop_closed_match:
+                data_inc["Enddate"] = line.get("Time","")
+                yield data_inc
+                data_inc = {}
+        if data_inc:
+            yield data_inc
+
+    def zoho(self, path, filename):
+        start = re.compile(r'.*initializeSocketHandler:\sCreating\sWebSocket\sConnection\s.*?id=(\d+).*')
+        end = re.compile(r'.*agentprotocolhandler.*Stop\sremote\ssession.*')
+        data_inc = {}
+        for line in self.from_module.run(path):
+            message = line.get("Message")
+            inc_start_match = start.match(message)
+            inc_end_match = end.match(message)
+
+            if inc_start_match:
+                if data_inc:
+                    yield data_inc
+                    data_inc = {}
+                data_inc["Type"] = "Incoming"
+                data_inc["Startdate"] = line.get("Time","")
+                data_inc["Id.connection"] = "[ " + str(inc_start_match.group(1)) + " ]"
+                data_inc["Program"] = "Zoho"
+                data_inc["LogFilename"] = filename.strip()
+            
+            elif inc_end_match:
+                if data_inc:
+                    data_inc["Enddate"] = line.get("Time","")
+                    yield data_inc
+                    data_inc = {}
+                else:
+                    data_inc["Type"] = "Incoming"
+                    data_inc["Enddate"] = line.get("Time","")
+                    data_inc["Program"] = "Zoho"
+                    data_inc["LogFilename"] = filename.strip()
+                    yield data_inc
+                    data_inc = {}
+        if data_inc:
+            yield data_inc
+    
+    def dwagent(self, path, filename):
+        start = re.compile(r'Open\ssession\s\(id:\s(\S+?),\sip:\s(\d+\.\d+\.\d+\.\d+),\s.*')
+        end = re.compile(r'Close\ssession\s\(id:\s(\S+?),\sip:\s(\d+\.\d+\.\d+\.\d+),\s.*')
+        data_inc = {}
+        for line in self.from_module.run(path):
+            message = line.get("Message")
+            inc_start_match = start.match(message)
+            inc_end_match = end.match(message)
+            
+            if inc_start_match:
+                if data_inc:
+                    yield data_inc
+                    data_inc = {}
+                data_inc["Type"] = "Incoming"
+                data_inc["Startdate"] = line.get("Time","")
+                data_inc["Id.connection"] = inc_start_match.group(1)
+                data_inc["Program"] = "Dwagent"
+                data_inc["LogFilename"] = filename.strip()
+                data_inc["IP"] = line.get("IP", "") if line.get("IP", "") != "" else inc_start_match.group(2)
+            
+            elif inc_end_match:
+                if data_inc.get("Id.connection","") == inc_end_match.group(1):
+                    data_inc["Enddate"] = line.get("Time","")
+                else:
+                    if data_inc:
+                        yield data_inc
+                        data_inc = {}
+                    else:
+                        data_inc["Type"] = "Incoming"
+                        data_inc["Enddate"] = line.get("Time","")
+                        data_inc["Id.connection"] = inc_end_match.group(1)
+                        data_inc["Program"] = "Dwagent"
+                        data_inc["IP"] = line.get("IP", "") if line.get("IP", "") != "" else inc_end_match.group(2)
+                        data_inc["LogFilename"] = filename.strip()
+                        yield data_inc
+                        data_inc = {}
+        if data_inc:
+            yield data_inc
+
+    def supremo(self, path, filename):
+        inc_start = re.compile(r'(\S+)\s\((\d+)\)\shas\sstarted\sa\sremote\scontrol\ssession.*')
+        inc_end = re.compile(r'(\S+)\s\((\d+)\)\shas\sterminated\sa\sremote\scontrol\ssession.*')
+        out_start = re.compile(r'Opened\sRemote\sControl\sSession\sfrom\s"(\d+)"\sto\s"(.*?)"\s\((\d+)\).*')
+        out_end = re.compile(r'Closed\sRemote\sControl\sSession\sfrom\s"(\d+)"\sto\s"(.*?)"\s\((\d+)\).*')
+        data_inc, data_out = {}, {}
+        for line in self.from_module.run(path):
+            message = line.get("Message")
+            inc_start_match = inc_start.match(message)
+            inc_end_match = inc_end.match(message)
+            out_start_match = out_start.match(message)
+            out_end_match = out_end.match(message)
+
+            if inc_start_match:
+                if data_inc:
+                    yield data_inc
+                    data_inc = {}
+                data_inc["Type"] = "Incoming"
+                data_inc["Startdate"] = line.get("Time","")
+                data_inc["Machine.hostname"] = inc_start_match.group(1)
+                data_inc["Id.connection"] = inc_start_match.group(2)
+                data_inc["Program"] = "Supremo"
+                data_inc["LogFilename"] = filename.strip()
+
+            if inc_end_match:
+                if data_inc.get("Id.connection","") == inc_end_match.group(2):
+                    data_inc["Enddate"] = line.get("Time","")
+                else:
+                    if data_inc:
+                        yield data_inc
+                        data_inc = {}
+                    else:
+                        data_inc["Type"] = "Incoming"
+                        data_inc["Enddate"] = line.get("Time","")
+                        data_inc["Machine.hostname"] = inc_end_match.group(1)
+                        data_inc["Id.connection"] = inc_end_match.group(2)
+                        data_inc["Program"] = "Supremo"
+                        data_inc["LogFilename"] = filename.strip()
+                        yield data_inc
+                        data_inc = {}
+            
+            if out_start_match:
+                if data_out:
+                    yield data_out
+                    data_out = {}
+                data_out["Type"] = "Outgoing"
+                data_out["Startdate"] = line.get("Time","")
+                data_out["Machine.hostname"] = out_start_match.group(2)
+                data_out["Id.connection"] = out_start_match.group(1) + " -> " + out_start_match.group(3)
+                data_out["Program"] = "Supremo"
+                data_out["LogFilename"] = filename.strip()
+            
+            if out_end_match:
+                if data_out.get("Id.connection","") == (out_end_match.group(1) + " -> " + out_end_match.group(3)):
+                    data_out["Enddate"] = line.get("Time","")
+                else:
+                    if data_out:
+                        yield data_out
+                        data_out = {}
+                    else:
+                        data_out["Type"] = "Outgoing"
+                        data_out["Enddate"] = line.get("Time","")
+                        data_out["Machine.hostname"] = out_end_match.group(2)
+                        data_out["Id.connection"] = out_end_match.group(1) + " -> " + out_end_match.group(3)
+                        data_out["Program"] = "Supremo"
+                        data_out["LogFilename"] = filename.strip()
+                        yield data_out
+                        data_out = {}
+        
+        if data_out:
+            yield data_out
+        if data_inc:
+            yield data_inc
+
+    def anyDeskMatch(self, path, filename):
+        inc_req = re.compile(r'Accept\srequest\sfrom\s(\d+).*')
+        out_conn = re.compile(r'1:\sConnecting\sto\s"(\d+)"')
+        inc_out_ip = re.compile(r'Logged\sin\sfrom\s(.*?):.*')
+        data_inc, data_out = {}, {}
+        for line in self.from_module.run(path):
+            message = line.get("message")
+            inc_req_match = inc_req.match(message)
+            out_conn_match = out_conn.match(message)
+            inc_out_ip_match = inc_out_ip.match(message)
+
+            if inc_req_match:
+                if data_inc:
+                    yield data_inc
+                    data_inc = {}
+                data_inc["Type"] = "Incoming"
+                data_inc["Startdate"] = line.get("@timestamp","")
+                data_inc["Id.connection"] = inc_req_match.group(1)
+                data_inc["Program"] = "AnyDesk"
+                data_inc["LogFilename"] = filename.strip()
+
+            elif out_conn_match:
+                if data_out:
+                    yield data_out
+                    data_out = {}
+                data_out["Type"] = "Outgoing"
+                data_out["Startdate"] = line.get("@timestamp","")
+                data_out["Id.connection"] = out_conn_match.group(1)
+                data_out["Program"] = "AnyDesk"
+                data_out["LogFilename"] = filename.strip()
+
+            elif inc_out_ip_match:
+                if data_inc and data_out:
+                    date_obj_inc = datetime.datetime.strptime(data_inc["Startdate"], "%Y-%m-%d %H:%M:%S.%f")
+                    date_obj_out = datetime.datetime.strptime(data_out["Startdate"], "%Y-%m-%d %H:%M:%S.%f")
+                    if date_obj_inc > date_obj_out:
+                        data_inc["IP"] = inc_out_ip_match.group(1)
+                    else:
+                        data_out["IP"] = inc_out_ip_match.group(1)
+                elif data_inc:
+                    data_inc["IP"] = inc_out_ip_match.group(1)
+                else:
+                    data_out["IP"] = inc_out_ip_match.group(1)
+        if data_out:
+            yield data_out
+        if data_inc:
+            yield data_inc
