@@ -63,14 +63,14 @@ class Teamviewer_connections(base.job.BaseModule):
                            'enddate': str(datetime.datetime.strptime(fields.group(4), "%d-%m-%Y %H:%M:%S")),
                            'teamviewer.hostname': fields.group(2).strip(),
                            'id.connection': fields.group(1),
-                           'machine.hostname': fields.group(5),
+                           'Hostname': fields.group(5),
                            'mode': fields.group(6),
                            'partition': partition}
                 else:
                     yield {
                            'startdate': str(datetime.datetime.strptime(fields.group(2), "%d-%m-%Y %H:%M:%S")),
                            'enddate': str(datetime.datetime.strptime(fields.group(3), "%d-%m-%Y %H:%M:%S")),
-                           'machine.hostname': fields.group(4),
+                           'Hostname': fields.group(4),
                            'id.connection': fields.group(1),
                            'mode': fields.group(5),
                            'partition': partition,
@@ -115,7 +115,7 @@ class Teamviewer(base.job.BaseModule):
 
 
 class Anydesk_connection_trace(base.job.BaseModule):
-    """ Extracts information about DWAgent logs """
+    """ Extracts information about Anydesk_connection_trace logs """
 
     def run(self, path=None):
         """
@@ -126,19 +126,19 @@ class Anydesk_connection_trace(base.job.BaseModule):
         for line in self.from_module.run(path):
             prog_match = prog_log.match(line)
             if prog_match:
-                conn_type, timestamp_str, alias, id_anydesk, id_anydesk2 = prog_match.groups(default='')
+                conn_type, timestamp_str, User, id_anydesk, id_anydesk2 = prog_match.groups(default='')
                 timestamp = datetime.datetime.strptime(timestamp_str, "%Y-%m-%d, %H:%M")
                 log_dict = {
                     "Time": timestamp ,
                     "Type": conn_type,
-                    "Alias": alias,
+                    "User": User,
                     "ID": id_anydesk
                 }
                 yield log_dict
 
 
 class Anydesk(base.job.BaseModule):
-    """ Extracts information about anydesk logs """
+    """ Extracts information about Anydesk logs """
 
     def run(self, path=None):
         """
@@ -170,8 +170,8 @@ class Anydesk(base.job.BaseModule):
         with open(path, 'r') as fin:
             for line in fin:
                 if regex.search(line):
-                    result['log.level'] = line[:8].strip()
                     result['@timestamp'] = line[8:31]
+                    result['log.level'] = line[:8].strip()
                     result['log.syslog.appname'] = line[31:42].strip()
                     #result['id1'] = line[43:49].strip()
                     #result['id2'] = line[50:56].strip()
@@ -186,33 +186,23 @@ class Anydesk(base.job.BaseModule):
 
 
 class Supremo(base.job.BaseModule):
-    """ Extracts information about supremo logs """
+    """ Extracts information about Supremo logs """
 
     def run(self, path=None):
         """
         Attrs:
             path (str): Absolute path to the trace file
         """
-        pattern_log = r'\[(.*?)\]\s*(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}:\d{3})\s+\[(TID\s*\d+)\s*\]\s*\[(.*?)\]\s*(.*)$'
-        prog_log = re.compile(pattern_log)
+        prog_log = re.compile(r'\[(.*?)\]\s*(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}:\d{3})\s+\[(TID\s*\d+)\s*\]\s*\[(.*?)\]\s*(.*)$')
         filename = os.path.basename(path)
-        count_lines = 0
-        prev_line_dict = {}
 
         for line in self.from_module.run(path):
             match = prog_log.match(line)
             if match:
-
-                if count_lines != 0:
-                    count_lines = 0
-                    yield prev_line_dict
-
-                count_lines = 1
                 version, timestamp, thread, level, message = match.groups()
                 date_object = datetime.datetime.strptime(timestamp.strip(), "%Y-%m-%d %H:%M:%S:%f")
                 # Format the datetime object into ISO format
                 iso_date = date_object.isoformat()
-
                 log_entry_dict = {
                     "Time": iso_date,
                     "Message": message.strip(),
@@ -221,13 +211,7 @@ class Supremo(base.job.BaseModule):
                     "Thread": thread.strip(),
                     "LogFilename": filename.strip()
                 }
-
-                prev_line_dict = log_entry_dict
-            else:
-                prev_line_dict["Message"] = prev_line_dict["Message"] + line
-
-        if len(prev_line_dict) != 0:
-            yield prev_line_dict
+                yield log_entry_dict
 
 
 class GoogleChromeRemoteDesktop(base.job.BaseModule):
@@ -302,7 +286,7 @@ class DWAgent(base.job.BaseModule):
             
 
 class Splashtop(base.job.BaseModule):
-    """ Extracts information about DWAgent logs """
+    """ Extracts information about Splashtop logs """
 
     def run(self, path=None):
         """
@@ -332,8 +316,6 @@ class Splashtop(base.job.BaseModule):
 
         aux_date = datetime.datetime(1900, 1, 1)
         for line in self.from_module.run(path):
-            other_match = other_log.match(line)
-            other_match_2 = other_2_log.match(line)
             if filename == "FTCLog.txt":
                 ft_match = ft_log.match(line)
                 if ft_match:
@@ -350,7 +332,9 @@ class Splashtop(base.job.BaseModule):
                     yield log_dict
                 else:
                     self.logger().warning("Regex pattern failed parsering: " + line)
-            elif other_match:
+            
+            other_match = other_log.match(line)
+            if other_match:
                 level_int, timestamp_str, process, message = other_match.groups(default='')
 
                 level = self.getLevel(int(level_int))
@@ -371,27 +355,29 @@ class Splashtop(base.job.BaseModule):
                     "LogFilename": filename
                 }
                 yield log_dict
-            else:
-                if other_match_2:
-                    level_int, timestamp_str, message = other_match_2.groups(default='')
-                    level = self.getLevel(int(level_int))
-                    timestamp = datetime.datetime.strptime(timestamp_str, "%b%d %H:%M:%S.%f")
-                    actual_date = datetime.datetime(1900, timestamp.month, timestamp.day)
+                continue
+            
+            other_match_2 = other_2_log.match(line)
+            if other_match_2:
+                level_int, timestamp_str, message = other_match_2.groups(default='')
+                level = self.getLevel(int(level_int))
+                timestamp = datetime.datetime.strptime(timestamp_str, "%b%d %H:%M:%S.%f")
+                actual_date = datetime.datetime(1900, timestamp.month, timestamp.day)
 
-                    if actual_date < aux_date:
-                        aux_year -= 1
-                    aux_date = actual_date
-                    timestamp = timestamp.replace(year=m_time_year - aux_year)
-                    log_dict = {
-                        "Time": timestamp ,
-                        "Message": message.strip(),
-                        "Process": process,
-                        "Level": level,
-                        "LogFilename": filename
-                    }
-                    yield log_dict
-                else:
-                    self.logger().warning("Regex pattern failed parsering: " + line)
+                if actual_date < aux_date:
+                    aux_year -= 1
+                aux_date = actual_date
+                timestamp = timestamp.replace(year=m_time_year - aux_year)
+                log_dict = {
+                    "Time": timestamp ,
+                    "Message": message.strip(),
+                    "Process": process,
+                    "Level": level,
+                    "LogFilename": filename
+                }
+                yield log_dict
+            else:
+                self.logger().warning("Regex pattern failed parsering: " + line)
     
     def getLevel(self, level_int):
         if level_int == 0:
@@ -403,7 +389,7 @@ class Splashtop(base.job.BaseModule):
 
 
 class Zoho(base.job.BaseModule):
-    """ Extracts information about DWAgent logs """
+    """ Extracts information about Zoho logs """
 
     def run(self, path=None):
         """
@@ -427,24 +413,22 @@ class Zoho(base.job.BaseModule):
 
         for line in self.from_module.run(path):
             date_match = prog_con_date.match(line)
-            name_match = prog_con_name.match(line)
-            version_match = prog_con_version.match(line)
-            log4_match = log_4.match(line)
-            log3_match = log_3.match(line)
-            log2_match = log_2.match(line)
-            log5_match = log_5.match(line)
-            log1_match = log_1.match(line)
-
             if date_match:
                 date_to_yield = date_match.group(1)
+                continue
 
-            elif name_match:
+            name_match = prog_con_name.match(line)
+            if name_match:
                 product_to_yield = name_match.group(1)
+                continue
 
-            elif version_match:
+            version_match = prog_con_version.match(line)
+            if version_match:
                 version_to_yield = version_match.group(1)
+                continue
             
-            elif log4_match:
+            log4_match = log_4.match(line)
+            if log4_match:
                 thread, time, message = log4_match.groups(default='')
                 iso_date = datetime.datetime.strptime(date_to_yield + " " + time, "%d-%m-%Y %H:%M:%S").isoformat()
                 log_dict = {
@@ -456,8 +440,10 @@ class Zoho(base.job.BaseModule):
                     "LogFilename": filename.strip()
                 }
                 yield log_dict
-            
-            elif log3_match:
+                continue
+
+            log3_match = log_3.match(line)
+            if log3_match:
                 timestamp, message = log3_match.groups(default='')
                 log_dict = {
                     "Time": timestamp ,
@@ -467,8 +453,10 @@ class Zoho(base.job.BaseModule):
                     "LogFilename": filename.strip()
                 }
                 yield log_dict
+                continue
             
-            elif log2_match:
+            log2_match = log_2.match(line)
+            if log2_match:
                 timestamp, level, message = log2_match.groups(default='')
                 log_dict = {
                     "Time": timestamp ,
@@ -479,8 +467,10 @@ class Zoho(base.job.BaseModule):
                     "LogFilename": filename.strip()
                 }
                 yield log_dict
+                continue
             
-            elif log5_match:
+            log5_match = log_5.match(line)
+            if log5_match:
                 timestamp, level, message = log5_match.groups(default='')
                 iso_date = datetime.datetime.strptime(timestamp, "%d/%m/%Y %H:%M:%S").isoformat()
                 log_dict = {
@@ -492,8 +482,10 @@ class Zoho(base.job.BaseModule):
                     "LogFilename": filename.strip()
                 }
                 yield log_dict
-            
-            elif log1_match:
+                continue
+
+            log1_match = log_1.match(line)
+            if log1_match:
                 timestamp, level, thread, message = log1_match.groups(default='')
                 log_dict = {
                     "Time": timestamp ,
@@ -505,6 +497,7 @@ class Zoho(base.job.BaseModule):
                     "LogFilename": filename.strip()
                 }
                 yield log_dict
+                continue
 
 
 class Summary(base.job.BaseModule):
@@ -536,7 +529,7 @@ class Summary(base.job.BaseModule):
                         "Enddate": line.get("enddate",""),
                         "Teamviewer.hostname": line.get("teamviewer.hostname",""),
                         "Id.connection": line.get("id.connection",""),
-                        "Machine.hostname": line.get("machine.hostname",""),
+                        "Hostname": line.get("Hostname",""),
                         "Mode": line.get("mode",""),
                         "Partition": line.get("partition",""),
                         "Program": "TeamViewer",
@@ -549,7 +542,7 @@ class Summary(base.job.BaseModule):
                         "Startdate": line.get("startdate",""),
                         "Enddate": line.get("enddate",""),
                         "Id.connection": line.get("id.connection",""),
-                        "Machine.hostname": line.get("machine.hostname",""),
+                        "Hostname": line.get("Hostname",""),
                         "Mode": line.get("mode",""),
                         "Partition": line.get("partition",""),
                         "Program": "TeamViewer",
@@ -561,7 +554,7 @@ class Summary(base.job.BaseModule):
                         "Type": line.get("Type",""),
                         "Startdate": line.get("Time",""),
                         "Id.connection": line.get("ID",""),
-                        "Alias": line.get("Alias",""),
+                        "User": line.get("Alias",""),
                         "Program": "AnyDesk",
                         "LogFilename": filename.strip()
                 }
@@ -603,45 +596,45 @@ class Summary(base.job.BaseModule):
             yield data_inc
     
     def chrome(self, path, filename):
-        connected = re.compile(r'Client\sconnected')
-        disconnected = re.compile(r'Client\sdisconnected')
-        ip_channel = re.compile(r'Channel\sIP\sfor\sclient')
         ip_channel_connection = re.compile(r'(.*?)\/(.*)')
         data_inc = {}
 
         for line in self.from_module.run(path):
-            message = line.get("Message")
-            connected_match = connected.match(message)
-            disconnected_match = disconnected.match(message)
-            ip_channel_match = ip_channel.match(message)
+            event_id = line.get("EventID", "")
 
-            if connected_match:
+            if event_id == "1":
                 if data_inc:
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
                 data_inc["Startdate"] = line.get("Time","")
-                data_inc["Program"] = "ChromeRemoteDesktop"
+                data_inc["Program"] = "ChromeRD"
                 data_inc["LogFilename"] = filename.strip()
                 ip_channel_connection_match = ip_channel_connection.match(line.get("Client"))
                 if ip_channel_connection_match:
-                    data_inc["Alias"] = ip_channel_connection_match.group(1)
+                    data_inc["User"] = ip_channel_connection_match.group(1)
                     data_inc["Id.connection"] = ip_channel_connection_match.group(2)
                 else:
                     if line.get("Client", "") != "":
                         data_inc["Id.connection"] = line.get("Client")
 
-            elif ip_channel_match:
-                ip = line.get("IP")
-                host_ip = line.get("HostIP")
+            elif event_id == "4":
+                ip_str = line.get("IP")
+                ip = ip_str.split(":", 1)[0]
+                host_ip_str = line.get("HostIP")
+                host_ip = host_ip_str.split(":", 1)[0]
                 ip_channel_connection_match = ip_channel_connection.match(line.get("Client"))
                 if ip_channel_connection_match:
-                    if (data_inc["Alias"] == ip_channel_connection_match.group(1) and data_inc["Id.connection"] == ip_channel_connection_match.group(2)):
-                        data_inc["IP"] = data_inc.get("IP", "") + "[IP: " + ip + " Host IP: " + host_ip + "]"
-                elif data_inc["Id.connection"] == line.get("Client"):
-                     data_inc["IP"] = data_inc.get("IP", "") + "[IP: " + ip + " Host IP: " + host_ip + "]"
+                    if (data_inc.get("User","") == ip_channel_connection_match.group(1) and data_inc.get("Id.connection","") == ip_channel_connection_match.group(2)):
+                        data_inc["IP"] = data_inc.get("IP", "") + "[IP: " + ip + " HostIP: " + host_ip + "]"
+                elif data_inc.get("Id.connection","") == line.get("Client"):
+                     data_inc["IP"] = data_inc.get("IP", "") + "[IP: " + ip + " HostIP: " + host_ip + "]"
                      
-            elif disconnected_match:
+            elif event_id == "2":
+                if data_inc.get("Type", "") == "":
+                    data_inc["Type"] = "Incoming"
+                    data_inc["Program"] = "ChromeRD"
+                    data_inc["LogFilename"] = filename.strip()
                 data_inc["Enddate"] = line.get("Time","")
                 yield data_inc
                 data_inc = {}
@@ -649,36 +642,42 @@ class Summary(base.job.BaseModule):
             yield data_inc
     
     def splashtop(self, path, filename):
-        start_can_connect = re.compile(r'ok,\sclient\s\((.*?)\)\scan\sconnect\sto\sAV\sserver')
+        start_can_connect = re.compile(r'ok,\sclient\s\((.*?)\)\scan\sconnect\sto\s.*')
         start_disp_name = re.compile(r'disp\sname\s(.*)')
         start_ip = re.compile(r'Got\sclient\s\d+\spublic\sIP\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
         stop_closed = re.compile(r'\[SRF\]\sClosed')
         data_inc = {}
         for line in self.from_module.run(path):
             message = line.get("Message")
-            start_can_connect_match = start_can_connect.match(message)
-            inc_end_match_connect = start_disp_name.match(message)
-            start_ip_match = start_ip.match(message)
-            stop_closed_match = stop_closed.match(message)
 
+            start_can_connect_match = start_can_connect.match(message)
             if start_can_connect_match:
                 if data_inc:
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
                 data_inc["Startdate"] = line.get("Time","")
-                data_inc["Machine.hostname"] = start_can_connect_match.group(1)
+                data_inc["Hostname"] = start_can_connect_match.group(1)
                 data_inc["Program"] = "Splashtop"
                 data_inc["LogFilename"] = filename.strip()
+                continue
 
-            elif inc_end_match_connect:
-                data_inc["Alias"] = inc_end_match_connect.group(1)
+            inc_end_match_connect = start_disp_name.match(message)
+            if inc_end_match_connect:
+                data_inc["User"] = inc_end_match_connect.group(1)
+                continue
 
-            elif start_ip_match:
+            start_ip_match = start_ip.match(message)
+            if start_ip_match:
                 data_inc["IP"] = start_ip_match.group(1)
+                continue
 
-            elif stop_closed_match:
+            stop_closed_match = stop_closed.match(message)
+            if stop_closed_match:
+                data_inc["Type"] = "Incoming"
                 data_inc["Enddate"] = line.get("Time","")
+                data_inc["Program"] = "Splashtop"
+                data_inc["LogFilename"] = filename.strip()
                 yield data_inc
                 data_inc = {}
         if data_inc:
@@ -690,9 +689,8 @@ class Summary(base.job.BaseModule):
         data_inc = {}
         for line in self.from_module.run(path):
             message = line.get("Message")
-            inc_start_match = start.match(message)
-            inc_end_match = end.match(message)
 
+            inc_start_match = start.match(message)
             if inc_start_match:
                 if data_inc:
                     yield data_inc
@@ -702,8 +700,10 @@ class Summary(base.job.BaseModule):
                 data_inc["Id.connection"] = "[ " + str(inc_start_match.group(1)) + " ]"
                 data_inc["Program"] = "Zoho"
                 data_inc["LogFilename"] = filename.strip()
-            
-            elif inc_end_match:
+                continue
+
+            inc_end_match = end.match(message)
+            if inc_end_match:
                 if data_inc:
                     data_inc["Enddate"] = line.get("Time","")
                     yield data_inc
@@ -724,9 +724,8 @@ class Summary(base.job.BaseModule):
         data_inc = {}
         for line in self.from_module.run(path):
             message = line.get("Message")
+
             inc_start_match = start.match(message)
-            inc_end_match = end.match(message)
-            
             if inc_start_match:
                 if data_inc:
                     yield data_inc
@@ -737,8 +736,10 @@ class Summary(base.job.BaseModule):
                 data_inc["Program"] = "Dwagent"
                 data_inc["LogFilename"] = filename.strip()
                 data_inc["IP"] = line.get("IP", "") if line.get("IP", "") != "" else inc_start_match.group(2)
+                continue
             
-            elif inc_end_match:
+            inc_end_match = end.match(message)
+            if inc_end_match:
                 if data_inc.get("Id.connection","") == inc_end_match.group(1):
                     data_inc["Enddate"] = line.get("Time","")
                 else:
@@ -765,22 +766,21 @@ class Summary(base.job.BaseModule):
         data_inc, data_out = {}, {}
         for line in self.from_module.run(path):
             message = line.get("Message")
-            inc_start_match = inc_start.match(message)
-            inc_end_match = inc_end.match(message)
-            out_start_match = out_start.match(message)
-            out_end_match = out_end.match(message)
 
+            inc_start_match = inc_start.match(message)
             if inc_start_match:
                 if data_inc:
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
                 data_inc["Startdate"] = line.get("Time","")
-                data_inc["Machine.hostname"] = inc_start_match.group(1)
+                data_inc["Hostname"] = inc_start_match.group(1)
                 data_inc["Id.connection"] = inc_start_match.group(2)
                 data_inc["Program"] = "Supremo"
                 data_inc["LogFilename"] = filename.strip()
+                continue
 
+            inc_end_match = inc_end.match(message)
             if inc_end_match:
                 if data_inc.get("Id.connection","") == inc_end_match.group(2):
                     data_inc["Enddate"] = line.get("Time","")
@@ -791,24 +791,28 @@ class Summary(base.job.BaseModule):
                     else:
                         data_inc["Type"] = "Incoming"
                         data_inc["Enddate"] = line.get("Time","")
-                        data_inc["Machine.hostname"] = inc_end_match.group(1)
+                        data_inc["Hostname"] = inc_end_match.group(1)
                         data_inc["Id.connection"] = inc_end_match.group(2)
                         data_inc["Program"] = "Supremo"
                         data_inc["LogFilename"] = filename.strip()
                         yield data_inc
                         data_inc = {}
+                continue
             
+            out_start_match = out_start.match(message)
             if out_start_match:
                 if data_out:
                     yield data_out
                     data_out = {}
                 data_out["Type"] = "Outgoing"
                 data_out["Startdate"] = line.get("Time","")
-                data_out["Machine.hostname"] = out_start_match.group(2)
+                data_out["Hostname"] = out_start_match.group(2)
                 data_out["Id.connection"] = out_start_match.group(1) + " -> " + out_start_match.group(3)
                 data_out["Program"] = "Supremo"
                 data_out["LogFilename"] = filename.strip()
+                continue
             
+            out_end_match = out_end.match(message)
             if out_end_match:
                 if data_out.get("Id.connection","") == (out_end_match.group(1) + " -> " + out_end_match.group(3)):
                     data_out["Enddate"] = line.get("Time","")
@@ -819,7 +823,7 @@ class Summary(base.job.BaseModule):
                     else:
                         data_out["Type"] = "Outgoing"
                         data_out["Enddate"] = line.get("Time","")
-                        data_out["Machine.hostname"] = out_end_match.group(2)
+                        data_out["Hostname"] = out_end_match.group(2)
                         data_out["Id.connection"] = out_end_match.group(1) + " -> " + out_end_match.group(3)
                         data_out["Program"] = "Supremo"
                         data_out["LogFilename"] = filename.strip()
@@ -838,10 +842,8 @@ class Summary(base.job.BaseModule):
         data_inc, data_out = {}, {}
         for line in self.from_module.run(path):
             message = line.get("message")
-            inc_req_match = inc_req.match(message)
-            out_conn_match = out_conn.match(message)
-            inc_out_ip_match = inc_out_ip.match(message)
 
+            inc_req_match = inc_req.match(message)
             if inc_req_match:
                 if data_inc:
                     yield data_inc
@@ -851,8 +853,10 @@ class Summary(base.job.BaseModule):
                 data_inc["Id.connection"] = inc_req_match.group(1)
                 data_inc["Program"] = "AnyDesk"
                 data_inc["LogFilename"] = filename.strip()
+                continue
 
-            elif out_conn_match:
+            out_conn_match = out_conn.match(message)
+            if out_conn_match:
                 if data_out:
                     yield data_out
                     data_out = {}
@@ -861,8 +865,10 @@ class Summary(base.job.BaseModule):
                 data_out["Id.connection"] = out_conn_match.group(1)
                 data_out["Program"] = "AnyDesk"
                 data_out["LogFilename"] = filename.strip()
+                continue
 
-            elif inc_out_ip_match:
+            inc_out_ip_match = inc_out_ip.match(message)
+            if inc_out_ip_match:
                 if data_inc and data_out:
                     date_obj_inc = datetime.datetime.strptime(data_inc["Startdate"], "%Y-%m-%d %H:%M:%S.%f")
                     date_obj_out = datetime.datetime.strptime(data_out["Startdate"], "%Y-%m-%d %H:%M:%S.%f")
