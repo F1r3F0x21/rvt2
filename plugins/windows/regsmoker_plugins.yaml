@@ -62,7 +62,8 @@ system:
   termserv:
     filename: lateral_movement/termserv.json
   firewallrules:
-    filename: network_information/firewallrules.json
+    filename: network_information/firewallrules.csv
+    output: csv
   fw_config:
     filename: network_information/fw_config.json
   ips:
@@ -216,6 +217,8 @@ ntuser:
   adobe:
     filename: recentdocs/adobe_user.csv
     output: csv
+  angry_ip_scanner:
+    filename: scan_programs/angry_ip_scanner_user.json
   applets:
     filename: recentdocs/applets_user.json
   comdlg32:
@@ -256,9 +259,11 @@ ntuser:
   atera:
     filename: lateral_movement/atera_user.json
   mndmru:
-    filename: lateral_movement/mndmru_user.json
+    filename: lateral_movement/mndmru_user.csv
+    output: csv
   network_shares:
     filename: lateral_movement/network_shares_user.csv
+    output: csv
   putty_hostkeys:
     filename: lateral_movement/putty_hostkeys_user.csv
     output: csv
@@ -286,6 +291,7 @@ ntuser:
     output: csv
   winscp_ssh_host_keys:
     filename: lateral_movement/winscp_ssh_host_keys_user.json
+    output: csv
 
   knowndev:
     filename: storage_information/knowndev_user.json

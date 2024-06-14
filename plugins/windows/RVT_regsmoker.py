@@ -78,7 +78,7 @@ class Regsmoker(base.job.BaseModule):
 
         with open(pluginshives, 'r') as f_in:
             self.hivedict = yaml.safe_load(f_in)
-
+        to_remove = {}
         for hive, hivefile in regfiles.items():
             if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd'):
                 for plugin, values in tqdm(self.hivedict[hive].items()):
@@ -107,7 +107,11 @@ class Regsmoker(base.job.BaseModule):
                         try:
                             output_filename = os.path.join(output_path, f"{values['filename'].replace('_user', '_%s' % username)}")
                             check_directory(os.path.dirname(output_filename), create=True)
-                            to_remove = []
+                            if output_filename not in to_remove.keys():
+                                if os.path.exists(output_filename):
+                                    to_remove[output_filename] = False
+                                else:
+                                    to_remove[output_filename] = True
                             with open(output_filename, 'w') as f_out:
                                 self.logger().debug('Launching plugin {} against {}'.format(plugin, file))
                                 self.logger().debug("writting file {}".format(output_filename))
@@ -126,13 +130,58 @@ class Regsmoker(base.job.BaseModule):
                                         write.writerow(item)
                                     else:
                                         f_out.write(json.dumps(item))
-                                if not nlines:
-                                    to_remove.append(output_filename)
-                            for f in to_remove:
-                                self.logger().debug('file {} has no lines'.format(output_filename))
-                                os.remove(f)
+                                if nlines:
+                                    to_remove[output_filename] = False
                         except Exception:
                             self.logger().warning(f"Problems with plugin {plugin} against file {file}")
+            elif hive in ('user', 'userclass'):
+                if hive == 'user':
+                    hive = 'ntuser'
+                else:
+                    hive = 'usrclass'
+                for username, files in hivefile.items():
+                    for plugin, values in tqdm(self.hivedict[hive].items()):
+                        for file in files:
+                            try:
+                                output_filename = os.path.join(output_path, f"{values['filename'].replace('_user', '_%s' % username)}")
+                                check_directory(os.path.dirname(output_filename), create=True)
+                                if output_filename not in to_remove.keys():
+                                    if os.path.exists(output_filename):
+                                        to_remove[output_filename] = False
+                                    else:
+                                        to_remove[output_filename] = True
+                                with open(output_filename, 'a') as f_out:
+                                    self.logger().debug('Launching plugin {} against {}'.format(plugin, file))
+                                    self.logger().debug("writting file {}".format(output_filename))
+                                    if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
+                                        write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
+                                    if "output" in values.keys() and values["output"] == "json_to_csv":
+                                        if os.path.exists(output_filename) and os.path.getsize(output_filename) == 0:
+                                            write.writerow(["Data", "Value"])
+                                    nlines = False
+                                    for e, item in enumerate(self.get_data(file, plugin)):
+                                        nlines = True
+                                        if "output" in values.keys() and values["output"] == "json_to_csv":
+                                            if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
+                                                write.writerows(self.json_to_md(item)[1:])
+                                            else:
+                                                write.writerows(self.json_to_md(item))
+                                        elif "output" in values.keys() and values["output"] == "csv":
+                                            if e == 0:
+                                                nlines = False
+                                            if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0 and e == 0:
+                                                continue
+                                            write.writerow(item)
+                                        else:
+                                            f_out.write(json.dumps(item))
+                                    if nlines:
+                                        to_remove[output_filename] = False
+                            except Exception:
+                                self.logger().warning(f"Problems with plugin {plugin} against file {file}")
+        for f, status in to_remove.items():
+            if status:
+                self.logger().debug('file {} has no lines'.format(output_filename))
+                os.remove(f)
 
         return []
 
@@ -161,16 +210,37 @@ class Regsmoker(base.job.BaseModule):
                 if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd'):
                     for fname, values in self.rules_dict.items():
                         if hive.lower() in values:
-                            sigma = reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname))
-                            if sigma.check_conditions():
-                                f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                            try:
+                                sigma = reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname))
+                                if sigma.check_conditions():
+                                    f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                            except Exception:
+                                self.logger().warning(f"Problems applying rule {fname} against file {hivefile}")
                 elif hive in ('ntuser', 'usrclass'):
                     for hfile in hivefile.values():
                         for fname, values in self.rules_dict.items():
                             if hive.lower() in values:
-                                sigma = reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
-                                if sigma.check_conditions():
-                                    f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                try:
+                                    sigma = reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
+                                    if sigma.check_conditions():
+                                        f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                except Exception:
+                                    self.logger().warning(f"Problems applying rule {fname} against file {hfile}")
+                elif hive in ('user', 'userclass'):
+                    if hive == 'user':
+                        hive = 'ntuser'
+                    else:
+                        hive = 'usrclass'
+                    for hfiles in hivefile.values():
+                        for fnames, values in self.rules_dict.items():
+                            if hive.lower() in values:
+                                for hfile in hfiles:
+                                    try:
+                                        sigma = reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
+                                        if sigma.check_conditions():
+                                            f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                    except Exception:
+                                        self.logger().warning(f"Problems applying rule {fname} against file {hfile}")
         return []
 
     def get_rules(self):
