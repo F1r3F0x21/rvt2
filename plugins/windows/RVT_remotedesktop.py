@@ -878,7 +878,7 @@ class Summary(base.job.BaseModule):
                         data_out["IP"] = inc_out_ip_match.group(1)
                 elif data_inc:
                     data_inc["IP"] = inc_out_ip_match.group(1)
-                else:
+                elif data_out:
                     data_out["IP"] = inc_out_ip_match.group(1)
         if data_out:
             yield data_out
