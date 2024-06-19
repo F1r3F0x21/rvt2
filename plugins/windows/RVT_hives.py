@@ -86,6 +86,7 @@ def get_hives(path):
         'security': 'security',
         'amcache.hve': 'amcache',
         'syscache.hve': 'syscache',
+        'default': 'default',
         'bcd': 'bcd'}
 
     # Search only first level, not subfolders. File names MUST BE the expected Windows hives names. If names had been changed, they will be ommited
@@ -100,6 +101,10 @@ def get_hives(path):
     regfiles["usrclass"] = {}
     regfiles["userclass"] = {}
 
+    if 'default' in regfiles.keys():
+        regfiles['ntuser']['SYSTEM'] = regfiles['default']
+        regfiles.pop('default')
+
     # Recursive search in subdirectories. Username will be taken from the directory name where hive is found
     for root, dirs, files in os.walk(path):
         for file in files:
@@ -111,7 +116,7 @@ def get_hives(path):
                             regfiles[hve_name][user] = []
                         regfiles[hve_name][user].append(os.path.join(root, file))
                     elif user not in regfiles[hve_name].keys():
-                        if hve_name in ('user', 'userclass'):
+                        if hve_name in ('user', 'userclass') and root.find('Helium') > 0:
                             regfiles[hve_name][user] = []
                             regfiles[hve_name][user].append(os.path.join(root, file))
                         else:

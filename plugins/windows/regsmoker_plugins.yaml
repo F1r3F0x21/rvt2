@@ -145,7 +145,7 @@ software:
     output: csv
   schedagent:
     filename: persistence/schedagent.json
-  shellserviceobjectdelayload:
+  shellserviceobjectDelayLoad:
     filename: persistence/shellserviceobjectdelayload.csv
   silentprocessexit:
     filename: persistence/silentprocessexit.json
