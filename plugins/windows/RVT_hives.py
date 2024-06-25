@@ -101,7 +101,7 @@ def get_hives(path):
     regfiles["usrclass"] = {}
     regfiles["userclass"] = {}
 
-    if 'default' in regfiles.keys():
+    if 'default' in regfiles.keys() and regfiles['default'].lower().find('config') > -1:
         regfiles['ntuser']['SYSTEM'] = regfiles['default']
         regfiles.pop('default')
 
