@@ -47,6 +47,9 @@ system:
   eventlog:
     filename: eventlog_info/eventlog.csv
     output: csv
+  printmon:
+    filename: persistence/printmon.json
+    output: csv
   securityproviders:
     filename: persistence/securityproviders.json
   services:
@@ -76,6 +79,8 @@ system:
     filename: network_information/routes.json
   shares:
     filename: network_information/shares.json
+  hddlist:
+    filename: storage_information/hddlist.json
   mountdev:
     filename: storage_information/mountdev.json
   usb:
@@ -86,7 +91,7 @@ system:
     filename: storage_information/wpdbusenum.json
 software:
   antivirus:
-    filename: installed_programs/antivirus.json
+    filename: installed_programs/antivirus.csv
     output: csv
   direct:
     filename: execution/direct.json
@@ -101,6 +106,9 @@ software:
     filename: os_info/uac.json
   winver:
     filename: os_info/winver.json
+  winpatches:
+    filename: os_info/winpatches.csv
+    output: csv
   profilelist:
     filename: user_account/profilelist.csv
     output: csv
@@ -110,6 +118,8 @@ software:
     filename: policies/execpolicy.json
   gpohist:
     filename: policies/gpohist.json
+  psscript:
+    filename: policies/psscript.json
   winevts:
     filename: eventlog_info/winevts.csv
     output: csv
@@ -140,17 +150,27 @@ software:
     filename: persistence/drivers32.json
   imagefile:
     filename: persistence/imagefile.json
+  netsh:
+    filename: persistence/netsh.json
   run:
     filename: persistence/run.csv
     output: csv
   schedagent:
     filename: persistence/schedagent.json
+  shellexec:
+    filename: persistence/shellexec.json
+  shellext:
+    filename: persistence/shellext.json
   shellserviceobjectDelayLoad:
     filename: persistence/shellserviceobjectdelayload.csv
   silentprocessexit:
     filename: persistence/silentprocessexit.json
   tasks:
     filename: persistence/tasks.json
+  wbem_autorecover:
+    filename: persistence/wbem_autorecover.json
+  wbem_wdm:
+    filename: persistence/wbem_wdm.json
   citrix_sessions:
     filename: lateral_movement/citrix_sessions.csv
     output: csv
@@ -183,6 +203,9 @@ ntuser:
     filename: execution/appcompatflags_user.json
   pslogging:
     filename: installed_programs/pslogging_user.json
+  shc:
+    filename: installed_programs/shc_user.csv
+    output: csv
   environment:
     filename: user_config/environment_user.json
   featureusage:
@@ -230,7 +253,8 @@ ntuser:
   msoffice:
     filename: recentdocs/msoffice_user.json
   oisc:
-    filename: recentdocs/oisc_user.json
+    filename: recentdocs/oisc_user.csv
+    output: csv
   recentdocs:
     filename: recentdocs/recentdocs_user.csv
     output: csv
@@ -290,9 +314,10 @@ ntuser:
     filename: lateral_movement/winscp_ssh_fingerprint_user.csv
     output: csv
   winscp_ssh_host_keys:
-    filename: lateral_movement/winscp_ssh_host_keys_user.json
+    filename: lateral_movement/winscp_ssh_host_keys_user.csv
     output: csv
-
+  psscript:
+    filename: policies/psscript_user.json
   knowndev:
     filename: storage_information/knowndev_user.json
   ie_settings:
@@ -323,4 +348,8 @@ security:
 bcd:
   bcd:
     filename: persistence/bcd.csv
+    output: csv
+syscache:
+  syscache:
+    filename: execution/syscache.csv
     output: csv

@@ -80,7 +80,7 @@ class Regsmoker(base.job.BaseModule):
             self.hivedict = yaml.safe_load(f_in)
         to_remove = {}
         for hive, hivefile in regfiles.items():
-            if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd'):
+            if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd', 'syscache'):
                 for plugin, values in tqdm(self.hivedict[hive].items()):
                     try:
                         output_filename = os.path.join(output_path, values['filename'])
