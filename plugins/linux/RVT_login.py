@@ -511,11 +511,11 @@ class Analysis(base.job.BaseModule):
                 file.write(data)
             df_result_filtered.to_csv(os.path.join(self.myconfig('analysisdir'), 'users_summary.csv'), index=False)
         else:
-            self.logger().error("To make the users table etc/passwd needed, and not found.")
+            self.logger().warning("To make the users table etc/passwd needed, and not found.")
         
         # Login information
         url_wtmp = os.path.join(self.login_dir, "wtmp.csv")
-        if os.path.isfile(url_wtmp):
+        if os.path.isfile(url_wtmp) and os.stat(url_wtmp).st_size != 0:
             df_wtmp = pd.read_csv(url_wtmp, sep=';', quotechar='"')
             df_filtered_wtmp = df_wtmp[df_wtmp['ut_type'] == 'USER_PROCESS']
             df_result_wtmp = df_filtered_wtmp[['user.name', 'ut_host', 'ut_addr_v6', '@timestamp', 'ut_time_to', 'ut_time_total']]

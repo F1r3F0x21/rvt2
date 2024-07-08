@@ -164,7 +164,7 @@ class Anydesk(base.job.BaseModule):
 
     def _process_anydesk_log(self, path):
         # Get only significant events and skip the rest
-        regex = re.compile(r'(External address|anynet.connection_mgr|Incoming session|Sending a connection request|Client-ID|app.prepare_task|Files|Logged|Connecting to|Accept request from|New user data)')
+        regex = re.compile(r'(External address|anynet.connection_mgr|Incoming session|Sending a connection request|Client-ID|app.prepare_task|Files|Logged|Connecting to|Accept request from|New user data|Session closed)')
         ip_regex = re.compile(r'Logged\sin\sfrom\s((?:[0-9]{1,3}[\.]){3}[0-9]{1,3}).*')
         result = {}
         with open(path, 'r') as fin:
@@ -293,7 +293,7 @@ class Splashtop(base.job.BaseModule):
         Attrs:
             path (str): Absolute path to the trace file
         """
-        ft_log = re.compile(r'^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})\t(.*?)\t(.*?)\t(\w*\t\w*)\t(\S*)\s\((.*?)\)')
+        ft_log = re.compile(r'^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})\t*\s*(.*?)\t*\s*(.*?)\t*\s*(\w*\t*\s*\w*)\t*\s*(\S*)\s\s*\((.*?)\)')
         other_log = re.compile(r'^<(\d+)>(\w{3}\d{1,2}\s\d{2}:\d{2}:\d{2}\.\d{3})\s+\w+\[(\S+)\]\s(.+)$')
         other_2_log = re.compile(r'^<(\d+)>(\w{3}\d{1,2}\s\d{2}:\d{2}:\d{2}\.\d{3})\s(.+)$')
         get_date_log = re.compile(r'<\d+>(\w{3}\d{1,2})\s\d{2}:\d{2}:\d{2}\.\d{3}.*')
@@ -376,7 +376,7 @@ class Splashtop(base.job.BaseModule):
                     "LogFilename": filename
                 }
                 yield log_dict
-            else:
+            if filename != "FTCLog.txt" and not other_match and not other_match_2 :
                 self.logger().warning("Regex pattern failed parsering: " + line)
     
     def getLevel(self, level_int):
@@ -553,7 +553,7 @@ class Summary(base.job.BaseModule):
                 yield {
                         "Type": line.get("Type",""),
                         "Startdate": line.get("Time",""),
-                        "Id.connection": line.get("ID",""),
+                        "Hostname": line.get("ID",""),
                         "User": line.get("Alias",""),
                         "Program": "AnyDesk",
                         "LogFilename": filename.strip()
@@ -839,10 +839,10 @@ class Summary(base.job.BaseModule):
         inc_req = re.compile(r'Accept\srequest\sfrom\s(\d+).*')
         out_conn = re.compile(r'1:\sConnecting\sto\s"(\d+)"')
         inc_out_ip = re.compile(r'Logged\sin\sfrom\s(.*?):.*')
+        inc_out_end = re.compile(r'Session closed.*')
         data_inc, data_out = {}, {}
         for line in self.from_module.run(path):
             message = line.get("message")
-
             inc_req_match = inc_req.match(message)
             if inc_req_match:
                 if data_inc:
@@ -850,7 +850,7 @@ class Summary(base.job.BaseModule):
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
                 data_inc["Startdate"] = line.get("@timestamp","")
-                data_inc["Id.connection"] = inc_req_match.group(1)
+                data_inc["Hostname"] = inc_req_match.group(1)
                 data_inc["Program"] = "AnyDesk"
                 data_inc["LogFilename"] = filename.strip()
                 continue
@@ -862,10 +862,32 @@ class Summary(base.job.BaseModule):
                     data_out = {}
                 data_out["Type"] = "Outgoing"
                 data_out["Startdate"] = line.get("@timestamp","")
-                data_out["Id.connection"] = out_conn_match.group(1)
+                data_out["Hostname"] = out_conn_match.group(1)
                 data_out["Program"] = "AnyDesk"
                 data_out["LogFilename"] = filename.strip()
                 continue
+
+            inc_out_end_match = inc_out_end.match(message)
+            if inc_out_end_match:
+                if data_inc and data_out:
+                    date_obj_inc = datetime.datetime.strptime(data_inc["Startdate"], "%Y-%m-%d %H:%M:%S.%f")
+                    date_obj_out = datetime.datetime.strptime(data_out["Startdate"], "%Y-%m-%d %H:%M:%S.%f")
+                    if date_obj_inc > date_obj_out:
+                        data_inc["Enddate"] = line.get("@timestamp","")
+                        yield data_inc
+                        data_inc = {}
+                    else:
+                        data_out["Enddate"] = line.get("@timestamp","")
+                        yield data_out
+                        data_out = {}
+                elif data_inc:
+                    data_inc["Enddate"] = line.get("@timestamp","")
+                    yield data_inc
+                    data_inc = {}
+                elif data_out:
+                    data_out["Enddate"] = line.get("@timestamp","")
+                    yield data_out
+                    data_out = {}
 
             inc_out_ip_match = inc_out_ip.match(message)
             if inc_out_ip_match:

@@ -23,7 +23,7 @@ import pytz
 import base.job
 import binascii
 import xmltodict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from plistlib import InvalidFileException
 
 class CortexLogs(base.job.BaseModule):
@@ -210,11 +210,9 @@ class BitdefenderLogs(base.job.BaseModule):
         parsed_dict = xmltodict.parse(xml_content)
         if "ScanSession" in parsed_dict:
             parsed_dict = parsed_dict["ScanSession"]
-            parsed_dict["Time"] = parsed_dict.pop("@creationDate")
+            parsed_dict["Time"] = parsed_dict["ScanSummary"].get("@startTime")
             parsed_dict["LogFilename"] = parsed_dict.pop("@originalPath")
             parsed_dict["Message"] = parsed_dict.pop("@name")
-
-
             yield parsed_dict
         else:
             self.logger().warning(f"No ScanSession xml file found. This file: {path} need to be parsered.")
@@ -794,3 +792,229 @@ class KasperskyEndpoint(base.job.BaseModule):
 
             yield line
         
+
+class PandasLogs(base.job.BaseModule):
+
+    """ Parser the Pandas Logfile
+
+    Module description:
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('logtype', 'default')
+        
+    def run(self, path=None):
+        logtype = self.myconfig('logtype')
+        filename = os.path.basename(path)
+
+        if logtype == "etl_log":
+            strings_result = ""
+            try:
+                result = subprocess.run(['strings', '-e', 'l', path], capture_output=True, text=True, check=True)
+                strings_result += result.stdout
+            except subprocess.CalledProcessError as e:
+                return f"An error occurred while running `strings -e l`: {e}"
+            try:
+                result2 = subprocess.run(['strings', path], capture_output=True, text=True, check=True)
+                strings_result += result2.stdout
+            except subprocess.CalledProcessError as e:
+                return f"An error occurred while running `strings -e l`: {e}"
+            if strings_result != "":
+                yield {
+                    "Time": datetime.fromtimestamp(os.path.getmtime(path)),
+                    "Message": strings_result, 
+                    "LogFilename": filename
+                }
+        
+        else:
+            prog_MsiExe = re.compile(r"PsMsiExe.*\.log")
+            prog_NanoRun = re.compile(r"PSINanoRun.*\.log")
+
+            if filename == "Resume.log" or prog_MsiExe.search(filename) or prog_NanoRun.search(filename):
+                prog_resume = re.compile(r'(\d+\/\d+\/\d+\s\d+:\d+:\d+\.?\d*)\s*(.*)')
+                for line in self.from_module.run(path):
+                    match = prog_resume.search(line.strip())
+                    if match:
+                        timestamp, message = match.groups(default='')
+                        yield {
+                            "Time": timestamp.strip(),
+                            "Message": message.strip(), 
+                            "LogFilename": filename
+                        }
+
+            if filename == "ExecutionInfo.ini":
+                prog_execution_id = re.compile(r'\[\{(.*)\}\]')
+                prog_execution_data = re.compile(r'^(.*?)=(.*)')
+                execution_dict = {}
+                for line in self.from_module.run(path):
+                    if line != "":
+                        match = prog_execution_data.search(line.strip())
+                        if match:
+                            key, value = match.groups(default='')
+                            if key == "Begin" or key=="End":
+                                value = datetime.fromtimestamp(int(value)).strftime('%Y-%m-%d %H:%M:%S')
+                            execution_dict[key] = value
+                            continue
+                        match_id = prog_execution_id.search(line.strip())
+                        if match_id:
+                            if execution_dict:
+                                yield{
+                                    "Time": execution_dict["Begin"],
+                                    "Message": "ExecutionInfo " + str(execution_dict),
+                                    "LogFilename": filename
+                                }
+                                execution_dict = {}
+                            value = match_id.group(1)
+                            execution_dict["ID_parent"] = str(value)
+                            continue
+                if execution_dict:
+                    yield{
+                        "Time": execution_dict["Begin"],
+                        "Message": "ExecutionInfo " + str(execution_dict),
+                        "LogFilename": filename
+                    }
+
+            prog_uninstall = re.compile(r"CoreUninstall.*\.log|msi_prodlang.*\.log")
+            if prog_uninstall.search(filename) and logtype == "utf-16le":
+                prog_first_row = re.compile(r'===.+logging\sstarted:\s(\d+\/\d+\/\d+)\s+\d+:\d+:\d+.*===')
+                prog_rest_row = re.compile(r'.*\[(\d+:\d+:\d+:?\d*)\]:(.*)')
+                date_object = date(1900,1,1)
+                prev_time_object = datetime.strptime("00:00:00", "%H:%M:%S").time()
+                prev_line_dict = {}
+                for line in self.from_module.run(path):
+                    if line != '':
+                        match_other = prog_rest_row.search(line.strip())
+                        if match_other:
+                            time, message = match_other.groups(default='')
+                            new_time_object = datetime.strptime(time, "%H:%M:%S:%f").time()
+                            if prev_line_dict:
+                                if prev_time_object > new_time_object:
+                                    date_object = date_object + timedelta(days=1)
+                                yield prev_line_dict
+                                prev_line_dict = {}
+                            combined_datetime = datetime.combine(date_object, new_time_object )
+                            prev_line_dict = {
+                                "Time" : combined_datetime,
+                                "Message": message,
+                                "LogFilename": filename
+                            }
+                        else:
+                            match_first = prog_first_row.search(line.strip())
+                            if match_first:
+                                date_object = datetime.strptime(match_first.group(1), "%d/%m/%Y").date()
+                                prev_time_object = datetime.strptime(match_first.group(1), "%d/%m/%Y").time()
+                            else:
+                                prev_line_dict["Message"] = prev_line_dict["Message"] + "\n" + line
+                if prev_line_dict:
+                    yield prev_line_dict
+
+
+class BitdefenderLogsEndpoint(base.job.BaseModule):
+
+    """ Parser the Bitdefender Logfile
+
+    Module description:
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('logtype', 'default')
+        
+    def run(self, path=None):
+        filename = os.path.basename(path)
+        logtype = self.myconfig('logtype')
+
+        if logtype == "EPLogs":
+            prog = re.compile(r'(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.?\d*)\s\d*\s\[\s*(.*?)\]\s\[\s*(.*?)\]\s\[\s*(.*?)\]\s*(.*)')
+            for line in self.from_module.run(path):
+                if line != "":
+                    match = prog.search(line.strip())
+                    if match:
+                        timestamp, type, level, proccesname, message  = match.groups(default='')
+                        yield {
+                            "Time": timestamp.strip(),
+                            "Message": message.strip(), 
+                            "Level": level,
+                            "Type": type,
+                            "Process": proccesname,
+                            "LogFilename": filename
+                        }
+                    else:
+                        self.logger().warning("Regex pattern failed parsering: " + line)
+        if logtype == "UpdateLogs":
+            try:
+                timestamp_int = filename.split("_")[1].split('.')[0]
+            except Exception as exc:
+                if self.myflag('stop_on_error'):
+                    raise base.job.RVTError(exc)
+                self.logger().warning(filename + " Does not follow the expected pattern ")
+                self.logger().warning(exc)
+                return []
+            for line in self.from_module.run(path):
+                if line != "":
+                    timestamp = datetime.fromtimestamp(int(timestamp_int)).strftime('%Y-%m-%d %H:%M:%S')
+                    yield {
+                        "Time": timestamp,
+                        "Message": line, 
+                        "LogFilename": filename
+                    }
+        if logtype == "ScanLogs":
+            prog = re.compile(r'(.*?)(\d{4}-.*?-\d{2}\s\d{2}:\d{2}:\d{2}\.?\d*)\s\[.*?\]\s\[(.*?)\]\s\[.*?\](.*)')
+            for line in self.from_module.run(path):
+                if line != "":
+                    match = prog.search(line.strip())
+                    if match:
+                        level, timestamp_str, proccesname, message  = match.groups(default='')
+                        timestamp = datetime.strptime(timestamp_str, '%Y-%b-%d %H:%M:%S.%f')
+                        yield {
+                            "Time": timestamp,
+                            "Message": message.strip(), 
+                            "Level": level,
+                            "Process": proccesname,
+                            "LogFilename": filename
+                        }
+                    else:
+                        self.logger().warning("Regex pattern failed parsering: " + line)
+        if logtype == "EpagngMachineinfo":
+            prog = re.compile(r'\[(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3})\]\s\[.*?\]\s\[.*?\]\s\[(.*?)\]\s\[(.*?)\](?:\s\[(.*?)\])?(.*)')
+            for line in self.from_module.run(path):
+                if line != "":
+                    match = prog.search(line.strip())
+                    if match:
+                        timestamp, proccesname, level, type, message  = match.groups(default='')
+                        yield {
+                            "Time": timestamp,
+                            "Message": message.strip(), 
+                            "Level": level,
+                            "Type": type,
+                            "Process": proccesname,
+                            "LogFilename": filename
+                        }
+                    else:
+                        self.logger().warning("Regex pattern failed parsering: " + line)
+        if logtype == "Machineinfo":
+            prog = re.compile(r'\[(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3})\]\s\[.*?\]\s\[.*?\]\s\[(.*?)\]\s\[(.*?)\](.*)')
+            prev_line_dict = {}
+            for line in self.from_module.run(path):
+                if line != "":
+                    match = prog.search(line.strip())
+                    if match:
+                        if prev_line_dict:
+                            yield prev_line_dict
+                            prev_line_dict = {}
+                        timestamp, type, level, message  = match.groups(default='')
+                        prev_line_dict = {
+                            "Time": timestamp,
+                            "Message": message.strip(),
+                            "Level": level,
+                            "Type": type,
+                            "LogFilename": filename
+                        }
+                    else:
+                        prev_line_dict["Message"] = prev_line_dict["Message"] + "\n" + line
+            if prev_line_dict:
+                yield prev_line_dict
+

@@ -29,51 +29,57 @@ class LinuxStandardLog(base.job.BaseModule):
     Module description:
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
-
-    Configuration:
-        - **logtemplate**:  (String): String-based Template of the configuration logfile, usually: rsyslog.conf. Default RSYSLOG_TraditionalFileFormat
     """
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('logtemplate', 'RSYSLOG_TraditionalFileFormat')
 
     def run(self, path=None):
-        if self.myconfig('logtemplate') == "RSYSLOG_TraditionalFileFormat" :
-            pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*)?'
-            prog = re.compile(pattern)
-            filename = os.path.basename(path)
-            count_lines = 0
-            prev_line_dict = {}
-            
-            for line in self.from_module.run(path):
-                match = prog.match(line)
-                if match:
-                    count_lines += 1
-                    timestamp, host, process_command = match.groups()
-                    process, command = process_command.split(":", maxsplit=1)
+        # RSYSLOG_TraditionalFileFormat
+        rsyslog_tff = re.compile(r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*)?')
+        # RFC 5424 & traditional syslog formats with UTC time
+        rfc_syslog_tff = re.compile(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)\s?(.*?):\s?(.+)$')
 
+        filename = os.path.basename(path)
+        count_lines = 0
+        prev_line_dict = {}
+        
+        for line in self.from_module.run(path):
+            match = rsyslog_tff.match(line)
+            if match:
+                count_lines += 1
+                timestamp, host, process_command = match.groups()
+                process, command = process_command.split(":", maxsplit=1)
+
+                log_entry_dict = {
+                    "@timestamp": timestamp,
+                    "process.name": process,
+                    "message": command,
+                    "filename": filename
+                }
+                if count_lines == 1:
+                    prev_line_dict = log_entry_dict
+                else:
+                    if ((self.count_leading_spaces(command) > 1) or (process.startswith("python3"))) and log_entry_dict["@timestamp"] == prev_line_dict["@timestamp"] and log_entry_dict["process.name"] == prev_line_dict["process.name"] :
+                        prev_line_dict["message"] = prev_line_dict["message"] + log_entry_dict["message"]
+                    else:
+                        yield prev_line_dict
+                        prev_line_dict = log_entry_dict
+            else:
+                match = rfc_syslog_tff.match(line)
+                if match:
+                    timestamp, process, message = match.groups()
                     log_entry_dict = {
                         "@timestamp": timestamp,
                         "process.name": process,
-                        "message": command,
+                        "message": message,
                         "filename": filename
                     }
-
-                    if count_lines == 1:
-                        prev_line_dict = log_entry_dict
-                    else:
-                        if ((self.count_leading_spaces(command) > 1) or (process.startswith("python3"))) and log_entry_dict["@timestamp"] == prev_line_dict["@timestamp"] and log_entry_dict["process.name"] == prev_line_dict["process.name"] :
-                            prev_line_dict["message"] = prev_line_dict["message"] + log_entry_dict["message"]
-                        else:
-                            yield prev_line_dict
-                            prev_line_dict = log_entry_dict
+                    yield log_entry_dict
                 else:
                     self.logger().warning("Regex pattern failed with some logline input " + line)
-            if len(prev_line_dict) != 0:
-                yield prev_line_dict
-        else:
-            self.logger().warning("Logtemplete " + self.myconfig('logtemplate') + " Not supported yet")
+        if len(prev_line_dict) != 0:
+            yield prev_line_dict
 
     def count_leading_spaces(self, line):
         count = 0
@@ -83,6 +89,88 @@ class LinuxStandardLog(base.job.BaseModule):
             else:
                 break  # Stop counting when a non-space character is encountered
         return count
+
+
+class ESXiStandardLog(base.job.BaseModule):
+
+    """ Extract the Logfile
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+    
+    def run(self, path=None):
+        esxilog = re.compile(r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s(\S*)\s(\S*)\s\[(.*?)\]\s*(.*)')
+        filename = os.path.basename(path)
+        prev_line_dict = {}
+        first_message = ""
+
+        for line in self.from_module.run(path):
+            match = esxilog.match(line)
+            if match:
+                if prev_line_dict and "Time" in prev_line_dict:
+                    yield prev_line_dict
+                    prev_line_dict = {}
+                timestamp, level, process, details, message  = match.groups(default='')
+                prev_line_dict = {
+                    "Time": timestamp,
+                    "Message": first_message + message.strip(),
+                    "Level": level,
+                    "process.name": process,
+                    "details": details,
+                    "LogFilename": filename
+                }
+                first_message = ""
+            else:
+                if prev_line_dict.get("Message","") == "":
+                    first_message = line
+                else:
+                    prev_line_dict["Message"] = prev_line_dict.get("Message","") + "\n" + line
+        if prev_line_dict:
+            yield prev_line_dict
+
+
+class ESXiShellSyslogLog(base.job.BaseModule):
+
+    """ Extract the Logfile
+
+    Module description:
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+    """
+
+    def read_config(self):
+        super().read_config()
+    
+    def run(self, path=None):
+        esxilog = re.compile(r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s*(.*?):\s*(.*)')
+        filename = os.path.basename(path)
+        prev_line_dict = {}
+        for line in self.from_module.run(path):
+            match = esxilog.match(line)
+            if match:
+                if prev_line_dict :
+                    yield prev_line_dict
+                    prev_line_dict = {}
+                timestamp, process, message  = match.groups(default='')
+                prev_line_dict = {
+                    "Time": timestamp,
+                    "Message": message.strip(),
+                    "process.name": process,
+                    "LogFilename": filename
+                }
+            else:
+                if prev_line_dict.get("Message","") != "":
+                    prev_line_dict["Message"] = prev_line_dict.get("Message","") + "\n" + line
+                else:
+                    self.logger().warning("Regex pattern failed with some logline input " + line)
+        if prev_line_dict:
+            yield prev_line_dict
+
 
 class JournalLogs(base.job.BaseModule):
     """ Extract from the Binarys Journal Logfile 

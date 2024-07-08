@@ -458,6 +458,42 @@ class GlobClear(base.job.BaseModule):
             return []
 
 
+class GlobClearEmptyFile(base.job.BaseModule):
+    """ Remove the the empty files specified by glob pattern 'target'.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('recursive', 'True')
+
+    def run(self, path=None):
+        target_path = self.myconfig('target', None)
+        if not target_path:
+            raise base.job.RVTError('Target path to remove not selected'.format(target_path))
+
+        items_removed = False
+        self.logger().debug('Removing all empty files matching glob pattern: {}'.format( target_path))
+        try:
+            for filepath in glob.iglob(target_path, recursive=self.myflag('recursive')):
+                if os.path.isfile(filepath):
+                    if os.stat(filepath).st_size == 0:
+                        os.remove(filepath)
+                        items_removed = True
+                        self.logger().debug(f'File {filepath} has been deleted')
+        except Exception as exc:
+            if self.myflag('stop_on_error'):
+                raise
+            self.logger().warning(exc)
+        if not items_removed:
+            self.logger().debug('No empty file matching "{}" has been deleted'.format(target_path))
+
+        # If this job is used as a module, continue the module chain
+        if self.from_module is not None:
+            yield from self.from_module.run(path)
+        else:
+            return []
+
+
 class CopyFile(base.job.BaseModule):
     
     """  A module that copy a file set in 'path' to a specific folder
