@@ -34,3 +34,6 @@
 [submodule "plugins/external/ESETLogParser"]
 	path = plugins/external/ESETLogParser
 	url = https://github.com/laciKE/EsetLogParser.git
+[submodule "plugins/external/CryptnetURLCacheParser"]
+	path = plugins/external/CryptnetURLCacheParser
+	url = https://github.com/AbdulRhmanAlfaifi/CryptnetURLCacheParser.git

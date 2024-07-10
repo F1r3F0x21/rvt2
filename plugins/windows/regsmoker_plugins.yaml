@@ -150,6 +150,8 @@ software:
     filename: persistence/drivers32.json
   imagefile:
     filename: persistence/imagefile.json
+  msoffice_autoruns:
+    filename: persistence/msoffice_autoruns.json
   netsh:
     filename: persistence/netsh.json
   run:
@@ -275,6 +277,8 @@ ntuser:
   uninstall:
     filename: installed_programs/uninstall_user.csv
     output: csv
+  msoffice_autoruns:
+    filename: persistence/msoffice_autoruns_user.json
   run:
     filename: persistence/run_user.csv
     output: csv
