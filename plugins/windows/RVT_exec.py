@@ -17,15 +17,15 @@
 import csv
 import os
 import logging
+import shlex
 import struct
+import subprocess
 import pyscca
+import base.job
 from cim import CIM
 from cim.objects import Namespace
-
-import base.job
-from base.utils import check_directory, save_csv, relative_path
+from base.utils import check_directory, check_folder, get_windows_user_from_path, save_csv, relative_path
 from plugins.common.RVT_files import GetTimeline
-
 
 def parse_RFC_file(fname):
     """ Parses RecentFileCache.bcf
@@ -323,3 +323,51 @@ class CCM(base.job.BaseModule):
             return ret_items
         except IndexError:
             raise RuntimeError("CCM Software Metering Agent path 'root\\\\ccm\\\\SoftwareMeteringAgent' not found.")
+
+
+class PSHistory(base.job.BaseModule):
+
+    """ Get the PowerShell History
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('outdir', None)
+        
+    def run(self, path=None):
+        base_path = self.myconfig('outdir')
+        user = get_windows_user_from_path(path)
+        
+        file_out = os.path.join(base_path, "powershell_history_" + user + '.txt')
+        check_folder(base_path)
+        
+        command = "cp -r " + path + " " + file_out
+        args = shlex.split(command)
+        process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        output = process.stderr.readline().strip()
+        if output:
+            self.logger().error(output)
+
+
+class PCARecord(base.job.BaseModule):
+
+    """ Get the PowerShell History
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('outdir', None)
+        
+    def run(self, path=None):
+        for line in self.from_module.run(path):
+            number = int(line["Status"])
+            if number == 0:
+                line["Status"] = "Installer failed"
+            elif number == 1:
+                line["Status"] = "Driver was Blocked"
+            elif number == 2:
+                line["Status"] = "Abnormal Process Exit"
+            elif number == 3:
+                line["Status"] = "PCA Resolve is Called"
+            yield line

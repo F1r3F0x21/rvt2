@@ -18,7 +18,7 @@ import re
 import os
 import ast
 import base.job
-from base.utils import check_folder, save_csv
+from base.utils import check_folder, get_windows_user_from_path, save_csv
 
 class Teamviewer_connections(base.job.BaseModule):
     """ Extracts teamviewer connections information """
@@ -37,12 +37,8 @@ class Teamviewer_connections(base.job.BaseModule):
         srch = re.search(r'/(p\d{1,2})/', path)
         if srch:
             partition = srch.group(1)
-        srch = re.search(r'/p\d{1,2}/Users/([^/]*)/', path)
-        if srch:
-            user = srch.group(1)
-
+        user = get_windows_user_from_path(path)
         lfields = False
-
         if path.endswith('incoming.txt'):
             srch = re.compile(r'^(\d+)\s+([^\t]+)\s+(\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2})\s+(\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2})\s+(\S+)\s+(\w+)')
             lfields = True
@@ -156,9 +152,7 @@ class Anydesk(base.job.BaseModule):
         srch = re.search(r'/(p\d{1,2})/', path)
         if srch:
             partition = srch.group(1)
-        srch = re.search(r'/p\d{1,2}/Users/([^/]*)/', path)
-        if srch:
-            user = srch.group(1)
+        user = get_windows_user_from_path(path)
         outfile = os.path.join(base_path, 'Anydesk_{}{}.csv'.format(partition, f'_{user}' if user else ''))
         save_csv(self._process_anydesk_log(path), outfile=outfile, file_exists='OVERWRITE', quoting=0)
 

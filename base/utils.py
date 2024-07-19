@@ -140,6 +140,16 @@ def windows_format_path(path, enclosed=False):
     return path
 
 
+def get_windows_user_from_path(path):
+    """ Return the user name given a Windows path"""
+    srch = re.search(r'p\d{1,3}\/(?:Users|Documents\sand\sSettings)\/([^\/]*)', path)
+    if srch:
+        user = srch.group(1)
+    else:
+        user = ""
+        logging.warning('The path provided does not belong to a user personal folder. User not found')
+    return user
+
 # ----------------------------
 # OUTPUT MANAGEMENT
 # ----------------------------

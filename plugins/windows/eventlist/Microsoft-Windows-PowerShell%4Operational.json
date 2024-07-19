@@ -8,5 +8,23 @@
         "transform": {"Path": "file.path"}
       }
     }
+  },
+  "4103": {
+    "description": "Module logging",
+    "provider": "PowerShell",
+    "path": {
+      "EventData":{
+        "Name": ["ContextInfo", "Payload", "UserData"]
+      }
+    }
+  },
+  "4100": {
+    "description": "Error message, script did not run properly",
+    "provider": "PowerShell",
+    "path": {
+      "EventData":{
+        "Name": ["ContextInfo", "Payload", "UserData"]
+      }
+    }
   }
 }
