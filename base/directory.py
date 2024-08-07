@@ -79,7 +79,7 @@ class DirectoryFilter(base.job.BaseModule):
             self.filter_extensions = None
         # progress configuration
         self.set_default_config('progress', 'True')
-        self.set_default_config('progress.cmd', 'find . -type d | wc -l')
+        self.set_default_config('progress.cmd', 'find "{path}" -type d | wc -l')
         self.set_default_config('exclude_pattern', '')
         self.set_default_config('restartable', 'False')
 

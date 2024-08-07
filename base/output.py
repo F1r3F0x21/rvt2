@@ -129,6 +129,7 @@ class JSONSink(BaseSink):
         - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
         - **indent** (str): Indentation value for the output. Default=None
+        - **ensure_ascii** (bool): If True, all incoming non-ASCII characters will be escaped in the output. Unicode characters will be transformed to \\uXXXX format
     """
 
     def read_config(self):
