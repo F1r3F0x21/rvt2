@@ -140,14 +140,14 @@ def windows_format_path(path, enclosed=False):
     return path
 
 
-def get_windows_user_from_path(path):
+def get_windows_user_from_path(path, logger=logging):
     """ Return the user name given a Windows path"""
     srch = re.search(r'p\d{1,3}\/(?:Users|Documents\sand\sSettings)\/([^\/]*)', path)
     if srch:
         user = srch.group(1)
     else:
         user = ""
-        logging.warning('The path provided does not belong to a user personal folder. User not found')
+        logger.warning(f'Provided path does not match a Windows user personal directory. {path}')
     return user
 
 # ----------------------------
@@ -260,7 +260,7 @@ def generate_id(data=None):
         return uuid.uuid4()
 
 
-def generate_hash(data=None, algorithm='md5'):
+def generate_hash(data=None, algorithm='md5', logger=logging):
     """ Generate a hash (MD5 by default) for a dictionary. If data is None, returns a random indentifier.
 
     The identifier is created using the encoded input data.
@@ -274,13 +274,13 @@ def generate_hash(data=None, algorithm='md5'):
     if '_id' in data:
         return data.pop('_id')
 
-    dhash = _select_hash_algorithm(algorithm)
+    dhash = _select_hash_algorithm(algorithm, logger=logger)
     encoded = json.dumps(data, sort_keys=True).encode()
     dhash.update(encoded)
     return dhash.hexdigest()
 
 
-def get_filehash(filepath, sha=None, algorithm='sha256'):
+def get_filehash(filepath, sha=None, algorithm='sha256', logger=logging):
     """ Calculates or updates the hash (SHA256 by default) of a file """
     # Specify how many bytes of the file you want to open at a time
     BLOCKSIZE = 65536
@@ -289,7 +289,7 @@ def get_filehash(filepath, sha=None, algorithm='sha256'):
     digest = False
     if not sha:
         digest = True
-        sha = _select_hash_algorithm(algorithm)
+        sha = _select_hash_algorithm(algorithm, logger=logger)
 
     with open(filepath, 'rb') as f:
         file_buffer = f.read(BLOCKSIZE)
@@ -302,14 +302,14 @@ def get_filehash(filepath, sha=None, algorithm='sha256'):
         return sha
 
 
-def _select_hash_algorithm(name='sha256'):
+def _select_hash_algorithm(name='sha256', logger=logging):
     "Return hashlib object with the desired algorithm"
     algorithms = {'sha1': hashlib.sha1(),
                   'sha256': hashlib.sha256(),
                   'sha512': hashlib.sha512(),
                   'md5': hashlib.md5(),}
     if name.lower() not in algorithms:
-        logging.warning(f'Selected hash algorithm name "{name}" not supported. Available options: {algorithms.keys()}. Taking default algorithm sha256')
+        logger.warning(f'Selected hash algorithm name "{name}" not supported. Available options: {algorithms.keys()}. Taking default algorithm sha256')
         name = 'sha256'
     return algorithms[name]
 
@@ -317,7 +317,7 @@ def _select_hash_algorithm(name='sha256'):
 # IP MANAGEMENT
 # ----------------------------
 
-def sanitize_ip(value):
+def sanitize_ip(value, logger=logging):
     """ Adapt IP fields to Elastic IPv4 or IPv6 addresses format (see https://www.elastic.co/guide/en/elasticsearch/reference/current/ip.html)
 
     Possible inputs to convert:
@@ -366,9 +366,9 @@ def sanitize_ip(value):
         if is_valid_ipv4_address(ipv4):
             valid_v4 = True
         else:
-            logging.debug(f'IP value "{value}" is not a valid IPv4')
+            logger.debug(f'IP value "{value}" is not a valid IPv4')
         if not is_valid_ipv6_address(ipv6) and not valid_v4:
-            logging.warning(f'IP value "{value}" is not a valid IP')
+            logger.warning(f'IP value "{value}" is not a valid IP')
             return (None, None)
         return (ipv4 if valid_v4 else ipv6, port)
 
@@ -378,7 +378,7 @@ def sanitize_ip(value):
         ip = match_ipv6.group('ip')
         port = check_integer(match_ipv6.group('port'))
         if not is_valid_ipv6_address(ip):
-            logging.warning(f'IP value "{value}" is not a valid IPv6')
+            logger.warning(f'IP value "{value}" is not a valid IPv6')
             return (None, None)
         return (ip, port)
 
@@ -414,13 +414,13 @@ def check_integer(value):
 # DATE MANAGEMENT
 # ----------------------------
 
-def date_to_iso(source, input_timezone="UTC", output_timezone="UTC", on_fail='NULL', dayfirst=False, sep="T", timespec='auto', hide_tz=False):
+def date_to_iso(source, input_timezone="UTC", output_timezone="UTC", on_fail='NULL', dayfirst=False, sep="T", timespec='auto', hide_tz=False, logger=logging):
     """ Get input data representing a date and return a string in ISO format. Both input and output timezones are editable. """
-    dt = to_localized_date(source, tz_name=input_timezone, dayfirst=dayfirst, on_fail=on_fail)
-    return convert_to_iso(dt, sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz, on_fail=on_fail)
+    dt = to_localized_date(source, tz_name=input_timezone, dayfirst=dayfirst, on_fail=on_fail, logger=logger)
+    return convert_to_iso(dt, sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz, on_fail=on_fail, logger=logger)
 
 
-def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL'):
+def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL', logger=logging):
     """ Convert a date to a localized datetime object.
         Admit either an epoch timestamp, a date string or a non localized datetime object as an input.
         If `source` does not provided a timezone, assign tz_name.
@@ -440,7 +440,7 @@ def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL'):
             # Using dayfirst parameter enforces European notation, but fails interpreting ISO format
             dt = dateutil.parser.parse(source, dayfirst=dayfirst)
     except Exception as exc:
-        logging.warning(f'Problems parsing input date {source}. {exc}')
+        logger.warning(f'Problems parsing input date {source}. {exc}')
         return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='DATETIME')
 
     # Set the timezone:
@@ -450,26 +450,26 @@ def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL'):
             return dt
         tz = pytz.timezone(tz_name)
     except Exception as exc:
-        logging.warning(f'Input timezone provided is not valid: {tz_name}. Time will be treated as UTC')
+        logger.warning(f'Input timezone provided is not valid: {tz_name}. Time will be treated as UTC')
         return dt.replace(tzinfo=pytz.utc)
     try:
         localized_datetime = tz.localize(dt)
         return localized_datetime
     except Exception as exc:
-        logging.warning(f'Problems setting datezone {tz_name}. {exc}')
+        logger.warning(f'Problems setting datezone {tz_name}. {exc}')
         return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='DATETIME')
 
 
-def convert_to_iso(source_datetime, sep='T', timespec='auto', tz_name='UTC', hide_tz=False, on_fail='NULL'):
+def convert_to_iso(source_datetime, sep='T', timespec='auto', tz_name='UTC', hide_tz=False, on_fail='NULL', logger=logging):
     """ Given a datetime object (source_datetime), return a string representing the date in ISO format adapted to the desired timezone output"""
     try:
         tz = pytz.timezone(tz_name)
     except Exception as exc:
-        logging.warning(f'Output timezone provided is not valid: {tz_name}. Time {source_datetime} will be expressed in UTC')
+        logger.warning(f'Output timezone provided is not valid: {tz_name}. Time {source_datetime} will be expressed in UTC')
         tz = pytz.utc
 
     if type(source_datetime) != datetime.datetime:
-        #logging.debug(f'Expected a datetime object as input. Input provided: {source_datetime}')
+        #logger.debug(f'Expected a datetime object as input. Input provided: {source_datetime}')
         return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='ISO', tz_name=tz_name, sep=sep, timespec=timespec, hide_tz=hide_tz)
 
     try:
@@ -479,7 +479,7 @@ def convert_to_iso(source_datetime, sep='T', timespec='auto', tz_name='UTC', hid
         # Display in isoformat
         return dt.isoformat(sep=sep, timespec=timespec)
     except Exception as exc:
-        logging.warning(f'Problems converting date {source_datetime} to ISO format. {exc}')
+        logger.warning(f'Problems converting date {source_datetime} to ISO format. {exc}')
         return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='ISO', tz_name=tz_name, sep=sep, timespec=timespec, hide_tz=hide_tz)
 
 

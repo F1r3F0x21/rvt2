@@ -195,7 +195,7 @@ class CharacterizeLinux(base.job.BaseModule):
                             last_shutdown_time = from_time
                         else:
                             last_shutdown_time = to_time
-                        last_shutdown_utc = date_to_iso(last_shutdown_time, input_timezone=tz).replace("+00:00", "Z")
+                        last_shutdown_utc = date_to_iso(last_shutdown_time, input_timezone=tz, logger=self.logger()).replace("+00:00", "Z")
                         self.os_info[part_to_save]["ShutdownTime"] = last_shutdown_utc
 
 

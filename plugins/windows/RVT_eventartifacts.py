@@ -198,7 +198,7 @@ class LogonRDP(base.job.BaseModule):
                     continue
                 logon_id = v['LogonID']
                 event_type = event_types[v['EventID']]
-                logons[logon_id][event_type] = date_to_iso(v['TimeCreated'], sep=' ', timespec='seconds', hide_tz=True)
+                logons[logon_id][event_type] = date_to_iso(v['TimeCreated'], sep=' ', timespec='seconds', hide_tz=True, logger=self.logger())
                 logons[logon_id]['User'] = v['TargetUser']
                 logons[logon_id]['LogonType'] = v['LogonTypeStr']
                 # The following information is only available in 4624 events

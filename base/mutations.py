@@ -352,9 +352,9 @@ class DateFields(base.job.BaseModule):
                         continue
                 if field in data:
                     found = True
-                    converted_date = base.utils.date_to_iso(data[field], input_timezone=input_timezone, output_timezone=output_timezone, on_fail=on_fail, dayfirst=dayfirst, sep=sep, timespec=timespec, hide_tz=hide_tz)
+                    converted_date = base.utils.date_to_iso(data[field], input_timezone=input_timezone, output_timezone=output_timezone, on_fail=on_fail, dayfirst=dayfirst, sep=sep, timespec=timespec, hide_tz=hide_tz, logger=self.logger())
                 else:  # case missing_action == REPLACE
-                    converted_date = base.utils.convert_to_iso(None, sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz, on_fail=on_fail)
+                    converted_date = base.utils.convert_to_iso(None, sep=sep, timespec=timespec, tz_name=output_timezone, hide_tz=hide_tz, on_fail=on_fail, logger=self.logger())
                 if converted_date and not new_fields:
                     data[field] = converted_date
                 elif converted_date and new_fields:
@@ -637,7 +637,7 @@ class AdaptIpFormat(base.job.BaseModule):
             for ip_field, port_field in relation:
                 if ip_field not in data:
                     continue
-                ip, port = sanitize_ip(data[ip_field])
+                ip, port = sanitize_ip(data[ip_field], logger=self.logger())
                 data[ip_field] = ip if ip else null_values.get(null_value.upper(), null_value)
                 if port and not ignore_port:
                     data[port_field] = port
@@ -673,7 +673,7 @@ class CalculateHash(base.job.BaseModule):
         for data in self.from_module.run(path):
             path = os.path.join(from_dir, data.get(path_field, ''))
             if os.path.isfile(path):
-                data[hash_field] = base.utils.get_filehash(path, algorithm=algorithm)
+                data[hash_field] = base.utils.get_filehash(path, algorithm=algorithm, logger=self.logger())
             else:
                 data[hash_field] = ''
             yield data
@@ -839,11 +839,11 @@ class DateRange(base.job.BaseModule):
         if not start:
             start = datetime.datetime.fromtimestamp(0)
         else:
-            start = base.utils.to_localized_date(start, on_fail=on_fail, dayfirst=dayfirst)
+            start = base.utils.to_localized_date(start, on_fail=on_fail, dayfirst=dayfirst, logger=self.logger())
         if not end:
             end = datetime.datetime.now(datetime.timezone.utc)
         else:
-            end = base.utils.to_localized_date(end, on_fail=on_fail, dayfirst=dayfirst)
+            end = base.utils.to_localized_date(end, on_fail=on_fail, dayfirst=dayfirst, logger=self.logger())
 
         if not start and not end:   # Check again in case date parsing was incorrect
             yield from self.from_module.run(path)
@@ -855,7 +855,7 @@ class DateRange(base.job.BaseModule):
                 if missing_action == 'KEEP':
                     yield data
                 continue
-            timestamp = base.utils.to_localized_date(data.get(field, None), on_fail=on_fail, dayfirst=dayfirst)
+            timestamp = base.utils.to_localized_date(data.get(field, None), on_fail=on_fail, dayfirst=dayfirst, logger=self.logger())
             if not timestamp:
                 continue
             if timestamp > start and timestamp < end:

@@ -54,7 +54,7 @@ class LinuxDpkgLog(base.job.BaseModule):
                 }
                 actual_date = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
                  # Parse the timestamp and convert it to ISO format
-                output_string_utc = date_to_iso(actual_date, input_timezone=tz, output_timezone="UTC")
+                output_string_utc = date_to_iso(actual_date, input_timezone=tz, output_timezone="UTC", logger=self.logger())
                 log_entry_dict['@timestamp'] = output_string_utc
 
                 yield log_entry_dict
@@ -84,12 +84,12 @@ class LinuxAptHistoryLog(base.job.BaseModule):
                     aux_dict = {}
                     timestamp = linesplited[1].strip()
                     localdate = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                    isodate = date_to_iso(localdate, input_timezone = get_timezone(self.myconfig('mountdir')))
+                    isodate = date_to_iso(localdate, input_timezone = get_timezone(self.myconfig('mountdir')), logger=self.logger())
                     aux_dict["@timestamp"] = isodate
                 elif linesplited[0] == "End-Date":
                         timestamp = linesplited[1].strip()
                         localdate = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                        isodate = date_to_iso(localdate, input_timezone = get_timezone(self.myconfig('mountdir')))
+                        isodate = date_to_iso(localdate, input_timezone = get_timezone(self.myconfig('mountdir')), logger=self.logger())
                         aux_dict[linesplited[0]] = isodate
                         yield aux_dict
                 elif linesplited[0] == "Commandline":

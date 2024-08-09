@@ -123,7 +123,7 @@ class LastLog(base.job.BaseModule):
                     }
                     # Localtime to UTC
                     local_tz = get_timezone(self.myconfig('mountdir'))
-                    dict_output["datetime"] = date_to_iso(dict_output["datetime"], input_timezone=local_tz)
+                    dict_output["datetime"] = date_to_iso(dict_output["datetime"], input_timezone=local_tz, logger=self.logger())
 
                     yield dict_output
 
@@ -350,8 +350,8 @@ class Utmpdump(base.job.BaseModule):
 
                 datetime_from = datetime.strptime(time_from, time_format)
                 datetime_to = datetime.strptime(time_to, time_format)
-                datetime_from_iso = date_to_iso(datetime_from)
-                datetime_to_iso = date_to_iso(datetime_to)
+                datetime_from_iso = date_to_iso(datetime_from, logger=self.logger())
+                datetime_to_iso = date_to_iso(datetime_to, logger=self.logger())
 
                 negative = ""
                 time_difference = datetime_to - datetime_from
@@ -395,8 +395,8 @@ class Utmpdump(base.job.BaseModule):
 
                             datetime_from = datetime.strptime(time_from, time_format)
                             datetime_to = datetime.strptime(time_to, time_format)
-                            datetime_from_iso = date_to_iso(datetime_from)
-                            datetime_to_iso = date_to_iso(datetime_to)
+                            datetime_from_iso = date_to_iso(datetime_from, logger=self.logger())
+                            datetime_to_iso = date_to_iso(datetime_to, logger=self.logger())
 
                             negative = ""
                             time_difference = datetime_to - datetime_from

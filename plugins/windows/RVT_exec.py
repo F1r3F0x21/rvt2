@@ -327,8 +327,7 @@ class CCM(base.job.BaseModule):
 
 class PSHistory(base.job.BaseModule):
 
-    """ Get the PowerShell History
-    """
+    """ Get the PowerShell History """
 
     def read_config(self):
         super().read_config()
@@ -336,7 +335,7 @@ class PSHistory(base.job.BaseModule):
         
     def run(self, path=None):
         base_path = self.myconfig('outdir')
-        user = get_windows_user_from_path(path)
+        user = get_windows_user_from_path(path, logger=self.logger())
         
         file_out = os.path.join(base_path, "powershell_history_" + user + '.txt')
         check_folder(base_path)
@@ -352,22 +351,18 @@ class PSHistory(base.job.BaseModule):
 
 class PCARecord(base.job.BaseModule):
 
-    """ Get the PowerShell History
-    """
-
-    def read_config(self):
-        super().read_config()
-        self.set_default_config('outdir', None)
+    """ Assign status string to Program Compatibility Assistan artifact results """
         
     def run(self, path=None):
+
+        status = {
+            0 : "Installer failed",
+            1 : "Driver was Blocked",
+            2 : "Abnormal Process Exit",
+            3 : "PCA Resolve is Called"
+        }
+
         for line in self.from_module.run(path):
             number = int(line["Status"])
-            if number == 0:
-                line["Status"] = "Installer failed"
-            elif number == 1:
-                line["Status"] = "Driver was Blocked"
-            elif number == 2:
-                line["Status"] = "Abnormal Process Exit"
-            elif number == 3:
-                line["Status"] = "PCA Resolve is Called"
+            line["status"] = status.get(number, number)
             yield line
