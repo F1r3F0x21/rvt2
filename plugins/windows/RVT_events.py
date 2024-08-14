@@ -100,12 +100,12 @@ class GetEvents(object):
                     if self.data_json["*"]["provider"] == data['event.provider'] and self.data_json["*"]["dataset"] == data['event.dataset']:
                         default_parser = True
                     if data['event.code'] in self.data_json.keys() and re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
-                        exist_specific_parser = True 
-                
+                        exist_specific_parser = True
+
                 event_code = data['event.code']
                 if default_parser and not exist_specific_parser:
                     event_code = "*"
-                
+
                 if not default_parser:
                     # Events not defined in data_json
                     if not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
@@ -130,7 +130,7 @@ class GetEvents(object):
                 if 'path' not in self.data_json[event_code].keys():
                     yield data
                     continue
-                
+
                 # Extra fields
                 for x, item in self.data_json[event_code]['path'].items():
                     self.get_xpath_data(x, item, rec, data)
@@ -208,7 +208,7 @@ class EventJob(base.job.BaseModule):
 
         rgx = re.compile(regex_search, re.I)
         for evtx_file in os.listdir(path):
-            if rgx.search('/' + evtx_file):  # some regex patterns assume '/' to determine start
+            if rgx.search('/' + evtx_file) and evtx_file.endswith('.evtx'):  # some regex patterns assume '/' to determine start
                 return os.path.join(path, evtx_file)
 
         self.logger().debug('No evtx file found in {} with name expression {}'.format(path, regex_search))
@@ -644,7 +644,7 @@ class Application(EventJob):
             path (str): Absolute path to Application.evtx
         """
 
-        path = self.get_evtx(path, r"Application.evtx$")
+        path = self.get_evtx(path, "/Application.evtx$")
 
         fields = {'1000': {'provider': 'Application Error', 'fields': ['product.name', 'product.version', 'timestamp1', 'module.name', 'module.version', 'module.timestamp2', 'error.code', 'offset', 'process.id', 'application.starttime', 'application.path', 'module.path', 'report.id', 'package.full_name', 'package-relative_application.id']},
                   '1001': {'provider': 'Windows Error Reporting', 'fields': ['Fault_bucket', 'type', 'event.name', 'response', 'cab.id', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'Attached_files', 'Attached_path', 'Analysis_symbol', 'rechecking_for_solution', 'report.id', 'report.status']},
@@ -680,8 +680,8 @@ class Application(EventJob):
                 ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
                 ev.pop('data.Binary')
             if ev['event.code'] in fields.keys() and ev['event.provider'] == fields[ev['event.code']]['provider']:
-                data = ast.literal_eval(ev.get('data.#text',"{}"))
-                ev.pop('data.#text',"")
+                data = ast.literal_eval(ev.get('data.#text', "{}"))
+                ev.pop('data.#text', "")
                 if data:
                     for e, field in enumerate(fields[ev['event.code']]['fields']):
                         if data[e] == '(NULL)' or data[e] == '':
