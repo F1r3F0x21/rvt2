@@ -102,6 +102,9 @@ software:
     filename: os_info/disablemru.json
   printdemon:
     filename: os_info/printdemon.json
+  systemindex:
+    filename: os_info/systemindex.csv
+    output: csv
   uac:
     filename: os_info/uac.json
   winver:
@@ -146,6 +149,11 @@ software:
   uninstall:
     filename: installed_programs/uninstall.csv
     output: csv
+  activesetup:
+    filename: persistence/activesetup.csv
+    output: csv
+  amsiproviders:
+    filename: persistence/amsiproviders.json
   drivers32:
     filename: persistence/drivers32.json
   imagefile:
@@ -165,14 +173,19 @@ software:
     filename: persistence/shellext.json
   shellserviceobjectDelayLoad:
     filename: persistence/shellserviceobjectdelayload.csv
+    output: csv
   silentprocessexit:
     filename: persistence/silentprocessexit.json
   tasks:
     filename: persistence/tasks.json
+  tasks_sd:
+    filename: persistence/tasks_sd.json
   wbem_autorecover:
     filename: persistence/wbem_autorecover.json
   wbem_wdm:
     filename: persistence/wbem_wdm.json
+  wsh_settings:
+    filename: persistence/wsh_settings.json
   citrix_sessions:
     filename: lateral_movement/citrix_sessions.csv
     output: csv
@@ -185,6 +198,8 @@ software:
     filename: lateral_movement/teamviewer.json
   networkcards:
     filename: network_information/networkcards.json
+  networklist:
+    filename: network_information/networklist.json
   portdev:
     filename: storage_information/portdev.json
   spp_clients:
@@ -212,6 +227,8 @@ ntuser:
     filename: user_config/environment_user.json
   featureusage:
     filename: execution/featureusage_user.json
+  lxss:
+    filename: execution/lxss_user.json
   muicache:
     filename: execution/muicache_user.csv
     output: csv
@@ -277,6 +294,9 @@ ntuser:
   uninstall:
     filename: installed_programs/uninstall_user.csv
     output: csv
+  activesetup:
+    filename: persistence/activesetup_user.csv
+    output: csv
   msoffice_autoruns:
     filename: persistence/msoffice_autoruns_user.json
   run:
@@ -324,6 +344,8 @@ ntuser:
     filename: policies/psscript_user.json
   knowndev:
     filename: storage_information/knowndev_user.json
+  mp2:
+    filename: storage_information/mp2_user.json
   ie_settings:
     filename: web_browsing_info/ie_settings_user.json
   typedurls:
