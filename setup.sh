@@ -85,6 +85,13 @@ build_install_evtx() (
     mv evtx_dump* /usr/local/bin/evtx_dump
 )
 
+build_install_ntdsxtract2() {
+    cd ${RVT2HOME}/external_tools
+    gunzip ntdsextract2.gz
+    chmod 750 ntdsextract2
+    mv ntdsextract2 /usr/local/bin
+}
+
 build_install_sleuthkit() (
     cd "${SRCDIR}"
     SLEUTHKIT=$(curl --silent "https://api.github.com/repos/sleuthkit/sleuthkit/releases/latest" | grep -oP '"browser_download_url": "\K(.*)(?=")'| grep "tar.gz$")
@@ -469,6 +476,7 @@ setup_debian_full() {
     build_install_apfs_fuse
     build_install_yara
     build_install_volatility
+    build_install_ntdsxtract2
     build_install_evtx
 
     install_zimmerman_tools
