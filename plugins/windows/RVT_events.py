@@ -60,11 +60,16 @@ class GetEvents(object):
         self.eventfile = eventfile
 
     def parse(self):
-        parser = PyEvtxParser(self.eventfile)
-
         self.count = 0
         self.first_date = ''
         self.last_date = ''
+
+        try:
+            parser = PyEvtxParser(self.eventfile)
+        except Exception as exc:
+            self.logger.warning('Error reading file {}. {}'.format(self.eventfile, exc))
+            return []
+
         try:
             for record in parser.records_json():
                 rec = json.loads(record['data'])['Event']
@@ -75,6 +80,7 @@ class GetEvents(object):
                     self.first_date = self.last_date = data['event.created']
                 self.first_date = data['event.created'] if data['event.created'] < self.first_date else self.first_date
                 self.last_date = data['event.created'] if data['event.created'] > self.last_date else self.last_date
+                
                 # Common fields
                 if isinstance(rec['System']['EventID'], dict):
                     data['event.code'] = str(rec['System']['EventID']['#text'])
@@ -108,35 +114,29 @@ class GetEvents(object):
                 if default_parser and not exist_specific_parser:
                     event_code = "*"
 
-                if not default_parser:
-                    # Events not defined in data_json
-                    if not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
-                        # EventData, UserData are just reproduced as dictionaries
-                        if 'EventData' in rec:
-                            data['EventData'] = rec['EventData']
-                        if 'UserData' in rec:
-                            data['UserData'] = rec['UserData']
-                        yield data
-                        continue
-
+                # Events not defined in data_json
+                if not default_parser and (not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider'])):
+                    # EventData, UserData are just reproduced as dictionaries
+                    if 'EventData' in rec:
+                        data['EventData'] = rec['EventData']
+                    if 'UserData' in rec:
+                        data['UserData'] = rec['UserData']
                 # Selected events
-                try:
-                    description = self.data_json[event_code]["description"].format(**rec)
-                except Exception:
-                    description = re.sub(r'{.*?}', '<>', self.data_json[event_code]["description"])
+                else:
+                    try:
+                        description = self.data_json[event_code]["description"].format(**rec)
+                    except Exception:
+                        description = re.sub(r'{.*?}', '<>', self.data_json[event_code]["description"])
 
-                data['message'] = description
-                for field in ['category', 'type', 'action']:
-                    if field in self.data_json[event_code]:
-                        data['event.{}'.format(field)] = self.data_json[event_code][field]
+                    data['message'] = description
+                    for field in ['category', 'type', 'action']:
+                        if field in self.data_json[event_code]:
+                            data['event.{}'.format(field)] = self.data_json[event_code][field]
 
-                if 'path' not in self.data_json[event_code].keys():
-                    yield data
-                    continue
-
-                # Extra fields
-                for x, item in self.data_json[event_code]['path'].items():
-                    self.get_xpath_data(x, item, rec, data)
+                    # Extra fields
+                    if 'path' in self.data_json[event_code].keys():
+                        for x, item in self.data_json[event_code]['path'].items():
+                            self.get_xpath_data(x, item, rec, data)
 
                 yield data
                 self.count += 1
@@ -186,10 +186,10 @@ class GetEvents(object):
 
     def evtx_stats(self):
         # Gives general characerization of events in .evtx file
-        return {'oldest': self.first_date,
-                'newest': self.last_date,
-                'source': os.path.basename(self.eventfile),
-                'events': self.count}
+        return {'Oldest': self.first_date,
+                'Newest': self.last_date,
+                'Source': os.path.basename(self.eventfile),
+                'Events': self.count}
 
 
 class EventJob(base.job.BaseModule):
@@ -477,6 +477,8 @@ class SMBServer(EventJob):
         """
 
         path = self.get_evtx(path, r"Microsoft-Windows-SMBServer%4Security.evtx$")
+        if not path:
+            return []
 
         errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "smb_error.json"))
 
@@ -998,10 +1000,10 @@ class ParseEvt(object):
 
     def evt_stats(self):
         # Gives general characerization of events in .evt file
-        return {'oldest': self.first_date,
-                'newest': self.last_date,
-                'source': os.path.basename(self.eventfile),
-                'events': self.count}
+        return {'Oldest': self.first_date,
+                'Newest': self.last_date,
+                'Source': os.path.basename(self.eventfile),
+                'Events': self.count}
 
 
 class ParseEvts(base.job.BaseModule):
