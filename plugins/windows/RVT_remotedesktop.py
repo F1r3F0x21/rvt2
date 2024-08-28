@@ -18,8 +18,11 @@ import re
 import os
 import ast
 import dateutil.parser
+import xmltodict
+import base64
 import base.job
 from base.utils import check_folder, get_windows_user_from_path, date_to_iso
+
 
 class Teamviewer_connections(base.job.BaseModule):
     """ Extracts teamviewer connections information """
@@ -161,7 +164,7 @@ class Anydesk(base.job.BaseModule):
         check_folder(base_path)
         self.filename = os.path.basename(path).strip()
 
-         # Induce "partition" and "user" from "path". If path is in ProgramData, no user is assigned
+        # Induce "partition" and "user" from "path". If path is in ProgramData, no user is assigned
         self.partition = ''
         srch = re.search(r'/(p\d{1,2})/', path)
         if srch:
@@ -942,3 +945,94 @@ class Summary(base.job.BaseModule):
             yield data_out
         if data_inc:
             yield data_inc
+
+
+class RemoteDesktopApp(base.job.BaseModule):
+    """ Extracts information about remotedesktop app """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to the Users/<user>/AppData/Local/Packages/Microsoft.RemoteDesktop_8wekyb3d8bbwe folder
+        """
+
+        # TODO: parse LocalState/Logs
+
+        self.check_params(path, check_path=True, check_path_exists=True)
+        base_path = self.myconfig('outdir')
+        check_folder(base_path)
+
+        # Induce "partition" and "user" from "path".
+        user = get_windows_user_from_path(path, logger=self.logger())
+        partition = ''
+        srch = re.search(r'/(p\d{1,2})/', path)
+        if srch:
+            partition = srch.group(1)
+
+        folders = [
+            os.path.join(path, 'LocalState', 'RemoteDesktopData', 'JumpListConnectionArgs'),
+            os.path.join(path, 'LocalState', 'RemoteDesktopData', 'credentials'),
+            os.path.join(path, 'LocalState', 'RemoteDesktopData', 'LocalWorkspace', 'connections')
+        ]
+        field_list = [
+            ['a:ConnectionId', 'a:Description', 'a:LastLaunch', 'a:DisplayName', 'a:ConnectionType'],
+            ['a:FriendlyName', 'a:PasswordVaultResourceID', 'a:Username'],
+            ['a:CredentialsId', 'a:FriendlyName', 'a:HostName']
+        ]
+
+        # CredentialsId in connections relates to LogFilename in credentials folder
+        # ConnectionID in JumpListConnectionArgs relates to LogFilename in connections folder
+        connections = {}
+        log_filenames = {}
+        for folder, fields in zip(folders, field_list):
+            for result in self._process_files(folder, fields):
+                log_filename = os.path.basename(result['LogFilename']).split('.')[0]
+                if log_filename not in log_filenames:
+                    log_filenames[log_filename] = {}
+                log_filenames[log_filename].update(result)
+                if 'ConnectionId' in result:
+                    if result['ConnectionId'] not in connections:
+                        connections[result['ConnectionId']] = {}
+                    connections[result['ConnectionId']].update(result)
+                
+        for c in connections:
+            if c in log_filenames:
+                connections[c].update(log_filenames[c])
+                if connections[c]['CredentialsId'] in log_filenames:
+                    connections[c].update(log_filenames[connections[c]['CredentialsId']])
+            connections[c]['User'] = user
+            connections[c]['Partition'] = partition
+
+        for i in connections.values():
+            yield i
+
+        self._process_thumbnails(os.path.join(path, 'LocalState', 'RemoteDesktopData', 'RemoteResourceThumbnails'), base_path)
+
+    def _process_files(self, dirpath, fields):
+        if os.path.isdir(dirpath):
+            for fname in os.listdir(dirpath):
+                if not fname.endswith('.model'):
+                    continue
+                b = ''
+                with open(os.path.join(dirpath, fname), 'r') as fin:
+                    b = fin.read()
+                b = xmltodict.parse(b)
+                result = {'LogFilename': fname}
+                for field in fields:
+                    result[field[2:]] = b['SerializableModel'].get(field, '')
+                yield result
+
+    def _process_thumbnails(self, thumbnailpath, outpath):
+        outdir = os.path.join(outpath, 'RemoteDesktopApp_Thumbnails')
+        check_folder(outdir)
+        if os.path.isdir(thumbnailpath):
+            for fname in os.listdir(thumbnailpath):
+                if not fname.endswith('.model'):
+                    continue
+                b = ''
+                with open(os.path.join(thumbnailpath, fname), 'r') as fin:
+                    b = fin.read()
+                b = xmltodict.parse(b)
+                if len(b) > 1 and 'EncodedThumbnail' in b['SerializableModel'].keys():
+                    with open(os.path.join(outdir, f"thumb_{fname[:-5]}.jpg"), 'wb') as fout:
+                        fout.write(base64.b64decode(b['SerializableModel']['EncodedThumbnail']))

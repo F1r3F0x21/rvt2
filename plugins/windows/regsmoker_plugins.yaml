@@ -9,6 +9,9 @@ system:
   bam:
     filename: execution/bam.csv
     output: csv
+  dam:
+    filename: execution/bam.csv
+    output: csv
   prefetch:
     filename: execution/prefetch.json
   backuprestore:
@@ -44,6 +47,9 @@ system:
   eventlog:
     filename: eventlog_info/eventlog.csv
     output: csv
+  printmon:
+    filename: persistence/printmon.json
+    output: csv
   securityproviders:
     filename: persistence/securityproviders.json
   services:
@@ -58,6 +64,9 @@ system:
     filename: lateral_movement/remoteaccess.json
   termserv:
     filename: lateral_movement/termserv.json
+  firewallrules:
+    filename: network_information/firewallrules.csv
+    output: csv
   fw_config:
     filename: network_information/fw_config.json
   ips:
@@ -70,6 +79,8 @@ system:
     filename: network_information/routes.json
   shares:
     filename: network_information/shares.json
+  hddlist:
+    filename: storage_information/hddlist.json
   mountdev:
     filename: storage_information/mountdev.json
   usb:
@@ -80,7 +91,7 @@ system:
     filename: storage_information/wpdbusenum.json
 software:
   antivirus:
-    filename: installed_programs/antivirus.json
+    filename: installed_programs/antivirus.csv
     output: csv
   direct:
     filename: execution/direct.json
@@ -91,10 +102,16 @@ software:
     filename: os_info/disablemru.json
   printdemon:
     filename: os_info/printdemon.json
+  systemindex:
+    filename: os_info/systemindex.csv
+    output: csv
   uac:
     filename: os_info/uac.json
   winver:
     filename: os_info/winver.json
+  winpatches:
+    filename: os_info/winpatches.csv
+    output: csv
   profilelist:
     filename: user_account/profilelist.csv
     output: csv
@@ -104,6 +121,8 @@ software:
     filename: policies/execpolicy.json
   gpohist:
     filename: policies/gpohist.json
+  psscript:
+    filename: policies/psscript.json
   winevts:
     filename: eventlog_info/winevts.csv
     output: csv
@@ -130,15 +149,43 @@ software:
   uninstall:
     filename: installed_programs/uninstall.csv
     output: csv
+  activesetup:
+    filename: persistence/activesetup.csv
+    output: csv
+  amsiproviders:
+    filename: persistence/amsiproviders.json
   drivers32:
     filename: persistence/drivers32.json
+  imagefile:
+    filename: persistence/imagefile.json
+  msoffice_autoruns:
+    filename: persistence/msoffice_autoruns.json
+  netsh:
+    filename: persistence/netsh.json
   run:
     filename: persistence/run.csv
     output: csv
   schedagent:
     filename: persistence/schedagent.json
+  shellexec:
+    filename: persistence/shellexec.json
+  shellext:
+    filename: persistence/shellext.json
+  shellserviceobjectDelayLoad:
+    filename: persistence/shellserviceobjectdelayload.csv
+    output: csv
+  silentprocessexit:
+    filename: persistence/silentprocessexit.json
   tasks:
     filename: persistence/tasks.json
+  tasks_sd:
+    filename: persistence/tasks_sd.json
+  wbem_autorecover:
+    filename: persistence/wbem_autorecover.json
+  wbem_wdm:
+    filename: persistence/wbem_wdm.json
+  wsh_settings:
+    filename: persistence/wsh_settings.json
   citrix_sessions:
     filename: lateral_movement/citrix_sessions.csv
     output: csv
@@ -151,12 +198,16 @@ software:
     filename: lateral_movement/teamviewer.json
   networkcards:
     filename: network_information/networkcards.json
+  networklist:
+    filename: network_information/networklist.json
   portdev:
     filename: storage_information/portdev.json
   spp_clients:
     filename: storage_information/spp_clients.json
   susclient:
     filename: storage_information/susclient.json
+  volumeinfocache:
+    filename: storage_information/volumeinfocache.json
   appcompatflags:
     filename: execution/appcompatflags.json
   defbrowser:
@@ -169,10 +220,15 @@ ntuser:
     filename: execution/appcompatflags_user.json
   pslogging:
     filename: installed_programs/pslogging_user.json
+  shc:
+    filename: installed_programs/shc_user.csv
+    output: csv
   environment:
     filename: user_config/environment_user.json
   featureusage:
     filename: execution/featureusage_user.json
+  lxss:
+    filename: execution/lxss_user.json
   muicache:
     filename: execution/muicache_user.csv
     output: csv
@@ -203,6 +259,8 @@ ntuser:
   adobe:
     filename: recentdocs/adobe_user.csv
     output: csv
+  angry_ip_scanner:
+    filename: scan_programs/angry_ip_scanner_user.json
   applets:
     filename: recentdocs/applets_user.json
   comdlg32:
@@ -214,7 +272,8 @@ ntuser:
   msoffice:
     filename: recentdocs/msoffice_user.json
   oisc:
-    filename: recentdocs/oisc_user.json
+    filename: recentdocs/oisc_user.csv
+    output: csv
   recentdocs:
     filename: recentdocs/recentdocs_user.csv
     output: csv
@@ -235,6 +294,11 @@ ntuser:
   uninstall:
     filename: installed_programs/uninstall_user.csv
     output: csv
+  activesetup:
+    filename: persistence/activesetup_user.csv
+    output: csv
+  msoffice_autoruns:
+    filename: persistence/msoffice_autoruns_user.json
   run:
     filename: persistence/run_user.csv
     output: csv
@@ -243,7 +307,11 @@ ntuser:
   atera:
     filename: lateral_movement/atera_user.json
   mndmru:
-    filename: lateral_movement/mndmru.json
+    filename: lateral_movement/mndmru_user.csv
+    output: csv
+  network_shares:
+    filename: lateral_movement/network_shares_user.csv
+    output: csv
   putty_hostkeys:
     filename: lateral_movement/putty_hostkeys_user.csv
     output: csv
@@ -270,10 +338,14 @@ ntuser:
     filename: lateral_movement/winscp_ssh_fingerprint_user.csv
     output: csv
   winscp_ssh_host_keys:
-    filename: lateral_movement/winscp_ssh_host_keys_user.json
-
+    filename: lateral_movement/winscp_ssh_host_keys_user.csv
+    output: csv
+  psscript:
+    filename: policies/psscript_user.json
   knowndev:
     filename: storage_information/knowndev_user.json
+  mp2:
+    filename: storage_information/mp2_user.json
   ie_settings:
     filename: web_browsing_info/ie_settings_user.json
   typedurls:
@@ -302,4 +374,8 @@ security:
 bcd:
   bcd:
     filename: persistence/bcd.csv
+    output: csv
+syscache:
+  syscache:
+    filename: execution/syscache.csv
     output: csv

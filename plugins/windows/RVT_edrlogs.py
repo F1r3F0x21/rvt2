@@ -298,8 +298,8 @@ class DefenderLogs(base.job.BaseModule):
     def run(self, path=None):
 
         line_dict = self.parse_detection_history(path)
-        line_dict["object"] = line_dict.pop("file")
-        line_dict["hash"] = line_dict.pop("ThreatTrackingSha256")
+        line_dict["object"] = line_dict.pop("file","")
+        line_dict["hash"] = line_dict.pop("ThreatTrackingSha256","")
 
         yield line_dict
 
@@ -506,7 +506,7 @@ class DefenderLogs(base.job.BaseModule):
                             if CURRENT_MODE==KEY_READ_MODE:
                                 temp_key = re.sub("\x00", "", temp_key)
                                 if "Magic." in temp_key[0:6]:
-                                    #print("WARNING: Extraneous \"Magic Version\" key detected! Continuing...")
+                                    # WARNING: Extraneous \"Magic Version\" key detected! Continuing...
                                     temp_key = "" # reset for next KEY_READ_MODE run
                                     LAST_READ_MODE = VALUE_READ_MODE # skip over this key, read in next key
                                 elif "Time" in temp_key:
@@ -528,7 +528,7 @@ class DefenderLogs(base.job.BaseModule):
                             elif CURRENT_MODE==VALUE_READ_MODE:
                                 final_value = re.sub("\x00", "", parsed_value_dict[temp_key])
                                 if "Threat" in final_value[0:6] or "regkey" in final_value[0:6]: # check for values that should be keys
-                                    #print(f"WARNING: Irregularity in file/empty value caused skip in parsing for keys \"{temp_key}\" and \"{final_value}\". Configuring...")
+                                    # WARNING: Irregularity in file/empty value caused skip in parsing for keys \"{temp_key}\" and \"{final_value}\". Configuring...
                                     parsed_value_dict[temp_key] = "" # reset extraneous value for temp_key
                                     parsed_value_dict[final_value] = "" # this value containing "Threat" or "regkey" should have been a key
                                     temp_key = final_value # set the final_value to the new key

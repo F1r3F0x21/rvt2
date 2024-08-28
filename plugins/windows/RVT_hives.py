@@ -86,6 +86,7 @@ def get_hives(path):
         'security': 'security',
         'amcache.hve': 'amcache',
         'syscache.hve': 'syscache',
+        'default': 'default',
         'bcd': 'bcd'}
 
     # Search only first level, not subfolders. File names MUST BE the expected Windows hives names. If names had been changed, they will be ommited
@@ -95,23 +96,37 @@ def get_hives(path):
                 regfiles[hive_name] = os.path.join(path, file)
 
     # User hives
-    usr = []
     regfiles["ntuser"] = {}
+    regfiles["user"] = {}
     regfiles["usrclass"] = {}
+    regfiles["userclass"] = {}
+
+    if 'default' in regfiles.keys() and regfiles['default'].lower().find('config') > -1:
+        regfiles['ntuser']['SYSTEM'] = regfiles['default']
+        regfiles.pop('default')
 
     # Recursive search in subdirectories. Username will be taken from the directory name where hive is found
     for root, dirs, files in os.walk(path):
         for file in files:
-            for hve, hve_name in zip(['ntuser.dat', 'usrclass.dat'], ['ntuser', 'usrclass']):
+            for hve, hve_name in zip(['ntuser.dat', 'usrclass.dat', 'user.dat', 'userclass.dat'], ['ntuser', 'usrclass', 'user', 'userclass']):
                 if file.lower() == hve:
                     user = relative_path(root, path).split('/')[0]
-                    if user not in regfiles[hve_name]:
-                        regfiles[hve_name][user] = os.path.join(root, file)
-                        usr.append(user)
+                    if hve_name in ('user', 'userclass'):
+                        if user not in regfiles[hve_name].keys():
+                            regfiles[hve_name][user] = []
+                        regfiles[hve_name][user].append(os.path.join(root, file))
+                    elif user not in regfiles[hve_name].keys():
+                        if hve_name in ('user', 'userclass') and root.find('Helium') > 0:
+                            regfiles[hve_name][user] = []
+                            regfiles[hve_name][user].append(os.path.join(root, file))
+                        else:
+                            regfiles[hve_name][user] = os.path.join(root, file)
 
     if not regfiles['ntuser'] and not regfiles['usrclass']:
         del regfiles['ntuser']
+        del regfiles['user']
         del regfiles['usrclass']
+        del regfiles['userclass']
 
     return regfiles
 
@@ -279,14 +294,24 @@ class AllKeys(base.job.BaseModule):
         usrclass = None
         if 'usrclass' in regfiles:
             usrclass = regfiles.pop('usrclass')
+        user = None
+        if 'user' in regfiles:
+            user = regfiles.pop('user')
+        userclass = None
+        if 'userclass' in regfiles:
+            userclass = regfiles.pop('userclass')
 
         # Parse all hives
         for i, reg_hive in regfiles.items():
             self._save_and_log(reg_hive)
-        for cls, cls_name in zip([ntuser, usrclass], ['NTUSER.DAT', 'UsrClass.dat']):
+        for cls, cls_name in zip([ntuser, usrclass, user, userclass], ['NTUSER.DAT', 'UsrClass.dat', 'User.dat', 'UserClass.dat']):
             if cls:
                 for user, reg_hive in cls.items():
-                    self._save_and_log(reg_hive, hive_name=f'{user}/{cls_name}')
+                    if isinstance(reg_hive, list):
+                        for reg_hve in reg_hive:
+                            self._save_and_log(reg_hve, hive_name=f'{user}/{cls_name}')
+                    else:
+                        self._save_and_log(reg_hive, hive_name=f'{user}/{cls_name}')
         return []
 
     def _save_and_log(self, path, hive_name=None):

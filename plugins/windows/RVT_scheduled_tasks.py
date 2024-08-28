@@ -206,7 +206,7 @@ class ScheduledTasks(base.job.BaseModule):
             res['Actions'] = list(self._parse_actions(st, ns))
 
             # Get user name from UserID
-            res['User'] = os_info.get_user_name_from_sid(res['UserId'], partition=self.volume_id, sid_default=True)
+            res['User'] = os_info.get_user_name_from_sid(res.get('UserId',''), partition=self.volume_id, sid_default=True)
 
             yield res
 

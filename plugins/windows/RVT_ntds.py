@@ -16,8 +16,8 @@
 
 import os
 import subprocess
-import tempfile
-import shutil
+import json
+import re
 import base.job
 from base.utils import check_directory
 from base.commands import run_command, yield_command
@@ -29,38 +29,45 @@ class Parse(base.job.BaseModule):
         """ Parses NTDS.dit
         """
 
-        # https://github.com/csababarta/ntdsxtract
+        # https://github.com/janstarke/ntdsextract2
 
         self.check_params(path, check_path=True, check_path_exists=True)
         base_path = self.myconfig('outdir')
-        tl_parser = self.myconfig('timeline_parser')
-        users_parser = self.myconfig('users_parser')
+        ntdsxtract = self.myconfig('ntdsxtract')
+        ntds_file = path
         check_directory(base_path, create=True)
-        esedbexport = self.config.config['plugins.common'].get('esedbexport', 'esedbexport')
 
         try:
-            ntds_dir = tempfile.mkdtemp(suffix="_ntds")
-            run_command([esedbexport, "-t", os.path.join(ntds_dir, "db"), path], stderr=subprocess.DEVNULL)
-            ntds_dir_export = os.path.join(ntds_dir, "db.export")
-            if not os.path.exists(ntds_dir_export):
-                raise base.job.RVTError('esedbexport could not create db.export')
-
-            datatable = ''
-            linktable = ''
-            for archive in os.listdir(ntds_dir_export):
-                if archive.startswith('datatable'):
-                    datatable = os.path.join(ntds_dir_export, archive)
-                elif archive.startswith('link_table'):
-                    linktable = os.path.join(ntds_dir_export, archive)
-
+            with open(os.path.join(base_path, 'bodyfile.csv'), 'w') as fout:
+                run_command([ntdsxtract, ntds_file, 'timeline', '-q'], fout, stderr=subprocess.DEVNULL, logger=self.logger())
             with open(os.path.join(base_path, 'timeline.csv'), 'w') as fout:
-                for line in yield_command(['python3', tl_parser, datatable, ntds_dir_export, '--csv'], stderr=subprocess.DEVNULL, logger=self.logger()):
-                    fout.write(line)
+                run_command(['mactime', "-b", os.path.join(base_path, 'bodyfile.csv'), "-m", "-y", "-d"], fout, stderr=subprocess.DEVNULL, logger=self.logger())
+            os.remove(os.path.join(base_path, 'bodyfile.csv'))
 
-            with open(os.path.join(base_path, 'users.txt'), 'w') as fout:
-                for line in yield_command(['python3', users_parser, datatable, linktable, ntds_dir_export], stderr=subprocess.DEVNULL, logger=self.logger()):
-                    fout.write(line)
+            with open(os.path.join(base_path, 'tree.csv'), 'w') as fout:
+                run_command([ntdsxtract, ntds_file, 'tree', '-q'], fout, stderr=subprocess.DEVNULL, logger=self.logger())
 
-        finally:
-            shutil.rmtree(ntds_dir)
+            with open(os.path.join(base_path, 'users.json'), 'w') as fout:
+                for line in yield_command([ntdsxtract, ntds_file, 'user', '-F', 'json-lines'], stderr=subprocess.DEVNULL, logger=self.logger()):
+                    fout.write(self.change_date_format(line))
+            with open(os.path.join(base_path, 'groups.json'), 'w') as fout:
+                for line in yield_command([ntdsxtract, ntds_file, 'group', '-F', 'json-lines'], stderr=subprocess.DEVNULL, logger=self.logger()):
+                    fout.write(self.change_date_format(line))
+            with open(os.path.join(base_path, 'computers.json'), 'w') as fout:
+                for line in yield_command([ntdsxtract, ntds_file, 'computer', '-F', 'json-lines'], stderr=subprocess.DEVNULL, logger=self.logger()):
+                    fout.write(self.change_date_format(line))
+        except Exception:
+            self.logger().error("Problems parsing {base_path} file")
         return []
+
+    def change_date_format(self, data):
+        data = json.loads(data)
+        regex = re.compile(r"(\d\d)-(\d\d)-(\d{4})T([\d:]+)\+0000")
+        for dte in data.keys():
+            if dte in ("record_time", "when_created", "when_changed", "last_logon", "last_logon_time_stamp", "account_expires", "password_last_set", "bad_pwd_time"):
+                if not data[dte]:
+                    continue
+                aux = regex.match(data.get(dte, ''))
+                if aux:
+                    data[dte] = f"{aux.group(3)}-{aux.group(2)}-{aux.group(1)} {aux.group(4)}Z"
+        return json.dumps(data)

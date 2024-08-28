@@ -8,8 +8,6 @@
 # - Install rvt2 binary dependencies from APT (those that aren't python3 modules).
 # - Download, build and install rvt2 binary dependencies that aren't available in Debian Stretch.
 
-# TODO: give user permissions to group 'disk'
-
 set -ex
 
 RVT2HOME="/opt/rvt2"
@@ -81,11 +79,19 @@ install_pip_deps() (
 
 build_install_evtx() (
     cd "${SRCDIR}"
-    EVTX=$(curl --silent "https://api.github.com/repos/omerbenamram/evtx/releases/latest"| grep -oP '"browser_download_url": "\K(.*)(?=")' |grep linux-gnu)
+    EVTX=$(curl --silent "https://api.github.com/repos/omerbenamram/evtx/releases/latest"| grep -oP '"browser_download_url": "\K(.*)(?=")' |grep linux-gnu| grep x86_64)
     wget $EVTX
     chmod 755 evtx_dump*
     mv evtx_dump* /usr/local/bin/evtx_dump
 )
+
+build_install_ntdsxtract2() {
+    cd ${RVT2HOME}/external_tools
+    gunzip ntdsextract2.gz
+    chmod 750 ntdsextract2
+    mv ntdsextract2 /usr/local/bin
+    rm ntdsextract2.gz
+}
 
 build_install_sleuthkit() (
     cd "${SRCDIR}"
@@ -94,7 +100,7 @@ build_install_sleuthkit() (
     FILENAME=${SLEUTHKIT##*/}
     tar xzvf $FILENAME
     rm $FILENAME
-    cd ${FILENAME::-7}
+    cd "${FILENAME%.tar.gz}"
     ./configure
     make
     make install
@@ -414,6 +420,9 @@ prepare_sudo() {
     useradd --user-group --create-home --shell /bin/bash rvt
     APPS='/bin/mount, /bin/umount, /sbin/losetup, /usr/local/bin/vshadowmount, /usr/bin/bindfs, /usr/local/bin/icat, /usr/local/bin/apfs-fuse'
     echo "%rvt ALL=(root) NOPASSWD: ${APPS}" >> /etc/sudoers
+    if grep -q "^disk:" /etc/group; then
+        sudo usermod -aG disk rvt
+    fi
 }
 
 # Give /morgue group rvt permissions
@@ -435,7 +444,7 @@ clean_sources() (
   rm -f Parse-Evtx*.zip* RegRipper2*
 )
 
-# Use this function to install all dependencies on Debian bullseye and setup rvt2
+# Use this function to install all dependencies on ubuntu 22.04 and setup rvt2
 setup_debian_full() {
 
     # Basic preparation
@@ -464,10 +473,11 @@ setup_debian_full() {
     build_install_libscca
     build_install_libevt
     build_install_regripper
-    build_install_ntfs3g_system_compression
+    # build_install_ntfs3g_system_compression
     build_install_apfs_fuse
     build_install_yara
     build_install_volatility
+    build_install_ntdsxtract2
     build_install_evtx
 
     install_zimmerman_tools

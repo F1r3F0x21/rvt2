@@ -211,7 +211,7 @@ class EventJob(base.job.BaseModule):
 
         rgx = re.compile(regex_search, re.I)
         for evtx_file in os.listdir(path):
-            if rgx.search('/' + evtx_file):  # some regex patterns assume '/' to determine start
+            if rgx.search('/' + evtx_file) and evtx_file.endswith('.evtx'):  # some regex patterns assume '/' to determine start
                 return os.path.join(path, evtx_file)
 
         self.logger().debug('No evtx file found in {} with name expression {}'.format(path, regex_search))
@@ -476,7 +476,7 @@ class SMBServer(EventJob):
             path (str): Absolute path to Microsoft-Windows-SMBServer%4Security.evtx
         """
 
-        path = self.get_evtx(path, r"Microsoft-Windows-SMBServer%4Security.evtx$")
+        path = self.get_evtx(path, r"/Microsoft-Windows-SMBServer%4Security.evtx$")
         if not path:
             return []
 
@@ -649,7 +649,7 @@ class Application(EventJob):
             path (str): Absolute path to Application.evtx
         """
 
-        path = self.get_evtx(path, r"Application.evtx$")
+        path = self.get_evtx(path, r"/Application.evtx$")
         if not path:
             return []
 
@@ -687,8 +687,8 @@ class Application(EventJob):
                 ev['data'] = bytearray.fromhex(ev['data.Binary']).decode()
                 ev.pop('data.Binary')
             if ev['event.code'] in fields.keys() and ev['event.provider'] == fields[ev['event.code']]['provider']:
-                data = ast.literal_eval(ev.get('data.#text',"{}"))
-                ev.pop('data.#text',"")
+                data = ast.literal_eval(ev.get('data.#text', "{}"))
+                ev.pop('data.#text', "")
                 if data:
                     for e, field in enumerate(fields[ev['event.code']]['fields']):
                         if data[e] == '(NULL)' or data[e] == '':
