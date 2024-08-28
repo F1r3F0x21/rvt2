@@ -1,6 +1,6 @@
 {
     "*":{
-        "description": "-- GENERAL description, TODO specific parser in eventlist/Kaspersky Endpoint Security.json --",
+        "description": "",
         "provider": "avp",
         "dataset" : "Kaspersky Endpoint Security",
         "path": {

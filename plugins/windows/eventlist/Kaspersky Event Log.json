@@ -1,6 +1,6 @@
 {
     "*":{
-        "description": "-- GENERAL description, TODO specific parser in eventlist/Kaspersky Event Log.json --",
+        "description": "",
         "provider": "klnagent",
         "dataset" : "Kaspersky Event Log",
         "path": {

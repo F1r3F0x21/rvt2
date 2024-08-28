@@ -35,6 +35,7 @@ class UAL(base.job.BaseModule):
         # UAL forensic information: https://svch0st.medium.com/windows-user-access-logs-ual-9580f1100635
 
         self.parser = self.myconfig('ual_parser')
+        self.python = self.config.get('plugins.common', 'python3', '/usr/bin/python3')
 
         self.check_params(path, check_path=True, check_path_exists=True)
         base_path = self.myconfig('outdir')
@@ -61,7 +62,7 @@ class UAL(base.job.BaseModule):
         return []
 
     def parse(self, f_in, f_out):
-        command = ['/usr/bin/python3', self.parser, f_in]
+        command = [self.python, self.parser, f_in]
         i = 0
         with open(f_out, 'w') as fout:
             for line in yield_command(command, stderr=subprocess.DEVNULL, logger=self.logger()):

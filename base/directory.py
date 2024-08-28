@@ -281,7 +281,7 @@ class GlobFilter(base.job.BaseModule):
             except Exception as exc:
                 if self.myflag('stop_on_error'):
                     raise
-                self.logger().warning(exc)
+                self.logger().warning(f'Exception while processing {filepath}. {exc}')
 
         return []
 

@@ -1,6 +1,6 @@
 {
     "*":{
-        "description": "-- GENERAL description --",
+        "description": "",
         "provider": "TrapsV2",
         "dataset" : "Palo Alto Networks",
         "path": {

@@ -46,8 +46,7 @@ class CortexLogs(base.job.BaseModule):
     def run(self, path=None):
         
         if self.myconfig('logname') == "cortex-xdr-payload":
-            pattern = r'(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)'
-            prog = re.compile(pattern)
+            prog = re.compile(r'(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)')
             filename = os.path.basename(path)
             count_lines = 0
             prev_line_dict = {}
@@ -66,10 +65,10 @@ class CortexLogs(base.job.BaseModule):
                     log_entry_dict = {
                         "Time": timestamp.strip(),
                         "Message": message.strip(),
-                        "type": type.strip(),
+                        "Type": type.strip(),
                         "ProcessId": process.strip(),
-                        "action": action.strip(),
-                        "thread": thread.strip(),
+                        "Action": action.strip(),
+                        "Thread": thread.strip(),
                         "LogFilename": filename.strip()
                     }
 
@@ -81,8 +80,7 @@ class CortexLogs(base.job.BaseModule):
                 yield prev_line_dict
         
         elif self.myconfig('logname') == "trapsd":
-            pattern = r'^(\S*)\s<(\S*)>\s(\S*)\s\[(\S*\s?\S*)\]\s*({[^}]*})(.*)$'
-            prog = re.compile(pattern)
+            prog = re.compile(r'^(\S*)\s<(\S*)>\s(\S*)\s\[(\S*\s?\S*)\]\s*({[^}]*})(.*)$')
 
             filename = os.path.basename(path)
             count_lines = 0
@@ -103,9 +101,9 @@ class CortexLogs(base.job.BaseModule):
                         "Time": timestamp.strip(),
                         "Message": message.strip(),
                         "Level": severity.strip(),
-                        "hostname": hostname.strip(),
-                        "thread": thread.strip(),
-                        "context": context.strip().strip('{}'),
+                        "Hostname": hostname.strip(),
+                        "Thread": thread.strip(),
+                        "Context": context.strip().strip('{}'),
                         "LogFilename": filename.strip()
                     }
                     prev_line_dict = log_entry_dict
@@ -122,7 +120,7 @@ class CortexLogs(base.job.BaseModule):
 
 class ESETLogs(base.job.BaseModule):
 
-    """ Parser the ESETLogs
+    """ Parse the ESETLogs
 
     Module description:
         - **from_module**: Data dict.
@@ -131,11 +129,14 @@ class ESETLogs(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
+        self.set_default_config('eset_parser', os.path.join(self.myconfig('rvthome'), "plugins/external/ESETLogParser/EsetLogParser.py"))
 
     def run(self, path=None):
-        rvthome = self.myconfig('rvthome')
-        command = f"python3 {rvthome}/plugins/external/ESETLogParser/EsetLogParser.py '{path}'"
+        self.parser = self.myconfig('eset_parser')
+        self.python = self.config.get('plugins.common', 'python3', '/usr/bin/python3')
+        command = f"{self.python} {self.parser} '{path}'"
         args = shlex.split(command)
+
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         output_string = process.stdout.read().split('\n')
         for line in output_string:
@@ -144,7 +145,7 @@ class ESETLogs(base.job.BaseModule):
 
 class McAfeeEndpointSecurityLogs(base.job.BaseModule):
 
-    """ Parser the McAfeeEndpointSecurityLogs
+    """ Parse the McAfeeEndpointSecurityLogs
 
     Module description:
         - **from_module**: Data dict.
@@ -155,8 +156,7 @@ class McAfeeEndpointSecurityLogs(base.job.BaseModule):
         super().read_config()
     
     def run(self, path=None):
-        pattern = r'(\d+\/\d+\/\d+\s\d+:\d+:\d+\.?\d*\s(?:AM|PM))\s*([\w.]+\(?\d+\.\d+\)?)\s*<([\w\d-]+)>\s*(?:\(([^)]+)\))?\s*([\w.]+)\s*\:?\s*(.+)'
-        prog = re.compile(pattern)
+        prog = re.compile(r'(\d+\/\d+\/\d+\s\d+:\d+:\d+\.?\d*\s(?:AM|PM))\s*([\w.]+\(?\d+\.\d+\)?)\s*<([\w\d-]+)>\s*(?:\(([^)]+)\))?\s*([\w.]+)\s*\:?\s*(.+)')
         filename = f"{os.path.basename(os.path.dirname(path))}/{os.path.basename(path)}"
         count_lines = 0
         prev_line_dict = {}
@@ -193,7 +193,7 @@ class McAfeeEndpointSecurityLogs(base.job.BaseModule):
 
 class BitdefenderLogs(base.job.BaseModule):
     
-    """ Parser the BitdefenderLogs Logfile
+    """ Parse the Bitdefender desktop logs
 
     Module description:
         - **yields**: The updated dict data.
@@ -203,24 +203,27 @@ class BitdefenderLogs(base.job.BaseModule):
         super().read_config()
 
     def run(self, path=None):
-        with open(path, 'r') as f:
-            xml_content = f.read()
+        try:
+            with open(path, 'r') as f:
+                xml_content = f.read()
 
-        # Parse the XML content into a dictionary
-        parsed_dict = xmltodict.parse(xml_content)
-        if "ScanSession" in parsed_dict:
-            parsed_dict = parsed_dict["ScanSession"]
-            parsed_dict["Time"] = parsed_dict["ScanSummary"].get("@startTime")
-            parsed_dict["LogFilename"] = parsed_dict.pop("@originalPath")
-            parsed_dict["Message"] = parsed_dict.pop("@name")
-            yield parsed_dict
-        else:
-            self.logger().warning(f"No ScanSession xml file found. This file: {path} need to be parsered.")
+            # Parse the XML content into a dictionary
+            parsed_dict = xmltodict.parse(xml_content)
+            if "ScanSession" in parsed_dict:
+                parsed_dict = parsed_dict["ScanSession"]
+                parsed_dict["Time"] = parsed_dict["ScanSummary"].get("@startTime")
+                parsed_dict["LogFilename"] = parsed_dict.pop("@originalPath")
+                parsed_dict["Message"] = parsed_dict.pop("@name")
+                yield parsed_dict
+            else:
+                self.logger().warning(f"No ScanSession xml file found. File: {path} needs to be parsed.")
+        except Exception as exc:
+            self.logger().warning(f"Problems reading file {path}. {exc}")
 
 
 class McAfeeDesktopProtectionLogs(base.job.BaseModule):
 
-    """ Parser the McAfee Logfile
+    """ Parse the McAfee Logfile
 
     Module description:
         - **from_module**: Data dict.
@@ -231,12 +234,9 @@ class McAfeeDesktopProtectionLogs(base.job.BaseModule):
         super().read_config()
     
     def run(self, path=None):
-        pattern = r'(\d+\/\d+\/\d+\s\d+:\d+:\d+\.?\d*)\s*(.*)'
-        prog = re.compile(pattern)
-        would_blocked = r'(Would\sbe\sblocked\sby\sAccess\sProtection\srule\s*\(.*?\))\s*(\S*)\s(.*?\.\S*)\s(.*?\.\S*).*(Action\sblocked\s:\s\w+)'
-        prog_would_blocked = re.compile(would_blocked)
-        blocked_by = r'Blocked by Access Protection rule\s+([^\s]+)\s+(.*?\.\S+).*(Action\sblocked\s:\s\w+)'
-        prog_blocked_by = re.compile(blocked_by)
+        prog = re.compile(r'(\d+\/\d+\/\d+\s\d+:\d+:\d+\.?\d*)\s*(.*)')
+        prog_would_blocked = re.compile(r'(Would\sbe\sblocked\sby\sAccess\sProtection\srule\s*\(.*?\))\s*(\S*)\s(.*?\.\S*)\s(.*?\.\S*).*(Action\sblocked\s:\s\w+)')
+        prog_blocked_by = re.compile(r'Blocked by Access Protection rule\s+([^\s]+)\s+(.*?\.\S+).*(Action\sblocked\s:\s\w+)')
         filename = os.path.basename(path)
         count_lines = 0
         prev_line_dict = {}
@@ -286,7 +286,7 @@ class McAfeeDesktopProtectionLogs(base.job.BaseModule):
 
 class DefenderLogs(base.job.BaseModule):
     
-    """ Parser the Defender Logfile
+    """ Parse the Defender Logfile
 
     Module description:
         - **yields**: The updated dict data.
@@ -332,7 +332,7 @@ class DefenderLogs(base.job.BaseModule):
 
         header = file.read(6) # 6 = known DetectionHistory header size
         if header != b'\x08\x00\x00\x00\x08\x00': # check file header against known valid DetectionHistory file header
-            #print("Invalid DetectionHistory file!")
+            # Invalid DetectionHistory file!
             raise(InvalidFileException)
         file.read(18) # skipping over some zeroes, and an unknown 3-byte sequence between offset 08-0A
         guid_oct = list()
@@ -443,7 +443,7 @@ class DefenderLogs(base.job.BaseModule):
                 while MAGIC_VERSION_SECTION:
                     chunk = f.read(2)
                     if not chunk:
-                        #print("End of section or file detected. Moving on...")
+                        # End of section or file detected. Moving on...
                         MAGIC_VERSION_SECTION = 0 # break out of this section
                         break
                     if CURRENT_MODE==KEY_READ_MODE: 
@@ -454,7 +454,7 @@ class DefenderLogs(base.job.BaseModule):
                         else:
                             temp_key = temp_key+chunk.decode('windows-1252')
                             if "f\x00i\x00l\x00e" in temp_key: # file key/value pair signifies end of values delimited by colons (or \x3A)
-                                #print("End of Magic Version section!")
+                                # End of Magic Version section!
                                 temp_key = re.sub("\x00", "", temp_key)
                                 parsed_value_dict[temp_key] = "" # make sure "file" key gets assigned
                                 CURRENT_MODE = VALUE_READ_MODE
@@ -480,7 +480,7 @@ class DefenderLogs(base.job.BaseModule):
                 while GENERAL_SECTION:
                     chunk = f.read(2)
                     if not chunk:
-                        #print("End of section or file detected. Moving on...")
+                        # End of section or file detected. Moving on...
                         GENERAL_SECTION = 0 # break out of this section
                         break
                     elif CURRENT_MODE==NULL_DATA_MODE:
@@ -498,7 +498,7 @@ class DefenderLogs(base.job.BaseModule):
                             chunk = f.read(4)
                             if chunk==b'\x15\x00\x00\x00' or chunk==chunk==b'\x00\x15\x00\x00': # false positives
                                 continue
-                            #print("End of General Section!")
+                            # End of General Section!
                             f.read(4) # skip over unneeded section of hex
                             GENERAL_SECTION = 0 # break out of this section
                     else: # Applies to KEY_READ or VALUE_READ mode
@@ -580,7 +580,7 @@ class DefenderLogs(base.job.BaseModule):
 
 class SophosEndpointLogs(base.job.BaseModule):
     
-    """ Parser the SophosEndpointLogs Logfile
+    """ Parse the SophosEndpointLogs Logfile
 
     Module description:
         - **yields**: The updated dict data.
@@ -598,24 +598,27 @@ class SophosEndpointLogs(base.job.BaseModule):
             return []
         
         else:
-            if logname == "sed":
-                pattern = r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s(\S+)(.*)'
-                prog = re.compile(pattern)
+            if logname in ["sed", "sna"]:
+                # Sample event sed
+                # 2024-04-01T08:17:38.231Z SED Analytic Error SgEvalPostCreateEventV3: unable to get file size. error: 0xc0000002
+                # Sample event sna
+                # 2023-02-06T01:05:43.441Z SophosNA sophosEntry Info \??\C:\Program Files\Sophos\Endpoint Defense\Pending\CoreCustomerAdapter.dll
+                pattern = re.compile(r'^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s(?P<log>\S+)\s(?P<source>\S+)\s(?P<level>\S+)\s(?P<message>.*)')
                 filename = os.path.basename(path)
                 count_lines = 0
                 prev_line_dict = {}
                 for line in self.from_module.run(path):
-                    match = prog.search(line.strip())
+                    match = pattern.search(line.strip())
                     if match:
                         if count_lines != 0:
                             count_lines = 0
                             yield prev_line_dict
-
                         count_lines = 1
-                        timestamp, logname, message = match.groups(default='')
                         log_entry_dict = {
-                            "Time": timestamp.strip(),
-                            "Message": message.strip(), 
+                            "Time": match.group('timestamp'),
+                            "LogType": match.group('source'),
+                            "Level": match.group('level').lower(),
+                            "Message": match.group('message').strip().replace('\x00', ' '), # Prevent null characters breaking the output CSV
                             "LogFilename": filename
                         }
                         prev_line_dict = log_entry_dict
@@ -627,51 +630,23 @@ class SophosEndpointLogs(base.job.BaseModule):
                     yield prev_line_dict
             
             elif logname == "sam":
-                pattern = r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s(.*)'
-                prog = re.compile(pattern)
+                # Sample event
+                # 2024-04-04T18:04:17Z [ 4176] INFO  Automatic Exclusions complete
+                pattern = re.compile(r'^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s(\[(?P<pid>[\s|\d]+)\] (?P<level>\w+)\s)?(?P<message>.*)')
                 filename = os.path.basename(path)
                 count_lines = 0
                 prev_line_dict = {}
                 for line in self.from_module.run(path):
-                    match = prog.search(line.strip())
+                    match = pattern.search(line.strip())
                     if match:
                         if count_lines != 0:
                             count_lines = 0
                             yield prev_line_dict
-
                         count_lines = 1
-                        timestamp, message = match.groups(default='')
                         log_entry_dict = {
-                            "Time": timestamp.strip(),
-                            "Message": message.strip(), 
-                            "LogFilename": filename
-                        }
-                        prev_line_dict = log_entry_dict
-                    else:
-                        if (line.strip() != "" and count_lines != 0):
-                            prev_line_dict["Message"] = prev_line_dict["Message"] + line
-
-                if len(prev_line_dict) != 0:
-                    yield prev_line_dict
-            
-            elif logname == "sna":
-                pattern = r'(\S+)\s(\S+)(.*)'
-                prog = re.compile(pattern)
-                filename = os.path.basename(path)
-                count_lines = 0
-                prev_line_dict = {}
-                for line in self.from_module.run(path):
-                    match = prog.search(line)
-                    if match:
-                        if count_lines != 0:
-                            count_lines = 0
-                            yield prev_line_dict
-
-                        count_lines = 1
-                        timestamp, logname, message = match.groups(default='')
-                        log_entry_dict = {
-                            "Time": timestamp.strip(),
-                            "Message": message.strip(), 
+                            "Time": match.group('timestamp'),
+                            "Level": match.group('level').lower(),
+                            "Message": match.group('message').strip(),
                             "LogFilename": filename
                         }
                         prev_line_dict = log_entry_dict
@@ -683,9 +658,9 @@ class SophosEndpointLogs(base.job.BaseModule):
                     yield prev_line_dict
 
 
-class EventJournals(base.job.BaseModule):
+class SophosEventJournals(base.job.BaseModule):
 
-    """ Parser the Sophos EventJournals files
+    """ Parse the Sophos EventJournals files
 
     Module description:
         - **from_module**: Data dict.
@@ -696,8 +671,7 @@ class EventJournals(base.job.BaseModule):
         super().read_config()
     
     def run(self, path=None):
-        pattern = r'^(\w+)-(\w+)-(\w+)-(\d+)-(\d+)(\..+)?'
-        prog = re.compile(pattern)
+        prog = re.compile(r'^(\w+)-(\w+)-(\w+)-(\d+)-(\d+)(\..+)?')
         filename = os.path.basename(path)
 
         match = prog.search(filename)
@@ -750,52 +724,11 @@ class EventJournals(base.job.BaseModule):
         utc_timezone = pytz.utc
         result_utc_date = result_date.astimezone(utc_timezone)
         return result_utc_date
-    
-
-class KasperskyEndpoint(base.job.BaseModule):
-
-    """ Parser the KasperskyEndpoint Message windows events
-
-    Module description:
-        - **from_module**: Data dict.
-        - **yields**: The updated dict data.
-    """
-
-    def read_config(self):
-        super().read_config()
-    
-    def run(self, path=None):
-        pattern_path = r'Ruta\sde\sla\saplicación:\s?(.*?)\\r'
-        prog_path = re.compile(pattern_path)
-        pattern_name = r'Nombre:\s?(.*?)\\r'
-        prog_name = re.compile(pattern_name)
-        pattern_user = r'Usuario:\s?(.*?)\\r'
-        prog_user = re.compile(pattern_user)  
-
-        for line in self.from_module.run(path):
-            message = line["Message"]
-
-            match_path = prog_path.search(message)
-            if match_path:
-                path = match_path.groups(default='')[0]
-                line["Object"] = path
-
-            match_namefile = prog_name.search(message)
-            if match_namefile:
-                namefile = match_namefile.groups(default='')[0]
-                line["Object"] = line.get("Object","") + "\\" + namefile
-
-            match_user = prog_user.search(message)
-            if match_user:
-                user = match_user.groups(default='')[0]
-                line["User"] = user
-
-            yield line
-        
+     
 
 class PandasLogs(base.job.BaseModule):
 
-    """ Parser the Pandas Logfile
+    """ Parse the Pandas Logfile
 
     Module description:
         - **yields**: The updated dict data.
@@ -913,7 +846,7 @@ class PandasLogs(base.job.BaseModule):
 
 class BitdefenderLogsEndpoint(base.job.BaseModule):
 
-    """ Parser the Bitdefender Logfile
+    """ Parse the Bitdefender Endpoint Logfile
 
     Module description:
         - **yields**: The updated dict data.
@@ -1018,3 +951,86 @@ class BitdefenderLogsEndpoint(base.job.BaseModule):
             if prev_line_dict:
                 yield prev_line_dict
 
+
+class Summary(base.job.BaseModule):
+    """ Search for relevant events in every EDR and create a summary """
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to a parsed EDR log
+        """
+        filename = os.path.basename(path)
+        # TODO: get outfilename of every log from config files
+
+        if filename in [self._get_outfile('ESETLogs'), self._get_outfile('DefenderLogs'), 'paloalto.csv']:
+            # All events describe malware detections
+            yield from self.from_module.run(path)
+
+        elif filename == 'defender.csv':
+            # https://learn.microsoft.com/en-us/defender-endpoint/troubleshoot-microsoft-defender-antivirus
+            for line in self.from_module.run(path):
+                if line.get('EventID') in ["1006", "1007", "1015", "1116", "1117", "5001", "5008", "5012"]:
+                    yield line
+                elif line.get('EventID') == "5007" and line.get('NewValue','').find('DisableScanOnRealtimeEnable') > 0:
+                    yield line
+
+        elif filename == 'symantec_endpoint.csv':
+            for line in self.from_module.run(path):
+                if line.get('EventID') in ["51", "45"]:
+                    yield line
+
+        elif filename == self._get_outfile('BitdefenderLogs'):
+            pattern = re.compile(r"@threatName': '([^']+)'")
+            for line in self.from_module.run(path):
+                match = pattern.search(line.get('ScanDetails', ''))
+                if match:
+                    yield line
+
+        elif filename == 'kaspersky_security.csv':
+            for line in self.from_module.run(path):
+                if line.get('Threat'):
+                    yield line
+
+        elif filename in ['kaspersky.csv', 'kaspersky_endpoint.csv']:
+            # TODO: get some malware detection examples
+            # https://support.kaspersky.com/KEA/3.12/en-US/192460.htm
+            # Possible strings to find: "Failed connecting server"
+            for line in self.from_module.run(path):
+                if line.get('Message').find('hreat') > 0:
+                    yield line
+
+        elif filename == self._get_outfile('McAfeeDesktopProtectionLogs'):
+            for line in self.from_module.run(path):
+                if line.get('Message').find('Blocked by') == 0:
+                    yield line
+
+        elif filename == self._get_outfile('McAfeeEndpointSecurityLogs'):
+            for line in self.from_module.run(path):
+                if line.get('Message').find('was blocked') > 0:
+                    yield line
+
+        elif filename == self._get_outfile('PandasLogs'):
+            # TODO: get some malware detection examples
+            pattern = re.compile(r"Windows Installer (removed|reconfigured) the product")
+            for line in self.from_module.run(path):
+                match = pattern.search(line.get('Message', ''))
+                if match:
+                    yield line
+
+        elif filename == 'sophos.csv':
+            for line in self.from_module.run(path):
+                if line.get('Threat'):
+                    yield line
+
+        elif filename in [self._get_outfile('CortexLogs'), self._get_outfile('SophosEndpointLogs'), self._get_outfile('BitdefenderLogsEndpoint')]:
+            # TODO: get some malware detection examples
+            # Candidate event Cortex: "IP = 'xxx.xxx.xxx.xxx' is added to the set of blocked IPs"
+            pass
+
+        else:
+            yield from self.from_module.run(path)
+
+    def _get_outfile(self, job):
+        base = 'plugins.windows.RVT_edrlogs.'
+        return os.path.basename(self.config.config[base + job]['outfile'])

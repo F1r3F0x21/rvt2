@@ -971,8 +971,6 @@ class USBPlugs2(base.job.BaseModule):
 class TGT_attack(base.job.BaseModule):
     """ Extracts possible TGT attacks """
 
-    # TODO: convert prints to dict yields
-
     def run(self, path=None):
         """
         Attrs:
@@ -982,51 +980,50 @@ class TGT_attack(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         ev = {'tgt': {}, 'tgs': {}, 'renew': {}}
-
         eventlist = {'4768': 'tgt', '4769': 'tgs', '4770': 'renew'}
 
-        for event in list(self.from_module.run(path)):
-            # ev = dict()
-            # ev['EventID'] = event.get('event.code', '')
-            # ev['TimeCreated'] = event.get('event.created', '')
-            # ev['User'] = event.get('destination.user.name', '')
-            # ev['Domain'] = event.get('destination.domain', '')
-            # ev['Service'] = event.get('service.name', '')
-            # ev['Encryption'] = event.get('data.TicketEncryptionType', '')
-            # ev['SourceAddress'] = event.get('source.ip', '')
+        for event in self.from_module.run(path):
             if event['destination.user.name'] not in ev[eventlist[event['event.code']]].keys():
                 ev[eventlist[event['event.code']]][event['destination.user.name']] = []
-            ev[eventlist[event['event.code']]][event['destination.user.name']].append({'event.created': event['event.created'], 'service.name': event['service.name'], 'TicketEncryptionType': event['data.TicketEncryptionType'], 'ip': event['source.ip'], 'TicketOptions': event['data.TicketOptions'], 'status': event.get('data.Error', '')})
+            ev[eventlist[event['event.code']]][event['destination.user.name']].append({
+                'event.created': event['event.created'],
+                'service.name': event['service.name'],
+                'TicketEncryptionType': event['data.TicketEncryptionType'],
+                'ip': event['source.ip'],
+                'TicketOptions': event['data.TicketOptions'],
+                'status': event.get('data.Error', '')})
 
         tgt = {}
         tgs = {}
         renew = {}
-        startdate = '2099-01-01'
+        self.startdate = '2099-01-01'
 
+        # Obtain first TGT or TGS event date
+        # Different alerts will be generated when possible expected events may happen before 'startdate'
         for k in ev['tgt']:
             tgt[k] = sorted(ev['tgt'][k], key=lambda l: l['event.created'])
             aux_date = tgt[k][0]['event.created']
-            if aux_date < startdate:
-                startdate = aux_date
+            if aux_date < self.startdate:
+                self.startdate = aux_date
         for k in ev['tgs']:
             tgs[k] = sorted(ev['tgs'][k], key=lambda l: l['event.created'])
             aux_date = tgs[k][0]['event.created']
-            if aux_date < startdate:
-                startdate = aux_date
+            if aux_date < self.startdate:
+                self.startdate = aux_date
         for k in ev['renew']:
             renew[k] = sorted(ev['renew'][k], key=lambda l: l['event.created'])
             aux_date = renew[k][0]['event.created']
-            if aux_date < startdate:
-                startdate = aux_date
+            if aux_date < self.startdate:
+                self.startdate = aux_date
         del ev
+        self.startdate = datetime.datetime.strptime(self.startdate[:19], "%Y-%m-%d %H:%M:%S")
 
-        print('First TGT or TGS event has date %s\n' % startdate)
-
-        self.check_tgs_encryption(tgs)
-        print('\n--------------------------------------\nTGS without previous TGT')
-        self.check_tgt_before_ticket(tgt, tgs)
-        print('\n--------------------------------------\nRenew of ticket without previous TGT')
-        self.check_tgt_before_ticket(tgt, renew)
+        for result in self.check_tgs_encryption(tgs):
+            yield result
+        for result in self.check_tgt_before_ticket(tgt, tgs):
+            yield result
+        for result in self.check_tgt_before_ticket(tgt, renew):
+            yield result
 
     def check_tgs_encryption(self, tgs):
         """
@@ -1037,35 +1034,82 @@ class TGT_attack(base.job.BaseModule):
 
         for user in tgs.keys():
             for ticket in tgs[user]:
-                if ticket['TicketEncryptionType'].startswith('DES-CBC'):
-                    print('Possible kerberoast attack using deprecated encryption. Date: %s, user: %s, ip: %s, encryption %s, service name: %s, status: %s' % (ticket['event.created'], user, ticket['ip'], ticket['TicketEncryptionType'], ticket['service.name'], ticket['status']))
-                elif ticket['TicketEncryptionType'] == 'RC4-HMAC' and ticket['TicketOptions'] == '0x40810000' and not user.split('@')[0].endswith('$'):
-                    print('Possible kerberoast attack. Date: %s, user: %s, ip: %s, encryption RC4-HMAC, service name: %s, status: %s' % (ticket['event.created'], user, ticket['ip'], ticket['service.name'], ticket['status']))
+                if (ticket['TicketEncryptionType'].startswith('DES-CBC')) or (ticket['TicketEncryptionType'] == 'RC4-HMAC' and ticket['TicketOptions'] == '0x40810000' and not user.split('@')[0].endswith('$')):
+                    yield {
+                        'TGS Time': ticket['event.created'],
+                        'User': user,
+                        'IP': ticket['ip'],
+                        'Encryption': ticket['TicketEncryptionType'],
+                        'Service': ticket['service.name'],
+                        'Status': ticket['status'],
+                        'Message': f'Possible kerberoast attack'
+                    }
 
     def check_tgt_before_ticket(self, tgt, tgs, hours=10):
         """
-        Finds if there are a tgt ticket before tgs
+        Find if there are TGT tickets before TGS. Otherwise, alert
         """
 
+        result = {}
         for user in tgs.keys():
-            for ticket in tgs[user]:
+            for tgs_ticket in tgs[user]:
                 valid = False
+                same_ip = False
                 tgt_user = user.split('@')[0]
+                last_tgt = ''
+                tgs_created = datetime.datetime.strptime(tgs_ticket['event.created'][:19], "%Y-%m-%d %H:%M:%S")
+                # Consider when events may ocurr before available data
+                outside_range = False
+                if (tgs_created - self.startdate).total_seconds() < 3600 * hours:
+                    outside_range = True
+
                 if tgt_user in tgt.keys():
                     for tgt_ticket in tgt[tgt_user]:
-                        if tgt_ticket['ip'] == ticket['ip'] and tgt_ticket['event.created'] < ticket['event.created'] and (datetime.datetime.strptime(ticket['event.created'][:19], "%Y-%m-%d %H:%M:%S") - datetime.datetime.strptime(ticket['event.created'][:19], "%Y-%m-%d %H:%M:%S")).total_seconds() < 3600 * hours:
+                        if tgt_ticket['ip'] != tgs_ticket['ip']: # Compare only same IP source and user
+                            continue
+                        same_ip = True
+                        tgt_created = datetime.datetime.strptime(tgt_ticket['event.created'][:19], "%Y-%m-%d %H:%M:%S")
+                        if tgt_created > tgs_created: # Events are sorted in time. Don't look after TGS event
+                            break
+                        last_tgt = tgt_ticket['event.created']
+                        # Expected situation: TGT before TGS
+                        if  tgt_created <= tgs_created and (tgs_created - tgt_created).total_seconds() < 3600 * hours:
                             valid = True
                             break
-                        if not valid:
-                            print("There are no previous TGT for ticket created (or it has created more than %s hours before) on %s of user %s with service name %s, ip %s, status: %s" % (hours, ticket['event.created'], user, ticket['service.name'], ticket['ip'], ticket['status']))
+                    if not same_ip or (not last_tgt):
+                        message = 'No previous TGT ticket for this user and IP address' + (f'. First available security events at {self.startdate}' if outside_range else '')
+                    elif same_ip and not valid:
+                        message = f'Previous TGT ticket was created more than {hours} hours before' + (f'. First available security events at {self.startdate}' if outside_range else '')
+                    else:
+                        continue
+                    result = {
+                        'TGS Time': tgs_ticket['event.created'],
+                        'User': tgt_user,
+                        'IP': tgs_ticket['ip'],
+                        'Encryption': tgs_ticket['TicketEncryptionType'],
+                        'Service': tgs_ticket['service.name'],
+                        'Status': tgs_ticket['status'],
+                        'Last TGT': last_tgt,
+                        'Message': message
+                    }
+                    yield result
+
                 else:
-                    print("There are no TGT ticket of user %s. This ticket is created on %s with service name %s, ip %s, status: %s" % (user, ticket['event.created'], ticket['service.name'], ticket['ip'], ticket['status']))
+                    result = {
+                        'TGS Time': tgs_ticket['event.created'],
+                        'User': tgt_user,
+                        'IP': tgs_ticket['ip'],
+                        'Encryption': tgs_ticket['TicketEncryptionType'],
+                        'Service': tgs_ticket['service.name'],
+                        'Status': tgs_ticket['status'],
+                        'Last TGT': '',
+                        'Message': 'No previous TGT ticket for this user' + (f'. First available security events at {self.startdate}' if outside_range else '')
+                    }
+                    yield result
 
 
 class EDR_PaloAlto(base.job.BaseModule):
-    """ Extracts specific fields from Palo Alto events 
-
-    """
+    """ Extracts specific fields from Palo Alto events """
 
     def run(self, path=None):
         """
@@ -1074,32 +1118,35 @@ class EDR_PaloAlto(base.job.BaseModule):
         """
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        # To add more specific events 
+        # TODO: add more specific events
         eventlist = ["88", "85"]
 
-        for event in list(self.from_module.run(path)):
+        for event in self.from_module.run(path):
             if event["EventID"] in eventlist:
-                message_list = ast.literal_eval(event["Message"])
-                extra_data = ast.literal_eval(message_list[5])
+                try:
+                    message_list = ast.literal_eval(event["Message"])
+                    extra_data = ast.literal_eval(message_list[5])
 
-                event["Object"] = extra_data["filePath"]
-                event["Hash"] = extra_data["fileHash"]["sha256"]
-                if extra_data["verdict"] == 1:
-                    event["Level"] = "Potentially harmful"
+                    event["Object"] = extra_data.get("filePath", "")
+                    if "fileHash" in extra_data:
+                        event["Hash"] = extra_data["fileHash"].get("sha256","")
+                    if extra_data.get("verdict", 0) == 1:
+                        event["Level"] = "Potentially harmful"
 
-                if "yaraDetails" in extra_data.keys():
-                    event_rules = extra_data["yaraDetails"]["rules"][0]
-                    
-                    event["Level"] = event_rules["severity"]
-                    event["Action"] = event_rules["action"]
-                    event["Message"] = event_rules["description"]
+                    if "yaraDetails" in extra_data.keys():
+                        event_rules = extra_data["yaraDetails"]["rules"][0]
+                        event["Level"] = event_rules["severity"]
+                        event["Action"] = event_rules["action"]
+                        event["Message"] = event_rules["description"]
+                    else:
+                        event["Message"] = ""
+                except Exception:
+                    pass
             yield event
 
 
 class EDR_Sophos(base.job.BaseModule):
-    """ Extracts specific fields from Sophos events 
-
-    """
+    """ Extracts specific fields from Sophos events """
 
     def run(self, path=None):
         """
@@ -1108,7 +1155,7 @@ class EDR_Sophos(base.job.BaseModule):
         """
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        for event in list(self.from_module.run(path)):
+        for event in self.from_module.run(path):
             if event["EventID"] == "42" and event["event.provider"] == "Sophos System Protection" :
                 message_list = ast.literal_eval(event["data.#text"])
                 event["Object"] = message_list[1]
@@ -1126,9 +1173,7 @@ class EDR_Sophos(base.job.BaseModule):
 
 
 class EDR_Symantec(base.job.BaseModule):
-    """ Extracts specific fields from Symantec events 
-
-    """
+    """ Extracts specific fields from Symantec events """
 
     def run(self, path=None):
         """
@@ -1138,20 +1183,15 @@ class EDR_Symantec(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         # Regex for event 51
-        action = r'Action:([\w\s]*)\.'
-        prog_action = re.compile(action)
-        actionDescription = r'Action Description:([\w\s]*)\.'
-        prog_actionDescription = re.compile(actionDescription)
-        file = r'File:\s*(\S*)'
-        prog_file= re.compile(file)
+        prog_action = re.compile(r'Action:([\w\s]*)\.')
+        prog_actionDescription = re.compile(r'Action Description:([\w\s]*)\.')
+        prog_file= re.compile(r'File:\s*(\S*)')
 
         # Regex for event 45
-        action_45 = r'Action\staken:([\s\w]*)'
-        prog_action_45 = re.compile(action_45)
-        file_45 = r'File:\s+(.*?)\\r\\n'
-        prog_file_45 = re.compile(file_45)
+        prog_action_45 = re.compile(r'Action\staken:([\s\w]*)')
+        prog_file_45 = re.compile(r'File:\s+(.*?)\\r\\n')
 
-        for event in list(self.from_module.run(path)):
+        for event in self.from_module.run(path):
             string_data = event["Message"]
             event["Message"] = event["Message"].strip("[']")
 
@@ -1180,6 +1220,59 @@ class EDR_Symantec(base.job.BaseModule):
             yield event
 
 
+class KasperskyEndpoint(base.job.BaseModule):
+    """ Parse the KasperskyEndpoint Message windows events """
+
+    def run(self, path=None):
+        prog_path = re.compile(r'(Application\spath|Ruta\sde\sla\saplicación):\s?(.*?)\\r')
+        prog_name = re.compile(r'(Name|Nombre):\s?(.*?)\\r')
+        prog_user = re.compile(r'(User|Usuario):\s?(.*?)\\r')
+
+        for event in self.from_module.run(path):
+            message = event["Message"]
+
+            match_path = prog_path.search(message)
+            if match_path:
+                path = match_path.groups(default='')[1]
+                event["Object"] = path
+
+            match_namefile = prog_name.search(message)
+            if match_namefile:
+                namefile = match_namefile.groups(default='')[1]
+                event["Object"] = event.get("Object","") + "\\" + namefile
+
+            match_user = prog_user.search(message)
+            if match_user:
+                user = match_user.groups(default='')[1]
+                event["User"] = user
+
+            yield event
+
+
+class KasperskySecurity(base.job.BaseModule):
+    """ Parse the Kaspersky Security Windows events """
+
+    def run(self, path=None):
+
+        for event in self.from_module.run(path):
+            # Relevant EventIds identified: 3203, 5203, 64, 6006, 6041
+            # They may change with Kaspersky version and therefore will not be filtered by EventID
+            if event["event.dataset"] == "Kaspersky Security":
+                try:
+                    message_list = event["EventData"]["Data"]["#text"]
+                    event["Object"] = message_list[0]
+                    base_index = next((i for i, s in enumerate(message_list) if 'Real-Time File Protection' in s), -1)
+                    if base_index == -1:
+                        continue
+                    event["User"] = message_list[base_index + 1]
+                    event["Process"] = message_list[base_index + 4]
+                    if base_index == 2:
+                        event["Threat"] = message_list[1]
+                    yield event
+                except Exception as exc:
+                    continue
+
+
 class MSSQL(base.job.BaseModule):
     """ Extracts events related with MSSQL """
 
@@ -1188,8 +1281,6 @@ class MSSQL(base.job.BaseModule):
         Attrs:
             path (str): Absolute path to the parsed Application.evtx
         """
-
-        import re
 
         self.check_params(path, check_path=True, check_path_exists=True)
 

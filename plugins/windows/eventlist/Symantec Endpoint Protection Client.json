@@ -1,6 +1,6 @@
 {
     "*":{
-        "description": "-- GENERAL description --",
+        "description": "",
         "provider": "Symantec Endpoint Protection Client",
         "dataset" : "Symantec Endpoint Protection Client",
         "path": {

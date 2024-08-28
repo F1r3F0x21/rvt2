@@ -650,6 +650,8 @@ class Application(EventJob):
         """
 
         path = self.get_evtx(path, r"Application.evtx$")
+        if not path:
+            return []
 
         fields = {'1000': {'provider': 'Application Error', 'fields': ['product.name', 'product.version', 'timestamp1', 'module.name', 'module.version', 'module.timestamp2', 'error.code', 'offset', 'process.id', 'application.starttime', 'application.path', 'module.path', 'report.id', 'package.full_name', 'package-relative_application.id']},
                   '1001': {'provider': 'Windows Error Reporting', 'fields': ['Fault_bucket', 'type', 'event.name', 'response', 'cab.id', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'Attached_files', 'Attached_path', 'Analysis_symbol', 'rechecking_for_solution', 'report.id', 'report.status']},
