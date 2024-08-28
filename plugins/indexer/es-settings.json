@@ -116,7 +116,7 @@
                 }
             },
             "email_received": {
-                "type": "date",
+                "type": "text",
                 "fields": {
                     "keyword": {
                         "type": "keyword",
@@ -125,6 +125,24 @@
                 }
             },
             "email_sent": {
+                "type": "date",
+                "fields": {
+                    "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                    }
+                }
+            },
+            "email_delivery_time": {
+                "type": "date",
+                "fields": {
+                    "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                    }
+                }
+            },
+            "email_submit_time": {
                 "type": "date",
                 "fields": {
                     "keyword": {

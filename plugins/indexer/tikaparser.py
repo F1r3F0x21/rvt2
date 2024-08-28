@@ -23,7 +23,7 @@ In this file:
 - `metadata` refers to a file metadata as returned by Tika. `Metadata` may not
   have a name suitable for coding, such as the slash in `content-type` and the
   name depends on the file type and the specific parser Tika, and there are
-  hundred of  different names. Metadata with the same semantics in different
+  hundred of different names. Metadata with the same semantics in different
   file types may have different names. For example, `dc:author`, `author`,
   `metadata:author`...
 - `field` refers to a metadata in the dictionary the modules in this file
@@ -31,8 +31,7 @@ In this file:
   maybe ignored. There is a file to configure the mapping between `fields` and
   `metadata`.
 
-Todo:
-  - Allow using a standalone Tika, not the server mode.
+TODO:
   - Tell Tika somehow which parser must use for a file. Specially useful to
     improve the time to parse plain text files, since Tika test all possible parsers on them by default.
 
@@ -43,8 +42,9 @@ import os.path
 import json
 import configparser
 import requests
-
+import subprocess
 import mimeparse
+import dkim
 
 from base.utils import generate_id
 import base.job
@@ -70,7 +70,8 @@ class TikaParser(base.job.BaseModule):
     Beware of the character limit on files parsed by Tika: 100k characters.
 
     Configuration:
-        - **tika_server**: a URL to a preexisting TIKA server. Example: ``http://localhost:9998``. The port is mandatory.
+        - **tika_server**: a URL to a preexisting Tika server. Example: ``http://localhost:9998``. The port is mandatory.
+        - **tika_standalone**: a path to a preexisting Tika local executable. If set, it will use this instead of the tika_server.
         - **mapping**: path to the mapping configuration file.
           By default, not all metadata is yielded.
           Metadata must be mapped to a field name, and only fields mapped are returned.
@@ -86,21 +87,23 @@ class TikaParser(base.job.BaseModule):
         - **error_status** (int): Error status code to report in case Tika is not available while parsing a specific file.
         - **file_max_size** (int): The max size in bytes of a file to be parsed. If the file is larger than this, it is not parsed and tika_status set to 413 (payload too large)
         - **content_max_size** (int): The max size in bytes of a content to be parsed. If the content is larger than this, it is removed and tika_status set to (payload too large)
-        - **tika_encoding** (str): The encoding of the answers from tika
+        - **tika_encoding** (str): The encoding of the answers from Tika
         - **only_root** (bool): If True, return only the root item
     """
     def __init__(self, *attrs, **kwattrs):
         super().__init__(*attrs, **kwattrs)
 
         # check if the tika server is available, or raise an error
-        tika_server = self.myconfig('tika_server')
-        if not base.config.check_server(tika_server):
-            self.logger().error('Tika server is not reacheable: tika_server="%s"', tika_server)
-            raise base.job.RVTError('Tika server is not reacheable: tika_server="{}"'.format(tika_server))
+        if not self.myconfig('tika_standalone'):
+            tika_server = self.myconfig('tika_server')
+            if not base.config.check_server(tika_server):
+                self.logger().error('Tika server is not reacheable: tika_server="%s"', tika_server)
+                raise base.job.RVTError('Tika server is not reacheable: tika_server="{}"'.format(tika_server))
 
     def read_config(self):
         super().read_config()
         self.set_default_config('tika_server', 'http://localhost:9998')
+        self.set_default_config('tika_standalone', '')
         self.set_default_config('mapping', os.path.join(self.config.get('indexer', 'plugindir', './'), 'tika-mapping.cfg'))
         self.set_default_config('save_mapping', 'False')
         self.set_default_config('only_root', 'False')
@@ -171,14 +174,19 @@ class TikaParser(base.job.BaseModule):
             A dictionary with the fiels of the parsed file. Keep in mind files can be composite. In this case,
             a dictionary will be yielded for every individual single files.
         """
+        tika_standalone = self.myconfig('tika_standalone')
         tika_server = self.myconfig('tika_server')
-        self.logger().debug('Parsing: %s at %s', path, tika_server)
+        self.logger().debug(f'Parsing: {path} at {tika_server if not tika_standalone else tika_standalone}')
         self.check_params(path, check_path=True, check_path_exists=True)
 
         if os.path.isfile(path):
             # We cannot parse directories, symbolic links, FIFO files...
             try:
-                parsed = self.tika_parse_file(path, tika_server)
+                if tika_standalone:
+                    parsed = self.tika_standalone_parse_file(path, tika_standalone)
+                else:
+                    parsed = self.tika_parse_file(path, tika_server)
+
                 parsed['filepath'] = path
                 # NOTE: empty file returns status == 422 and no metadata
                 filemetadata = parsed.get('metadata', None)
@@ -306,7 +314,7 @@ class TikaParser(base.job.BaseModule):
 
         Args:
             filepath (str): the path to the composite file
-            tike_server (str): the URL to the tika server
+            tika_server (str): the URL to the Tika server
 
         Returns:
             A dictionary ``{status, metadata}.`` If the file cannot be parsed, metadata is not provided.
@@ -320,7 +328,7 @@ class TikaParser(base.job.BaseModule):
         with open(filepath, 'rb') as fp:
             resp = requests.put(tika_server + '/rmeta/text', fp, verify=True, headers=headers)
             if not resp:
-                # sometimes, tike returns no response with a broken file
+                # sometimes, Tika returns no response with a broken file
                 return dict(status=int(self.myconfig('error_status')))
             if resp.status_code != 200:
                 self.logger().warning('%s: status=%s', filepath, resp.status_code)
@@ -330,23 +338,49 @@ class TikaParser(base.job.BaseModule):
                 parsed['metadata'] = json.loads(resp.content.decode(self.myconfig('tika_encoding')))
             return parsed
 
+    def tika_standalone_parse_file(self, filepath, tika_standalone):
+        """ Call a tika standalone executable to parse a file.
 
-# def dkim_verify(filepath, metadata):
-#     """ A hook to verify DKIM signatures for message/rfc822 documents.
+        Args:
+            filepath (str): the path to the composite file
+            tika_standalone (str): the path to the tika standalone executable
 
-#     Parameters:
-#         filepath (str): Absolute path to the email message file.
-#         metadata (dict): Metadata of the parsed document.
+        Returns:
+            A dictionary ``{status, metadata}.`` If the file cannot be parsed, metadata is not provided.
+            If the file is larger than ``file_max_size``, set ``status = 413`` and no metadata is returned.
+        """
 
-#     Returns:
-#         Adds a new field to metadata: *hook_dkim_verify*
-#     """
-#     import dkim
-#     message = None
-#     with open(filepath, 'rb') as email_file:
-#         message = email_file.read()
-#     try:
-#         validator = dkim.DKIM(message, logger=None)
-#         metadata['hook_dkim_verify'] = validator.verify()
-#     except Exception:
-#         metadata['hook_dkim_verify'] = False
+        if os.path.getsize(filepath) > int(self.myconfig('file_max_size')):
+            return dict(status=413)
+
+        cmd = f'{tika_standalone} "{filepath}"'
+        try:
+            resp = subprocess.check_output(cmd, stderr=None, shell=True).decode(self.myconfig('tika_encoding'))
+            if not resp:
+                # sometimes, tika returns no response with a broken file
+                self.logger().warning(f'Tika error processing: {filepath}')
+                return dict(status=int(self.myconfig('error_status')))
+            parsed = dict(status=200)
+            parsed['metadata'] = json.loads(resp)
+            return parsed
+        except Exception as exc:
+            self.logger().warning(f'Tika error processing: {filepath}. {exc}')
+
+    def dkim_verify(filepath, metadata):
+        """ A hook to verify DKIM signatures for message/rfc822 documents.
+
+        Parameters:
+            filepath (str): Absolute path to the email message file.
+            metadata (dict): Metadata of the parsed document.
+
+        Returns:
+            Adds a new field to metadata: *hook_dkim_verify*
+        """
+        message = None
+        with open(filepath, 'rb') as email_file:
+            message = email_file.read()
+        try:
+            validator = dkim.DKIM(message, logger=None)
+            metadata['hook_dkim_verify'] = validator.verify()
+        except Exception:
+            metadata['hook_dkim_verify'] = False

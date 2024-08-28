@@ -26,7 +26,7 @@ class BlindSearches(base.job.BaseModule):
     Configuration:
         - **keyword_tag_field**: Identification of the field to use for annotations.
           Remember ``ElasticSearchBulkSender`` allows appending to annotation lists by using a field ending in "-new"
-        - **strip_match**: If true, return only the identifier of the document and the annotation, if any.
+        - **strip_match**: If True, return only the identifier of the document, the path and the annotation, if any.
           If false, returns the whole document.
     """
 
@@ -41,8 +41,12 @@ class BlindSearches(base.job.BaseModule):
 
         for matched_line in self.from_module.run(path):
             match = json.loads(matched_line['match'])
-            if self.myflag('strip_match'):
-                match = dict(_id=match['_id'])
+            _id = match['_id']
+            if '_source' in match and isinstance(match['_source'], dict):
+                if self.myflag('strip_match'):
+                    match = dict(_id=_id, path=match['_source'].get('path'), embedded_path=match['_source'].get('embedded_path'))
+                else:
+                    match = dict(_id=_id, **match['_source'])
             matched_file = matched_line.get('keyword_file', '')
             if matched_file is None:
                 matched_file = ''

@@ -19,15 +19,14 @@
 import os.path
 import re
 import subprocess
+import dateutil.parser
+import email
+from tqdm import tqdm
 
-from base.utils import generate_id
 from plugins.common.RVT_files import GetFiles
 from base.commands import run_command
 import base.utils
-import dateutil.parser
 import base.job
-import email
-from tqdm import tqdm
 
 
 # ##################### Utility functions
@@ -237,7 +236,7 @@ class MailboxCSV(base.job.BaseModule):
                 res['subject'] = fileinfo.get('email_subject', '')
                 res['flags'] = fileinfo.get('email_flags', '')
                 res['guid'] = fileinfo.get('email_guid', '')
-                res['send_or_received'] = fileinfo.get('email_send_or_received', '')
+                res['sent_or_received'] = fileinfo.get('email_sent_or_received', '')
                 res['from'] = fileinfo.get('email_from', '')
                 res['to'] = ''
                 res['cc'] = ''
@@ -254,6 +253,10 @@ class MailboxCSV(base.job.BaseModule):
                 res['x_originating_ip'] = fileinfo.get('email_x_originating_ip', '')
                 res['email_references'] = fileinfo.get('email_references', '')
                 res['conversation_topic'] = fileinfo.get('email_conversation_topic', '')
+                if res['flags'] and res['flags'].find('Has attachments') > -1:
+                    att_path = os.path.join(self.myconfig('casedir'), fileinfo['dirname'], 'Attachments')
+                    if os.path.isdir(att_path):
+                        res['attachments'] = ",".join(os.listdir(att_path))
                 yield res
 
 
@@ -321,10 +324,10 @@ class PffExportParseObject(base.job.BaseModule):
 
     def _setContainerID(self, d, containerid=None):
         if not containerid:
-            d['_id'] = str(generate_id(d))
+            d['_id'] = str(base.utils.generate_id(d))
             d['containerid'] = ""
         else:
-            d['_id'] = str(generate_id(d))
+            d['_id'] = str(base.utils.generate_id(d))
             d['containerid'] = containerid
         return d['_id']
 
@@ -346,7 +349,7 @@ class PffExportParseObject(base.job.BaseModule):
             'email_received': decodeEmailHeader(msg.get("received", None))
         }
 
-    def _getOutHeaders(self, filename):
+    def _getOutlookHeaders(self, filename):
         """ Read outlook headers from a filename """
         msg = readMessageFile(filename, stop_on_empty_line=False)
         data = {
@@ -427,12 +430,12 @@ class PffExportParseMessage(PffExportParseObject):
         intHeaders = os.path.join(path, "InternetHeaders.txt")
         if os.path.isfile(intHeaders):
             info.update(self._getInternetHeaders(intHeaders))
-            info["email_send_or_received"] = "R"
+            info["email_sent_or_received"] = "R"
         else:
-            info["email_send_or_received"] = "S"
-        info.update(self._getOutHeaders(os.path.join(path, "OutlookHeaders.txt")))
-        if 'Unsent' in info.get('email_flags', ''):
-            info["email_send_or_received"] = "U"
+            info["email_sent_or_received"] = "S"
+        info.update(self._getOutlookHeaders(os.path.join(path, "OutlookHeaders.txt")))
+        if info.get('email_flags', '') and 'Unsent' in info['email_flags']:
+            info["email_sent_or_received"] = "U"
         info.update(self._getRecipients(os.path.join(path, "Recipients.txt")))
         try:
             info.update(self._getConversationIndex(os.path.join(path, "ConversationIndex.txt")))
@@ -561,7 +564,7 @@ class PffExportParseTask(PffExportParseObject):
         info["content_type"] = "pst/Task"
         info["category"] = "email"
         info["extension"] = None
-        info.update(self._getOutHeaders(os.path.join(path, "Task.txt")))
+        info.update(self._getOutlookHeaders(os.path.join(path, "Task.txt")))
         info.update(self._getRecipients(os.path.join(path, "Recipients.txt")))
         containerid = self._setContainerID(info, containerid)
         info['dirname'] = base.utils.relative_path(path, self.myconfig('casedir'))
@@ -655,12 +658,12 @@ class EmlxParseMessage(PffExportParseObject):
         # if os.path.isfile(intHeaders):
         if True:
             info.update(self._getInternetHeaders(path))
-            info["email_send_or_received"] = "R"
+            info["email_sent_or_received"] = "R"
         else:
-            info["email_send_or_received"] = "S"
-        info.update(self._getOutHeaders(os.path.join(path, "OutlookHeaders.txt")))
+            info["email_sent_or_received"] = "S"
+        info.update(self._getOutlookHeaders(os.path.join(path, "OutlookHeaders.txt")))
         if info.get('email_flags', '') and 'Unsent' in info['email_flags']:
-            info["email_send_or_received"] = "U"
+            info["email_sent_or_received"] = "U"
         info.update(self._getRecipients(os.path.join(path, "Recipients.txt")))
         try:
             info.update(self._getConversationIndex(os.path.join(path, "ConversationIndex.txt")))

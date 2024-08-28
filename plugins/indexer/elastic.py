@@ -230,7 +230,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
                 if mytags:
                     fileinfo['tags'] = mytags
                 # get or generate an identifier
-                _id = str(generate_id(fileinfo)) if not unique_id else str(generate_hash(fileinfo))
+                _id = str(generate_id(fileinfo)) if not unique_id else str(generate_hash(fileinfo, logger=self.logger()))
                 # if the fileinfo already provides an index name, use it. If not, use the default index name
                 fileindex = fileinfo.pop('_index') if '_index' in fileinfo else name
                 yield dict(_index=fileindex, _id=_id, _source=fileinfo, _op_type=self.myconfig('operation'))

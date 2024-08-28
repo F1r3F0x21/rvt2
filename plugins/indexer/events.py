@@ -860,7 +860,7 @@ class EventLogs(SuperTimeline):
                 del common['url']
             for field in common:
                 if field.endswith('ip'):
-                    ip, port = sanitize_ip(common[field])
+                    ip, port = sanitize_ip(common[field], logger=self.logger())
                     common[field] = ip
                     if port:
                         additional_fields[field[:-2] + 'port'] = port

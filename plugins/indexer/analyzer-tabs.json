@@ -18,7 +18,7 @@
             "filename": false,
             "analysis": true,
             "icon": "mdi-email",
-            "columns": "email_subject,email_sent,email_from,email_to"
+            "columns": "email_subject,creation_time,email_from,email_to"
         }
     ],
     "apache": [
