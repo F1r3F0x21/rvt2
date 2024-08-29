@@ -27,7 +27,7 @@ from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, check_file, save_csv, save_json, relative_path, windows_format_path
+from base.utils import check_directory, check_file, save_csv, save_json, relative_path, windows_format_path, date_to_iso
 from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetTimeline
 from plugins.windows.RVT_os_info import CharacterizeWindows
@@ -1227,7 +1227,6 @@ class Tasks(BaseRegistry):
 
         entries = self.parse_tasks_keys(path)
         save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
-        #save_json(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
 
     def parse_tasks_keys(self, path):
 
@@ -1245,9 +1244,11 @@ class Tasks(BaseRegistry):
                 task_created, last_executed = ("", "")
                 if subkey.get('registry.data.DynamicInfo', ""):
                     task_created, last_executed = self.convert_hex_dates(subkey['registry.data.DynamicInfo'])
+                if subkey.get('registry.data.Date'):
+                    task_created = date_to_iso(subkey.get('registry.data.Date'), hide_tz=True, sep=' ', timespec='seconds')
                 yield OrderedDict([("@timestamp", subkey['@timestamp']),
                                   ('Task', subkey.get('registry.data.Path', "")),
-                                  ('Created', subkey.get('registry.data.Date', task_created)),
+                                  ('Created', task_created),
                                   ('LastExecuted', last_executed),
                                   ('Author', subkey.get('registry.data.Author', "")),
                                   ('Description', subkey.get('registry.data.Description', ""))])
@@ -1260,8 +1261,8 @@ class Tasks(BaseRegistry):
         return []
 
     def convert_hex_dates(self, binary_stirng):
-        task_created = parse_windows_timestamp(int.from_bytes(binary_stirng[4:12], byteorder='little'))
-        last_executed = parse_windows_timestamp(int.from_bytes(binary_stirng[12:20], byteorder='little'))
+        task_created = parse_windows_timestamp(int.from_bytes(binary_stirng[4:12], byteorder='little')).strftime("%Y-%m-%d %H:%M:%S")
+        last_executed = parse_windows_timestamp(int.from_bytes(binary_stirng[12:20], byteorder='little')).strftime("%Y-%m-%d %H:%M:%S")
         return task_created, last_executed
 
 

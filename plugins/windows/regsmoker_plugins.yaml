@@ -10,7 +10,7 @@ system:
     filename: execution/bam.csv
     output: csv
   dam:
-    filename: execution/bam.csv
+    filename: execution/dam.csv
     output: csv
   prefetch:
     filename: execution/prefetch.json
