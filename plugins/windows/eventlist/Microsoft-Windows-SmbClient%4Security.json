@@ -1,0 +1,38 @@
+{
+  "31001":{
+    "description": "An attempt to initialize a security context failed.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["LogonId", "PrincipalName", "SecurityStatus", "ServerName", "UserName", "Status", "Reason"],
+        "transform": {"LogonId": "data.LogonId", "PrincipalName": "data.PrincipalName", "SecurityStatus": "data.SecurityStatus", "ServerName": "destination.domain", "UserName": "user.name", "Status": "data.Status", "Reason": "data.Reason"}
+      }
+    }
+  },
+  "31010":{
+    "description": "The SMB client failed to connect to the share.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ObjectName", "ShareName", "Status", "Reason"],
+        "transform": {"ObjectName": "data.ObjectName", "ShareName": "data.ShareName", "Status": "data.Status", "Reason": "data.Reason"}
+      }
+    }
+  },
+  "31017":{
+    "description": "RejectedInsecureGuestAuth.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "ShareName", "Status", "Reason"],
+        "transform": {"ServerName": "destination.domain", "UserName": "user.name"}
+      }
+    }
+  }  
+}

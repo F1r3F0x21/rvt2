@@ -1,0 +1,14 @@
+{
+  "30904":{
+    "description": "The server does not support multi-channel.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName"],
+        "transform": {"ServerName": "destination.domain"}
+      }
+    }
+  }
+}

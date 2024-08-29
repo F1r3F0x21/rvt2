@@ -10,8 +10,8 @@
         "transform": {"xmlns": "data.namespace"}
       },
       "UserData/EventData": {
-        "Name": ["ClientAddress", "ClientName", "ClientNameLength", "ConnectionGUID", "SessionGUID", "SessionId", "Status", "TranslatedStatus", "UserName", "UserNameLength"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "ClientNameLength": "data.ClientNameLength", "ConnectionGUID": "data.ConnectionGUID", "SessionGUID": "data.SessionGUID", "SessionId": "data.SessionID", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "source.user.name", "UserNameLength": "data.UserNameLength"}
+        "Name": ["ClientAddress", "ClientName", "ConnectionGUID", "SessionGUID", "SessionId", "Status", "TranslatedStatus", "UserName"],
+        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "ConnectionGUID": "data.ConnectionGUID", "SessionGUID": "data.SessionGUID", "SessionId": "data.SessionID", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
       }
     }
   },
@@ -26,8 +26,24 @@
         "transform": {"xmlns": "data.namespace"}
       },
       "UserData/EventData": {
-        "Name": ["ClientAddress", "ClientName", "ClientNameLength", "GrantedAccess", "MappedAccess", "SessionID", "ShareName", "ShareNameLength", "SharePath", "SharePathLength", "ShareSecurityDescriptor", "ShareSecurityDescriptorLength", "Status", "TranslatedStatus", "UserName", "UserNameLength"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "ClientNameLength": "data.ClientNameLength", "GrantedAccess": "data.GrantedAccess", "MappedAccess": "data.MappedAccess", "SessionId": "data.SessionID", "ShareName": "data.ShareName", "ShareNameLength": "data.ShareNameLength", "SharePath": "data.SharePath", "SharePathLength": "data.SharePathLength", "ShareSecurityDescriptor": "data.ShareSecurityDescriptor", "ShareSecurityDescriptorLength": "data.ShareSecurityDescriptorLength","Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "source.user.name", "UserNameLength": "data.UserNameLength"}
+        "Name": ["ClientAddress", "ClientName", "GrantedAccess", "MappedAccess", "SessionID", "ShareName", "SharePath", "ShareSecurityDescriptor", "Status", "TranslatedStatus", "UserName"],
+        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "GrantedAccess": "data.GrantedAccess", "MappedAccess": "data.MappedAccess", "SessionId": "data.SessionID", "ShareName": "data.ShareName", "SharePath": "data.SharePath", "ShareSecurityDescriptor": "data.ShareSecurityDescriptor", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
+      }
+    }
+  },
+  "1007":{
+    "description": "The share denied anonymous access to the client.",
+    "provider": "Microsoft-Windows-SMBServer",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "UserData/EventData/#attributes": {
+        "Name": ["xmlns"],
+        "transform": {"xmlns": "data.namespace"}
+      },
+      "UserData/EventData": {
+        "Name": ["ClientAddress", "ClientName", "ShareName", "SharePath"],
+        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "ShareName": "data.ShareName", "SharePath": "data.SharePath"}
       }
     }
   }

@@ -1,0 +1,122 @@
+{
+  "30800":{
+    "description": "The server name cannot be resolved.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "Status", "Reason"],
+        "transform": {"ServerName": "destination.domain", "Status": "data.Status", "Reason": "data.Reason"}
+      }
+    }
+  },
+  "30803":{
+    "description": "Failed to establish a network connection.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "InstanceName", "ConnectionType", "LocalAddress", "RemoteAddress", "Status", "Reason"],
+        "transform": {"ServerName": "destination.domain", "InstanceName": "data.InstanceName", "ConnectionType": "data.ConnectionType", "LocalAddress": "data.LocalAddress", "RemoteAddress": "data.RemoteAddress", "Status": "data.Status", "Reason": "data.Reason"}
+      }
+    }
+  },
+  "30804":{
+    "description": "A network connection was disconnected.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "ConnectionType", "Address", "Status", "Reason"],
+        "transform": {"ServerName": "destination.domain", "ConnectionType": "data.ConnectionType", "Address": "data.Address", "Status": "data.Status", "Reason": "data.Reason"}
+      }
+    }
+  },
+  "30805":{
+    "description": "The client lost its session to the server.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "SessionId", "Address", "Status"],
+        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "Address": "data.Address", "Status": "data.Status"}
+      }
+    }
+  },
+  "30806":{
+    "description": "The client re-established its session to the server.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "SessionId", "Address", "Status"],
+        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "Address": "data.Address", "Status": "data.Status"}
+      }
+    }
+  },
+  "30807":{
+    "description": "The connection to the share was lost.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "SessionId", "Address", "Status"],
+        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "Address": "data.Address", "Status": "data.Status"}
+      }
+    }
+  },
+  "30808":{
+    "description": "The connection to the share was re-established.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "SessionId", "Address", "Status"],
+        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "Address": "data.Address", "Status": "data.Status"}
+      }
+    }
+  },
+  "30809":{
+    "description": "A request timed out because there was no response from the server.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "SessionId", "InstanceName", "Smb2Command", "ElapsedTimeInMs", "Status"],
+        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "InstanceName": "data.InstanceName", "Smb2Command": "data.Smb2Command", "ElapsedTimeInMs": "data.ElapsedTimeInMs", "Status": "data.Status"}
+      }
+    }
+  },  
+  "30822":{
+    "description": "Failed to establish an SMB multichannel network connection.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "InstanceName", "ConnectionType", "LocalAddress", "RemoteAddress", "Status", "Reason"],
+        "transform": {"ServerName": "destination.domain", "InstanceName": "data.InstanceName", "ConnectionType": "data.ConnectionType", "LocalAddress": "data.LocalAddress", "RemoteAddress": "data.RemoteAddress", "Status": "data.Status", "Reason": "data.Reason"}
+      }
+    }
+  },
+  "30823":{
+    "description": "The connection was terminated due to one or more IO request timeouts.",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["ServerName", "InstanceName", "ConnectionType", "LocalAddress", "RemoteAddress", "Status", "Reason"],
+        "transform": {"ServerName": "destination.domain", "InstanceName": "data.InstanceName", "ConnectionType": "data.ConnectionType", "LocalAddress": "data.LocalAddress", "RemoteAddress": "data.RemoteAddress", "Status": "data.Status", "Reason": "data.Reason"}
+      }
+    }
+  }  
+}
