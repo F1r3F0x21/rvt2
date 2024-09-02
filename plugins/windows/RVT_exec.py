@@ -17,7 +17,6 @@
 import csv
 import os
 import logging
-import re
 import shlex
 import struct
 import subprocess
@@ -28,6 +27,35 @@ from cim import CIM
 from cim.objects import Namespace
 from base.utils import check_directory, check_folder, get_windows_user_from_path, save_csv, relative_path
 from plugins.common.RVT_files import GetTimeline
+
+powershell_suspicious_content_list = ["Add-Type", "AddSecurityPackage", "AdjustTokenPrivileges", "AllocHGlobal", 
+                                    "BindingFlags", "Bypass", "CloseHandle", "CreateDecryptor", "CreateEncryptor", 
+                                    "CreateProcessWithToken", "CreateRemoteThread", "CreateThread", "CreateType",
+                                    "CreateUserThread", "Cryptography", "CryptoServiceProvider", "CryptoStream",
+                                    "DangerousGetHandle", "DeclaringMethod", "DeclaringType", "DefineConstructor",
+                                    "DefineDynamicAssembly", "DefineDynamicModule", "DefineEnum", "DefineField", 
+                                    "DefineLiteral", "DefinePInvokeMethod", "DefineType", "DeflateStream", 
+                                    "DeviceIoControl", "DllImport", "DuplicateTokenEx", "Emit", "EncodedCommand", 
+                                    "EnumerateSecurityPackages", "ExpandString", "FreeHGlobal", "FreeLibrary", 
+                                    "FromBase64String", "GetAssemblies", "GetAsyncKeyState", "GetConstructor", 
+                                    "GetConstructors", "GetDefaultMembers", "GetDelegateForFunctionPointer", 
+                                    "GetEvent", "GetEvents", "GetField", "GetFields", "GetForegroundWindow", 
+                                    "GetInterface", "GetInterfaceMap", "GetInterfaces", "GetKeyboardState", 
+                                    "GetLogonSessionData", "GetMember", "GetMembers", "GetMethod", "GetMethods", 
+                                    "GetModuleHandle", "GetNestedType", "GetNestedTypes", "GetPowerShell", 
+                                    "GetProcAddress", "GetProcessHandle", "GetProperties", "GetProperty", 
+                                    "GetTokenInformation", "GetTypes", "ILGenerator", "ImpersonateLoggedOnUser", 
+                                    "InteropServices", "IntPtr", "InvokeMember", "kernel32", "LoadLibrary", 
+                                    "LogPipelineExecutionDetails", "MakeArrayType", "MakeByRefType", "MakeGenericType", 
+                                    "MakePointerType", "Marshal", "memcpy", "MemoryStream", "Methods", "MiniDumpWriteDump", 
+                                    "NonPublic", "OpenDesktop", "OpenProcess", "OpenProcessToken", "OpenThreadToken", 
+                                    "OpenWindowStation", "PasswordDeriveBytes", "Properties", "ProtectedEventLogging", 
+                                    "PtrToString", "PtrToStructure", "ReadProcessMemory", "ReflectedType", "RevertToSelf", 
+                                    "RijndaelManaged", "ScriptBlockLogging", "SetInformationProcess", "SetThreadToken", 
+                                    "SHA1Managed", "StructureToPtr", "ToBase64String", "TransformFinalBlock", "TypeHandle", 
+                                    "TypeInitializer", "UnderlyingSystemType", "UnverifiableCodeAttribute", "VirtualAlloc", 
+                                    "VirtualFree", "VirtualProtect", "WriteByte", "WriteInt32", "WriteProcessMemory", 
+                                    "ZeroFreeGlobalAllocUnicode"]
 
 def parse_RFC_file(fname):
     """ Parses RecentFileCache.bcf
@@ -351,145 +379,6 @@ class PSHistory(base.job.BaseModule):
             self.logger().error(output)
 
 class PSAnalysisCache(base.job.BaseModule):
-
-    """ Get the PowerShell Module Analysis Cache metadata
-    """
-    class Command:
-        def __init__(self, command_length, command_string, command_type):
-            self.command_length = command_length
-            self.command_string = command_string.decode('utf-8')
-            self.command_type = command_type
-
-        def to_dict(self):
-            return self.command_string
-
-        def __repr__(self):
-            return str(self.to_dict())
-
-    class Type:
-        def __init__(self, type_length, type_string, type_attributes):
-            self.type_length = type_length
-            self.type_string = type_string
-            self.type_attributes = type_attributes
-
-        def to_dict(self):
-            return {
-                "type_length": self.type_length,
-                "type_string": self.type_string.decode('utf-8'),
-                "type_attributes": self.type_attributes
-            }
-
-        def __repr__(self):
-            return str(self.to_dict())
-
-    class Entry:
-
-        suspicious_content_list = ["Add-Type", "AddSecurityPackage", "AdjustTokenPrivileges", "AllocHGlobal", 
-                                    "BindingFlags", "Bypass", "CloseHandle", "CreateDecryptor", "CreateEncryptor", 
-                                    "CreateProcessWithToken", "CreateRemoteThread", "CreateThread", "CreateType",
-                                    "CreateUserThread", "Cryptography", "CryptoServiceProvider", "CryptoStream",
-                                    "DangerousGetHandle", "DeclaringMethod", "DeclaringType", "DefineConstructor",
-                                    "DefineDynamicAssembly", "DefineDynamicModule", "DefineEnum", "DefineField", 
-                                    "DefineLiteral", "DefinePInvokeMethod", "DefineType", "DeflateStream", 
-                                    "DeviceIoControl", "DllImport", "DuplicateTokenEx", "Emit", "EncodedCommand", 
-                                    "EnumerateSecurityPackages", "ExpandString", "FreeHGlobal", "FreeLibrary", 
-                                    "FromBase64String", "GetAssemblies", "GetAsyncKeyState", "GetConstructor", 
-                                    "GetConstructors", "GetDefaultMembers", "GetDelegateForFunctionPointer", 
-                                    "GetEvent", "GetEvents", "GetField", "GetFields", "GetForegroundWindow", 
-                                    "GetInterface", "GetInterfaceMap", "GetInterfaces", "GetKeyboardState", 
-                                    "GetLogonSessionData", "GetMember", "GetMembers", "GetMethod", "GetMethods", 
-                                    "GetModuleHandle", "GetNestedType", "GetNestedTypes", "GetPowerShell", 
-                                    "GetProcAddress", "GetProcessHandle", "GetProperties", "GetProperty", 
-                                    "GetTokenInformation", "GetTypes", "ILGenerator", "ImpersonateLoggedOnUser", 
-                                    "InteropServices", "IntPtr", "InvokeMember", "kernel32", "LoadLibrary", 
-                                    "LogPipelineExecutionDetails", "MakeArrayType", "MakeByRefType", "MakeGenericType", 
-                                    "MakePointerType", "Marshal", "memcpy", "MemoryStream", "Methods", "MiniDumpWriteDump", 
-                                    "NonPublic", "OpenDesktop", "OpenProcess", "OpenProcessToken", "OpenThreadToken", 
-                                    "OpenWindowStation", "PasswordDeriveBytes", "Properties", "ProtectedEventLogging", 
-                                    "PtrToString", "PtrToStructure", "ReadProcessMemory", "ReflectedType", "RevertToSelf", 
-                                    "RijndaelManaged", "ScriptBlockLogging", "SetInformationProcess", "SetThreadToken", 
-                                    "SHA1Managed", "StructureToPtr", "ToBase64String", "TransformFinalBlock", "TypeHandle", 
-                                    "TypeInitializer", "UnderlyingSystemType", "UnverifiableCodeAttribute", "VirtualAlloc", 
-                                    "VirtualFree", "VirtualProtect", "WriteByte", "WriteInt32", "WriteProcessMemory", 
-                                    "ZeroFreeGlobalAllocUnicode"]
-
-        def __init__(self, ticks, path, commands, types):
-            # Ticks to datetime
-            epoch_start = datetime(1, 1, 1)
-            self.date = epoch_start + timedelta(microseconds=ticks // 10)
-            self.path = path
-            self.commands = commands
-            self.types = types
-
-        def to_dict(self):
-            return {
-                "date": self.date.isoformat(),
-                "path": self.path.decode('utf-8'),
-                "commands": "" if len(self.commands) == 0 else [command for command in self.commands],
-                "suspicious": sum(str(item1).strip() in (str(item2).strip() for item2 in self.suspicious_content_list) for item1 in self.commands),
-                "types": "" if len(self.types) == 0 else [type_obj.to_dict() for type_obj in self.types]
-            }
-
-        def __repr__(self):
-            return str(self.to_dict())
-
-    def read_config(self):
-        super().read_config()
-
-    def parse_string(self, f, length):
-        """Parses a string of length 'length' from the file."""
-        return f.read(length)
-
-    def parse_command(self, f):
-        """Parses a Command structure."""
-        command_length = struct.unpack('<I', f.read(4))[0]
-        command_string = self.parse_string(f, command_length)
-        command_types = struct.unpack('<I', f.read(4))[0]
-        return self.Command(command_length, command_string, command_types)
-
-    def parse_type(self, f):
-        """Parses a Type structure."""
-        type_length = struct.unpack('<I', f.read(4))[0]
-        type_string = self.parse_string(f, type_length)
-        type_attributes = struct.unpack('<I', f.read(4))[0]
-        return self.Type(type_length, type_string, type_attributes)
-
-    def parse_entry(self, f):
-        """Parses an Entry structure."""
-        date = struct.unpack('<Q', f.read(8))[0]  # assuming the date is a 4-byte integer
-        str_length = struct.unpack('<I', f.read(4))[0]
-        path = self.parse_string(f, str_length)
-
-        # Parsing the list of Commands
-        num_commands = struct.unpack('<I', f.read(4))[0]
-        commands = []
-        for _ in range(num_commands):
-            commands.append(self.parse_command(f))
-        commands = tuple(commands)
-
-        # Parsing the list of Types
-        num_types = struct.unpack('<i', f.read(4))[0] # '<i' signed integer
-        types = []
-        if num_types != -1:
-            for _ in range(num_types):
-                types.append(self.parse_type(f))
-        types = tuple(types)
-        return self.Entry(date, path, commands, types)
-
-    def parse_file(self, file_path):
-        with open(file_path, 'rb') as f:
-            magicheader = f.read(13)
-            version = struct.unpack('<B', f.read(1))[0]
-            num_entries = struct.unpack('<I', f.read(4))[0]
-            for _ in range(num_entries):
-                entry = self.parse_entry(f)
-                yield entry.to_dict()
-
-    def run(self, path=None):
-        yield from self.parse_file(path)
-
-
-class PSAnalysisCache(base.job.BaseModule):
     """ Get the PowerShell Module Analysis Cache metadata """
 
     class Command:
@@ -534,6 +423,7 @@ class PSAnalysisCache(base.job.BaseModule):
                 "Date": self.date.isoformat(),
                 "Path": self.path.decode('utf-8'),
                 "Commands": "" if len(self.commands) == 0 else [command for command in self.commands],
+                "Suspicious": sum(str(item1).strip() in (str(item2).strip() for item2 in powershell_suspicious_content_list) for item1 in self.commands),
                 "Types": "" if len(self.types) == 0 else [type_obj.to_dict() for type_obj in self.types]
             }
 

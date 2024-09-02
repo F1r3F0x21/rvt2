@@ -24,6 +24,7 @@ import base.job
 from collections import defaultdict
 from base.utils import save_md_table, date_to_iso
 from plugins.windows.RVT_os_info import CharacterizeWindows
+from plugins.windows.RVT_exec import powershell_suspicious_content_list 
 
 class Filter_Events(base.job.BaseModule):
     """ Filters events for generating a csv file """
@@ -1297,35 +1298,6 @@ class MSSQL(base.job.BaseModule):
 class Powershell(base.job.BaseModule):
     """ Analyzes the Powershell commands for suspicious activity """
 
-    suspicious_content_list = ["Add-Type", "AddSecurityPackage", "AdjustTokenPrivileges", "AllocHGlobal", 
-                            "BindingFlags", "Bypass", "CloseHandle", "CreateDecryptor", "CreateEncryptor", 
-                            "CreateProcessWithToken", "CreateRemoteThread", "CreateThread", "CreateType",
-                            "CreateUserThread", "Cryptography", "CryptoServiceProvider", "CryptoStream",
-                            "DangerousGetHandle", "DeclaringMethod", "DeclaringType", "DefineConstructor",
-                            "DefineDynamicAssembly", "DefineDynamicModule", "DefineEnum", "DefineField", 
-                            "DefineLiteral", "DefinePInvokeMethod", "DefineType", "DeflateStream", 
-                            "DeviceIoControl", "DllImport", "DuplicateTokenEx", "Emit", "EncodedCommand", 
-                            "EnumerateSecurityPackages", "ExpandString", "FreeHGlobal", "FreeLibrary", 
-                            "FromBase64String", "GetAssemblies", "GetAsyncKeyState", "GetConstructor", 
-                            "GetConstructors", "GetDefaultMembers", "GetDelegateForFunctionPointer", 
-                            "GetEvent", "GetEvents", "GetField", "GetFields", "GetForegroundWindow", 
-                            "GetInterface", "GetInterfaceMap", "GetInterfaces", "GetKeyboardState", 
-                            "GetLogonSessionData", "GetMember", "GetMembers", "GetMethod", "GetMethods", 
-                            "GetModuleHandle", "GetNestedType", "GetNestedTypes", "GetPowerShell", 
-                            "GetProcAddress", "GetProcessHandle", "GetProperties", "GetProperty", 
-                            "GetTokenInformation", "GetTypes", "ILGenerator", "ImpersonateLoggedOnUser", 
-                            "InteropServices", "IntPtr", "InvokeMember", "kernel32", "LoadLibrary", 
-                            "LogPipelineExecutionDetails", "MakeArrayType", "MakeByRefType", "MakeGenericType", 
-                            "MakePointerType", "Marshal", "memcpy", "MemoryStream", "Methods", "MiniDumpWriteDump", 
-                            "NonPublic", "OpenDesktop", "OpenProcess", "OpenProcessToken", "OpenThreadToken", 
-                            "OpenWindowStation", "PasswordDeriveBytes", "Properties", "ProtectedEventLogging", 
-                            "PtrToString", "PtrToStructure", "ReadProcessMemory", "ReflectedType", "RevertToSelf", 
-                            "RijndaelManaged", "ScriptBlockLogging", "SetInformationProcess", "SetThreadToken", 
-                            "SHA1Managed", "StructureToPtr", "ToBase64String", "TransformFinalBlock", "TypeHandle", 
-                            "TypeInitializer", "UnderlyingSystemType", "UnverifiableCodeAttribute", "VirtualAlloc", 
-                            "VirtualFree", "VirtualProtect", "WriteByte", "WriteInt32", "WriteProcessMemory", 
-                            "ZeroFreeGlobalAllocUnicode"]
-
     def run(self, path=None):
 
         for event in self.from_module.run(path):
@@ -1333,7 +1305,7 @@ class Powershell(base.job.BaseModule):
                 count = 0
                 command_list = str(event.get("data.Command")).split(" ")
                 for command in command_list:
-                    for suspicious_command in self.suspicious_content_list:
+                    for suspicious_command in powershell_suspicious_content_list:
                         if str(command).strip() == str(suspicious_command).strip():
                             count = 1 + count
                 event["data.Suspicious"] = count
