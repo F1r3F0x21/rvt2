@@ -28,6 +28,35 @@ from cim.objects import Namespace
 from base.utils import check_directory, check_folder, get_windows_user_from_path, save_csv, relative_path
 from plugins.common.RVT_files import GetTimeline
 
+powershell_suspicious_content_list = ["Add-Type", "AddSecurityPackage", "AdjustTokenPrivileges", "AllocHGlobal", 
+                                    "BindingFlags", "Bypass", "CloseHandle", "CreateDecryptor", "CreateEncryptor", 
+                                    "CreateProcessWithToken", "CreateRemoteThread", "CreateThread", "CreateType",
+                                    "CreateUserThread", "Cryptography", "CryptoServiceProvider", "CryptoStream",
+                                    "DangerousGetHandle", "DeclaringMethod", "DeclaringType", "DefineConstructor",
+                                    "DefineDynamicAssembly", "DefineDynamicModule", "DefineEnum", "DefineField", 
+                                    "DefineLiteral", "DefinePInvokeMethod", "DefineType", "DeflateStream", 
+                                    "DeviceIoControl", "DllImport", "DuplicateTokenEx", "Emit", "EncodedCommand", 
+                                    "EnumerateSecurityPackages", "ExpandString", "FreeHGlobal", "FreeLibrary", 
+                                    "FromBase64String", "GetAssemblies", "GetAsyncKeyState", "GetConstructor", 
+                                    "GetConstructors", "GetDefaultMembers", "GetDelegateForFunctionPointer", 
+                                    "GetEvent", "GetEvents", "GetField", "GetFields", "GetForegroundWindow", 
+                                    "GetInterface", "GetInterfaceMap", "GetInterfaces", "GetKeyboardState", 
+                                    "GetLogonSessionData", "GetMember", "GetMembers", "GetMethod", "GetMethods", 
+                                    "GetModuleHandle", "GetNestedType", "GetNestedTypes", "GetPowerShell", 
+                                    "GetProcAddress", "GetProcessHandle", "GetProperties", "GetProperty", 
+                                    "GetTokenInformation", "GetTypes", "ILGenerator", "ImpersonateLoggedOnUser", 
+                                    "InteropServices", "IntPtr", "InvokeMember", "kernel32", "LoadLibrary", 
+                                    "LogPipelineExecutionDetails", "MakeArrayType", "MakeByRefType", "MakeGenericType", 
+                                    "MakePointerType", "Marshal", "memcpy", "MemoryStream", "Methods", "MiniDumpWriteDump", 
+                                    "NonPublic", "OpenDesktop", "OpenProcess", "OpenProcessToken", "OpenThreadToken", 
+                                    "OpenWindowStation", "PasswordDeriveBytes", "Properties", "ProtectedEventLogging", 
+                                    "PtrToString", "PtrToStructure", "ReadProcessMemory", "ReflectedType", "RevertToSelf", 
+                                    "RijndaelManaged", "ScriptBlockLogging", "SetInformationProcess", "SetThreadToken", 
+                                    "SHA1Managed", "StructureToPtr", "ToBase64String", "TransformFinalBlock", "TypeHandle", 
+                                    "TypeInitializer", "UnderlyingSystemType", "UnverifiableCodeAttribute", "VirtualAlloc", 
+                                    "VirtualFree", "VirtualProtect", "WriteByte", "WriteInt32", "WriteProcessMemory", 
+                                    "ZeroFreeGlobalAllocUnicode"]
+
 def parse_RFC_file(fname):
     """ Parses RecentFileCache.bcf
 
@@ -349,7 +378,6 @@ class PSHistory(base.job.BaseModule):
         if output:
             self.logger().error(output)
 
-
 class PSAnalysisCache(base.job.BaseModule):
     """ Get the PowerShell Module Analysis Cache metadata """
 
@@ -395,6 +423,7 @@ class PSAnalysisCache(base.job.BaseModule):
                 "Date": self.date.isoformat(),
                 "Path": self.path.decode('utf-8'),
                 "Commands": "" if len(self.commands) == 0 else [command for command in self.commands],
+                "Suspicious": sum(str(item1).strip() in (str(item2).strip() for item2 in powershell_suspicious_content_list) for item1 in self.commands),
                 "Types": "" if len(self.types) == 0 else [type_obj.to_dict() for type_obj in self.types]
             }
 
