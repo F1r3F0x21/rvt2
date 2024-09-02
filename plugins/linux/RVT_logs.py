@@ -38,7 +38,10 @@ class LinuxStandardLog(base.job.BaseModule):
         # RSYSLOG_TraditionalFileFormat
         rsyslog_tff = re.compile(r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*)?')
         # RFC 5424 & traditional syslog formats with UTC time
-        rfc_syslog_tff = re.compile(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)\s?(.*?):\s?(.+)$')
+        rfc_syslog_tff = re.compile(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:[\+|\-]\d{2}\:\d{2})?Z?)\s?(.*?):\s?(.+)$')
+        # tipo: [2024-08-06T19:38:35.926140] xxx;
+        log_pattern3 = re.compile(r'^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6})\]\s(.+)')
+
 
         filename = os.path.basename(path)
         count_lines = 0
@@ -50,7 +53,6 @@ class LinuxStandardLog(base.job.BaseModule):
                 count_lines += 1
                 timestamp, host, process_command = match.groups()
                 process, command = process_command.split(":", maxsplit=1)
-
                 log_entry_dict = {
                     "@timestamp": timestamp,
                     "process.name": process,
@@ -77,7 +79,17 @@ class LinuxStandardLog(base.job.BaseModule):
                     }
                     yield log_entry_dict
                 else:
-                    self.logger().warning("Regex pattern failed with some logline input " + line)
+                    match = log_pattern3.match(line)
+                    if match:
+                        timestamp,message = match.groups()
+                        log_entry_dict = {
+                            "@timestamp": timestamp,
+                            "message": message,
+                            "filename": filename
+                        }
+                        yield log_entry_dict
+                    else:
+                        self.logger().warning("Regex pattern failed with some logline input " + line)
         if len(prev_line_dict) != 0:
             yield prev_line_dict
 

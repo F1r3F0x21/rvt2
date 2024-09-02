@@ -42,17 +42,18 @@ class Passwd(base.job.BaseModule):
 
     def run(self, path=None):
         for line in self.from_module.run(path):
-            data = line.split(":")
-            user_account_entry_dict = {
-                "user.name": data[0],
-                "password": data[1],
-                "user_ID ": data[2],
-                "group_ID": data[3],
-                "user_information" : data[4],
-                "home_directory" : data[5],
-                "login_shell": data[6]
-            }
-            yield user_account_entry_dict
+            if not line.strip().startswith('#'):
+                data = line.split(":")
+                user_account_entry_dict = {
+                    "user.name": data[0],
+                    "password": data[1],
+                    "user_ID ": data[2],
+                    "group_ID": data[3],
+                    "user_information" : data[4],
+                    "home_directory" : data[5],
+                    "login_shell": data[6]
+                }
+                yield user_account_entry_dict
 
 class Group(base.job.BaseModule):
     """ Extract the essential information about group file.
@@ -67,14 +68,15 @@ class Group(base.job.BaseModule):
 
     def run(self, path=None):
         for line in self.from_module.run(path):
-            data = line.split(":")
-            group_entry_dict = {
-                "group_name": data[0],
-                "password": data[1],
-                "group_ID": data[2],
-                "user_list" : data[3]
-            }
-            yield group_entry_dict
+            if not line.strip().startswith('#'):
+                data = line.split(":")
+                group_entry_dict = {
+                    "group_name": data[0],
+                    "password": data[1],
+                    "group_ID": data[2],
+                    "user_list" : data[3]
+                }
+                yield group_entry_dict
 
 class Gshadow(base.job.BaseModule):
     """ Extract the essential information about gshadow file.
@@ -89,14 +91,15 @@ class Gshadow(base.job.BaseModule):
 
     def run(self, path=None):
         for line in self.from_module.run(path):
-            data = line.split(":")
-            group_entry_dict = {
-                "group_name": data[0],
-                "password": data[1],
-                "administrators": data[2],
-                "members" : data[3]
-            }
-            yield group_entry_dict
+            if not line.strip().startswith('#'):
+                data = line.split(":")
+                group_entry_dict = {
+                    "group_name": data[0],
+                    "password": data[1],
+                    "administrators": data[2],
+                    "members" : data[3]
+                }
+                yield group_entry_dict
 
 class LastLog(base.job.BaseModule):
     """ Extract the essential information about lastLog file.
@@ -141,66 +144,67 @@ class Shadow(base.job.BaseModule):
 
     def run(self, path=None):
         for line in self.from_module.run(path):
-            data = line.split(":")
+            if not line.strip().startswith('#'):
+                data = line.split(":")
 
-            # last password change conversion
-            start_date = datetime(1970, 1, 1)
-            date_change = str(data[2])
-            if date_change == "":
-                formatted_date = "disabled"
-            else:
-                if date_change == "0":
-                    formatted_date = "to be changed"
+                # last password change conversion
+                start_date = datetime(1970, 1, 1)
+                date_change = str(data[2])
+                if date_change == "":
+                    formatted_date = "disabled"
+                else:
+                    if date_change == "0":
+                        formatted_date = "to be changed"
+                    else:
+                        corresponding_date = start_date + timedelta(days=int(data[2]))
+                        formatted_date = corresponding_date.strftime('%Y-%m-%d')
+                
+                # minimum password age conversion
+                if str(data[3]) == "0":
+                    minimum_pwd_age = "disabled"
+                else:
+                    if data[3] != "":
+                        minimum_pwd_age = f"{data[3]} days"
+                    else:
+                        minimum_pwd_age = data[3]
+                
+                # maximum password age conversion
+                if data[4] != "":
+                    maximum_pwd_age = f"{data[4]} days"
+                else:
+                    maximum_pwd_age = ""
+                
+                # password warning period
+                if data[5] != "":
+                    warning_period = f"{data[5]} days"
+                else:
+                    warning_period = ""
+                
+                # password inactivity period
+                if data[6] != "":
+                    inactivity_period = f"{data[6]} days"
+                else:
+                    inactivity_period = ""            
+
+                # account expiration date conversion
+                date_exp = str(data[7])
+                if date_exp == "":
+                    account_expiration_date = "Never expire"
                 else:
                     corresponding_date = start_date + timedelta(days=int(data[2]))
-                    formatted_date = corresponding_date.strftime('%Y-%m-%d')
-            
-            # minimum password age conversion
-            if str(data[3]) == "0":
-                minimum_pwd_age = "disabled"
-            else:
-                if data[3] != "":
-                    minimum_pwd_age = f"{data[3]} days"
-                else:
-                    minimum_pwd_age = data[3]
-            
-            # maximum password age conversion
-            if data[4] != "":
-                maximum_pwd_age = f"{data[4]} days"
-            else:
-                maximum_pwd_age = ""
-            
-            # password warning period
-            if data[5] != "":
-                warning_period = f"{data[5]} days"
-            else:
-                warning_period = ""
-            
-            # password inactivity period
-            if data[6] != "":
-                inactivity_period = f"{data[6]} days"
-            else:
-                inactivity_period = ""            
+                    account_expiration_date = corresponding_date.strftime('%Y-%m-%d')
 
-            # account expiration date conversion
-            date_exp = str(data[7])
-            if date_exp == "":
-                account_expiration_date = "Never expire"
-            else:
-                corresponding_date = start_date + timedelta(days=int(data[2]))
-                account_expiration_date = corresponding_date.strftime('%Y-%m-%d')
-
-            user_password_entry_dict = {
-                "user.name": data[0],
-                "encrypted_password": data[1],
-                "last_password_change": formatted_date,
-                "minimum_password_age": minimum_pwd_age,
-                "maximum_password_age": maximum_pwd_age,
-                "password_warning_period": warning_period,
-                "password_inactivity_period": inactivity_period,
-                "account_expiration_date": account_expiration_date
-            }
-            yield user_password_entry_dict
+                user_password_entry_dict = {
+                    "user.name": data[0],
+                    "encrypted_password": data[1],
+                    "last_password_change": formatted_date,
+                    "minimum_password_age": minimum_pwd_age,
+                    "maximum_password_age": maximum_pwd_age,
+                    "password_warning_period": warning_period,
+                    "password_inactivity_period": inactivity_period,
+                    "account_expiration_date": account_expiration_date
+                }
+                yield user_password_entry_dict
 
 class Access(base.job.BaseModule):
     

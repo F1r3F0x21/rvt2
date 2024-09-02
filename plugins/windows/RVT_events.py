@@ -749,13 +749,29 @@ spaceId=7659aa03-a84d-47e2-91bc-d1671de4cd63\r\n\tPipelineId=\r\n\tCommandName=\
                                  ['user.name', 'data.HostName', 'data.HostVersion', 'data.EngineVersion', 'data.Command', 'file.path', 'data.CommandLine']):
                 match = re.search(rgx, details)
                 ev[name] = match.groups()[0] if match else ''
-            if ev['event.code'] == "400":
+            if ev['event.code'] == "400" or ev['event.code'] == "403" :
                 ev['data.NewEngineState'] = data[0]
                 ev['data.PreviousEngineState'] = data[1]
+                # Get the PowerShell HostVersion and EngineVersion
+                text_data = data[2]
+                match = re.search(r"HostVersion=([\d\.]+)", text_data)
+                if match:
+                    ev['data.HostVersion'] = match.group(1)
+                match = re.search(r"EngineVersion=([\d\.]+)", text_data)
+                if match:
+                    ev['data.EngineVersion'] = match.group(1)
                 ev['message'] = f'Engine state is changed from {data[0]} to {data[1]}'
             elif ev['event.code'] == "600":
                 ev['data.ProviderName'] = data[0]
                 ev['data.NewProviderState'] = data[1]
+                # Get the PowerShell HostVersion and EngineVersion
+                text_data = data[2]
+                match = re.search(r"HostVersion=([\d\.]+)", text_data)
+                if match:
+                    ev['data.HostVersion'] = match.group(1)
+                match = re.search(r"EngineVersion=([\d\.]+)", text_data)
+                if match:
+                    ev['data.EngineVersion'] = match.group(1)
                 ev['message'] = f'Provider {data[0]} is {data[1]}'
             elif ev['event.code'] == '800':
                 ev['message'] = f"Pipeline execution details for command line: {ev['data.CommandLine']}"
