@@ -80,7 +80,7 @@ class GetEvents(object):
                     self.first_date = self.last_date = data['event.created']
                 self.first_date = data['event.created'] if data['event.created'] < self.first_date else self.first_date
                 self.last_date = data['event.created'] if data['event.created'] > self.last_date else self.last_date
-                
+
                 # Common fields
                 if isinstance(rec['System']['EventID'], dict):
                     data['event.code'] = str(rec['System']['EventID']['#text'])
@@ -108,7 +108,7 @@ class GetEvents(object):
                         default_parser = True
 
                     if data['event.code'] in self.data_json.keys() and re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
-                        exist_specific_parser = True 
+                        exist_specific_parser = True
 
                 event_code = data['event.code']
                 if default_parser and not exist_specific_parser:
@@ -542,6 +542,59 @@ class RDPClient(EventJob):
         self.save_stats(events_parser.evtx_stats())
 
 
+class Openssh(EventJob):
+    """ Extracts events related with openssh"""
+
+    def run(self, path=None):
+        """
+        Attrs:
+            path (str): Absolute path to Microsoft-Windows-OpenSSH.evtx
+        """
+
+        path = self.get_evtx(path, r"/OpenSSH%4Operational.evtx$")
+        if not path:
+            return []
+
+        json_file = self.config.config[self.config.job_name]['json_conf']
+
+        regex = [re.compile(r"Accepted password for (?P<destination_user>.+) from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+) ssh2"),
+                 re.compile(r"Connection reset by authenticating user (?P<destination_user>.+) port (?P<source_port>\d+) \[preauth\]"),
+                 re.compile(r"Connection reset by invalid user (?P<destination_user>.+) (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+) \[preauth\]"),
+                 re.compile(r"Did not receive identification string from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+)"),
+                 re.compile(r"Disconnected from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+)"),
+                 re.compile(r"Failed password for (invalid user)?(?P<destination_user>.+) from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+) ssh2"),
+                 re.compile(r"Invalid user (?P<destination_user>.+) from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+)"),
+                 re.compile(r"Received disconnect from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>[\d:]+) disconnected by user"),
+                 re.compile(r"Received signal (?P<data_signal>.+); terminating."),
+                 re.compile(r"Server listening on (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+).")]
+        category = [{"category": ["authentication"], "type": ["start"], "action": "account-logged-on"},
+                    {"category": ["authentication"], "type": ["info", "error"]},
+                    {"category": ["authentication"], "type": ["info", "error"]},
+                    {"category": ["authentication"], "type": ["info", "error"]},
+                    {"category": ["authentication"], "type": ["end"]},
+                    {"category": ["authentication"], "type": ["info", "error"]},
+                    {"category": ["authentication"], "type": ["info", "error"]},
+                    {"category": ["authentication"], "type": ["end"], "action": "account-logged-off"},
+                    {"category": ["authentication"], "type": ["end"]},
+                    {"category": ["service"], "type": ["start", "info"]}]
+
+        events_parser = GetEvents(path, json_file, logger=self.logger())
+        for ev in events_parser.parse():
+            if "data.payload" in ev.keys() and ev["event.code"] == "4":
+                for i in range(0, len(regex)):
+                    aux = regex[i].match(ev["data.payload"])
+                    if aux:
+                        ev.update(category[i])
+                        groups = aux.groupdict()
+                        for k, v in groups.items():
+                            ev[k.replace("_", ".")] = v
+                        break
+            ev['message'] = ev['data.payload']
+            ev.pop('data.payload')
+            yield ev
+        self.save_stats(events_parser.evtx_stats())
+
+
 class OAlerts(EventJob):
     """ Extracts events of parsed OAlerts.evtx """
 
@@ -749,7 +802,7 @@ spaceId=7659aa03-a84d-47e2-91bc-d1671de4cd63\r\n\tPipelineId=\r\n\tCommandName=\
                                  ['user.name', 'data.HostName', 'data.HostVersion', 'data.EngineVersion', 'data.Command', 'file.path', 'data.CommandLine']):
                 match = re.search(rgx, details)
                 ev[name] = match.groups()[0] if match else ''
-            if ev['event.code'] == "400" or ev['event.code'] == "403" :
+            if ev['event.code'] == "400" or ev['event.code'] == "403":
                 ev['data.NewEngineState'] = data[0]
                 ev['data.PreviousEngineState'] = data[1]
                 # Get the PowerShell HostVersion and EngineVersion

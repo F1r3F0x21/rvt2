@@ -24,7 +24,8 @@ import base.job
 from collections import defaultdict
 from base.utils import save_md_table, date_to_iso
 from plugins.windows.RVT_os_info import CharacterizeWindows
-from plugins.windows.RVT_exec import powershell_suspicious_content_list 
+from plugins.windows.RVT_exec import powershell_suspicious_content_list
+
 
 class Filter_Events(base.job.BaseModule):
     """ Filters events for generating a csv file """
@@ -52,13 +53,16 @@ class LogonRDP(base.job.BaseModule):
 
         logID = {}
         actID = {}
+        openssh = []
 
         for event in self.from_module.run(path):
             ev = dict()
+            if event['event.code'] == '4' and 'service' in event['category']:
+                continue
             ev['TimeCreated'] = event.get('event.created', '')
             ev['EventID'] = event.get('event.code', '')
             ev['Description'] = event.get('message', '')
-            ev['ActivityID'] = event.get('data.ActivityID', )
+            ev['ActivityID'] = event.get('data.ActivityID', '')
             ev['SessionID'] = event.get('data.SessionID', '')
             ev['ConnType'] = event.get('data.ConnType', '')
             ev['LogonType'] = event.get('data.LogonType', '')
@@ -111,6 +115,12 @@ class LogonRDP(base.job.BaseModule):
                 if ev['LogonID'] not in logID.keys():
                     logID[ev['LogonID']] = []
                 logID[ev['LogonID']].append(ev)
+            elif ev['EventID'] == "4":
+                if 'start' in event['type']:
+                    ev["ConnType"] = "logon"
+                elif 'end' in event['type']:
+                    ev["ConnType"] = "logoff"
+                openssh.append(ev)
             elif ev['EventID'] in ("21", "23", "24", "25", "39", "40", "65", "66", "102", "131", "140", "1149"):
                 if ev['ActivityID'] not in actID.keys():
                     actID[ev['ActivityID']] = []
@@ -120,11 +130,11 @@ class LogonRDP(base.job.BaseModule):
                 if activity != '':
                     actID[activity].append(ev)
                     logID[ev['LogonID']].append(ev)
-
             yield ev
         self.extractRDP(actID)
         self.extractLogon(logID)
         self.extractLogonNetwork(logID)
+        self.extractLogon8(logID, openssh)
 
     def __difTimestamp__(self, d1, d0):
         """ get seconds between dates in ISO format
@@ -267,6 +277,67 @@ class LogonRDP(base.job.BaseModule):
                       fieldnames='Login SubjectUser IP Logoff User Reason',
                       file_exists='OVERWRITE')
 
+    def extractLogon8(self, logID, openssh):
+        """ Only events 4624 and 4634 with LogonType 8 (ClearPassword) and events 4 of ssh """
+
+        results = []
+        event_types = {'4624': 'Login (UTC)', '4634': 'Logoff (UTC)'}
+        logons = defaultdict(dict)
+
+        def find_closest_date(loginfo, openssh):
+            login = None
+            logoff = None
+            if 'Login (UTC)' in loginfo.keys():
+                login = datetime.datetime.strptime(loginfo['Login (UTC)'], "%Y-%m-%d %H:%M:%S")
+            if 'Logoff (UTC)' in loginfo.keys():
+                logoff = datetime.datetime.strptime(loginfo['Logoff (UTC)'], "%Y-%m-%d %H:%M:%S")
+
+            for ev in openssh:
+                if 'Login (UTC)' in loginfo.keys() and 'Logoff (UTC)' in loginfo.keys():
+                    if loginfo['Login (UTC)'] <= ev['TimeCreated'][:19] <= loginfo['Logoff (UTC)']:
+                        return ev['source.ip'], ev['source.port']
+                elif 'Login (UTC)' not in loginfo.keys():  # if Security events are not long enough
+                    if ev['TimeCreated'][:19] <= loginfo['Logoff (UTC)']:
+                        dte = datetime.datetime.strptime(ev['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S")
+                        if (logoff - dte).total_seconds() < 5:
+                            return ev['source.ip'], ev['source.port']
+                elif 'Logoff (UTC)' not in loginfo.keys():  # if Security events are not long enough
+                    if loginfo['Login (UTC)'] <= ev['TimeCreated'][:19]:
+                        dte = datetime.datetime.strptime(ev['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S")
+                        if (dte - login).total_seconds() < 5:
+                            return ev['source.ip'], ev['source.port']
+            return "", ""
+
+        for eventlist in logID.values():
+            for e, v in enumerate(eventlist):
+                if v['EventID'] not in ["4624", "4634"]:
+                    continue
+                if not v['LogonType'] == "8":
+                    continue
+                logon_id = v['LogonID']
+                event_type = event_types[v['EventID']]
+                logons[logon_id][event_type] = date_to_iso(v['TimeCreated'], sep=' ', timespec='seconds', hide_tz=True, logger=self.logger())
+                logons[logon_id]['User'] = v['TargetUser']
+                logons[logon_id]['LogonType'] = v['LogonTypeStr']
+                # The following information is only available in 4624 events
+                if v['EventID'] == "4624":
+                    logons[logon_id]['SourceIP'] = v.get('source.ip')
+                    logons[logon_id]['SourcePort'] = v.get('source.port')
+                    logons[logon_id]['ProcessName'] = v['ProcessName']
+                    logons[logon_id]['AuthenticationPackage'] = v['AuthenticationPackageName']
+        for logid in logons.keys():
+            if logons[logid].get('SourceIP') in ('', '-', '::') and logons[logid]['ProcessName'] == 'C:\\Windows\\System32\\OpenSSH\\sshd.exe':
+                logons[logid]['SourceIP'], logons[logid]['SourcePort'] = find_closest_date(logons[logid], openssh)
+
+        results = [logon for logon in logons.values()]
+
+        save_md_table(results, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.md'),
+                      fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
+                      backticks_fields='User',
+                      date_fields="['Login (UTC)', 'Logoff (UTC)']",
+                      file_exists='OVERWRITE')
+
 
 class RDPIncoming(base.job.BaseModule):
     """ Extracts events related to incoming RDP connections """
@@ -373,12 +444,12 @@ class RDPIncoming(base.job.BaseModule):
                         written = True
                 if length == e and not written:
                     yield {
-                            'LoginDate': act.get('LoginDate', '-'),
-                            'LogoffDate': act.get('LogoffDate', '-'),
-                            'User': act.get('User', ''),
-                            'SourceAddress': act.get('SourceAddress', ''),
-                            'Comments': act.get('Comments', '')
-                        }
+                        'LoginDate': act.get('LoginDate', '-'),
+                        'LogoffDate': act.get('LogoffDate', '-'),
+                        'User': act.get('User', ''),
+                        'SourceAddress': act.get('SourceAddress', ''),
+                        'Comments': act.get('Comments', '')
+                    }
 
     def find_poweroff(self, previous_time, actual_time, power_ev):
         """ Finds date of poweroff or poweron as logout date """
@@ -428,13 +499,13 @@ class RDPGateway(base.job.BaseModule):
                 if str(ev['SessionDuration']) == '0':
                     continue
                 yield {
-                   'LoginDate': users_date.get(user, '-'),
-                   'LogoffDate': ev.get('LogoffDate', '-'),
-                   'User': ev.get('User', ''),
-                   'SourceAddress': ev.get('SourceAddress', ''),
-                   'SessionDuration': ev.get('SessionDuration', ''),
-                   'Protocol': ev.get('Protocol', ''),
-                   'DestinationAddress': ev.get('DestinationAddress', '')
+                    'LoginDate': users_date.get(user, '-'),
+                    'LogoffDate': ev.get('LogoffDate', '-'),
+                    'User': ev.get('User', ''),
+                    'SourceAddress': ev.get('SourceAddress', ''),
+                    'SessionDuration': ev.get('SessionDuration', ''),
+                    'Protocol': ev.get('Protocol', ''),
+                    'DestinationAddress': ev.get('DestinationAddress', '')
                 }
                 # self.logger().debug("%s %s" % (ev['LoginDate'], ev['LogoffDate']))
                 users_date[user] = '-'
@@ -630,7 +701,7 @@ class Hash(base.job.BaseModule):
             path (str): Absolute path to the parsed events.json
         """
 
-        #self.check_params(path, check_path=True, check_path_exists=True)
+        # self.check_params(path, check_path=True, check_path_exists=True)
 
         for event in self.from_module.run(path):
             if event['event.code'] == '2050' and event['event.provider'] == 'Microsoft-Windows-Windows Defender':
@@ -641,11 +712,11 @@ class Hash(base.job.BaseModule):
                     'path': event['EventData']['Filename'],
                     'file_birth': '',
                     'file_modified': '',
-                    'hash': event['EventData']['Sha256']                
-                    }
-                
+                    'hash': event['EventData']['Sha256']
+                }
+
             if event['event.provider'] == 'Microsoft-Windows-AppLocker':
-                if event['event.code'] in ['8002','8004','8005']:
+                if event['event.code'] in ['8002', '8004', '8005']:
                     event_name = self.get_event_name(event['event.code'], event['event.provider'])
                     yield {
                         '@timestamp': event['event.created'],
@@ -653,9 +724,9 @@ class Hash(base.job.BaseModule):
                         'path': event['UserData']['RuleAndFileData']["FullFilePath"],
                         'file_birth': '',
                         'file_modified': '',
-                        'hash': event['UserData']['RuleAndFileData']['FileHash']                
-                        }
-            
+                        'hash': event['UserData']['RuleAndFileData']['FileHash']
+                    }
+
             if event['event.provider'] == 'Microsoft-Windows-Sysmon':
                 event_name = self.get_event_name(event['event.code'], event['event.provider'])
                 if event['event.code'] in ['1']:
@@ -668,9 +739,9 @@ class Hash(base.job.BaseModule):
                         'path': event['EventData']['Image'],
                         'file_birth': '',
                         'file_modified': '',
-                        'hash': hash_value                
-                        }
-                    
+                        'hash': hash_value
+                    }
+
                 if event['event.code'] in ['6']:
                     string_hashes = event['EventData']['Hashes']
                     hash_value = self.get_dict_hashes(string_hashes)
@@ -681,8 +752,8 @@ class Hash(base.job.BaseModule):
                         'path': event['EventData']['ImageLoaded'],
                         'file_birth': '',
                         'file_modified': '',
-                        'hash': hash_value                
-                        }
+                        'hash': hash_value
+                    }
 
                 if event['event.code'] in ['15']:
                     string_hashes = event['EventData']['Hash']
@@ -694,9 +765,9 @@ class Hash(base.job.BaseModule):
                         'path': event['EventData']['TargetFilename'],
                         'file_birth': event['event.created'],
                         'file_modified': '',
-                        'hash': hash_value                
-                        }
-    
+                        'hash': hash_value
+                    }
+
     def get_dict_hashes(self, string_hashes):
         hash_pairs = string_hashes.split(",")
         hash_dict = {}
@@ -712,9 +783,9 @@ class Hash(base.job.BaseModule):
             hash_value = string_hashes
 
         return hash_value
-    
+
     def get_event_name(self, event_code, event_provider):
-        
+
         return "event-" + str(event_code) + "-" + str(event_provider.split("-")[2])
 
 
@@ -1066,15 +1137,15 @@ class TGT_attack(base.job.BaseModule):
 
                 if tgt_user in tgt.keys():
                     for tgt_ticket in tgt[tgt_user]:
-                        if tgt_ticket['ip'] != tgs_ticket['ip']: # Compare only same IP source and user
+                        if tgt_ticket['ip'] != tgs_ticket['ip']:  # Compare only same IP source and user
                             continue
                         same_ip = True
                         tgt_created = datetime.datetime.strptime(tgt_ticket['event.created'][:19], "%Y-%m-%d %H:%M:%S")
-                        if tgt_created > tgs_created: # Events are sorted in time. Don't look after TGS event
+                        if tgt_created > tgs_created:  # Events are sorted in time. Don't look after TGS event
                             break
                         last_tgt = tgt_ticket['event.created']
                         # Expected situation: TGT before TGS
-                        if  tgt_created <= tgs_created and (tgs_created - tgt_created).total_seconds() < 3600 * hours:
+                        if tgt_created <= tgs_created and (tgs_created - tgt_created).total_seconds() < 3600 * hours:
                             valid = True
                             break
                     if not same_ip or (not last_tgt):
@@ -1130,7 +1201,7 @@ class EDR_PaloAlto(base.job.BaseModule):
 
                     event["Object"] = extra_data.get("filePath", "")
                     if "fileHash" in extra_data:
-                        event["Hash"] = extra_data["fileHash"].get("sha256","")
+                        event["Hash"] = extra_data["fileHash"].get("sha256", "")
                     if extra_data.get("verdict", 0) == 1:
                         event["Level"] = "Potentially harmful"
 
@@ -1157,19 +1228,19 @@ class EDR_Sophos(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         for event in self.from_module.run(path):
-            if event["EventID"] == "42" and event["event.provider"] == "Sophos System Protection" :
+            if event["EventID"] == "42" and event["event.provider"] == "Sophos System Protection":
                 message_list = ast.literal_eval(event["data.#text"])
                 event["Object"] = message_list[1]
                 event["Threat"] = message_list[2]
                 file_data = json.loads(message_list[4])
                 event["Hash"] = file_data.get("sha256FileHash")
                 event["Size"] = file_data.get("fileSize")
-            
-            if event["EventID"] == "52" and event["event.provider"] == "Sophos System Protection" :
+
+            if event["EventID"] == "52" and event["event.provider"] == "Sophos System Protection":
                 message_list = ast.literal_eval(event["data.#text"])
                 event["Object"] = message_list[1]
-                event["Message"] += f" {message_list[2]}" 
-            
+                event["Message"] += f" {message_list[2]}"
+
             yield event
 
 
@@ -1186,7 +1257,7 @@ class EDR_Symantec(base.job.BaseModule):
         # Regex for event 51
         prog_action = re.compile(r'Action:([\w\s]*)\.')
         prog_actionDescription = re.compile(r'Action Description:([\w\s]*)\.')
-        prog_file= re.compile(r'File:\s*(\S*)')
+        prog_file = re.compile(r'File:\s*(\S*)')
 
         # Regex for event 45
         prog_action_45 = re.compile(r'Action\staken:([\s\w]*)')
@@ -1200,10 +1271,10 @@ class EDR_Symantec(base.job.BaseModule):
                 match_action = prog_action.search(string_data)
                 if match_action:
                     event["Action"] = match_action.group(1) + ", "
-                
+
                 match_actionDescription = prog_actionDescription.search(string_data)
                 if match_actionDescription:
-                    event["Action"] = event.get("Action","") + match_actionDescription.group(1)
+                    event["Action"] = event.get("Action", "") + match_actionDescription.group(1)
 
                 match_file = prog_file.search(string_data)
                 if match_file:
@@ -1212,7 +1283,7 @@ class EDR_Symantec(base.job.BaseModule):
             if event["EventID"] == "45":
                 match_action = prog_action_45.search(string_data)
                 if match_action:
-                    event["Action"] = match_action.group(1) 
+                    event["Action"] = match_action.group(1)
 
                 match_file = prog_file_45.search(string_data)
                 if match_file:
@@ -1240,7 +1311,7 @@ class KasperskyEndpoint(base.job.BaseModule):
             match_namefile = prog_name.search(message)
             if match_namefile:
                 namefile = match_namefile.groups(default='')[1]
-                event["Object"] = event.get("Object","") + "\\" + namefile
+                event["Object"] = event.get("Object", "") + "\\" + namefile
 
             match_user = prog_user.search(message)
             if match_user:
@@ -1270,7 +1341,7 @@ class KasperskySecurity(base.job.BaseModule):
                     if base_index == 2:
                         event["Threat"] = message_list[1]
                     yield event
-                except Exception as exc:
+                except Exception:
                     continue
 
 
@@ -1294,6 +1365,7 @@ class MSSQL(base.job.BaseModule):
                 temp_address = regex.search(event['source.address'])
                 event['source.address'] = temp_address.group(1)
             yield event
+
 
 class Powershell(base.job.BaseModule):
     """ Analyzes the Powershell commands for suspicious activity """
