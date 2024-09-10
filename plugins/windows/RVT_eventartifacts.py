@@ -94,6 +94,8 @@ class LogonRDP(base.job.BaseModule):
                     ev['User'] = '-'
             elif 'client.source.name' in event.keys():
                 ev['User'] = event['client.source.name']
+            elif 'destination.user' in event.keys():
+                ev['User'] = event['destination.user']
             else:
                 ev['User'] = event.get('User', '')
             if 'destination.user.name' in event.keys():
@@ -334,6 +336,38 @@ class LogonRDP(base.job.BaseModule):
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.md'),
                       fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
+                      backticks_fields='User',
+                      date_fields="['Login (UTC)', 'Logoff (UTC)']",
+                      file_exists='OVERWRITE')
+        openssh = sorted(openssh, key=lambda d: d['TimeCreated'])
+
+        # Generates a table using openssh events. There are a problem because there is no identifier to distinguish sessions
+
+        results = []
+        temporal_dict = {}
+        for ev in openssh:
+            if 'logoff' not in ev['ConnType'] and 'logon' not in ev['ConnType'] or ev['Description'].startswith("Received"):
+                continue
+            if ev['source.port'] not in temporal_dict.keys():  # New login
+                if ev['ConnType'] == 'logoff':  # Misses logon event
+                    results.append({'Logoff': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']})
+                elif ev['ConnType'] == 'logon':
+                    temporal_dict[ev['source.port']] = {}
+                    temporal_dict[ev['source.port']] = {'Login (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']}
+            else:
+                if ev['ConnType'] == 'logoff':  # Misses logon event
+                    temporal_dict[ev['source.port']]['Logoff (UTC)'] = ev['TimeCreated']
+                    results.append(temporal_dict[ev['source.port']])
+                    temporal_dict.pop(ev['source.port'])
+                elif ev['ConnType'] == 'logon':
+                    results.append(temporal_dict[ev['source.port']])
+                    temporal_dict[ev['source.port']] = {'Login (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']}
+                    temporal_dict.pop(ev['source.port'])
+        for k in temporal_dict:
+            results.append(temporal_dict[k])
+        save_md_table(results, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.md'),
+                      fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'IP', 'Port']",
                       backticks_fields='User',
                       date_fields="['Login (UTC)', 'Logoff (UTC)']",
                       file_exists='OVERWRITE')
