@@ -19,9 +19,6 @@
 [submodule "plugins/external/analyzeMFT"]
 	path = plugins/external/analyzeMFT
 	url = https://github.com/IncideDigital/analyzeMFT.git
-[submodule "plugins/external/KStrike"]
-	path = plugins/external/KStrike
-	url = https://github.com/brimorlabs/KStrike
 [submodule "plugins/external/iLEAPP"]
 	path = plugins/external/iLEAPP
 	url = https://github.com/abrignoni/iLEAPP.git
