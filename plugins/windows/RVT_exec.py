@@ -28,34 +28,35 @@ from cim.objects import Namespace
 from base.utils import check_directory, check_folder, get_windows_user_from_path, save_csv, relative_path
 from plugins.common.RVT_files import GetTimeline
 
-powershell_suspicious_content_list = ["Add-Type", "AddSecurityPackage", "AdjustTokenPrivileges", "AllocHGlobal", 
-                                    "BindingFlags", "Bypass", "CloseHandle", "CreateDecryptor", "CreateEncryptor", 
-                                    "CreateProcessWithToken", "CreateRemoteThread", "CreateThread", "CreateType",
-                                    "CreateUserThread", "Cryptography", "CryptoServiceProvider", "CryptoStream",
-                                    "DangerousGetHandle", "DeclaringMethod", "DeclaringType", "DefineConstructor",
-                                    "DefineDynamicAssembly", "DefineDynamicModule", "DefineEnum", "DefineField", 
-                                    "DefineLiteral", "DefinePInvokeMethod", "DefineType", "DeflateStream", 
-                                    "DeviceIoControl", "DllImport", "DuplicateTokenEx", "Emit", "EncodedCommand", 
-                                    "EnumerateSecurityPackages", "ExpandString", "FreeHGlobal", "FreeLibrary", 
-                                    "FromBase64String", "GetAssemblies", "GetAsyncKeyState", "GetConstructor", 
-                                    "GetConstructors", "GetDefaultMembers", "GetDelegateForFunctionPointer", 
-                                    "GetEvent", "GetEvents", "GetField", "GetFields", "GetForegroundWindow", 
-                                    "GetInterface", "GetInterfaceMap", "GetInterfaces", "GetKeyboardState", 
-                                    "GetLogonSessionData", "GetMember", "GetMembers", "GetMethod", "GetMethods", 
-                                    "GetModuleHandle", "GetNestedType", "GetNestedTypes", "GetPowerShell", 
-                                    "GetProcAddress", "GetProcessHandle", "GetProperties", "GetProperty", 
-                                    "GetTokenInformation", "GetTypes", "ILGenerator", "ImpersonateLoggedOnUser", 
-                                    "InteropServices", "IntPtr", "InvokeMember", "kernel32", "LoadLibrary", 
-                                    "LogPipelineExecutionDetails", "MakeArrayType", "MakeByRefType", "MakeGenericType", 
-                                    "MakePointerType", "Marshal", "memcpy", "MemoryStream", "Methods", "MiniDumpWriteDump", 
-                                    "NonPublic", "OpenDesktop", "OpenProcess", "OpenProcessToken", "OpenThreadToken", 
-                                    "OpenWindowStation", "PasswordDeriveBytes", "Properties", "ProtectedEventLogging", 
-                                    "PtrToString", "PtrToStructure", "ReadProcessMemory", "ReflectedType", "RevertToSelf", 
-                                    "RijndaelManaged", "ScriptBlockLogging", "SetInformationProcess", "SetThreadToken", 
-                                    "SHA1Managed", "StructureToPtr", "ToBase64String", "TransformFinalBlock", "TypeHandle", 
-                                    "TypeInitializer", "UnderlyingSystemType", "UnverifiableCodeAttribute", "VirtualAlloc", 
-                                    "VirtualFree", "VirtualProtect", "WriteByte", "WriteInt32", "WriteProcessMemory", 
-                                    "ZeroFreeGlobalAllocUnicode"]
+powershell_suspicious_content_list = ["Add-Type", "AddSecurityPackage", "AdjustTokenPrivileges", "AllocHGlobal",
+                                      "BindingFlags", "Bypass", "CloseHandle", "CreateDecryptor", "CreateEncryptor",
+                                      "CreateProcessWithToken", "CreateRemoteThread", "CreateThread", "CreateType",
+                                      "CreateUserThread", "Cryptography", "CryptoServiceProvider", "CryptoStream",
+                                      "DangerousGetHandle", "DeclaringMethod", "DeclaringType", "DefineConstructor",
+                                      "DefineDynamicAssembly", "DefineDynamicModule", "DefineEnum", "DefineField",
+                                      "DefineLiteral", "DefinePInvokeMethod", "DefineType", "DeflateStream",
+                                      "DeviceIoControl", "DllImport", "DuplicateTokenEx", "Emit", "EncodedCommand",
+                                      "EnumerateSecurityPackages", "ExpandString", "FreeHGlobal", "FreeLibrary",
+                                      "FromBase64String", "GetAssemblies", "GetAsyncKeyState", "GetConstructor",
+                                      "GetConstructors", "GetDefaultMembers", "GetDelegateForFunctionPointer",
+                                      "GetEvent", "GetEvents", "GetField", "GetFields", "GetForegroundWindow",
+                                      "GetInterface", "GetInterfaceMap", "GetInterfaces", "GetKeyboardState",
+                                      "GetLogonSessionData", "GetMember", "GetMembers", "GetMethod", "GetMethods",
+                                      "GetModuleHandle", "GetNestedType", "GetNestedTypes", "GetPowerShell",
+                                      "GetProcAddress", "GetProcessHandle", "GetProperties", "GetProperty",
+                                      "GetTokenInformation", "GetTypes", "ILGenerator", "ImpersonateLoggedOnUser",
+                                      "InteropServices", "IntPtr", "InvokeMember", "kernel32", "LoadLibrary",
+                                      "LogPipelineExecutionDetails", "MakeArrayType", "MakeByRefType", "MakeGenericType",
+                                      "MakePointerType", "Marshal", "memcpy", "MemoryStream", "Methods", "MiniDumpWriteDump",
+                                      "NonPublic", "OpenDesktop", "OpenProcess", "OpenProcessToken", "OpenThreadToken",
+                                      "OpenWindowStation", "PasswordDeriveBytes", "Properties", "ProtectedEventLogging",
+                                      "PtrToString", "PtrToStructure", "ReadProcessMemory", "ReflectedType", "RevertToSelf",
+                                      "RijndaelManaged", "ScriptBlockLogging", "SetInformationProcess", "SetThreadToken",
+                                      "SHA1Managed", "StructureToPtr", "ToBase64String", "TransformFinalBlock", "TypeHandle",
+                                      "TypeInitializer", "UnderlyingSystemType", "UnverifiableCodeAttribute", "VirtualAlloc",
+                                      "VirtualFree", "VirtualProtect", "WriteByte", "WriteInt32", "WriteProcessMemory",
+                                      "ZeroFreeGlobalAllocUnicode"]
+
 
 def parse_RFC_file(fname):
     """ Parses RecentFileCache.bcf
@@ -99,7 +100,7 @@ def parse_prefetch_file(pf_file):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    #logger.debug("Parsing {}".format(pf_file))
+    # logger.debug("Parsing {}".format(pf_file))
     item = {}
 
     try:
@@ -250,7 +251,7 @@ class Prefetch(base.job.BaseModule):
                             'BirthDate': birth_date,
                             'VolumeSN': item["Volumes"][0][2],
                             'Partition': self.volume_id,
-                            'RunTotal': item["run count"],}
+                            'RunTotal': item["run count"]}
                     for i, execution_time in enumerate(item["last run times"]):
                         if not execution_time:
                             continue
@@ -362,21 +363,22 @@ class PSHistory(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('outdir', None)
-        
+
     def run(self, path=None):
         base_path = self.myconfig('outdir')
         user = get_windows_user_from_path(path, logger=self.logger())
-        
+
         file_out = os.path.join(base_path, "powershell_history_" + user + '.txt')
         check_folder(base_path)
-        
+
         command = "cp -r " + path + " " + file_out
         args = shlex.split(command)
-        process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         output = process.stderr.readline().strip()
         if output:
             self.logger().error(output)
+
 
 class PSAnalysisCache(base.job.BaseModule):
     """ Get the PowerShell Module Analysis Cache metadata """
@@ -465,7 +467,7 @@ class PSAnalysisCache(base.job.BaseModule):
         commands = tuple(commands)
 
         # Parsing the list of Types
-        num_types = struct.unpack('<i', f.read(4))[0] # '<i' signed integer
+        num_types = struct.unpack('<i', f.read(4))[0]  # '<i' signed integer
         types = []
         if num_types != -1:
             for _ in range(num_types):
@@ -492,14 +494,14 @@ class PSAnalysisCache(base.job.BaseModule):
 class PCARecord(base.job.BaseModule):
 
     """ Assign status string to Program Compatibility Assistan artifact results """
-        
+
     def run(self, path=None):
 
         status = {
-            0 : "Installer failed",
-            1 : "Driver was Blocked",
-            2 : "Abnormal Process Exit",
-            3 : "PCA Resolve is Called"
+            0: "Installer failed",
+            1: "Driver was Blocked",
+            2: "Abnormal Process Exit",
+            3: "PCA Resolve is Called"
         }
 
         for line in self.from_module.run(path):

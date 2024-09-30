@@ -46,7 +46,12 @@ install_debian_utils() {
         sudo curl vim less procps jq \
         ripgrep tree \
         p7zip bzip2 libbz2-dev \
-        gnupg dirmngr
+        gnupg dirmngr \
+        clamav clamav-daemon clamdscan
+    /usr/bin/freshclam
+    /etc/init.d/clamav-freshclam enable
+    /etc/init.d/clamav-freshclam start
+    /etc/init.d/clamav-daemon enable
 }
 
 # Install rvt2 dependencies available in Debian

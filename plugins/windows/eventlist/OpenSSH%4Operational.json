@@ -1,0 +1,11 @@
+{
+  "4":{
+    "description": "",
+    "provider": "OpenSSH",
+    "path": {
+      "EventData":{
+        "Name": ["payload", "process"]
+      }
+    }
+  }
+}
