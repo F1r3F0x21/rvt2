@@ -1102,7 +1102,7 @@ class TGT_attack(base.job.BaseModule):
         tgt = {}
         tgs = {}
         renew = {}
-        self.startdate = '2099-01-01'
+        self.startdate = '2099-01-01 00:00:00'
 
         # Obtain first TGT or TGS event date
         # Different alerts will be generated when possible expected events may happen before 'startdate'
@@ -1407,12 +1407,57 @@ class Powershell(base.job.BaseModule):
     def run(self, path=None):
 
         for event in self.from_module.run(path):
-            if event.get("data.Command"):
-                count = 0
-                command_list = str(event.get("data.Command")).split(" ")
-                for command in command_list:
-                    for suspicious_command in powershell_suspicious_content_list:
-                        if str(command).strip() == str(suspicious_command).strip():
-                            count = 1 + count
+            command = event.get("data.Command", "")
+            if len(command) < 1:
+                command = event.get("data.ScriptBlockText", "")
+            if len(command) > 1:
+                count = self.special_chars(command)
+                count += self.suspicious_functions_score(self.sanitize(command))
                 event["data.Suspicious"] = count
-                yield event
+            yield event
+
+    def sanitize(self, command):
+        """ sanitizes command to simplify analysis """
+
+        command = command.lower()
+        command = re.sub(' +', ' ', command)  # replaces multiples empty spaces to one
+        command = re.sub('\n+', '\n', command)  # replaces multiples new lines to one
+        command = re.sub(r'["\'][ ]?\+[ ]?["\']', '', command)  # concatenation
+        command = re.sub('[`^"\']', '', command)  # delete quotes, caret interruptions ... related with ofuscation
+
+        return command
+
+    def special_chars(self, command):
+        """ return the number of special chars """
+
+        n = 0
+        n += command.count('`')
+        n += 2 * command.count('^')
+
+        if n < 2:
+            return 0
+        elif n < 5:
+            return 1
+        elif n < 10:
+            return 5
+        else:
+            return 10
+
+    def suspicious_functions_score(self, command):
+        """ return value depending on functions and strings """
+
+        from .RVT_events import load_fields
+
+        tmpdict = load_fields(os.path.join(self.config.config['windows']['plugindir'], 'ps_list.json'))
+        regex = {}
+        for k, v in tmpdict.items():
+            if k.startswith("["):
+                regex[re.compile(f'\\{k[:-1]}\]')] = v
+            else:
+                regex[re.compile(f'\W{k}\W')] = v
+
+        n = 0
+        for k, v in regex.items():
+            if k.search(command):
+                n += int(v)
+        return n
