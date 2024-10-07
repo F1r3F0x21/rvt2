@@ -59,6 +59,7 @@ packaging = "~=20.1"
 mplog_parser = {ref = "main", git = "https://github.com/Intrinsec/mplog_parser.git"}
 sshpubkeys = "*"
 tabulate = "*"
+ntfs_sds_parser = "*"
 natsort = "*"
 
 [dev-packages]
