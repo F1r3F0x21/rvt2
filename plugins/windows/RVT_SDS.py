@@ -57,7 +57,7 @@ class SDS(base.job.BaseModule):
                 result = {}
                 if not entry.is_error:
                     result = json.loads(entry.to_json())
-                    result['path'] = inodes[str(result["id"])]
+                    result['path'] = inodes.get(str(result["id"]), '')
                     yield result
         except Exception as e:
             self.logger().error(f"ERROR: {e}")
