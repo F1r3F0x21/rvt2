@@ -21,18 +21,141 @@
 import struct
 import array
 import os
+import csv
 import subprocess
 import shlex
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from collections import OrderedDict
 from tqdm import tqdm
 
 import base.job
-from base.utils import check_directory, save_csv
+from base.utils import check_directory, check_folder, save_csv
+from base.commands import run_command
 from plugins.common.RVT_disk import getSourceImage
 from plugins.common.RVT_filesystem import FileSystem
 
+
+class INDXRipper(base.job.BaseModule):
+    """ Parse INDX records in a disk.
+
+    Configuration:
+        - **root**: If True, parse also INDX_ROOT attributes.
+        - **skip_short**: If True, do not output Windows short format filenames.
+        - **only_slack**: If True, parse only the slack space in INDX_ALLOC blocks.
+        - **use_localstore**: If True, store information about last parsed block in case execution is interrupted
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('only_slack', False)
+
+    def run(self, path=""):
+        """ Generator of INDX entries as dictionaries. Also writes to csv files"""
+        self.disk = getSourceImage(self.myconfig, imagefile=path)
+
+        outdir = self.myconfig('outdir')
+        check_folder(outdir)
+
+        temp_file = os.path.join(outdir, 'tmp_i30.csv')
+
+        self.only_slack = self.myflag('only_slack', False)
+
+        outdir = self.myconfig('outdir')
+        indxripper = self.myconfig('indx_ripper')
+        check_directory(outdir, create=True)
+        for p in self.disk.partitions:
+            imagefile = p.imagefile
+            offset = p.osects
+            if not p.isMountable:
+                continue
+            if p.encrypted and not p.loop:
+                self.logger().warning(f'Partition {p.partition} is encrypted and not well mounted. Skipping the obtention of INDX records')
+                continue
+            elif p.encrypted:
+                imagefile = p.loop
+                offset = 0
+
+            cmd = ['python3', indxripper, '--dedup']  # first part of command to execute
+            if offset > 0:  # Not loop device
+                cmd.append('-o')
+                cmd.append(str(offset))
+            if self.only_slack:
+                cmd.append('')
+            cmd.append(imagefile)
+            cmd.append(temp_file)
+            self.logger().debug(f'Running command: {cmd}')
+            run_command(cmd)
+
+            part_name = ''.join(['p', p.partition])
+            f_out = open(os.path.join(outdir, '{}{}_INDX_timeline.csv'.format(part_name, '_slack' if self.only_slack else '')), 'w')
+            w = csv.writer(f_out, delimiter=";")
+            w.writerow(["Filename", "Path", "Modify Date", "Access Date", "Metadata Change Date", "Birth Date", "Physical Size", "Logical Size", "Inode File", "Inode Parent", "In Slack Space"])
+            with open(temp_file, 'r') as f_in:
+                reader = csv.reader(f_in, delimiter=",")
+                next(reader, None)
+                for row in reader:
+                    if self.only_slack and row[0] != "Index Slack" and row[0] != "Index Slack":
+                        continue
+                    w.writerow([row[4], f"{row[1][2:]}/{row[4]}", row[11], row[12], row[13], row[10], row[8], row[9], row[6], row[2], row[0] == "Index Slack"])
+            f_out.close()
+            os.remove(temp_file)
+        return []
+
+
+class INDXRipper_velociraptor(base.job.BaseModule):
+    """ Gets velociraptor parsed I30 records. """
+
+    def run(self, path=""):
+        """ Generator of INDX entries as dictionaries. Also writes to csv files"""
+
+        outdir = self.myconfig('outdir')
+        check_folder(outdir)
+        file_dict = self.find_velociraptor_i30()
+
+        for filename, partition in file_dict.items():
+            f_out = open(os.path.join(outdir, f'{partition}_INDX_timeline.csv'), 'w')
+            w = csv.writer(f_out, delimiter=";", escapechar='¬')
+            with open(filename, 'r') as f_in:
+                line = json.loads(f_in.readline())
+                headers = list(line.keys())
+                w.writerow(headers)
+                w.writerow([line[field] for field in headers])
+                for line in f_in:
+                    line = json.loads(line)
+                    line['Path'] = line['Path'][6:]
+                    w.writerow([line[field] for field in headers])
+            f_out.close()
+
+    def find_velociraptor_i30(self):
+        """ Find velociraptor json files of parsed usnjrnl and returns list of files and partition """
+        source_folder = self.myconfig('sourcedir')
+
+        flows_folder = os.path.join(source_folder, 'flows')
+        device = {}
+        result = {}
+
+        for fname in os.listdir(source_folder):  # gets a dict with devices and partition associated
+            if fname.endswith('.mnt'):
+                with open(os.path.join(source_folder, fname), 'r') as f_in:
+                    device = json.loads(f_in.readline())
+                break
+        for fname in os.listdir(flows_folder):  # finds json files with data of UsnJrnl
+            if fname.endswith('json'):
+                with open(os.path.join(flows_folder, fname), 'r') as f_in:
+                    line = json.loads(f_in.readline())
+                    if 'In Slack Space' in line.keys():  # File maches
+                        for k in device.keys():
+                            if line['Path'].startswith(k.replace('\\', '/')):
+                                result[os.path.join(flows_folder, fname)] = device[k].split('/')[-1]
+                                break
+        return result
+
+
+
+
+####### Content from this line onwards may be deleted
 # TODO: improve efficiency of INDX_ROOT records extraction
 # TODO: Filenames with short_filename format are excluded even if the name is defined this way. skip_short_filenames may be redefined to call complete_name() before skipping, but for deleted entries is not possible to distinguish them.
 
@@ -555,7 +678,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         # It appears in some cases, the .entry_offset field is relative from the NTATTR_STANDARD_INDEX_HEADER ("INDX(...")
         # Other times (maybe often volume root directories?) is relative from the INDEX_HEADER (first field is entries_offset).
         # To check, look for an empty value where the parent directory reference should be.
-        if ("\x00" * 8) == self._buf[self.entry_offset():self.entry_offset() + 8].tostring():
+        if ("\x00" * 8) == self._buf[self.entry_offset():self.entry_offset() + 8].tobytes():
             # 0x18 is relative offset from NTATTR_STANARD_INDEX_HEADER to he INDEX_HEADER sub-struct
             e = entry_class(self._buf, 0x18 + self.entry_offset(), parent=self, blk_offset=self.blk_offset())
         else:
@@ -922,7 +1045,7 @@ class NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(NTATTR_DIRECTORY_INDEX_ENTRY):
         super(NTATTR_DIRECTORY_INDEX_SLACK_ENTRY, self).__init__(buf, offset, parent, *args, **kwargs)
 
     def is_empty(self):
-        return (b"\x00" * 52) == self._buf[self.offset():self.offset() + 52].tostring()
+        return (b"\x00" * 52) == self._buf[self.offset():self.offset() + 52].tobytes()
 
     def is_valid(self):
         # TODO: this is_valid should be more permissive than the one in NTATTR_DIRECTORY_INDEX_ENTRY
