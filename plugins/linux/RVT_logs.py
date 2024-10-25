@@ -15,11 +15,13 @@
 
 import os
 import re
-import subprocess
 import pandas as pd
 import base.job
-from datetime import datetime
-from base.utils import check_folder
+import datetime
+import dateutil.parser
+from base.utils import check_folder, date_to_iso, get_partition
+from base.commands import yield_command
+from plugins.linux.RVT_os_info import CharacterizeLinux
 
 
 class LinuxStandardLog(base.job.BaseModule):
@@ -31,67 +33,100 @@ class LinuxStandardLog(base.job.BaseModule):
         - **yields**: The updated dict data.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.path = ''
+
     def read_config(self):
         super().read_config()
 
     def run(self, path=None):
-        # RSYSLOG_TraditionalFileFormat
-        rsyslog_tff = re.compile(r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*)?')
-        # RFC 5424 & traditional syslog formats with UTC time
-        rfc_syslog_tff = re.compile(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:[\+|\-]\d{2}\:\d{2})?Z?)\s?(.*?):\s?(.+)$')
-        # tipo: [2024-08-06T19:38:35.926140] xxx;
-        log_pattern3 = re.compile(r'^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6})\]\s(.+)')
+        # Syslog may come in different formats. RFC5424 and RFC3164 are the standard, but they can be customized
+        # Try several patterns, from most specific to most general
 
+        # VMware ESXi syslog. With optional log level, no hostname and strict processid
+        esxi = re.compile(
+            r'^(?:<(?P<pri>\d|\d{2}|1[1-8]\d|19[01])>\s*(?P<version>\d+)\s+)?'
+            #r'(?:(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+))?\s+'
+            r'(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+)\s+'
+            r'(?:(?P<level>debug|verbose|info|informational|notice|warn|warning|alert|error|critical|emergency|(De|In|No|Wa|Al|Cr|Em|Er)\(\d+\))\s+)?'
+            r'(?P<appname>[^\[\s]+)'
+            r'\[(?P<procid>[A-F0-9]+)\]\s?:?\s+'
+            r'(?P<structured_data>\[.*?\])?'
+            r'(?P<message>.*)'
+        )
+        # Standard RFC5424. No `:` used. No `,` in some fields to avoid general messages
+        rfc5424 = re.compile(
+            r'^(?:<(?P<pri>\d|\d{2}|1[1-8]\d|19[01])>\s*(?P<version>\d+)\s+)?'
+            r'(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))\s+'
+            r'(?P<hostname>[^\s\:\,]+)\s+'
+            r'(?P<appname>[^\s\:]+)\s+'
+            r'(?P<procid>[^\s\:]+)\s+'
+            r'(?P<msgid>[^\s\:\,]+)\s+'
+            r'(?:(?P<structured_data>-|(\[.+?\]))\s*)?'
+            r'(?P<message>.+)'
+        )
+        # RFC3164 (BSD)
+        rfc3164 = re.compile(
+            r'^(?:<(?P<pri>\d|\d{2}|1[1-8]\d|19[01])>\s*(?P<version>\d+)\s+)?'
+            #r'(?:(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+))?\s+'
+            r'(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+)\s+'
+            r'(?:(?P<hostname>[^\s]+)\s+)?'
+            r'(?P<appname>[^\[\s]+)'
+            r'(?:\[(?P<procid>[^\]\s]+)\])?\s?:\s+'
+            r'(?P<message>.*)'
+        )
+        # General syslog match with no headers other than timestamp
+        syslog_pattern = re.compile(
+            r'^(?:<(?P<pri>\d|\d{2}|1[1-8]\d|19[01])>\s*(?P<version>\d+)\s+)?\[?'
+            r'(?P<timestamp>[-+0-9T:.Z]{10,}|[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\]?\s+'
+            r'(?P<message>.*)'
+        )
 
         filename = os.path.basename(path)
         count_lines = 0
-        prev_line_dict = {}
+        previous_line_dict = {}
+        fields_translate = {
+            "timestamp": "@timestamp",
+            "level": "log.level",
+            "hostname": "host.name",
+            "appname": "log.syslog.appname",
+            "procid": "log.syslog.procid",
+            "msgid": "log.syslog.msgid",
+            "structured_data": "log.syslog.structured_data",
+            "message": "message"
+        }
         
+        self.aux_date = datetime.datetime(1901, 1, 1)
         for line in self.from_module.run(path):
-            match = rsyslog_tff.match(line)
-            if match:
-                count_lines += 1
-                timestamp, host, process_command = match.groups()
-                process, command = process_command.split(":", maxsplit=1)
-                log_entry_dict = {
-                    "@timestamp": timestamp,
-                    "process.name": process,
-                    "message": command,
-                    "filename": filename
-                }
-                if count_lines == 1:
-                    prev_line_dict = log_entry_dict
-                else:
-                    if ((self.count_leading_spaces(command) > 1) or (process.startswith("python3"))) and log_entry_dict["@timestamp"] == prev_line_dict["@timestamp"] and log_entry_dict["process.name"] == prev_line_dict["process.name"] :
-                        prev_line_dict["message"] = prev_line_dict["message"] + log_entry_dict["message"]
-                    else:
-                        yield prev_line_dict
-                        prev_line_dict = log_entry_dict
-            else:
-                match = rfc_syslog_tff.match(line)
+            for i, pattern in enumerate([esxi, rfc5424, rfc3164, syslog_pattern]):
+                match = pattern.match(line)
                 if match:
-                    timestamp, process, message = match.groups()
-                    log_entry_dict = {
-                        "@timestamp": timestamp,
-                        "process.name": process,
-                        "message": message,
-                        "filename": filename
-                    }
-                    yield log_entry_dict
+                    count_lines += 1
+                    log_entry_dict = {new_field: match.groupdict().get(field, '') for field, new_field in fields_translate.items()}
+
+                    # If date does not include the year, try to obtain it by file modification time
+                    if not log_entry_dict.get("@timestamp", "2024").startswith('20'):
+                        log_entry_dict["@timestamp"] = self.induce_year(log_entry_dict["@timestamp"], path)
+                    log_entry_dict.update({'log.file.path': filename})
+                    if count_lines > 1:
+                        yield previous_line_dict
+                        count_lines = 1
+                    previous_line_dict = log_entry_dict
+                    break
+            else:
+                # If no pattern matches, assume it is the continuation of the previous message in a new line
+                # WARNING: If some unknown pattern is found after a first valid hit, all messages will be appended to the last valid one
+                # WARNING: if lines are provided in reverse order, this lines may be mistaken with the contents of the following event
+                if count_lines >= 1:
+                    count_lines += 1
+                    previous_line_dict["message"] = previous_line_dict.get("message", '') + '\n' + line
                 else:
-                    match = log_pattern3.match(line)
-                    if match:
-                        timestamp,message = match.groups()
-                        log_entry_dict = {
-                            "@timestamp": timestamp,
-                            "message": message,
-                            "filename": filename
-                        }
-                        yield log_entry_dict
-                    else:
-                        self.logger().warning("Regex pattern failed with some logline input " + line)
-        if len(prev_line_dict) != 0:
-            yield prev_line_dict
+                    self.logger().warning("Regex pattern failed at the start with line " + line)
+                    count_lines = 0
+
+        if len(previous_line_dict) != 0:
+            yield previous_line_dict
 
     def count_leading_spaces(self, line):
         count = 0
@@ -101,6 +136,48 @@ class LinuxStandardLog(base.job.BaseModule):
             else:
                 break  # Stop counting when a non-space character is encountered
         return count
+
+    def induce_year(self, timestamp, path):
+        """ Induce the year of a log entry given the file modification time.
+
+        Linux logs are incremental. First entry is always the oldest.
+        Entries should be feeded to this job in reverse order, so first line is the newest.
+        """
+        # Reset file modification time and the accumulated year substraction if new path is provided
+        self._update_log_data(path)
+
+        t = dateutil.parser.parse(timestamp)  # If no year is provided, dateutil takes the present year
+        present_date = t.replace(year=1900)  # Compare dates against a fixed year, such as 1900
+
+        # Sometimes log times may experience a short delay. Admit up to 30 minutes before assuming is the previous year
+        if present_date - self.aux_date > datetime.timedelta(seconds=1800):
+            self.years_to_substract += 1
+        self.aux_date = present_date
+
+        # Set the new calculated year
+        t = t.replace(year=self.mod_time.year - self.years_to_substract)
+
+        # Localtime to UTC
+        t = date_to_iso(t, input_timezone=self.local_tz, logger=self.logger())
+        return t
+
+    def _update_log_data(self, path):
+        """ Update file modification time and years to substract only if a new path is provided """
+
+        if not path:
+            self.mod_time = datetime.datetime.today()
+            self.years_to_substract = 0
+            self.local_tz = 'UTC'
+        elif self.path != path:
+            self.years_to_substract = 0
+            partition = get_partition(path, self.myconfig('mountdir'))
+            os_info = CharacterizeLinux(config=self.config)
+            self.local_tz = os_info.get_timezone(partition)
+            if os.path.exists(path):
+                self.mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(path))
+                self.path = path
+            else:
+                self.mod_time = datetime.datetime.today()
 
 
 class ESXiStandardLog(base.job.BaseModule):
@@ -165,7 +242,7 @@ class ESXiShellSyslogLog(base.job.BaseModule):
         for line in self.from_module.run(path):
             match = esxilog.match(line)
             if match:
-                if prev_line_dict :
+                if prev_line_dict:
                     yield prev_line_dict
                     prev_line_dict = {}
                 timestamp, process, message  = match.groups(default='')
@@ -185,7 +262,7 @@ class ESXiShellSyslogLog(base.job.BaseModule):
 
 
 class JournalLogs(base.job.BaseModule):
-    """ Extract from the Binarys Journal Logfile 
+    """ Extract from the Binaries Journal Logfile
 
     Module description:
         - **from_module**: Data dict.
@@ -199,22 +276,36 @@ class JournalLogs(base.job.BaseModule):
         check_folder(out_dir)
 
         command = f"journalctl --directory {path} -o short-iso"
-        env = {'TZ':"UTC"}
-        process = subprocess.Popen(command, env=env,shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        command_output = process.stdout.readline()
+        env = {'TZ':"UTC"}  # Return journalctl results in UTC instead of localtime
+        process_regex = re.compile(r'(?P<appname>[^\[\s\:]+)(?:\[(?P<procid>[^\]\s]+)\])?\s?:?')
+        self.logger().info("Extracting Journal logs. It might take some time")
 
-        self.logger().warning("Extracting Journal logs, this might last some time")
+        previous_data = {}
+        for line in yield_command(command, logger=self.logger(), env=env):
+            # Expected output format sample:
+            # 2024-04-18T12:12:17+0200 MACHINENAME systemd[2961]: Started Application launched by gnome-shell.
+            # All lines start with either a timestamp, a long space or a message like '-- Boot 451452577fbb4666a278f4b8ba8b9c2a --'
+            output_splitted = line.rstrip().split(" ", maxsplit=3)
+            if output_splitted[0] and not output_splitted[0].startswith('--'):
+                if previous_data:
+                    yield previous_data
+                    previous_data = {}
+                process_match = process_regex.match(output_splitted[2])
+                appname = process_match.groupdict().get('appname') if process_match else output_splitted[2]
+                procid = process_match.groupdict().get('procid') if process_match else ''
+                data = {
+                    '@timestamp': output_splitted[0],
+                    'host.name': output_splitted[1],
+                    'log.syslog.appname': appname,
+                    'log.syslog.procid': procid,
+                    'message': output_splitted[3]
+                }
+                previous_data = data
+            else:
+                previous_data["message"] = previous_data.get("message", '') + '\n' + output_splitted[3]
 
-        while command_output:
-            output_splitted = command_output.split(" ", maxsplit=3)
-            data = {
-                '@timestamp' : output_splitted[0],
-                'host.hostname' :  output_splitted[1],
-                'process.name' : output_splitted[2],
-                'message' :  output_splitted[3]
-            }
-            yield data
-            command_output = process.stdout.readline()
+        if len(previous_data) != 0:
+            yield previous_data
 
 
 class AnalysisLinuxSshLog(base.job.BaseModule):
@@ -230,18 +321,12 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
     def run(self, path=None):
         df_sshlogin_aux = pd.DataFrame()
         aux_list_pids = []
-        pid_pattern = r'.*\[(\d+)\]'
-        pid_prog = re.compile(pid_pattern)
 
-        p_pattern_accepted = r'.*Accepted\s(\w+)\sfor\s(\S+)\sfrom\s([\d\.]+)\sport\s(\d+).*'
-        p_prog_accepted = re.compile(p_pattern_accepted)
-
-        p_pattern_closed = r'.*pam_unix\(sshd:session\):\ssession\sclosed\sfor\suser\s(\S+).*'
-        p_prog_closed = re.compile(p_pattern_closed)
-
+        p_prog_accepted = re.compile(r'.*Accepted\s([^\s]+)\sfor\s(\S+)\sfrom\s([\d\.]+)\sport\s(\d+).*')
+        p_prog_closed = re.compile(r'.*pam_unix\(sshd:session\):\ssession\sclosed\sfor\suser\s(\S+).*')
         
         for line in self.from_module.run(path):
-            line_pid = pid_prog.match(line["process.name"]).group(1)
+            line_pid = line["log.syslog.procid"]
             match_p_accepted = p_prog_accepted.match(line["message"].strip())
 
             if match_p_accepted:
@@ -260,9 +345,9 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
             else:
                 match_p_closed = p_prog_closed.match(line["message"].strip())
                 if match_p_closed:
-                    if df_sshlogin_aux.get("pid", "None").equals("None"):
+                    if "pid" not in df_sshlogin_aux.columns:
                         data = {'pid': line_pid,
-                                'user.name':  str(match_p_closed.groups()[0]), 
+                                'user.name':  str(match_p_closed.groups()[0]),
                                 'method': 'Uknown', 
                                 'ut_host': 'Uknown',
                                 'port': 'Uknown',
@@ -280,14 +365,8 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
                             aux_list_pids.append(index)
 
                             df_sshlogin_aux.at[index, "ut_time_to"] = line['@timestamp']
-
-                            # time conversion
-                            time_format = "%b %d %H:%M:%S"
-                            time_from = df_sshlogin_aux.at[index, "@timestamp"]
-                            time_to = line['@timestamp']
-
-                            datetime_from = datetime.strptime(time_from, time_format)
-                            datetime_to = datetime.strptime(time_to, time_format)
+                            datetime_from = dateutil.parser.parse(df_sshlogin_aux.at[index, "@timestamp"])
+                            datetime_to = dateutil.parser.parse(line['@timestamp'])
 
                             negative = ""
                             time_difference = datetime_to - datetime_from

@@ -20,6 +20,7 @@ import datetime
 import logging
 from collections import defaultdict
 from tqdm import tqdm
+from natsort import natsorted
 
 import base.utils
 import base.job
@@ -94,16 +95,20 @@ class GetFiles(object):
 
 
 class FilterAllocFiles(base.job.BaseModule):
-    """ Reads alloc_files and sends to from_module the filenames that match an expression.
+    """ Reads allocfiles and sends to from_module the absolute path to the filenames that match an expression.
 
     Configuration:
         - **regex**: the regex expression to match
-        - **file_category**: if present, ignore regex and read extensions from this file_category.
+        - **file_category**: if present, ignore regex and read extensions from this file_category
+        - **sorted**: If True, return the matching files in alphabetical order
+        - **reverse**: if True, yield the paths in reverse alphabetic order
     """
     def read_config(self):
         super().read_config()
         self.set_default_config('regex', r'.*')
         self.set_default_config('file_category', '')
+        self.set_default_config('sorted', False)
+        self.set_default_config('reverse', False)
         file_category = self.myconfig('file_category')
         if file_category:
             # if a file_category is present, use it to filter extensions
@@ -115,8 +120,14 @@ class FilterAllocFiles(base.job.BaseModule):
         """ The path is ignored """
         self.check_params(path, check_from_module=True)
         getfiles = GetFiles(self.config)
-        for filename in getfiles.search(self.myconfig('regex')):
-            for data in self.from_module.run(filename):
+        self.logger().debug('Searching file with pattern: {}'.format(self.myconfig('regex')))
+        matching_files = getfiles.search(self.myconfig('regex'))
+        if self.myflag('sorted') or self.myflag('reverse'):
+            matching_files = natsorted(matching_files, reverse=self.myflag('reverse'))
+        for filename in matching_files:
+            # Filenames in allocfiles start after sourcedir. Get the absolute path instead
+            absolute_filename = os.path.join(self.myconfig('casedir'), filename)
+            for data in self.from_module.run(absolute_filename):
                 yield data
 
 

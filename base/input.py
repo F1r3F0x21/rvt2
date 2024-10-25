@@ -26,6 +26,7 @@ import json
 import sys
 import zipfile
 import gzip
+import mmap
 from tqdm import tqdm
 
 import base.job
@@ -84,12 +85,14 @@ class AllLinesInFile(base.job.BaseModule):
 
     Configuration:
         - **encoding** (String): The encoding to use. Defaults to utf-8
+        - **reverse** (Boolean): If True, yield every line in reverse order. Defaults to False
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file. """
 
     def read_config(self):
         super().read_config()
         self.set_default_config('encoding', 'utf-8')
+        self.set_default_config('reverse', False)
         self.set_default_config('progress.disable', 'False')
         self.set_default_config('progress.cmd', 'cat "{path}" | wc -l')
 
@@ -97,34 +100,57 @@ class AllLinesInFile(base.job.BaseModule):
         """ Read all lines from the path. from_module is ignored """
         self.check_params(path, check_path=True, check_path_exists=True)
         total_iterations = base.commands.estimate_iterations(path, self.myconfig('progress.cmd'))
-        with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
-            for line in tqdm(infile, total=total_iterations,
-                             desc='Reading {}'.format(os.path.basename(path)),
-                             disable=self.myflag('progress.disable')):
-                yield line.strip()
+        encoding = self.myconfig('encoding')
+
+        with open(path, 'r', encoding=encoding) as infile:
+            if not self.myflag('reverse'):
+                for line in tqdm(infile, total=total_iterations,
+                                desc='Reading {}'.format(os.path.basename(path)),
+                                disable=self.myflag('progress.disable')):
+                    yield line.strip()
+            else:
+                size = os.path.getsize(path)
+                with tqdm(total=total_iterations, initial=0) as pbar:
+                    with mmap.mmap(infile.fileno(), size, access=mmap.ACCESS_READ) as mm:
+                        end = size
+                        # If the file end in \n avoid yielding an empty line
+                        if mm.rfind(b'\n', 0, end) == end - 1:
+                            end = end - 1
+
+                        while end > 0:
+                            line_end = mm.rfind(b'\n', 0, end)
+                            yield mm[line_end + 1:end].decode(encoding).strip()
+                            pbar.update(1)
+                            end = line_end
+
 
 class AllLinesInCompressedFile(base.job.BaseModule):
     """ Pass to from_module each line in a compressed file as the path.
  
     Configuration:
         - **encoding** (String): The encoding to use. Defaults to utf-8
+        - **reverse** (Boolean): If True, yield every line in reverse order. Defaults to False
         - **progress.disable** (Boolean): If True, disable the progress bar.
+        - **chunk.size** (Integer): Size of the chunk when reading in reverse order. Defaults to 65536
     """
     def read_config(self):
         super().read_config()
         self.set_default_config('encoding', 'utf-8')
+        self.set_default_config('reverse', False)
         self.set_default_config('progress.disable', 'False')
+        self.set_default_config('chunk.size', 65536)
  
     def run(self, path):
         """ Read all lines from the path and pass them to from_module """
         self.check_params(path, check_path=True, check_path_exists=True)
+        self.encoding = self.myconfig('encoding')
+        is_gzip = False
  
         # Check what kind of compressed file it is
         if zipfile.is_zipfile(path):
             self.logger().info(f'Found ZIP file {path}')
             yield from self.read_zip(path)
         else:
-            is_gzip = False
             with gzip.open(path, 'r') as fh:
                 try:
                     fh.read(1)
@@ -144,21 +170,66 @@ class AllLinesInCompressedFile(base.job.BaseModule):
             for file in f.namelist():
                 with f.open(file, 'r') as internal:
                     line_count = sum(1 for line in internal)
-                    internal.seek(0)  # Reset the file pointer to the beginning
-                    for line in tqdm(internal, total=line_count,
-                                    desc='Reading {}'.format(os.path.basename(file)),
-                                    disable=self.myflag('progress.disable')):
-                        yield line.strip().decode()
- 
+                    if not self.myflag('reverse'):
+                        internal.seek(0)  # Reset the file pointer to the beginning
+                        for line in tqdm(internal, total=line_count,
+                                        desc='Reading {}'.format(os.path.basename(file)),
+                                        disable=self.myflag('progress.disable')):
+                            yield line.strip().decode(self.encoding)
+                    else:
+                        for line in tqdm(self.reverse_readlines(f, chunk_size=int(self.myconfig('chunk.size')), encoding=self.encoding), total=line_count,
+                                        desc='Reading {}'.format(os.path.basename(path)),
+                                        disable=self.myflag('progress.disable')):
+                            yield line
+
     def read_gzip(self, path):
         with gzip.open(path, 'rb') as f:
             # Assuming there is only one file inside GZIP
             line_count = sum(1 for line in f)
-            f.seek(0)  # Reset the file pointer to the beginning
-            for line in tqdm(f, total=line_count,
-                             desc='Reading {}'.format(os.path.basename(path)),
-                             disable=self.myflag('progress.disable')):
-                yield line.strip().decode()
+            if not self.myflag('reverse'):
+                f.seek(0)  # Reset the file pointer to the beginning
+                for line in tqdm(f, total=line_count,
+                                desc='Reading {}'.format(os.path.basename(path)),
+                                disable=self.myflag('progress.disable')):
+                    yield line.strip().decode()
+            else:
+                for line in tqdm(self.reverse_readlines(f, chunk_size=int(self.myconfig('chunk.size')), encoding=self.encoding), total=line_count,
+                                desc='Reading {}'.format(os.path.basename(path)),
+                                disable=self.myflag('progress.disable')):
+                    yield line
+
+
+    def reverse_readlines(self, file_object, chunk_size=65536, encoding='utf-8'):
+        """ Reads a file object in chunks in reverse, yielding each line from the end of the file to the beginning.
+
+        With compressed files it is not possible to use mmap since mmap works with random access files,
+        and a gzipped file is compressed, meaning that the file contents need to be decompressed sequentially.
+        """
+
+        file_object.seek(0, 2)  # Move the cursor to the end of the file
+        buffer = b''
+        end = file_object.tell()
+
+        while end > 0:
+            size = min(chunk_size, end)  # Determine the size of the chunk to read
+            file_object.seek(end - size, 0)
+            chunk = file_object.read(size)
+
+            # Split the chunk into lines
+            lines = chunk.split(b'\n')
+            # Handle the first (incomplete) line of the chunk by prepending the buffer
+            if buffer:
+                lines[-1] += buffer
+            buffer = lines[0]
+            # Yield all complete lines in reverse order (skip the first if incomplete)
+            for line in lines[-1:0:-1]:
+                yield line.decode(encoding)
+            end -= size
+
+        # Yield the final line (if present in buffer)
+        if buffer:
+            yield buffer.decode(encoding)
+
 
 class ForAllLinesInFile(base.job.BaseModule):
     """ Pass to from_module each line in a file as the path.
@@ -190,10 +261,21 @@ class ForAllLinesInFile(base.job.BaseModule):
 
 
 class JSONReader(AllLinesInFile):
-    """ Load every line in a file as a JSON dictionary and yields it."""
+    """ Load every line in a file as a JSON dictionary and yields it.
+
+    Configuration:
+        - **encoding** (String): The encoding to use. Defaults to utf-8
+        - **reverse** (Boolean): If True, yield every line in reverse order. Defaults to False
+        - **progress.disable** (Boolean): If True, disable the progress bar.
+        - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file.
+    """
 
     def read_config(self):
         super().read_config()
+        self.set_default_config('encoding', 'utf-8')
+        self.set_default_config('reverse', False)
+        self.set_default_config('progress.disable', 'False')
+        self.set_default_config('progress.cmd', 'cat "{path}" | wc -l')
         self.set_default_config('check_path_exists', True)
 
     def run(self, path):
@@ -219,6 +301,7 @@ class CSVReader(base.job.BaseModule):
 
     Configuration:
         - **is_file** (Boolean): If True, take the 'path' as the input file to read. If False, assume a generator is passed from previous module and read it as a CSV file. Defaults to True.
+        - **reverse** (Boolean): If True, yield every line in reverse order. Defaults to False
         - **encoding** (String): The encoding to use. Defaults to "utf-8"
         - **delimiter** (String): The delimiter to use. Use `AUTO` to dinamically find out. Defaults to ;
         - **quotechar** (String): The quotechar. Defaults to \"
@@ -226,7 +309,7 @@ class CSVReader(base.job.BaseModule):
         - **restval** (String): The restval of the DictReader. Defaults to the empty string.
         - **fieldnames** (List or String): A list of header names. If None, use the first line.
           Warning: If provided, the first line will be considered data unless ignore_lines is set to >0
-        - **ignore_lines** (Int): Ignore this number of initial lines. If fieldnames is provided, the first line is also ignored.
+        - **ignore_lines** (Int): Ignore this number of initial lines. If fieldnames is provided, the first line after those is also ignored.
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file.
         - **check_path_exists** (Boolean): If True and provided path does not exist, raise an error. If False, just warn and continue
@@ -235,6 +318,7 @@ class CSVReader(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('is_file', True)
+        self.set_default_config('reverse', False)
         self.set_default_config('encoding', 'utf-8')
         self.set_default_config('delimiter', ';')
         self.set_default_config('quotechar', '"')
@@ -266,32 +350,65 @@ class CSVReader(base.job.BaseModule):
                 self.logger().warning(exc)
                 return []
             raise exc
-        with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
+
+        total_iterations = estimate_iterations(path, self.myconfig('progress.cmd'))
+        initial_progress = self.ignore_lines
+        if not self.fieldnames:  # if fieldnames is None, the first line is header. Add one to progress
+            initial_progress = self.ignore_lines + 1
+        encoding = self.myconfig('encoding')
+
+        with open(path, 'r', encoding=encoding) as infile:
             for i in range(0, self.ignore_lines):
                 infile.readline()
+                ignore_position = infile.tell()
+            delimiter = self.myconfig('delimiter')
             if self.myconfig('delimiter') == 'AUTO':
                 delimiter = csv.Sniffer().sniff(infile.readline()).delimiter
-                infile.seek(0)
+                infile.seek(ignore_position)
+
+            # Standard case reverse=False
+            if not self.myflag('reverse'):
+                reader = csv.DictReader(
+                    infile,
+                    fieldnames=self.fieldnames,
+                    restval=self.myconfig('restval'), restkey=self.myconfig('restkey'),
+                    delimiter=delimiter, quotechar=self.myconfig('quotechar'))
+                # Main loop
+                for data in tqdm(reader, total=total_iterations,
+                                initial=initial_progress,
+                                desc='Reading {}'.format(os.path.basename(path)),
+                                disable=self.myflag('progress.disable')):
+                    yield data
+
+            # Reverse reading
             else:
-                delimiter = self.myconfig('delimiter')
-            reader = csv.DictReader(
-                infile,
-                fieldnames=self.fieldnames,
-                restval=self.myconfig('restval'), restkey=self.myconfig('restkey'),
-                delimiter=delimiter, quotechar=self.myconfig('quotechar'))
-            # progress management
-            total_iterations = estimate_iterations(path, self.myconfig('progress.cmd'))
-            # if fieldnames is None, the first line is header. Add one to progress
-            if self.fieldnames:
-                initial_progress = self.ignore_lines
-            else:
-                initial_progress = self.ignore_lines + 1
-            # main loop
-            for data in tqdm(reader, total=total_iterations,
-                             initial=initial_progress,
-                             desc='Reading {}'.format(os.path.basename(path)),
-                             disable=self.myflag('progress.disable')):
-                yield data
+                size = os.path.getsize(path)
+                if not self.fieldnames:
+                    reader = csv.DictReader(
+                        [infile.readline(), 'Dummy'], # In order to guess fieldnames, csv.DictReader need at least a second line
+                        restval=self.myconfig('restval'), restkey=self.myconfig('restkey'),
+                        delimiter=delimiter, quotechar=self.myconfig('quotechar'))
+                    for i in reader:
+                        self.fieldnames = list(i.keys())
+                    start_position = infile.tell()
+                else:
+                    start_position = ignore_position
+                # Main loop
+                with tqdm(total=total_iterations, initial=initial_progress) as pbar:
+                    with mmap.mmap(infile.fileno(), size, access=mmap.ACCESS_READ) as mm:
+                        end = size
+                        while end > start_position:
+                            line_end = mm.rfind(b'\n', 0, end)
+                            line = mm[line_end + 1:end].decode(encoding).rstrip()
+                            reader = csv.DictReader(
+                                [line],
+                                fieldnames=self.fieldnames,
+                                restval=self.myconfig('restval'), restkey=self.myconfig('restkey'),
+                                delimiter=delimiter, quotechar=self.myconfig('quotechar'))
+                            yield from reader
+                            pbar.update(1)
+                            end = line_end
+
 
     def _iter_csv(self, path=None):
         input_object = self.from_module.run(path)

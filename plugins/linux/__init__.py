@@ -16,12 +16,11 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import glob
 import logging
 
 def get_username(path, mount_dir, subfolder=".ssh"):
+    """ Get the home username of the file path """
 
-    # get the home username of the current authorized_keys file
     file_path = path[len(mount_dir):]
     path_components = file_path.split(os.path.sep)
     if "home" in path_components:
@@ -33,26 +32,3 @@ def get_username(path, mount_dir, subfolder=".ssh"):
         username = path_components[-2]
 
     return username
-
-def get_timezone(mount_dir):
-
-    search_path = f"{mount_dir}/**/etc/timezone"
-    matching_files = glob.glob(search_path)
-    if len(matching_files) != 0:
-        if len(matching_files) == 1:
-            f_timezone = open(matching_files[0], "r")
-            tz_string = f_timezone.read().rstrip()
-            f_timezone.close()
-            return tz_string
-        else:
-            logging.error('get_timezone: More than one timezone found, UTC default')
-            return "UTC"
-    else:
-        logging.error('get_timezone: No timezone found, UTC default')
-        return "UTC"
-
-
-
-
-
-    

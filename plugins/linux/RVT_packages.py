@@ -21,8 +21,8 @@ import subprocess
 import base
 import glob
 from datetime import datetime
-from base.utils import check_directory, date_to_iso, save_csv, save_dummy
-from plugins.linux import get_timezone
+from base.utils import check_directory, date_to_iso, save_csv, save_dummy, get_partition
+from plugins.linux.RVT_os_info import CharacterizeLinux
 
 
 class LinuxDpkgLog(base.job.BaseModule):
@@ -39,7 +39,9 @@ class LinuxDpkgLog(base.job.BaseModule):
 
     def run(self, path=None):
         pattern = r'(\d+-\d+-\d+\s\d+:\d+:\d+)\s(.*)'
-        tz = get_timezone(self.myconfig('mountdir'))
+        partition = get_partition(path, self.myconfig('mountdir'))
+        os_info = CharacterizeLinux(config=self.config)
+        tz = os_info.get_timezone(partition)
         prog = re.compile(pattern)
         filename = os.path.basename(path)
         
@@ -77,6 +79,9 @@ class LinuxAptHistoryLog(base.job.BaseModule):
 
     def run(self, path=None):
         aux_dict = {}
+        partition = get_partition(path, self.myconfig('mountdir'))
+        os_info = CharacterizeLinux(config=self.config)
+        tz_local = os_info.get_timezone(partition)
         for line in self.from_module.run(path):
             if line:
                 linesplited = line.split(":", 1)
@@ -84,12 +89,12 @@ class LinuxAptHistoryLog(base.job.BaseModule):
                     aux_dict = {}
                     timestamp = linesplited[1].strip()
                     localdate = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                    isodate = date_to_iso(localdate, input_timezone = get_timezone(self.myconfig('mountdir')), logger=self.logger())
+                    isodate = date_to_iso(localdate, input_timezone=tz_local, logger=self.logger())
                     aux_dict["@timestamp"] = isodate
                 elif linesplited[0] == "End-Date":
                         timestamp = linesplited[1].strip()
                         localdate = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                        isodate = date_to_iso(localdate, input_timezone = get_timezone(self.myconfig('mountdir')), logger=self.logger())
+                        isodate = date_to_iso(localdate, input_timezone=tz_local, logger=self.logger())
                         aux_dict[linesplited[0]] = isodate
                         yield aux_dict
                 elif linesplited[0] == "Commandline":

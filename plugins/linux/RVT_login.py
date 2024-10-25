@@ -23,8 +23,8 @@ import subprocess, shlex
 import pandas as pd
 from tqdm import tqdm
 from datetime import datetime, timedelta
-from base.utils import check_directory, date_to_iso
-from plugins.linux import get_timezone
+from base.utils import check_directory, date_to_iso, get_partition
+from plugins.linux.RVT_os_info import CharacterizeLinux
 from functools import partial
 
 
@@ -47,8 +47,8 @@ class Passwd(base.job.BaseModule):
                 user_account_entry_dict = {
                     "user.name": data[0],
                     "password": data[1],
-                    "user_ID ": data[2],
-                    "group_ID": data[3],
+                    "user.id": data[2],
+                    "group.id": data[3],
                     "user_information" : data[4],
                     "home_directory" : data[5],
                     "login_shell": data[6]
@@ -73,7 +73,7 @@ class Group(base.job.BaseModule):
                 group_entry_dict = {
                     "group_name": data[0],
                     "password": data[1],
-                    "group_ID": data[2],
+                    "group.id": data[2],
                     "user_list" : data[3]
                 }
                 yield group_entry_dict
@@ -113,19 +113,21 @@ class LastLog(base.job.BaseModule):
         super().read_config()
 
     def run(self, path=None):
+        partition = get_partition(path, self.myconfig('mountdir'))
+        os_info = CharacterizeLinux(config=self.config)
+        local_tz = os_info.get_timezone(partition)
         structure_block=struct.Struct("I32s256s")
         with open(path, "rb") as lastlog_file:
             for uid, block_bytes in enumerate(iter(partial(lastlog_file.read, structure_block.size), b"")):
                 if any(block_bytes):
                     timestamp, line, host = structure_block.unpack(block_bytes)
                     dict_output = {
-                        "user_ID" : uid,
+                        "user.id" : uid,
                         "ut_line" : line.rstrip(b"\x00").decode("utf8"),
                         "ut_host" : host.rstrip(b"\x00").decode("utf8"),
                         "datetime" : datetime.fromtimestamp(timestamp)
                     }
                     # Localtime to UTC
-                    local_tz = get_timezone(self.myconfig('mountdir'))
                     dict_output["datetime"] = date_to_iso(dict_output["datetime"], input_timezone=local_tz, logger=self.logger())
 
                     yield dict_output
@@ -241,7 +243,9 @@ class Utmpdump2(base.job.BaseModule):
 
     def run(self, path=None):
         command = f"last -f {path} --time-format iso"
-        tz = get_timezone(self.myconfig('mountdir'))
+        partition = get_partition(path, self.myconfig('mountdir'))
+        os_info = CharacterizeLinux(config=self.config)
+        tz = os_info.get_timezone(partition)
         env = {'TZ':tz}
         args = shlex.split(command)
         process = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -471,6 +475,7 @@ class Utmpdump(base.job.BaseModule):
                     list_data.append(connection_dict)
         return list_data
 
+
 class Analysis(base.job.BaseModule):
     """ Extract the essential information of the users and groups in a tables
     """
@@ -504,7 +509,7 @@ class Analysis(base.job.BaseModule):
             # Group information
             df_result = self.group(df_result)
             
-            desired_columns = ['user.name', 'user_ID', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'encrypted_password', 'group']
+            desired_columns = ['user.name', 'user.id', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'encrypted_password', 'group']
             existing_columns = [col for col in desired_columns if col in df_result.columns]
             df_result_filtered = df_result[existing_columns]
             
@@ -535,7 +540,7 @@ class Analysis(base.job.BaseModule):
         if os.path.isfile(url_lastlog):
             if os.path.getsize(url_lastlog) != 0:
                 df_lastlog = pd.read_csv(url_lastlog, sep=';', quotechar='"')
-                df_result = pd.merge(df_result, df_lastlog, on='user_ID', how='outer')
+                df_result = pd.merge(df_result, df_lastlog, on='user.id', how='outer')
                 df_result.rename(columns={'ut_line': 'lastlog_ut_line', 'ut_host': 'lastlog_ut_host', 'datetime': 'lastlog_datetime' }, inplace=True)
                 columns_to_fill = ["lastlog_ut_host","lastlog_datetime"]
                 df_result[columns_to_fill] = df_result[columns_to_fill].fillna("Unknown")

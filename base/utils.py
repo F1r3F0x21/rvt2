@@ -140,6 +140,29 @@ def windows_format_path(path, enclosed=False):
     return path
 
 
+def get_partition(path, mount_dir):
+    """ Get the partition number given a file in the morgue """
+
+    partition = 'p01'
+    if not path.startswith(mount_dir):
+        logging.error(f'Provided path {path} not in mount directory {mount_dir}')
+        return partition
+
+    length_mnt_dir = len(mount_dir) + 1
+    if mount_dir.endswith('/'):
+        length_mnt_dir -= 1
+    file_path = path[length_mnt_dir:]
+    if not file_path:
+        logging.error(f'Provided path {path} is the mount directory itself: {mount_dir}')
+        return partition
+    path_components = file_path.split(os.path.sep)
+    partition = path_components[0]
+    if len(partition) != 3 or not partition.startswith('p'):
+        logging.warning(f'Partition {partition} does not follow the common "pXX" format')
+
+    return partition
+
+
 def get_windows_user_from_path(path, logger=logging):
     """ Return the user name given a Windows path"""
     srch = re.search(r'p\d{1,3}\/(?:Users|Documents\sand\sSettings)\/([^\/]*)', path)

@@ -61,13 +61,14 @@ def run_command(cmd, stdout=None, stderr=None, logger=logging, from_dir=None):
             os.chdir(current_dir)
 
 
-def yield_command(cmd, stderr=None, logger=logging, from_dir=None):
+def yield_command(cmd, stderr=None, logger=logging, from_dir=None, **kwargs):
     """ Runs an external command using *subprocess* and yields the output line by line.
 
     Parameters:
         cmd: The command to run, as a string or an array. If *cmd* is a string, run the command as a shell command.
         logger: If provided, use this logger. If not, use the global *logging* system.
         from_dir: Run the external command from this directory. If ``None``, run from current directory.
+        kwargs: Any other argument compatible with subprocess.Popen, such as 'env' or 'encoding'
 
     Yields:
         UTF-8 decoded lines from the output of the command.
@@ -77,7 +78,7 @@ def yield_command(cmd, stderr=None, logger=logging, from_dir=None):
         current_dir = os.getcwd()
         os.chdir(from_dir)
     try:
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr, shell=(type(cmd) == str)) as proc:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr, shell=(type(cmd) == str), **kwargs) as proc:
             for line in proc.stdout:
                 yield line.decode()
     except Exception as exc:
