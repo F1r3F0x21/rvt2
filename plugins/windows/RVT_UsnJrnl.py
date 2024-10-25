@@ -20,6 +20,7 @@ import re
 import shlex
 import csv
 import json
+import sqlite3
 
 import base.job
 from base.utils import check_folder
@@ -32,6 +33,7 @@ class UsnJrnl(base.job.BaseModule):
         self.outdir = self.myconfig('outdir')
         check_folder(self.outdir)
         self.tmp_outdir = os.path.join(self.outdir, 'tmp')
+        self.tl_outdir = self.myconfig('timelinesdir')
         check_folder(self.tmp_outdir)
         mft_file = ""
 
@@ -108,6 +110,8 @@ class UsnJrnl(base.job.BaseModule):
         cmd = ['python3', usnjrnl_rewind, '-m', mft_csv, '-u', usnjrnl_csv, self.tmp_outdir]
         self.logger().debug('Running command: {}'.format(str(cmd)))
         run_command(cmd)
+        usn_db = os.path.join(self.tmp_outdir, 'NTFS.sqlite')
+        self.fill_mft_orphan(usn_db, mft_csv)
 
         f_out = open(os.path.join(self.outdir, f'UsnJrnl_dump_{self.partition}.csv'), 'w')
         w = csv.writer(f_out, delimiter=";")
@@ -171,3 +175,42 @@ class UsnJrnl(base.job.BaseModule):
         for fname in os.listdir(self.tmp_outdir):
             if fname.endswith(f'{flag}_Output.csv'):
                 return os.path.join(self.tmp_outdir, fname)
+
+    def fill_mft_orphan(self, usn_db, mft_csv):
+        """ fills orphan paths with usnjrnl info """
+
+        orphan_mft = []
+
+        # Read mft_csv to get an orphan list
+        with open(mft_csv, 'r') as f_in:
+            reader = csv.reader(f_in, delimiter=",")
+            next(reader, None)
+            for row in reader:
+                if row[5][2:].startswith("PathUnknown"):
+                    orphan_mft.append([int(row[0]), int(row[1]), int(row[3]), int(row[4]), row[5].replace('\\', '/'), row[6]])
+        if len(orphan_mft) == 0:
+            return []
+
+        # opens db with full paths of journal
+        connection = sqlite3.connect(usn_db)
+        cursor = connection.cursor()
+
+        f_out = open(os.path.join(self.tl_outdir, f"filled_orphan_{self.partition}.csv"), 'w')
+        w = csv.writer(f_out, delimiter=";")
+        w.writerow(['EntryNumber', 'SequenceNumber', 'ParentEntryNumber', 'ParentSequenceNumber', 'ParentPath', 'FileName'])
+        rows = cursor.execute("SELECT EntryNumber, SequenceNumber, ParentPath FROM USNJRNL_FullPaths").fetchall()
+        paths = {}
+        for row in rows:
+            if row[0] not in paths.keys():
+                paths[row[0]] = {}
+            paths[row[0]][row[1]] = row[2]
+        connection.close()
+
+        for orphan in orphan_mft:
+            if orphan[2] in paths.keys() and orphan[3] in paths[orphan[2]].keys():
+                w.writerow([orphan[0], orphan[1], orphan[2], orphan[3], paths[orphan[2]][orphan[3]][2:].replace('\\', '/'), orphan[5]])
+            else:
+                orphan[4] = orphan[4][2:].replace('\\', '/')
+                w.writerow(orphan)
+        connection.close()
+        f_out.close()
