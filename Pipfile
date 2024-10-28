@@ -60,6 +60,7 @@ mplog_parser = {ref = "main", git = "https://github.com/Intrinsec/mplog_parser.g
 sshpubkeys = "*"
 tabulate = "*"
 natsort = "*"
+notatin = {editable = true, subdirectory = "pynotatin", git = "https://github.com/strozfriedberg/notatin.git"}
 
 [dev-packages]
 sphinx = "*"

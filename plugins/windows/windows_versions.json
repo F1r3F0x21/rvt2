@@ -193,7 +193,7 @@
     },
     {
         "Name": "Windows Server 2008",
-        "SubVersion": "",
+        "SubVersion": "RTM",
         "Version": "6.0",
         "BuildNumber": "6001",
         "PublicRelease": "2008-02-27",
@@ -309,7 +309,7 @@
         "Version": "10.0",
         "BuildNumber": "10586",
         "PublicRelease": "2015-11-10",
-        "RTMRelease": ""
+        "RTMRelease": "2015-11-05"
     },
     {
         "Name": "Windows 10",
@@ -317,7 +317,7 @@
         "Version": "10.0",
         "BuildNumber": "14393",
         "PublicRelease": "2016-08-02",
-        "RTMRelease": ""
+        "RTMRelease": "2016-07-18"
     },
     {
         "Name": "Windows Server 2016",
@@ -325,7 +325,7 @@
         "Version": "10.0",
         "BuildNumber": "14393",
         "PublicRelease": "2016-08-02",
-        "RTMRelease": ""
+        "RTMRelease": "2016-09-26"
     },
     {
         "Name": "Windows 10",
@@ -333,7 +333,7 @@
         "Version": "10.0",
         "BuildNumber": "15063",
         "PublicRelease": "2017-04-05",
-        "RTMRelease": ""
+        "RTMRelease": "2017-03-20"
     },
     {
         "Name": "Windows 10",
@@ -341,7 +341,7 @@
         "Version": "10.0",
         "BuildNumber": "16299",
         "PublicRelease": "2017-10-17",
-        "RTMRelease": ""
+        "RTMRelease": "2017-09-14"
     },
     {
         "Name": "Windows Server 2016",
@@ -357,7 +357,7 @@
         "Version": "10.0",
         "BuildNumber": "17134",
         "PublicRelease": "2018-04-30",
-        "RTMRelease": ""
+        "RTMRelease": "2018-04-10"
     },
     {
         "Name": "Windows Server 2019",
@@ -365,7 +365,7 @@
         "Version": "10.0",
         "BuildNumber": "17763",
         "PublicRelease": "2018-10-02",
-        "RTMRelease": ""
+        "RTMRelease": "2018-09-04"
     },
     {
         "Name": "Windows 10",
@@ -373,7 +373,7 @@
         "Version": "10.0",
         "BuildNumber": "17763",
         "PublicRelease": "2018-11-13",
-        "RTMRelease": ""
+        "RTMRelease": "2018-09-27"
     },
     {
         "Name": "Windows Server 2008",
@@ -389,15 +389,15 @@
         "Version": "10.0",
         "BuildNumber": "18362",
         "PublicRelease": "2019-05-21",
-        "RTMRelease": ""
+        "RTMRelease": "2019-04-08"
     },
     {
         "Name": "Windows 10",
-        "SubVersion": "909",
+        "SubVersion": "1909",
         "Version": "10.0",
         "BuildNumber": "18363",
         "PublicRelease": "2019-11-12",
-        "RTMRelease": ""
+        "RTMRelease": "2019-10-08"
     },
     {
         "Name": "Windows 10",
@@ -405,7 +405,7 @@
         "Version": "10.0",
         "BuildNumber": "19041",
         "PublicRelease": "2020-05-27",
-        "RTMRelease": ""
+        "RTMRelease": "2020-05-27"
     },
     {
         "Name": "Windows 10",
@@ -414,5 +414,53 @@
         "BuildNumber": "19042",
         "PublicRelease": "2020-10-20",
         "RTMRelease": ""
+    },
+    {
+        "Name": "Windows 10",
+        "SubVersion": "21H2",
+        "Version": "10.0",
+        "BuildNumber": "19044",
+        "PublicRelease": "2021-11-16",
+        "RTMRelease": "2021-10-18"
+    },
+    {
+        "Name": "Windows 11",
+        "SubVersion": "21H2",
+        "Version": "10.0",
+        "BuildNumber": "22000",
+        "PublicRelease": "2021-10-05",
+        "RTMRelease": "2021-08-15"
+    },
+    {
+        "Name": "Windows Server 2022",
+        "SubVersion": "21H2",
+        "Version": "10.0",
+        "BuildNumber": "20348",
+        "PublicRelease": "2021-08-18",
+        "RTMRelease": "2021-06-01"
+    },
+    {
+        "Name": "Windows 10",
+        "SubVersion": "22H2",
+        "Version": "10.0",
+        "BuildNumber": "19045",
+        "PublicRelease": "2022-10-18",
+        "RTMRelease": ""
+    },
+    {
+        "Name": "Windows 11",
+        "SubVersion": "22H2",
+        "Version": "10.0",
+        "BuildNumber": "22621",
+        "PublicRelease": "2022-09-20",
+        "RTMRelease": "2022-05-24"
+    },
+    {
+        "Name": "Windows Server 2022",
+        "SubVersion": "22H2",
+        "Version": "10.0",
+        "BuildNumber": "20348",
+        "PublicRelease": "2022-11-02",
+        "RTMRelease": "2022-10-18"
     }
 ]

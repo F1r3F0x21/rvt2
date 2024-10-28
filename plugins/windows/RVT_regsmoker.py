@@ -14,10 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import re
-import csv
 import sys
-import logging
+import csv
 import yaml
 import json
 from tqdm import tqdm
@@ -36,16 +34,27 @@ class Regsmoker(base.job.BaseModule):
             - Main volume directory --> Root directory, where 'Documents and Settings' or 'Users' folders are expected
             - Custom folder containing hives. Warning: 'ntuser.dat' are expected to be stored in a username folder.
         - **outdir**: output directory for generated files
-        - **errorfile**: path to log file to register regripper errors
-        - **ripplugins**: path to json file containing the organized list of regripper plugins to run
         - **pluginshives**: path to json file associating each regripper plugin with a list of hives
         - **volume_id**: volume identifier, such as partition number. Ex: 'p03'
     """
 
+    def __init__(self, config=None, section=None, local_config=None, from_module=None):
+        super().__init__(config, section, local_config, from_module)
+        self.regsmoker_path = self.config.config['plugins.windows']['regsmokerdir']
+        # Import the regsmoker project
+        try:
+            if os.path.exists(self.regsmoker_path):
+                sys.path.insert(1, self.regsmoker_path)
+                import reg_plugin
+                import reg_sigma
+                self.reg_plugin = reg_plugin
+                self.reg_sigma = reg_sigma
+        except ImportError as exc:
+            self.logger().error(f"Error importing regsmoker project at {self.regsmoker_path}: {exc}")
+
     def read_config(self):
         super().read_config()
         self.set_default_config('pluginshives', os.path.join(self.config.config['windows']['plugindir'], 'resmoker_plugins.yaml'))
-        self.set_default_config('errorfile', os.path.join(self.myconfig('sourcedir'), "{}_aux.log".format(self.myconfig('source'))))
         self.set_default_config('volume_id', 'p01')
 
     def run(self, path=""):
@@ -53,11 +62,17 @@ class Regsmoker(base.job.BaseModule):
 
         if not path:
             path = self.myconfig('path', '')
-        regfiles = get_hives(path)
         id = self.myconfig('volume_id', None)
+        # Get the hives present in 'path'
+        regfiles = get_hives(path)
+
+        # Parse registry hives in 'path' and generate output files
         self.generate_registry_output(regfiles, id)
+
+        # Use sigma rules to detect suspicious behaviour
         self.rules_dict = self.get_rules()
         self.generate_sigma_output(regfiles, id)
+
         return []
 
     def generate_registry_output(self, regfiles, id=None):
@@ -73,12 +88,15 @@ class Regsmoker(base.job.BaseModule):
         output_path = self.myconfig('outdir')
         check_directory(output_path, create=True)
 
-        # Get the hives associated with each plugin
+        # Get the hive related to each plugin
         pluginshives = self.myconfig('pluginshives')
-
         with open(pluginshives, 'r') as f_in:
             self.hivedict = yaml.safe_load(f_in)
+
+        # Initialize variable to store all empty output files to be deleted
         to_remove = {}
+
+        # Iterate through all available regsmoker plugins
         for hive, hivefile in regfiles.items():
             if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd', 'syscache'):
                 for plugin, values in tqdm(self.hivedict[hive].items()):
@@ -86,10 +104,12 @@ class Regsmoker(base.job.BaseModule):
                         output_filename = os.path.join(output_path, values['filename'])
                         check_directory(os.path.dirname(output_filename), create=True)
                         with open(output_filename, 'w') as f_out:
-                            self.logger().debug('Launching plugin {} against {}'.format(plugin, hivefile))
+                            self.logger().debug('Launching plugin {} over {}'.format(plugin, hivefile))
                             self.logger().debug("writting file {}".format(output_filename))
+                            # Initialize CSV object if the output must be a CSV
                             if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
                                 write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
+                            # Include header in the case "json_to_csv"
                             if "output" in values.keys() and values["output"] == "json_to_csv":
                                 write.writerow(["Data", "Value"])
                             for item in self.get_data(hivefile, plugin):
@@ -99,8 +119,8 @@ class Regsmoker(base.job.BaseModule):
                                     write.writerow(item)
                                 else:
                                     f_out.write(f"{json.dumps(item)}\n")
-                    except Exception:
-                        self.logger().warning(f"Problems with plugin {plugin} against file {hivefile}")
+                    except Exception as exc:
+                        self.logger().warning(f"Problems with plugin {plugin} over file {hivefile}. {exc}")
             elif hive in ('ntuser', 'usrclass'):
                 for username, file in hivefile.items():
                     for plugin, values in tqdm(self.hivedict[hive].items()):
@@ -113,7 +133,7 @@ class Regsmoker(base.job.BaseModule):
                                 else:
                                     to_remove[output_filename] = True
                             with open(output_filename, 'w') as f_out:
-                                self.logger().debug('Launching plugin {} against {}'.format(plugin, file))
+                                self.logger().debug('Launching plugin {} over {}'.format(plugin, file))
                                 self.logger().debug("writting file {}".format(output_filename))
                                 if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
                                     write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
@@ -132,8 +152,8 @@ class Regsmoker(base.job.BaseModule):
                                         f_out.write(json.dumps(item))
                                 if nlines:
                                     to_remove[output_filename] = False
-                        except Exception:
-                            self.logger().warning(f"Problems with plugin {plugin} against file {file}")
+                        except Exception as exc:
+                            self.logger().warning(f"Problems with plugin {plugin} against file {file}. {exc}")
             elif hive in ('user', 'userclass'):
                 if hive == 'user':
                     hive = 'ntuser'
@@ -176,11 +196,11 @@ class Regsmoker(base.job.BaseModule):
                                             f_out.write(json.dumps(item))
                                     if nlines:
                                         to_remove[output_filename] = False
-                            except Exception:
-                                self.logger().warning(f"Problems with plugin {plugin} against file {file}")
+                            except Exception as exc:
+                                self.logger().warning(f"Problems with plugin {plugin} against file {file}. {exc}")
         for f, status in to_remove.items():
             if status:
-                self.logger().debug('file {} has no lines'.format(output_filename))
+                self.logger().debug(f'Removing empty output file {f}')
                 os.remove(f)
 
         return []
@@ -199,11 +219,7 @@ class Regsmoker(base.job.BaseModule):
         check_directory(output_path, create=True)
 
         # Get rules associated with each hive
-
-        regsmoker_path = self.config.config['plugins.windows']['regsmokerdir']
-        sigma_path = os.path.join(regsmoker_path, 'sigma')
-        sys.path.insert(1, regsmoker_path)
-        import reg_sigma
+        sigma_path = os.path.join(self.regsmoker_path, 'sigma')
 
         with open(os.path.join(output_path, 'rules.json'), 'a') as f_out:
             for hive, hivefile in regfiles.items():
@@ -211,21 +227,21 @@ class Regsmoker(base.job.BaseModule):
                     for fname, values in self.rules_dict.items():
                         if hive.lower() in values:
                             try:
-                                sigma = reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname))
+                                sigma = self.reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname))
                                 if sigma.check_conditions():
                                     f_out.write(f"{json.dumps(sigma.get_result())}\n")
-                            except Exception:
-                                self.logger().warning(f"Problems applying rule {fname} against file {hivefile}")
+                            except Exception as exc:
+                                self.logger().warning(f"Problems applying rule {fname} against file {hivefile}. {exc}")
                 elif hive in ('ntuser', 'usrclass'):
                     for hfile in hivefile.values():
                         for fname, values in self.rules_dict.items():
                             if hive.lower() in values:
                                 try:
-                                    sigma = reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
+                                    sigma = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
                                     if sigma.check_conditions():
                                         f_out.write(f"{json.dumps(sigma.get_result())}\n")
-                                except Exception:
-                                    self.logger().warning(f"Problems applying rule {fname} against file {hfile}")
+                                except Exception as exc:
+                                    self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
                 elif hive in ('user', 'userclass'):
                     if hive == 'user':
                         hive = 'ntuser'
@@ -236,18 +252,17 @@ class Regsmoker(base.job.BaseModule):
                             if hive.lower() in values:
                                 for hfile in hfiles:
                                     try:
-                                        sigma = reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
+                                        sigma = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
                                         if sigma.check_conditions():
                                             f_out.write(f"{json.dumps(sigma.get_result())}\n")
-                                    except Exception:
-                                        self.logger().warning(f"Problems applying rule {fname} against file {hfile}")
+                                    except Exception as exc:
+                                        self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
         return []
 
     def get_rules(self):
-        """ gets rule files and returns a dict with file and related hives """
+        """ Get rule files and returns a dict with file and related hives """
 
-        regsmoker_path = self.config.config['plugins.windows']['regsmokerdir']
-        sigma_path = os.path.join(regsmoker_path, 'sigma')
+        sigma_path = os.path.join(self.regsmoker_path, 'sigma')
         rules_dict = {}
         for fil in os.listdir(sigma_path):
             with open(os.path.join(sigma_path, fil), 'r') as f_in:
@@ -256,10 +271,8 @@ class Regsmoker(base.job.BaseModule):
         return rules_dict
 
     def get_data(self, filename, plugin_name, skip_lastwrite=False, skip_empty_keys=False):
-        regsmoker_path = self.config.config['plugins.windows']['regsmokerdir']
-        sys.path.insert(1, regsmoker_path)
-        import reg_plugin
-        plugin = reg_plugin.Plugin(filename, os.path.join(regsmoker_path, os.path.join('plugins', f"{plugin_name}.yaml")))
+
+        plugin = self.reg_plugin.Plugin(filename, os.path.join(self.regsmoker_path, os.path.join('plugins', f"{plugin_name}.yaml")))
         plugin.get_data()
 
         for res in plugin.data:

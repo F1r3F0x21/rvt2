@@ -390,6 +390,11 @@ class AmCache(base.job.BaseModule):
         #   * {GUID}\\Root\\InventoryApplication
         #   * {GUID}\\Root\\InventoryApplicationFile
         entries_by_version = {
+            'Windows 11': {
+                '21H2': ['InventoryApplication', 'InventoryApplicationFile'],
+                '22H2': ['InventoryApplication', 'InventoryApplicationFile'],
+                'default': ['InventoryApplication', 'InventoryApplicationFile']
+            },
             'Windows 10': {
                 '1507': ['Programs', 'File'],
                 '1511': ['Programs', 'File'],
@@ -398,20 +403,35 @@ class AmCache(base.job.BaseModule):
                 '1709': ['InventoryApplication', 'InventoryApplicationFile'],
                 '1803': ['InventoryApplication', 'InventoryApplicationFile'],
                 '1809': ['InventoryApplication', 'InventoryApplicationFile'],
-                'default': ['InventoryApplication', 'InventoryApplicationFile'],
+                "1903": ["InventoryApplication", "InventoryApplicationFile"],
+                "1909": ["InventoryApplication", "InventoryApplicationFile"],
+                "2004": ["InventoryApplication", "InventoryApplicationFile"],
+                "20H2": ["InventoryApplication", "InventoryApplicationFile"],
+                "21H2": ["InventoryApplication", "InventoryApplicationFile"],
+                "22H2": ["InventoryApplication", "InventoryApplicationFile"],
+                'default': ['InventoryApplication', 'InventoryApplicationFile']
+            },
+            'Windows 8.1': {'': ['File']},
+            'Windows 8': {'': ['File']},
+            'Windows 7': {'default': ['InventoryApplication', 'InventoryApplicationFile']},
+            "Windows Server 2022": {
+                "21H2": ["InventoryApplication", "InventoryApplicationFile"],
+                "22H2": ["InventoryApplication", "InventoryApplicationFile"],
+                'default': ['InventoryApplication', 'InventoryApplicationFile']
+            },
+            'Windows Server 2019': {'1809': ['InventoryApplication', 'InventoryApplicationFile']},
+            'Windows Server 2016': {
+                '1607': ['InventoryApplication', 'InventoryApplicationFile'],
+                '1709': ['InventoryApplication', 'InventoryApplicationFile']
             },
             'Windows Server 2012': {
                 '': ['File'],
                 'R2': ['File']
             },
-            'Windows Server 2016': {
-                '1607': ['InventoryApplication', 'InventoryApplicationFile'],
-                '1709': ['InventoryApplication', 'InventoryApplicationFile']
-            },
-            'Windows Server 2019': {'1809': ['InventoryApplication', 'InventoryApplicationFile']},
-            'Windows 8': {'': ['File']},
-            'Windows 8.1': {'': ['File']},
-            'Windows 7': {'default': ['InventoryApplication', 'InventoryApplicationFile']}
+            "Windows Server 2008": {
+                "RTM": ["Programs", "File"],
+                "default": ["Programs", "File"]
+            }
         }
         structures = {
             'File': self._parse_File_entries,
@@ -1266,19 +1286,47 @@ class Tasks(BaseRegistry):
         return task_created, last_executed
 
 
-class TaskFolder(base.job.BaseModule):
+class InstalledSoftware(base.job.BaseModule):
+    """ Gathers software installed information from several keys. """
 
     def run(self, path=""):
-        """ Prints prefetch info from folder
+        plugins_fields = {
+            'antivirus': ('base.input.CSVReader', 'lastwrite', 'DISPLAYNAME'),
+            'apppaths': ('base.input.CSVReader', 'lastwrite', 'keyname'),
+            'defender': ('base.input.JSONReader', 'lastwrite', ''),
+            'installer': ('base.input.CSVReader', 'lastwrite', 'DisplayName'),
+            'listsoft': ('base.input.CSVReader', 'lastwrite', 'program'),
+            'msis': ('base.input.CSVReader', 'lastwrite', 'ProductName'),
+            'powershellcore': ('base.input.JSONReader', 'lastwrite', ''),
+            'pslogging': ('base.input.JSONReader', 'lastwrite', ''),
+            #'shc': ('base.input.CSVReader', 'lastwrite', 'program'),
+            'uninstall': ('base.input.CSVReader', 'lastwrite', 'DisplayName', 'Name')
+        }
 
-        """
-        print("Product Info|File Version|UUID|Maximum Run Time|Exit Code|Status|Flags|Date Run|Running Instances|Application|Working Directory|User|Comment|Scheduled Date")
-
-        for fichero in os.listdir(path):
-            if fichero.endswith(".job"):
-                data = ""
-                with open(os.path.join(path, fichero), "rb") as f:
-                    data = f.read()
-                job = jobparser.Job(data)
-                print("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}".format(jobparser.products.get(job.ProductInfo), job.FileVersion, job.UUID, job.MaxRunTime, job.ExitCode, jobparser.task_status.get(job.Status, "Unknown Status"),
-                                                                         job.Flags_verbose, job.RunDate, job.RunningInstanceCount, "{} {}".format(job.Name, job.Parameter), job.WorkingDirectory, job.User, job.Comment, job.ScheduledDate))
+        for file in os.listdir(path):
+            base_name = '.'.join(file.split('.')[:-1])
+            short_name = base_name.split('_')[0]
+            if short_name not in plugins_fields:
+                if not base_name.startswith('summary'):
+                    self.logger().warning(f'Unexpected output file: {file}')
+                continue
+            if plugins_fields[short_name][0] == 'base.input.CSVReader':
+                for line in base.job.run_job(self.config, 'base.input.CSVReader', path=os.path.join(path, file), extra_config={'delimiter': ';'}):
+                    program = line[plugins_fields[short_name][2]]
+                    if not program and len(plugins_fields[short_name]) > 3:
+                        program = line[plugins_fields[short_name][3]]
+                    result = {
+                        'LastWrite': line[plugins_fields[short_name][1]],
+                        'Program': program,
+                        'Source': base_name
+                    }
+                    yield result
+            else:
+                for line in base.job.run_job(self.config, 'base.input.JSONReader', path=os.path.join(path, file)):
+                    program = next(iter(line)) # Every line should only have one entry
+                    result = {
+                        'LastWrite': line[program][plugins_fields[short_name][1]],
+                        'Program': program,
+                        'Source': base_name
+                    }
+                    yield result

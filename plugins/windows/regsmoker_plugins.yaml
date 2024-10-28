@@ -214,14 +214,13 @@ software:
     filename: web_browsing_info/defbrowser.json
   ie_version:
     filename: web_browsing_info/ie_version.json
-
 ntuser:
   appcompatflags:
     filename: execution/appcompatflags_user.json
   pslogging:
     filename: installed_programs/pslogging_user.json
   shc:
-    filename: installed_programs/shc_user.csv
+    filename: execution/shc_user.csv
     output: csv
   environment:
     filename: user_config/environment_user.json
@@ -357,7 +356,6 @@ ntuser:
   wordwheelquery:
     filename: general_usr_activity/wordwheelquery_user.csv
     output: csv
-
 usrclass:
   muicache:
     filename: execution/muicache_user.csv
@@ -368,9 +366,10 @@ sam:
 security:
   polacdms:
     filename: user_account/polacdms.json
+    output: csv
   auditpol:
     filename: eventlog_info/auditpol.csv
-    output: json_to_csv
+    output: csv
 bcd:
   bcd:
     filename: persistence/bcd.csv

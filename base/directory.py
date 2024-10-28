@@ -401,7 +401,11 @@ class FileClassifier(base.job.BaseModule):
 
 class DirectoryClear(base.job.BaseModule):
     """ Remove the the file or directory specified by 'target'.
-        Useful when certain jobs that append results to file are called again, avoiding duplication of output. """
+        Useful when certain jobs that append results to file are called again, avoiding duplication of output.
+
+    Configuration:
+        - **target**: Path to the file to be deleted.
+    """
 
     def run(self, path=None):
         target_path = self.myconfig('target', None)
@@ -419,18 +423,41 @@ class DirectoryClear(base.job.BaseModule):
 
 class GlobClear(base.job.BaseModule):
     """ Remove the the file or directory specified by glob pattern 'target'.
-        Useful when certain jobs that append results to file are called again, avoiding duplication of output. """
+        Useful when certain jobs that append results to file are called again, avoiding duplication of output.
+
+    Configuration:
+        - **target**: Path to the file to be deleted.
+        - **ftype**: File type to clear. One of 'file', 'directory', 'all'.
+        - **recursive**: If True, remove recursively all content inside the 'target' folder.
+        - **run_before**: If True, run the command before the execution of ``from_module``.
+        - **run_after**: If True, run the command after the execution of ``from_module``.
+    """
 
     def read_config(self):
         super().read_config()
         self.set_default_config('recursive', 'True')
         self.set_default_config('ftype', 'all')
+        self.set_default_config('run_before', 'True')
+        self.set_default_config('run_after', 'False')
 
     def run(self, path=None):
+        if self.myflag('run_before'):
+            self._globclear()
+
+        # If this job is used as a module, continue the module chain
+        if self.from_module is not None:
+            yield from self.from_module.run(path)
+
+        if self.myflag('run_after'):
+            self._globclear()
+
+        if self.from_module is None:
+            return []
+
+    def _globclear(self):
         target_path = self.myconfig('target', None)
         if not target_path:
             raise base.job.RVTError('Target path to remove not selected'.format(target_path))
-
         ftype = self.myconfig('ftype').lower()
 
         items_removed = False
@@ -450,13 +477,6 @@ class GlobClear(base.job.BaseModule):
 
         if not items_removed:
             self.logger().debug('No file or directory matching "{}" has been deleted'.format(target_path))
-
-        # If this job is used as a module, continue the module chain
-        if self.from_module is not None:
-            yield from self.from_module.run(path)
-        else:
-            return []
-
 
 class GlobClearEmptyFile(base.job.BaseModule):
     """ Remove the the empty files specified by glob pattern 'target'.
