@@ -31,3 +31,9 @@
 [submodule "plugins/external/CryptnetURLCacheParser"]
 	path = plugins/external/CryptnetURLCacheParser
 	url = https://github.com/AbdulRhmanAlfaifi/CryptnetURLCacheParser.git
+[submodule "plugins/external/CyberCX-DFIR"]
+	path = plugins/external/CyberCX-DFIR
+	url = https://github.com/CyberCX-DFIR/usnjrnl_rewind.git
+[submodule "plugins/external/INDXRipper"]
+	path = plugins/external/INDXRipper
+	url = https://github.com/harelsegev/INDXRipper

@@ -101,7 +101,7 @@ class Recycle(base.job.BaseModule):
                     self.sid_user[p] = self.generate_SID_user(p)
         else:
             # Iterate all pX folders inside mountdir
-            for p in [f for f in os.listdir(self.mountdir) if (os.path.isdir(os.path.join(self.mountdir,f)) and f.startswith('p'))]:
+            for p in [f for f in os.listdir(self.mountdir) if (os.path.isdir(os.path.join(self.mountdir, f)) and f.startswith('p'))]:
                 self.sid_user[p] = self.generate_SID_user(p)
                 self.logger().debug(f'Obtained the following users in partition {p}: {self.sid_user[p]}')
 
@@ -414,6 +414,7 @@ class Recycle(base.job.BaseModule):
             return self.sid_user[partition][SID]
         except (TypeError, KeyError):
             self.logger().debug('SID {} does not have an associated user in partition {}'.format(SID, partition))
+            return SID
         # Warning: it's assuming only one partition has vss
         for p in self.vss_partitions:
             if p != partition:
