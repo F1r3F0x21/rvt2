@@ -274,8 +274,8 @@ class DateFields(base.job.BaseModule):
         - **new_fields**: A space separated list of new fields to create. If not set, original fields will be converted. If `fields` is set, must have the same number of items as `new_fields`
         - **sep**: Parameter used by datetime.isoformat. One-character separator, placed between the date and time portions of the result
         - **timespec**: Parameter used by datetime.isoformat. Specifies the number of additional components of the time to include
-        - **input_timezone**: tzdata/Olsen timezone name of the input dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found. If original input data includes a TZ, it won't be overwritten
-        - **output_timezone**: tzdata/Olsen timezone name to set for the output dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found.
+        - **input_timezone**: tzdata/Olson timezone name of the input dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found. If original input data includes a TZ, it won't be overwritten
+        - **output_timezone**: tzdata/Olson timezone name to set for the output dates. Default: `UTC`. Examples: `Europe/Berlin`, `America/New_York`. If `local` is set, timezone will be searched on the Windows registry of the same source and default to UTC if not found.
         - **hide_tz**: If True, do not output a timezone offset with the result
         - **missing_action**: What to do when date field is not present. One of (IGNORE, SKIP_ANY, SKIP_ALL, REPLACE). Default: IGNORE
                 IGNORE: do not transform the date field not found but yield the rest of data

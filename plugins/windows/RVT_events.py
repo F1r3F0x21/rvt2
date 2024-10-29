@@ -588,6 +588,9 @@ class Openssh(EventJob):
                         groups = aux.groupdict()
                         for k, v in groups.items():
                             ev[k.replace("_", ".")] = v
+                        # Sanitize the IP, since Elastic does not support the scope ID '%number'
+                        if ev.get('source.ip'):
+                            ev['source.ip'] = ev['source.ip'].split('%')[0]
                         break
             ev['message'] = ev['data.payload']
             ev.pop('data.payload')

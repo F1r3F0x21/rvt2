@@ -22,7 +22,7 @@ import re
 import dateutil.parser
 import base.job
 from collections import defaultdict
-from base.utils import save_md_table, date_to_iso
+from base.utils import save_md_table, save_csv, date_to_iso
 from plugins.windows.RVT_os_info import CharacterizeWindows
 from plugins.windows.RVT_exec import powershell_suspicious_content_list
 
@@ -333,12 +333,16 @@ class LogonRDP(base.job.BaseModule):
 
         results = [logon for logon in logons.values()]
 
+        save_csv(results, config=None,
+            outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.csv'),
+            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
+            file_exists='OVERWRITE')
         save_md_table(results, config=None,
-                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.md'),
-                      fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
-                      backticks_fields='User',
-                      date_fields="['Login (UTC)', 'Logoff (UTC)']",
-                      file_exists='OVERWRITE')
+            outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.md'),
+            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
+            backticks_fields='User',
+            date_fields="['Login (UTC)', 'Logoff (UTC)']",
+            file_exists='OVERWRITE')
         openssh = sorted(openssh, key=lambda d: d['TimeCreated'])
 
         # Generates a table using openssh events. There are a problem because there is no identifier to distinguish sessions
@@ -365,12 +369,16 @@ class LogonRDP(base.job.BaseModule):
                     temporal_dict.pop(ev['source.port'])
         for k in temporal_dict:
             results.append(temporal_dict[k])
+        save_csv(results, config=None,
+            outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.csv'),
+            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'IP', 'Port']",
+            file_exists='OVERWRITE')
         save_md_table(results, config=None,
-                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.md'),
-                      fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'IP', 'Port']",
-                      backticks_fields='User',
-                      date_fields="['Login (UTC)', 'Logoff (UTC)']",
-                      file_exists='OVERWRITE')
+            outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.md'),
+            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'IP', 'Port']",
+            backticks_fields='User',
+            date_fields="['Login (UTC)', 'Logoff (UTC)']",
+            file_exists='OVERWRITE')
 
 
 class RDPIncoming(base.job.BaseModule):
