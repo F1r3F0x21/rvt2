@@ -270,6 +270,23 @@ class Regsmoker(base.job.BaseModule):
             rules_dict[fil] = data['logsource']['service'].lower()
         return rules_dict
 
+    def _get_transaction(self, filename):
+        """ returns transaction files if exists """
+
+        base_path = os.path.dirname(filename)
+        if base_path == '':
+            base_path = '.'
+        filename = os.path.basename(filename).lower()
+        tlog1 = None
+        tlog2 = None
+        for fname in os.listdir(base_path):
+            if fname.lower().startswith(filename):
+                if fname.lower().endswith('log1'):
+                    tlog1 = os.path.join(base_path, fname)
+                elif fname.lower().endswith('log2'):
+                    tlog2 = os.path.join(base_path, fname)
+        return tlog1, tlog2
+
     def get_data(self, filename, plugin_name, skip_lastwrite=False, skip_empty_keys=False):
 
         plugin = self.reg_plugin.Plugin(filename, os.path.join(self.regsmoker_path, os.path.join('plugins', f"{plugin_name}.yaml")))
@@ -288,6 +305,27 @@ class Regsmoker(base.job.BaseModule):
                         yield new_res.pop('lastwrite')
             else:
                 yield json.dumps(res)
+
+        tlog1, tlog2 = self._get_transaction(filename)
+        if tlog1 != None:  # There are transaction logs
+            plugin2 = self.reg_plugin.Plugin(filename, os.path.join(self.regsmoker_path, os.path.join('plugins', f"{plugin_name}.yaml")), tlog1=tlog1, tlog2=tlog2)
+            plugin2.get_data()
+
+            for res in plugin2.data:
+                if res in plugin.data:
+                    continue
+                if not skip_lastwrite and not skip_empty_keys:
+                    yield res
+                elif skip_lastwrite and skip_empty_keys:
+                    new_res = {}
+                    for k in res:
+                        if len(res[k]) == 1:
+                            continue
+                        else:
+                            new_res = res
+                            yield new_res.pop('lastwrite')
+                else:
+                    yield json.dumps(res)
 
     def json_to_csv(self, item, swap_fields=False):
 
