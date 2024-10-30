@@ -224,22 +224,40 @@ class Regsmoker(base.job.BaseModule):
         with open(os.path.join(output_path, 'rules.json'), 'a') as f_out:
             for hive, hivefile in regfiles.items():
                 if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd'):
+                    tlog1, tlog2 = self._get_transaction(hivefile)
                     for fname, values in self.rules_dict.items():
                         if hive.lower() in values:
                             try:
                                 sigma = self.reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname))
+                                results = None
                                 if sigma.check_conditions():
-                                    f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                    results = sigma.get_result()
+                                    f_out.write(f"{json.dumps(results)}\n")
+                                if tlog1 is not None:
+                                    sigma2 = self.reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname), tlog1, tlog2)
+                                    if sigma.check_conditions():
+                                        results2 = sigma2.get_result()
+                                        if results != results2:
+                                            f_out.write(f"{json.dumps(results2)}\n")
                             except Exception as exc:
                                 self.logger().warning(f"Problems applying rule {fname} against file {hivefile}. {exc}")
                 elif hive in ('ntuser', 'usrclass'):
                     for hfile in hivefile.values():
+                        tlog1, tlog2 = self._get_transaction(hfile)
                         for fname, values in self.rules_dict.items():
                             if hive.lower() in values:
                                 try:
                                     sigma = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
+                                    results = None
                                     if sigma.check_conditions():
-                                        f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                        results = sigma.get_result()
+                                        f_out.write(f"{json.dumps(results)}\n")
+                                    if tlog1 is not None:
+                                        sigma2 = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname), tlog1, tlog2)
+                                        if sigma.check_conditions():
+                                            results2 = sigma2.get_result()
+                                            if results != results2:
+                                                f_out.write(f"{json.dumps(results2)}\n")
                                 except Exception as exc:
                                     self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
                 elif hive in ('user', 'userclass'):
@@ -251,10 +269,19 @@ class Regsmoker(base.job.BaseModule):
                         for fnames, values in self.rules_dict.items():
                             if hive.lower() in values:
                                 for hfile in hfiles:
+                                    tlog1, tlog2 = self._get_transaction(hfile)
                                     try:
                                         sigma = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
+                                        results = None
                                         if sigma.check_conditions():
-                                            f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                            results = sigma.get_result()
+                                            f_out.write(f"{json.dumps(results)}\n")
+                                        if tlog1 is not None:
+                                            sigma2 = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname), tlog1, tlog2)
+                                            if sigma.check_conditions():
+                                                results2 = sigma2.get_result()
+                                                if results != results2:
+                                                    f_out.write(f"{json.dumps(results2)}\n")
                                     except Exception as exc:
                                         self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
         return []
