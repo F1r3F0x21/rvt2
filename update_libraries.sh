@@ -177,6 +177,35 @@ update_dotnet() {
         echo "dotnet is in the latest version"
     fi
 }
+
+update_hayabusa(){
+    cd "${RVT2HOME}"
+    HAYABUSA_PATH="external_tools/hayabusa"
+    VERSION=$(ls "$HAYABUSA_PATH" | sed -rn 's/README-([0-9.][0-9.]*)-English.pdf/\1/p')
+
+    local DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/Yamato-Security/hayabusa/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "all-platforms.zip$" | head -1)
+    local NEWVERSION=$(echo $DOWNLOAD_URL | sed -rn 's/hayabusa-([0-9.][0-9.]*)-win-x64.exe/\1/p')
+    if [ $NEWVERSION == "" ]; then
+        echo "There are some issue getting latest hayabusa release"
+        exit 1
+    fi
+
+    if [ $VERSION != $NEWVERSION ]; then
+        mv "$HAYABUSA_PATH" "HAYABUSA_TMP" && \
+        mkdir $HAYABUSA_PATH && \
+        chown -R rvt:incide $HAYABUSA_PATH && \
+        cd $HAYABUSA_PATH && \
+        wget $DOWNLOAD_URL && \
+        unzip "hayabusa-$NEWVERSION-all-platforms.zip" && \
+        chown -R rvt:incide . && \
+        rm "hayabusa-$NEWVERSION-all-platforms.zip" && \
+        mv "./hayabusa-$NEWVERSION-lin-x64-gnu" hayabusa-lin-x64-gnu && \
+        chmod +x ./hayabusa-lin-x64-gnu && \
+        rm -rf "HAYABUSA_TMP"
+    else
+        echo "hayabusa is in the latest release"
+    fi
+}
 update_sleuthkit
 update_libyal libesedb
 update_libyal liblnk
@@ -189,9 +218,9 @@ update_libyal libvmdk
 update_libyal libvslvm
 update_libyal libevt
 update_libyal libvhdi
+update_hayabusa
 
 update_volatility3
 update_yara
 update_dotnet
 update_zimmerman_tools
-
