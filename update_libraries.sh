@@ -181,10 +181,10 @@ update_dotnet() {
 update_hayabusa(){
     cd "${RVT2HOME}"
     HAYABUSA_PATH="external_tools/hayabusa"
-    VERSION=$(ls "$HAYABUSA_PATH" | sed -rn 's/README-([0-9.][0-9.]*)-English.pdf/\1/p')
+    VERSION=$(ls "$HAYABUSA_PATH" | sed -rn 's/hayabusa-([0-9.][0-9.]*)-win-x64.exe/\1/p')
 
     local DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/Yamato-Security/hayabusa/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "all-platforms.zip$" | head -1)
-    local NEWVERSION=$(echo $DOWNLOAD_URL | sed -rn 's/hayabusa-([0-9.][0-9.]*)-win-x64.exe/\1/p')
+    local NEWVERSION=$(echo $DOWNLOAD_URL | sed -rn 's/.*hayabusa-([0-9.][0-9.]*)-all-platforms.zip/\1/p')
     if [ $NEWVERSION == "" ]; then
         echo "There are some issue getting latest hayabusa release"
         exit 1
