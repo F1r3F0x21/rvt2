@@ -23,62 +23,12 @@ from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, save_csv, save_json
+from base.utils import check_directory, save_csv, save_json, relative_path
 from plugins.windows.RVT_os_info import CharacterizeWindows
 
 
 class ScheduledTasks(base.job.BaseModule):
     """ Parses job files and schedlgu.txt. """
-
-    # ScheduledTasks XML format: https://docs.microsoft.com/en-us/windows/win32/taskschd/task-scheduler-schema
-    tasks_fields = [
-        # Registration Info
-        'Author', 'Date', 'URI', 'Description', 'Source',
-        'Version', 'Documentation', 'SecurityDescriptor',
-        # Principals   (RequiredPrivileges is a list !!!)
-        'UserId', 'GroupId', 'LogonType', 'DisplayName',
-        'RunLevel', 'RequiredPrivileges', 'ProcessTokenSidType',
-        # Settings
-        'AllowStartOnDemand', 'RestartOnFailure', 'Enabled', 'Hidden',
-        'AllowHardTerminate', 'MultipleInstancesPolicy', 'Priority',
-        'StartWhenAvailable', 'RunOnlyIfNetworkAvailable', 'NetworkProfileName',
-        'RunOnlyIfIdle', 'WakeToRun', 'ExecutionTimeLimit',
-        'DeleteExpiredTaskAfter', 'UseUnifiedSchedulingEngine',
-        'StopIfGoingOnBatteries', 'DisallowStartIfOnBatteries',
-        'DisallowStartOnRemoteAppSession',
-        'IdleSettings/Duration', 'IdleSettings/WaitTimeout',
-        'IdleSettings/StopOnIdleEnd', 'IdleSettings/RestartOnIdle',
-        'NetworkSettings/Name', 'NetworkSettings/Id',
-        'RestartOnFailure/Interval', 'RestartOnFailure/Interval'
-    ]
-    triggers_common_fields = [
-        'Enabled', 'StartBoundary', 'EndBoundary', 'ExecutionTimeLimit',
-        'Repetition/Interval', 'Repetition/Duration', 'Repetition/StopAtDurationEnd'
-    ]
-    triggers_event_fields = [
-        'EventTrigger/Subscription', 'EventTrigger/Delay',
-        'EventTrigger/PeriodOfOccurrences', 'EventTrigger/NumberOfOccurrences',
-        'EventTrigger/MatchingElement'
-    ]
-    triggers_other_fields = [
-        'BootTrigger/Delay', 'RegistrationTrigger/Delay', 'TimeTrigger/RandomDelay',
-        'LogonTrigger/UserId', 'LogonTrigger/Delay',
-        'SessionStateChangeTrigger/UserId', 'SessionStateChangeTrigger/Delay',
-        'SessionStateChangeTrigger/StateChange'
-    ]
-    actions_fields = [
-        'Exec/Command', 'Exec/Arguments', 'Exec/WorkingDirectory',
-        'ComHandler/ClassId', 'ComHandler/Data',
-        'ShowMessage/Title', 'ShowMessage/Body',
-        'SendEmail/Server', 'SendEmail/Subject', 'SendEmail/to',
-        'SendEmail/Cc', 'SendEmail/Bcc', 'SendEmail/ReplyTo',
-        'SendEmail/From', 'SendEmail/Body',
-        'HeaderField/Name', 'HeaderField/Value'
-        # Attachments is a sequence
-    ]
-    all_tasks_fields = [*tasks_fields, *triggers_common_fields,
-                        *triggers_event_fields, *triggers_other_fields, *actions_fields]
-    translation = {}
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
@@ -104,7 +54,7 @@ class ScheduledTasks(base.job.BaseModule):
                  outfile=outfile_sched, file_exists='APPEND', quoting=0)
 
         self.logger().debug("Parsing XML files from Tasks directory")
-        xml_tasks = list(self.parse_task_xml(path))
+        xml_tasks = list(self.parse_tasks_xml(path))
         save_json(xml_tasks, config=self.config,
                   outfile=outfile_tasks_json, file_exists='APPEND')
         save_csv(self.summarize_xml_tasks(xml_tasks), config=self.config,
@@ -168,20 +118,16 @@ class ScheduledTasks(base.job.BaseModule):
 
         self.logger().debug("Finished extraction from schedlgu.txt")
 
-    def parse_task_xml(self, directory):
+    def parse_tasks_xml(self, directory):
         """ Parse UTF-16 encoded XML files inside Tasks folders """
+        # ScheduledTasks XML format: https://docs.microsoft.com/en-us/windows/win32/taskschd/task-scheduler-schema
         task_xml_files = []
         for root_folder, subf, files in os.walk(directory):
             for file in files:
                 if not file.endswith('.job') and not file.lower().endswith('schedlgu.txt'):
                     task_xml_files.append(os.path.join(root_folder, file))
 
-        os_info = CharacterizeWindows(config=self.config)
-
         for file in tqdm(task_xml_files, total=len(task_xml_files), desc=self.section):
-            res = {}
-            # res = {'File': os.path.basename(file)}
-            # res = {fld: '' for fld in self.all_tasks_fields}
             try:  # Not all files may be in XML format
                 st = etree.parse(file)
             except Exception as exc:
@@ -189,109 +135,68 @@ class ScheduledTasks(base.job.BaseModule):
                 continue
 
             # Get the namespace. All tags are preceded by this namespace
-            ns = {'ns': st.getroot().nsmap[None]}
+            ns = st.getroot().nsmap[None]
 
-            # Fill general fields
-            for field in self.tasks_fields:
-                xpath_search = "//" + '/'.join(["ns:{}".format(subf) for subf in field.split('/')])
-                value = st.xpath(xpath_search, namespaces=ns)
-                if value:
-                    res[field] = value[0].text
-            privileges = [value.text for value in st.xpath('//ns:RequiredPrivileges/ns:Privilege/*', namespaces=ns)]
-            if privileges:
-                res['RequiredPrivileges'] = ', '.join(privileges)
-
-            # Parse Triggers and Actions fields
-            res['Triggers'] = list(self._parse_triggers(st, ns))
-            res['Actions'] = list(self._parse_actions(st, ns))
-
-            # Get user name from UserID
-            res['User'] = os_info.get_user_name_from_sid(res.get('UserId',''), partition=self.volume_id, sid_default=True)
-
-            yield res
+            xml_dict = self._xml_element_to_dict(st.getroot(), ns=ns)
+            xml_dict['FileName'] = relative_path(file, self.myconfig('sourcedir'))
+            yield xml_dict
 
     def summarize_xml_tasks(self, xml_tasks):
         """ Get most relevant fields from task definitions"""
+        os_info = CharacterizeWindows(config=self.config)
+
         for t in xml_tasks:
+            has_start = False
             res = {'StartBoundary': '',
-                   'TaskName': t.get('URI', ''),
-                   'User': t.get('User', ''),
+                   'TaskName': t.get('RegistrationInfo', {}).get('URI', '').lstrip('\\'),
+                   'User': os_info.get_user_name_from_sid(t.get('Principals', {}).get('Principal', {}).get('UserId',''), partition=self.volume_id, sid_default=True),
                    'Command': '',
                    'Arguments': '',
-                   'Enabled': t.get('Enabled', ''),
-                   'RunLevel': t.get('RunLevel', ''),
-                   'Description': t.get('Description', '')
+                   'Enabled': t.get('Settings', {}).get('Enabled', ''),
+                   'RunLevel': t.get('Principals', {}).get('Principal', {}).get('RunLevel', ''),
+                   'Hidden': t.get('Settings', {}).get('Hidden', ''),
+                   'Description': t.get('RegistrationInfo', {}).get('Description', '')
                   }
 
-            # TODO: consider more than one action
-            if t.get('Actions', None):
-                res['Command'] = t['Actions'][0].get('Exec/Command', '')
-                res['Arguments'] = t['Actions'][0].get('Exec/Arguments', '')
+            if 'Exec' in t.get('Actions', {}):
+                if isinstance(t['Actions']['Exec'], list):
+                    res['Command'] = [exec.get('Command', '') for exec in t['Actions']['Exec']]
+                    res['Arguments'] = [exec.get('Arguments', '') for exec in t['Actions']['Exec']]
+                else:
+                    res['Command'] = t['Actions']['Exec'].get('Command', '')
+                    res['Arguments'] = t['Actions']['Exec'].get('Arguments', '')
 
-            if t.get('Triggers', None):
-                for trig in t['Triggers']:
-                    if 'StartBoundary' in trig:
-                        res['StartBoundary'] = trig['StartBoundary']
-                        yield res
+            # Create a new instance of the task for every StartBoundary
+            for trig in t.get('Triggers', {}).values():
+                if 'StartBoundary' in trig:
+                    res['StartBoundary'] = trig['StartBoundary']
+                    has_start = True
+                    yield res
 
+            # Yield also tasks without StartBoundary
+            if not has_start:
+                yield res
 
-    def _parse_triggers(self, tree, ns={'ns': ''}):
-        result = {}
-        for action in tree.xpath("//ns:Triggers/*", namespaces=ns):
-            for field in self.triggers_common_fields:
-                xpath_search = "//" + '/'.join(["ns:{}".format(subf) for subf in field.split('/')])
-                value = action.xpath(xpath_search, namespaces=ns)
-                if value:
-                    result[field] = value[0].text
-            action_type = action.tag
-            if action_type.endswith('CalendarTrigger'):
-                result.update(self._parse_calendar(action, ns))
-                yield result
-            elif action_type.endswith('EventTrigger'):
-                for field in self.triggers_event_fields:
-                    xpath_search = "//" + '/'.join(["ns:{}".format(subf) for subf in field.split('/')])
-                    value = action.xpath(xpath_search, namespaces=ns)
-                    if value:
-                        result[field] = value[0].text
-                value_queries = [value.text for value in action.xpath('//ns:ValueQueries/ns:Value/*', namespaces=ns)]
-                result['ValueQueries'] = ', '.join(value_queries)
-                yield result
+    def _xml_element_to_dict(self, element, ns=''):
+        """ Convert XML Element to a compated dictionary, ignoring attributes"""
+        # If the element has no children, return its text directly
+        ns_length = len(ns)
+        if len(element) == 0:
+            return element.text.strip() if element.text else None
+
+        # Otherwise, create a dictionary to hold children
+        child_dict = {}
+        for child in element:
+            child_value = self._xml_element_to_dict(child, ns=ns)
+
+            # Handle repeated tags by grouping them in a list
+            # Tags are in the format "{ns}tag_name". Keep only the tag_name
+            tag = child.tag if not ns else child.tag[ns_length+2:]
+            if tag in child_dict:
+                if not isinstance(child_dict[tag], list):
+                    child_dict[tag] = [child_dict[tag]]
+                child_dict[tag].append(child_value)
             else:
-                for field in self.triggers_other_fields:
-                    xpath_search = "//" + '/'.join(["ns:{}".format(subf) for subf in field.split('/')])
-                    value = action.xpath(xpath_search, namespaces=ns)
-                    if value:
-                        result[field] = value[0].text
-                yield result
+                child_dict[tag] = child_value
 
-    def _parse_actions(self, tree, ns={'ns': ''}):
-        result = {}
-        for action in tree.xpath("//ns:Actions/*", namespaces=ns):
-            for field in self.actions_fields:
-                xpath_search = "//" + '/'.join(["ns:{}".format(subf) for subf in field.split('/')])
-                value = action.xpath(xpath_search, namespaces=ns)
-                if value:
-                    result[field] = value[0].text
-            yield result
-
-    def _parse_calendar(self, node, ns={'ns': ''}):
-        result = {}
-        if node.xpath('//ns:ScheduleByDay', namespaces=ns):
-            result['DaysInterval'] = node.xpath('//ns:DaysInterval', namespaces=ns)[0].text
-        elif node.xpath('//ns:ScheduleByWeek', namespaces=ns):
-            result['WeeksInterval'] = node.xpath('//ns:WeeksInterval', namespaces=ns)[0].text
-            days = [day.tag[len(ns['ns']) + 2:] for day in node.xpath('//ns:DaysOfWeek/*', namespaces=ns)]
-            result['DaysOfWeek'] = ', '.join(days)
-        elif node.xpath('//ns:ScheduleByMonth', namespaces=ns):
-            days = [day.text for day in node.xpath('//ns:DaysOfMonth/ns:Day/*', namespaces=ns)]
-            months = [month.tag[len(ns['ns']) + 2:] for month in node.xpath('//ns:Months/*', namespaces=ns)]
-            result['DaysOfMonth'] = ', '.join(days)
-            result['Months'] = ', '.join(months)
-        elif node.xpath('//ns:ScheduleByMonthDayOfWeek', namespaces=ns):
-            days = [day.tag[len(ns['ns']) + 2:] for day in node.xpath('//ns:DaysOfWeek/*', namespaces=ns)]
-            months = [month.tag[len(ns['ns']) + 2:] for month in node.xpath('//ns:Months/*', namespaces=ns)]
-            weeks = [week.text for week in node.xpath('//ns:Weeks/*', namespaces=ns)]
-            result['DaysOfWeek'] = ', '.join(days)
-            result['Months'] = ', '.join(months)
-            result['Weeks'] = ', '.join(weeks)
-        return result
+        return child_dict

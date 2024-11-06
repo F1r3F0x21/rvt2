@@ -92,7 +92,7 @@ def get_hives(path):
     # Search only first level, not subfolders. File names MUST BE the expected Windows hives names. If names had been changed, they will be ommited
     for file in os.listdir(path):
         for hive_file, hive_name in hive_names.items():
-            if file.lower() == hive_file:
+            if file.lower() == hive_file and not os.path.isdir(os.path.join(path, file)):
                 regfiles[hive_name] = os.path.join(path, file)
 
     # User hives
@@ -1117,7 +1117,7 @@ class BaseRegistry(base.job.BaseModule):
         self.set_default_config('volume_id', '')
 
     def get_outfile(self, prefix_name, extension='csv'):
-        # Determine output filename
+        """ Set output filename. Format {prefix_name}_{volume_id}.{extension} """
         id = self.myconfig('volume_id', None)
         self.partition = id if id else 'p01'  # needed to get OS info
         outfolder = self.myconfig('outdir')
@@ -1263,13 +1263,16 @@ class Tasks(BaseRegistry):
             for subkey in registry_key_tree_to_json(volumekey, depth=1, hive='SOFTWARE'):
                 task_created, last_executed = ("", "")
                 if subkey.get('registry.data.DynamicInfo', ""):
-                    task_created, last_executed = self.convert_hex_dates(subkey['registry.data.DynamicInfo'])
+                    task_created, last_executed, last_completed = self.convert_hex_dates(subkey['registry.data.DynamicInfo'])
+                task_edited = ""
                 if subkey.get('registry.data.Date'):
-                    task_created = date_to_iso(subkey.get('registry.data.Date'), hide_tz=True, sep=' ', timespec='seconds')
+                    task_edited = date_to_iso(subkey.get('registry.data.Date'), hide_tz=True, sep=' ', timespec='seconds')
                 yield OrderedDict([("@timestamp", subkey['@timestamp']),
                                   ('Task', subkey.get('registry.data.Path', "")),
                                   ('Created', task_created),
                                   ('LastExecuted', last_executed),
+                                  ('LastCompleted', last_completed),
+                                  ('Updated', task_edited),
                                   ('Author', subkey.get('registry.data.Author', "")),
                                   ('Description', subkey.get('registry.data.Description', ""))])
         except Registry.RegistryKeyNotFoundException:
@@ -1282,8 +1285,9 @@ class Tasks(BaseRegistry):
 
     def convert_hex_dates(self, binary_stirng):
         task_created = parse_windows_timestamp(int.from_bytes(binary_stirng[4:12], byteorder='little')).strftime("%Y-%m-%d %H:%M:%S")
-        last_executed = parse_windows_timestamp(int.from_bytes(binary_stirng[12:20], byteorder='little')).strftime("%Y-%m-%d %H:%M:%S")
-        return task_created, last_executed
+        last_run = parse_windows_timestamp(int.from_bytes(binary_stirng[12:20], byteorder='little')).strftime("%Y-%m-%d %H:%M:%S")
+        last_completed = parse_windows_timestamp(int.from_bytes(binary_stirng[28:36], byteorder='little')).strftime("%Y-%m-%d %H:%M:%S")
+        return task_created, last_run, last_completed
 
 
 class InstalledSoftware(base.job.BaseModule):
