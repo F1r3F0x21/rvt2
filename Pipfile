@@ -61,7 +61,7 @@ sshpubkeys = "*"
 tabulate = "*"
 ntfs_sds_parser = "*"
 natsort = "*"
-notatin = {editable = true, subdirectory = "pynotatin", git = "https://github.com/strozfriedberg/notatin.git"}
+pynotatin = {subdirectory = "pynotatin", git = "https://github.com/strozfriedberg/notatin.git"}
 construct = "*"
 
 [dev-packages]

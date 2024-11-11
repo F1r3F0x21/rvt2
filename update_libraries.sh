@@ -112,7 +112,7 @@ update_yara() {
         else
             echo "yara updated successfully"
 	    cd ..
-	    [-d temp/yara* ] && rm -r temp/yara*
+	    [ -d temp/yara* ] && rm -r temp/yara*
         fi
     else
         echo "yara is in the latest version"
@@ -131,7 +131,7 @@ update_zimmerman_tools() {
 	VERSION=$(../../dotnet/dotnet $tool.dll --version)
 	NEWVERSION=$(curl https://ericzimmerman.github.io/index.md| sed -n "s|.*\[\([0-9.][0-9.]*\)\].https://f001.backblazeb2.com/file/EricZimmermanTools/net6/$tool.zip.*|\1|p")
 	if [ $VERSION != $NEWVERSION ]; then
-	    wget https://f001.backblazeb2.com/file/EricZimmermanTools/net6/${tool}.zip
+	    wget https://download.ericzimmermanstools.com/net6/${tool}.zip
             7z x -y $tool.zip
             rm $tool.zip
             cd ..
@@ -147,7 +147,7 @@ update_zimmerman_tools() {
         VERSION=$(../../dotnet/dotnet $tool.dll --version)
 	NEWVERSION=$(curl https://ericzimmerman.github.io/index.md| sed -n "s|.*\[\([0-9.][0-9.]*\)\].https://f001.backblazeb2.com/file/EricZimmermanTools/net6/$tool.zip.*|\1|p")
 	if [ $VERSION != $NEWVERSION ]; then
-            wget https://f001.backblazeb2.com/file/EricZimmermanTools/net6/${tool}.zip
+            wget https://download.ericzimmermanstools.com/net6/${tool}.zip
             7z x -y $tool.zip
             rm $tool.zip
 	    cd ..
