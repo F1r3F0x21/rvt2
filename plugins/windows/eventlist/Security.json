@@ -155,6 +155,71 @@
       }
     }
   },
+  "4698":{
+    "description": "A scheduled task was created",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "category": ["file"],
+    "type": ["creation"],
+    "action": "task-registered",
+    "path": {
+      "EventData":{
+        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "TaskName", "TaskContent"],
+        "transform": {"SubjectUserName": "user.name", "SubjectDomainName": "user.domain", "SubjectUserSid": "user.id"}
+      }
+    }
+  },
+  "4699":{
+    "description": "A scheduled task was deleted",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "category": ["file"],
+    "type": ["deletion"],
+    "action": "task-deleted",
+    "path": {
+      "EventData":{
+        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "TaskName", "TaskContent"],
+        "transform": {"SubjectUserName": "user.name", "SubjectDomainName": "user.domain", "SubjectUserSid": "user.id"}
+      }
+    }
+  },
+  "4700":{
+    "description": "A scheduled task was enabled",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "category": ["file"],
+    "type": ["change"],
+    "action": "task-enabled",
+    "path": {
+      "EventData":{
+        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "TaskName", "TaskContent"],
+        "transform": {"SubjectUserName": "user.name", "SubjectDomainName": "user.domain", "SubjectUserSid": "user.id"}
+      }
+    }
+  },
+  "4701":{
+    "description": "A scheduled task was disabled",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "category": ["file"],
+    "type": ["change"],
+    "action": "task-disabled",
+    "path": {
+      "EventData":{
+        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "TaskName", "TaskContent"],
+        "transform": {"SubjectUserName": "user.name", "SubjectDomainName": "user.domain", "SubjectUserSid": "user.id"}
+      }
+    }
+  },
+  "4702":{
+    "description": "A scheduled task was updated",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "category": ["file"],
+    "type": ["change"],
+    "action": "task-updated",
+    "path": {
+      "EventData":{
+        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "TaskName", "TaskContentNew"],
+        "transform": {"SubjectUserName": "user.name", "SubjectDomainName": "user.domain", "SubjectUserSid": "user.id"}
+      }
+    }
+  },
   "4719":{
     "description": "System audit policy was changed",
     "provider": "Microsoft-Windows-Security-Auditing",
@@ -172,8 +237,8 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "CategoryId"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "OldUacValue", "NewUacValue", "SamAccountName", "PrimaryGroupId"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetSid": "destination.user.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },
@@ -182,8 +247,8 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetSid": "destination.user.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },
@@ -192,18 +257,38 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetSid": "destination.user.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4725":{
+    "description": "A user account was disabled",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetSid": "destination.user.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },
   "4726":{
-    "description": "A user account was deleted ",
+    "description": "A user account was deleted",
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetSid": "destination.user.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4727":{
+    "description": "A security-enabled global group was created",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },
@@ -212,8 +297,38 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "MemberName"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4729":{
+    "description": "A member was removed from a security-enabled global group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4730":{
+    "description": "A security-enabled global group was deleted",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4731":{
+    "description": "A security-enabled local group was created",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },
@@ -222,8 +337,28 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "MemberName"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4733":{
+    "description": "A member was removed from a security-enabled local group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4734":{
+    "description": "A security-enabled local group was deleted",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },
@@ -232,8 +367,18 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4737":{
+    "description": "A security-enabled global group was changed",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },
@@ -242,8 +387,128 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "OldUacValue", "NewUacValue"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "OldUacValue", "NewUacValue"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetSid": "destination.user.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4744":{
+    "description": "A security-disabled local group was created",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4745":{
+    "description": "A security-disabled local group was changed",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4746":{
+    "description":"A member was added to a security-disabled local group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4747":{
+    "description":"A member was removed from a security-disbled local group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4748":{
+    "description": "A security-disabled local group was deleted",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4749":{
+    "description": "A security-disabled global group was created",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4750":{
+    "description": "A security-disabled global group was changed",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4751":{
+    "description":"A member was added to a security-disabled global group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4752":{
+    "description":"A member was removed from a security-disabled global group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4753":{
+    "description": "A security-disabled global group was deleted",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4754":{
+    "description": "A security-enabled universal group was created",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4755":{
+    "description": "A security-enabled universal group was changed",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },
@@ -252,8 +517,78 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["MemberName", "TargetUserName", "TargetDomainName", "SubjectUserName", "SubjectDomainName", "SubjectLogonId"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4757":{
+    "description":"A member was removed from a security-enabled universal group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4758":{
+    "description": "A security-enabled universal universal was deleted",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4759":{
+    "description": "A security-disabled universal group was created",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4760":{
+    "description": "A security-disabled universal group was changed",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
+      }
+    }
+  },
+  "4761":{
+    "description":"A member was added to a security-disabled universal group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4762":{
+    "description":"A member was removed from a security-disabled universal group",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId", "MemberSid"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id", "MemberSid": "destination.user.id"}
+      }
+    }
+  },
+  "4763":{
+    "description": "A security-disabled universal group was deleted",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "path": {
+      "EventData":{
+        "Name": ["TargetUserName", "TargetDomainName", "TargetSid", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "SubjectLogonId"],
+        "transform": {"TargetUserName": "group.name", "TargetDomainName": "group.domain", "TargetSid": "group.id", "SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "source.user.id"}
       }
     }
   },

@@ -542,7 +542,7 @@ class RDPClient(EventJob):
         self.save_stats(events_parser.evtx_stats())
 
 
-class Openssh(EventJob):
+class OpenSSH(EventJob):
     """ Extracts events related with openssh"""
 
     def run(self, path=None):
@@ -560,6 +560,7 @@ class Openssh(EventJob):
         regex = [re.compile(r"Accepted password for (?P<destination_user>.+) from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+) ssh2"),
                  re.compile(r"Connection reset by authenticating user (?P<destination_user>.+) port (?P<source_port>\d+) \[preauth\]"),
                  re.compile(r"Connection reset by invalid user (?P<destination_user>.+) (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+) \[preauth\]"),
+                 re.compile(r"Connection closed by (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+) \[preauth\]"),
                  re.compile(r"Did not receive identification string from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+)"),
                  re.compile(r"Disconnected from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+)"),
                  re.compile(r"Failed password for (invalid user)?(?P<destination_user>.+) from (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+) ssh2"),
@@ -568,6 +569,7 @@ class Openssh(EventJob):
                  re.compile(r"Received signal (?P<data_signal>.+); terminating."),
                  re.compile(r"Server listening on (?P<source_ip>[\da-f.:%]+) port (?P<source_port>\d+).")]
         category = [{"category": ["authentication"], "type": ["start"], "action": "account-logged-on"},
+                    {"category": ["authentication"], "type": ["info", "error"]},
                     {"category": ["authentication"], "type": ["info", "error"]},
                     {"category": ["authentication"], "type": ["info", "error"]},
                     {"category": ["authentication"], "type": ["info", "error"]},
@@ -639,11 +641,10 @@ class PartitionDiagnostic(EventJob):
 
         events_parser = GetEvents(path, json_file, logger=self.logger())
         for ev in events_parser.parse():
+            if ev['event.code'] != "1006":
+                yield ev
+                continue
             try:
-                # if ev['data.device_id'].startswith('USB'):
-                #     _, ev['data.vid_pid'], ev['data.device_sn'] = ev.pop('data.ParentId').split('\\')
-                # else:
-                #     ev['data.device_id'] = ev.pop('data.ParentId')
                 if int(ev['data.Capacity']) != 0 and int(ev['data.PartitionTableBytes']) != 0:
                     ev['event.action'] = "device-connected"
                 elif int(ev['data.PartitionTableBytes']) == 0:
@@ -653,12 +654,9 @@ class PartitionDiagnostic(EventJob):
                 ev.pop('data.PartitionTableBytes')
                 capacity = ev.pop('data.Capacity')
                 if capacity != 0:
-                    ev['data.capacity'] = capacity
-                # if ev['data.Manufacturer']:
-                #     ev['data.device_model'] = ' '.join([ev.pop('data.Manufacturer'), ev.pop('data.Model')])
-                # else:
-                #     ev['data.device_model'] = ev.pop('data.Model')
-                ev['data.device_registry_id'] = ev.pop('data.RegistryId')
+                    ev['data.Capacity'] = capacity
+                if ev.get('data.Manufacturer'):
+                    ev['data.DeviceModel'] = ' '.join([ev.pop('data.Manufacturer'), ev.get('data.DeviceModel')])
                 yield ev
             except Exception:
                 self.logger().warning("Skipping {} event due to error".format(self.config.job_name))

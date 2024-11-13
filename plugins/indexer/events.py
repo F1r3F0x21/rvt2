@@ -1118,6 +1118,13 @@ class RegistryTasks(SuperTimeline):
                     'message': 'Task last executed: {}'.format(d.get('Task', ''))})
                 yield common
 
+            if d.get('LastCompleted', None):
+                common.update({
+                    '@timestamp': to_iso_format(d['LastExecuted']),
+                    'event.action': 'task-last-execution-completed',
+                    'message': 'Task last execution completed: {}'.format(d.get('Task', ''))})
+                yield common
+
             if d.get('Created', None):
                 common.update({
                     '@timestamp': to_iso_format(d['Created']),
@@ -1135,44 +1142,29 @@ class Tasks(SuperTimeline):
         for d in self.from_module.run(path):
             common = self.common_fields()
             common.update({
-                '@timestamp': to_iso_format(d.get('Date', None)),
+                '@timestamp': '',
                 'tags': ['tasks'],
                 'event.category': ['file'],
                 'event.module': 'tasks',
                 'event.dataset': 'scheduled',
                 'user.id': d.get('UserId', None),
                 'user.name': d.get('User', None),
-                'event.data.TaskName': d.get('URI', ''),
-                'process.command_line': '',
-                'process.args': [],
-                'message': 'Scheduled Task Details'
+                'event.data.TaskName': d.get('TaskName', ''),
+                'event.data.TaskDescription': d.get('Description', ''),
+                'event.data.RunLevel': d.get('RunLevel', ''),
+                'event.data.Hidden': d.get('Hidden', ''),
+                'event.data.Enabled': d.get('Enabled', ''),
+                'process.command_line': d.get('Command', ''),
+                'process.args': [d.get('Arguments', '')],
+                'message': 'Scheduled Task'
             })
 
-            for field, value in d.items():
-                if field in ['Triggers', 'Actions', 'UserId', 'User', 'URI', 'Date']:
-                    continue
-                common[f'event.data.{field}'] = value
-
-            # TODO: consider more than one action
-            if d.get('Actions', None):
-                common['process.command_line'] = d['Actions'][0].get('Exec/Command', '')
-                common['process.args'].append(d['Actions'][0].get('Exec/Arguments', ''))
-
-            if d.get('Triggers', None):
-                for t in d['Triggers']:
-                    if 'StartBoundary' in t:
-                        common.update({
-                            '@timestamp': to_iso_format(t.get('StartBoundary', None)),
-                            'event.action': 'task-start',
-                            'message': f'Start Boundary for Scheduled Task {d.get("URI", "")}'
-                        })
-                    for field, value in t.items():
-                        if field == 'StartBoundary':
-                            continue
-                        common[f'event.data.{field}'] = value
+            for time_field in ["StartBoundary", "RegistrationDate", "FileCreation", "FileModification"]:
+                if d.get(time_field, None):
+                    common.update({'@timestamp': to_iso_format(d.get(time_field, None)),
+                                   'message': f'{time_field} for Scheduled Task  {d.get("TaskName", "")}'
+                                })
                     yield common
-            else:
-                yield common
 
 
 class UsnJrnl(SuperTimeline):

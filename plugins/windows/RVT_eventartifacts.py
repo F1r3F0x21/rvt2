@@ -24,7 +24,6 @@ import base.job
 from collections import defaultdict
 from base.utils import save_md_table, save_csv, date_to_iso
 from plugins.windows.RVT_os_info import CharacterizeWindows
-from plugins.windows.RVT_exec import powershell_suspicious_content_list
 
 
 class Filter_Events(base.job.BaseModule):
@@ -57,7 +56,7 @@ class LogonRDP(base.job.BaseModule):
 
         for event in self.from_module.run(path):
             ev = dict()
-            if event['event.code'] == '4' and 'service' in event['category']:
+            if event['event.code'] == '4' and 'service' in event.get('category', []):
                 continue
             ev['TimeCreated'] = event.get('event.created', '')
             ev['EventID'] = event.get('event.code', '')
@@ -118,10 +117,12 @@ class LogonRDP(base.job.BaseModule):
                     logID[ev['LogonID']] = []
                 logID[ev['LogonID']].append(ev)
             elif ev['EventID'] == "4":
-                if 'start' in event['type']:
+                if 'start' in event.get('type', []):
                     ev["ConnType"] = "logon"
-                elif 'end' in event['type']:
+                elif 'end' in event.get('type', []):
                     ev["ConnType"] = "logoff"
+                else:
+                    ev["ConnType"] = ""
                 openssh.append(ev)
             elif ev['EventID'] in ("21", "23", "24", "25", "39", "40", "65", "66", "102", "131", "140", "1149"):
                 if ev['ActivityID'] not in actID.keys():
@@ -174,27 +175,29 @@ class LogonRDP(base.job.BaseModule):
     def extractLogon(self, logID):
 
         results = []
-        for eventlist in logID.values():
+        for logon_id, eventlist in logID.items():
             logon = '-'
             ip = '-'
-            # ln = len(eventlist)
+            ln = len(eventlist)
+            result = {}
             for e, v in enumerate(eventlist):
                 if v['LogonType'] in ("3", "4", "5"):
                     continue
                 if v['EventID'] == '4634':
-                    results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser']})
+                    results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser'], 'LogonType': v['LogonType'], 'LogonID': logon_id})
                     logon = ''
                     ip = ''
                     continue
                 if v['EventID'] == '4624':
                     logon = v['TimeCreated']
                     ip = v.get('source.ip')
-                # if e == ln:
-                    results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser']})
+                    result = {'Login': logon, 'IP': ip, 'Logoff': '', 'User': v['TargetUser'], 'LogonType': v['LogonType'], 'LogonID': logon_id}
+                if e == ln - 1 and result:
+                    results.append(result)
 
         save_md_table(results, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logon_offs.md'),
-                      fieldnames='Login IP Logoff User',
+                      fieldnames='Login IP Logoff User LogonType LogonID',
                       file_exists='OVERWRITE')
 
     def extractLogonNetwork(self, logID):
@@ -329,6 +332,7 @@ class LogonRDP(base.job.BaseModule):
                     logons[logon_id]['AuthenticationPackage'] = v['AuthenticationPackageName']
         for logid in logons.keys():
             if logons[logid].get('SourceIP') in ('', '-', '::') and logons[logid]['ProcessName'] == 'C:\\Windows\\System32\\OpenSSH\\sshd.exe':
+                # Complete the missing source IP information with events 8 from OpenSSH
                 logons[logid]['SourceIP'], logons[logid]['SourcePort'] = find_closest_date(logons[logid], openssh)
 
         results = [logon for logon in logons.values()]
@@ -354,7 +358,7 @@ class LogonRDP(base.job.BaseModule):
                 continue
             if ev['source.port'] not in temporal_dict.keys():  # New login
                 if ev['ConnType'] == 'logoff':  # Misses logon event
-                    results.append({'Logoff': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']})
+                    results.append({'Logoff (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']})
                 elif ev['ConnType'] == 'logon':
                     temporal_dict[ev['source.port']] = {}
                     temporal_dict[ev['source.port']] = {'Login (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']}
@@ -521,10 +525,6 @@ class RDPGateway(base.job.BaseModule):
         user = ''
         for v in sorted(self.from_module.run(path), key=lambda k: k['event.created']):
             ev['EventID'] = v.get('event.code', '')
-
-            if ev['EventID'] not in ('302', '303'):
-                continue
-
             ev['TimeCreated'] = v.get('event.created', '')
             ev['User'] = v.get('UserData', {}).get('EventInfo', {}).get('Username', '')
             ev['Protocol'] = v.get('UserData', {}).get('EventInfo', {}).get('ConnectionProtocol', '')
@@ -549,7 +549,7 @@ class RDPGateway(base.job.BaseModule):
                     'Protocol': ev.get('Protocol', ''),
                     'DestinationAddress': ev.get('DestinationAddress', '')
                 }
-                # self.logger().debug("%s %s" % (ev['LoginDate'], ev['LogoffDate']))
+
                 users_date[user] = '-'
                 ev['LogoffDate'] = '-'
                 ev['User'] = ''
@@ -831,15 +831,16 @@ class Hash(base.job.BaseModule):
         return "event-" + str(event_code) + "-" + str(event_provider.split("-")[2])
 
 
-class Network(base.job.BaseModule):
-    """ Extracts events related with wireless networking
+class WLAN(base.job.BaseModule):
+    """ Extracts events related with wireless networking (WLAN)
 
-    Events should be sorted"""
+    Events should be sorted
+    """
 
     def run(self, path=None):
         """
         Attrs:
-            path (str): Absolute path to the parsed Security.xml
+            path (str): Absolute path to events.json, the parsed Microsoft-Windows-WLAN-AutoConfig%4Operational.evtx
         """
 
         self.check_params(path, check_path=True, check_path_exists=True)
@@ -876,7 +877,7 @@ class Network(base.job.BaseModule):
             if flag:
                 results.append({'WirelessUp': e['event.created'], 'WirelessDown': '', 'SSID': e.get('data.SSID', '-'), 'MAC': e.get('data.BSSID', '-'), 'Reason': ''})
         save_md_table(results, config=None,
-                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'network.md'),
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'wlan.md'),
                       fieldnames='WirelessUp WirelessDown SSID MAC Reason',
                       file_exists='OVERWRITE')
 

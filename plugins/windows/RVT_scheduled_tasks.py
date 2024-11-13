@@ -23,8 +23,9 @@ from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, save_csv, save_json, relative_path
+from base.utils import check_directory, save_csv, save_json, relative_path, date_to_iso
 from plugins.windows.RVT_os_info import CharacterizeWindows
+from plugins.common.RVT_files import GetTimeline
 
 
 class ScheduledTasks(base.job.BaseModule):
@@ -50,10 +51,11 @@ class ScheduledTasks(base.job.BaseModule):
         save_csv(self.parse_Task(path), outfile=outfile_jobs, file_exists='APPEND', quoting=0)
 
         self.logger().debug("Parsing artifacts from Task Scheduler Service log files (schedlgu.txt)")
-        save_csv(self.parse_schedlgu(path), config=self.config,
-                 outfile=outfile_sched, file_exists='APPEND', quoting=0)
+        save_csv(self.parse_schedlgu(path), config=self.config, outfile=outfile_sched, file_exists='APPEND', quoting=0)
 
         self.logger().debug("Parsing XML files from Tasks directory")
+        self.tasks_files_mtime = {}
+        self.tasks_files_btime = {}
         xml_tasks = list(self.parse_tasks_xml(path))
         save_json(xml_tasks, config=self.config,
                   outfile=outfile_tasks_json, file_exists='APPEND')
@@ -70,21 +72,16 @@ class ScheduledTasks(base.job.BaseModule):
             with open(file, "rb") as f:
                 data = f.read()
             # Every .job file is a task
-            job = jobparser.Job(data)
-            yield OrderedDict([("Product Info", jobparser.products.get(job.ProductInfo)),
-                               ("File Version", job.FileVersion),
-                               ("UUID", job.UUID),
-                               ("Maximum Run Time", job.MaxRunTime),
-                               ("Exit Code", job.ExitCode),
-                               ("Status", jobparser.task_status.get(job.Status, "Unknown Status")),
-                               ("Flasgs", job.Flags_verbose),
-                               ("Date Run", job.RunDate),
-                               ("Running Instances", job.RunningInstanceCount),
-                               ("Application", "{} {}".format(job.Name, job.Parameter)),
-                               ("Working Directory", job.WorkingDirectory),
-                               ("User", job.User),
-                               ("Comment", job.Comment),
-                               ("Scheduled Date", job.ScheduledDate)])
+            try:
+                job = jobparser.Job(data)
+                info = job._get_job_info()
+                if info and info.get("ErrorParsing", ""):
+                    self.logger().warning(f'Issues when parsing .job file {file}. {info["ErrorParsing"]}')
+                info.pop('ErrorParsing', '')
+                info['FileName'] = relative_path(file, self.myconfig('casedir'))
+                yield info
+            except Exception as exc:
+                self.logger().warning(f'Problems parsing .job file {file}. {exc}')
 
         self.logger().debug("Finished extraction from scheduled tasks .job")
 
@@ -138,51 +135,89 @@ class ScheduledTasks(base.job.BaseModule):
             ns = st.getroot().nsmap[None]
 
             xml_dict = self._xml_element_to_dict(st.getroot(), ns=ns)
-            xml_dict['FileName'] = relative_path(file, self.myconfig('sourcedir'))
+
+            xml_dict['FileName'] = relative_path(file, self.myconfig('casedir'))
+            self.tasks_files_mtime[xml_dict['FileName']] = datetime.datetime.fromtimestamp(os.path.getmtime(file))
+            self.tasks_files_btime[xml_dict['FileName']] = datetime.datetime.fromtimestamp(os.path.getctime(file))
             yield xml_dict
 
     def summarize_xml_tasks(self, xml_tasks):
         """ Get most relevant fields from task definitions"""
+        # Get System information data to include user and macb times
         os_info = CharacterizeWindows(config=self.config)
+        local_timezone, offset = os_info.get_timezone(self.volume_id)
+        files_to_search = [t['FileName'] for t in xml_tasks]
+        tl_files = GetTimeline(config=self.config).get_macb(files_to_search) if files_to_search else None
+        if files_to_search and not tl_files:
+            self.logger().info('MFT timeline has not yet been generated. Run `mft_timeline_default` or `fs_timeline` to get enhanced resutls')
 
         for t in xml_tasks:
             has_start = False
-            res = {'StartBoundary': '',
-                   'TaskName': t.get('RegistrationInfo', {}).get('URI', '').lstrip('\\'),
-                   'User': os_info.get_user_name_from_sid(t.get('Principals', {}).get('Principal', {}).get('UserId',''), partition=self.volume_id, sid_default=True),
-                   'Command': '',
-                   'Arguments': '',
-                   'Enabled': t.get('Settings', {}).get('Enabled', ''),
-                   'RunLevel': t.get('Principals', {}).get('Principal', {}).get('RunLevel', ''),
-                   'Hidden': t.get('Settings', {}).get('Hidden', ''),
-                   'Description': t.get('RegistrationInfo', {}).get('Description', '')
-                  }
+            try:
+                user_id = t.get('Principals', {}).get('Principal', {}).get('UserId','') if isinstance(t.get('Principals', {}), dict) else ''
+                user = os_info.get_user_name_from_sid(user_id, partition=self.volume_id, sid_default=True)
+                taskname = t.get('RegistrationInfo', {}).get('URI', '').lstrip('\\') if isinstance(t.get('RegistrationInfo', {}), dict) else ''
+                if not taskname:
+                    taskname = t.get('FileName').split('/')[-1]
+                registration_date = ''
+                if isinstance(t.get('RegistrationInfo', {}), dict):
+                    # Dates in Scheduled Tasks files are in local time. Convert to UTC
+                    registration_date = date_to_iso(t.get('RegistrationInfo', {}).get('Date', ''), input_timezone=local_timezone, sep=' ', timespec='seconds', hide_tz=True)
+                res = {'StartBoundary': '',
+                    'RegistrationDate': registration_date,
+                    'FileCreation': '',
+                    'FileModification': '',
+                    'TaskName': taskname,
+                    'User': user,
+                    'UserId': user_id,
+                    'Command': '',
+                    'Arguments': '',
+                    'Enabled': t.get('Settings', {}).get('Enabled', '') if isinstance(t.get('Settings', {}), dict) else '',
+                    'RunLevel': t.get('Principals', {}).get('Principal', {}).get('RunLevel', '') if isinstance(t.get('Principals', {}), dict) else '',
+                    'Hidden': t.get('Settings', {}).get('Hidden', '') if isinstance(t.get('Settings', {}), dict) else '',
+                    'Description': t.get('RegistrationInfo', {}).get('Description', '') if isinstance(t.get('RegistrationInfo', {}), dict) else '',
+                    'FileName' : t.get('FileName', '')
+                    }
 
-            if 'Exec' in t.get('Actions', {}):
-                if isinstance(t['Actions']['Exec'], list):
-                    res['Command'] = [exec.get('Command', '') for exec in t['Actions']['Exec']]
-                    res['Arguments'] = [exec.get('Arguments', '') for exec in t['Actions']['Exec']]
+                if 'Exec' in t.get('Actions', {}):
+                    if isinstance(t['Actions']['Exec'], list):
+                        res['Command'] = [exec.get('Command', '') for exec in t['Actions']['Exec']]
+                        res['Arguments'] = [exec.get('Arguments', '') for exec in t['Actions']['Exec']]
+                    else:
+                        res['Command'] = t['Actions']['Exec'].get('Command', '')
+                        res['Arguments'] = t['Actions']['Exec'].get('Arguments', '')
+
+                # If timeline has been generated, take task XML file dates from there
+                if tl_files and t['FileName'] in tl_files:
+                    res['FileCreation'] = tl_files[t['FileName']]['b']
+                    res['FileModification'] = tl_files[t['FileName']]['m']
                 else:
-                    res['Command'] = t['Actions']['Exec'].get('Command', '')
-                    res['Arguments'] = t['Actions']['Exec'].get('Arguments', '')
+                    # res['FileCreation'] = self.tasks_files_btime[t['FileName']]    # Birth time is not reliable when getting artifacts from remote adquisition tools
+                    res['FileModification'] = self.tasks_files_mtime[t['FileName']]
 
-            # Create a new instance of the task for every StartBoundary
-            for trig in t.get('Triggers', {}).values():
-                if 'StartBoundary' in trig:
-                    res['StartBoundary'] = trig['StartBoundary']
-                    has_start = True
-                    yield res
+                # Create a new instance of the task for every StartBoundary
+                if isinstance(t.get('Triggers', {}), dict):
+                    for trig in t.get('Triggers', {}).values():
+                        if 'StartBoundary' in trig:
+                            res['StartBoundary'] = date_to_iso(trig['StartBoundary'], input_timezone=local_timezone, sep=' ', timespec='seconds', hide_tz=True)
+                            has_start = True
+                            yield res
 
-            # Yield also tasks without StartBoundary
+            except Exception as exc:
+                self.logger().warning(f'Unknown format in task XML file {t.get("FileName")}: {exc}')
+
+            # Yield tasks without StartBoundary
             if not has_start:
                 yield res
+
+
 
     def _xml_element_to_dict(self, element, ns=''):
         """ Convert XML Element to a compated dictionary, ignoring attributes"""
         # If the element has no children, return its text directly
         ns_length = len(ns)
         if len(element) == 0:
-            return element.text.strip() if element.text else None
+            return element.text.strip() if element.text else ''
 
         # Otherwise, create a dictionary to hold children
         child_dict = {}

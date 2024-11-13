@@ -1,12 +1,11 @@
 #!/usr/bin/python3
-import sys
-import os
-import getopt
 import struct
 
 """
-Basado en https://github.com/sans-dfir/sift-files/blob/master/scripts/jobparser.py
+Based on https://github.com/gleeda/misc-scripts/blob/master/misc_python/jobparser.py
+
 Author: Gleeda <jamie.levy@gmail.com>
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version
@@ -14,7 +13,7 @@ as published by the Free Software Foundation; either version
 """
 
 
-# http://msdn.microsoft.com/en-us/library/2d1fbbab-fe6c-4ae5-bdf5-41dc526b2439%28v=prot.13%29#id11
+# https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/2d1fbbab-fe6c-4ae5-bdf5-41dc526b2439#Appendix_A_11
 products = {
     0x400: "Windows NT 4.0",
     0x500: "Windows 2000",
@@ -26,17 +25,52 @@ products = {
     0x0a00: "Windows 10"
 }
 
-# http://winforensicaanalysis.googlecode.com/files/jobparse.pl
+# https://learn.microsoft.com/en-us/windows/win32/taskschd/task-scheduler-error-and-success-constants
 task_status = {
-    0x41300: "Task is ready to run",
-    0x41301: "Task is running",
-    0x41302: "Task is disabled",
-    0x41303: "Task has not run",
-    0x41304: "No more scheduled runs",
-    0x41305: "Properties not set",
-    0x41306: "Last run terminated by user",
-    0x41307: "No triggers/triggers disabled",
-    0x41308: "Triggers do not have set run times",
+    0x41300: "SCHED_S_TASK_READY", # Task is not running but is scheduled to run at some time in the future.
+    0x41301: "SCHED_S_TASK_RUNNING", # Task is currently running.
+    0x41302: "SCHED_S_TASK_DISABLED", # The task will not run at the scheduled times because it has been disabled.
+    0x41303: "SCHED_S_TASK_HAS_NOT_RUN", # The task has not yet run.
+    0x41304: "SCHED_S_TASK_NO_MORE_RUNS", # There are no more runs scheduled for this task.
+    0x41305: "SCHED_S_TASK_NOT_SCHEDULED", # The task is not running and has no valid triggers.
+    0x41306: "SCHED_S_TASK_TERMINATED", # The last run of the task was terminated by the user.
+    0x41307: "SCHED_S_TASK_NO_VALID_TRIGGERS", # Either the task has no triggers or the existing triggers are disabled or not set.
+    0x41308: "SCHED_S_EVENT_TRIGGER", # Event triggers don't have set run times.
+    0x80041309: "SCHED_E_TRIGGER_NOT_FOUND", # Trigger not found.
+    0x8004130A: "SCHED_E_TASK_NOT_READY", # One or more properties that are needed to run this task have not been set.
+    0x8004130B: "SCHED_E_TASK_NOT_RUNNING", # There is no running instance of the task.
+    0x8004130C: "SCHED_E_SERVICE_NOT_INSTALLED", # The Task Scheduler Service is not installed on this computer.
+    0x8004130D: "SCHED_E_CANNOT_OPEN_TASK", # The task object could not be opened.
+    0x8004130E: "SCHED_E_INVALID_TASK", # The object is either an invalid task object or is not a task object.
+    0x8004130F: "SCHED_E_ACCOUNT_INFORMATION_NOT_SET", # No account information could be found in the Task Scheduler security database for the task indicated.
+    0x80041310: "SCHED_E_ACCOUNT_NAME_NOT_FOUND", # Unable to establish existence of the account specified.
+    0x80041311: "SCHED_E_ACCOUNT_DBASE_CORRUPT", # Corruption was detected in the Task Scheduler security database; the database has been reset.
+    0x80041312: "SCHED_E_NO_SECURITY_SERVICES", # Task Scheduler security services are available only on Windows NT.
+    0x80041313: "SCHED_E_UNKNOWN_OBJECT_VERSION", # The task object version is either unsupported or invalid.
+    0x80041314: "SCHED_E_UNSUPPORTED_ACCOUNT_OPTION", # The task has an unsupported combination of account settings and run time options.
+    0x80041315: "SCHED_E_SERVICE_NOT_RUNNING", # The Task Scheduler Service is not running.
+    0x80041316: "SCHED_E_UNEXPECTEDNODE", # The task XML contains an unexpected node.
+    0x80041317: "SCHED_E_NAMESPACE", # The task XML contains an element or attribute from an unexpected namespace.
+    0x80041318: "SCHED_E_INVALIDVALUE", # The task XML contains a value which is incorrectly formatted or out of range.
+    0x80041319: "SCHED_E_MISSINGNODE", # The task XML is missing a required element or attribute.
+    0x8004131A: "SCHED_E_MALFORMEDXML", # The task XML is malformed.
+    0x0004131B: "SCHED_S_SOME_TRIGGERS_FAILED", # At least one of the task's triggers failed to start the task.
+    0x0004131C: "SCHED_S_BATCH_LOGON_PROBLEM", # Batch logon privilege needs to be enabled for the task principal.
+    0x8004131D: "SCHED_E_TOO_MANY_NODES", # The task XML contains too many nodes of the same type.
+    0x8004131E: "SCHED_E_PAST_END_BOUNDARY", # The task cannot be started after the trigger's end boundary.
+    0x8004131F: "SCHED_E_ALREADY_RUNNING", # An instance of this task is already running.
+    0x80041320: "SCHED_E_USER_NOT_LOGGED_ON", # The task will not run because the user is not logged on.
+    0x80041321: "SCHED_E_INVALID_TASK_HASH", # The task image is corrupt or has been tampered with.
+    0x80041322: "SCHED_E_SERVICE_NOT_AVAILABLE", # The Task Scheduler service is not available.
+    0x80041323: "SCHED_E_SERVICE_TOO_BUSY", # The Task Scheduler service is too busy to handle your request. Please try again later.
+    0x80041324: "SCHED_E_TASK_ATTEMPTED", # The Task Scheduler service attempted to run the task, but the task did not run due to one of the constraints in the task definition.
+    0x00041325: "SCHED_S_TASK_QUEUED", # The Task Scheduler service has asked the task to run.
+    0x80041326: "SCHED_E_TASK_DISABLED", # The task is disabled.
+    0x80041327: "SCHED_E_TASK_NOT_V1_COMPAT", # The task has properties that are not compatible with previous versions of Windows.
+    0x80041328: "SCHED_E_START_ON_DEMAND", # The task settings do not allow the task to start on demand.
+    0x80041329: "SCHED_E_TASK_NOT_UBPM_COMPAT", # The combination of properties that task is using is not compatible with the scheduling engine.
+    0x80041330: "SCHED_E_DEPRECATED_FEATURE_USED", # The task definition uses a deprecated feature.
+    0x00006200: "SCHED_E_SERVICE_NOT_LOCALSYSTEM" # The Task Scheduler service must be configured to run in the System account.
 }
 
 weekdays = {
@@ -64,32 +98,48 @@ months = {
     0xc: "Dec",
 }
 
-# http://msdn.microsoft.com/en-us/library/cc248283%28v=prot.10%29
 flags = {
-    0x80: "TASK_APPLICATION_NAME",
-    0x40000: "TASK_FLAG_RUN_ONLY_IF_LOGGED_ON",
-    0x80000: "TASK_FLAG_SYSTEM_REQUIRED",
-    0x100000: "TASK_FLAG_RESTART_ON_IDLE_RESUME",
-    0x200000: "TASK_FLAG_RUN_IF_CONNECTED_TO_INTERNET",
-    0x400000: "TASK_FLAG_HIDDEN",
-    0x800000: "TASK_FLAG_RUN_ONLY_IF_DOCKED",
-    0x1000000: "TASK_FLAG_KILL_IF_GOING_ON_BATTERIES",
-    0x2000000: "TASK_FLAG_DONT_START_IF_ON_BATTERIES",
-    0x4000000: "TASK_FLAG_KILL_ON_IDLE_END",
-    0x8000000: "TASK_FLAG_START_ONLY_IF_IDLE",
-    0x20000000: "TASK_FLAG_DISABLED",
-    0x40000000: "TASK_FLAG_DELETE_WHEN_DONE",
-    0x80000000: "TASK_FLAG_INTERACTIVE",
+    0x1:"TASK_APPLICATION_NAME",
+    0x200000:"TASK_FLAG_RUN_ONLY_IF_LOGGED_ON",
+    0x100000:"TASK_FLAG_SYSTEM_REQUIRED",
+    0x80000:"TASK_FLAG_RESTART_ON_IDLE_RESUME",
+    0x40000:"TASK_FLAG_RUN_IF_CONNECTED_TO_INTERNET",
+    0x20000:"TASK_FLAG_HIDDEN",
+    0x10000:"TASK_FLAG_RUN_ONLY_IF_DOCKED",
+    0x80000000:"TASK_FLAG_KILL_IF_GOING_ON_BATTERIES",
+    0x40000000:"TASK_FLAG_DONT_START_IF_ON_BATTERIES",
+    0x20000000:"TASK_FLAG_KILL_ON_IDLE_END",
+    0x10000000:"TASK_FLAG_START_ONLY_IF_IDLE",
+    0x4000000:"TASK_FLAG_DISABLED",
+    0x2000000:"TASK_FLAG_DELETE_WHEN_DONE",
+    0x1000000:"TASK_FLAG_INTERACTIVE",
+#     0x80: "TASK_APPLICATION_NAME",
+#     0x40000: "TASK_FLAG_RUN_ONLY_IF_LOGGED_ON",
+#     0x80000: "TASK_FLAG_SYSTEM_REQUIRED",
+#     0x100000: "TASK_FLAG_RESTART_ON_IDLE_RESUME",
+#     0x200000: "TASK_FLAG_RUN_IF_CONNECTED_TO_INTERNET",
+#     0x400000: "TASK_FLAG_HIDDEN",
+#     0x800000: "TASK_FLAG_RUN_ONLY_IF_DOCKED",
+#     0x1000000: "TASK_FLAG_KILL_IF_GOING_ON_BATTERIES",
+#     0x2000000: "TASK_FLAG_DONT_START_IF_ON_BATTERIES",
+#     0x4000000: "TASK_FLAG_KILL_ON_IDLE_END",
+#     0x8000000: "TASK_FLAG_START_ONLY_IF_IDLE",
+#     0x20000000: "TASK_FLAG_DISABLED",
+#     0x40000000: "TASK_FLAG_DELETE_WHEN_DONE",
+#     0x80000000: "TASK_FLAG_INTERACTIVE",
 }
 
 # http://msdn.microsoft.com/en-us/library/cc248286%28v=prot.10%29.aspx
 priorities = {
-    0x800000: "NORMAL_PRIORITY_CLASS",
-    0x1000000: "IDLE_PRIORITY_CLASS",
-    0x2000000: "HIGH_PRIORITY_CLASS",
-    0x4000000: "REALTIME_PRIORITY_CLASS",
+    0x20000000:"NORMAL_PRIORITY_CLASS",
+    0x40000000:"IDLE_PRIORITY_CLASS",
+    0x80000000:"HIGH_PRIORITY_CLASS",
+    0x100000:"REALTIME_PRIORITY_CLASS",
+#     0x800000: "NORMAL_PRIORITY_CLASS",
+#     0x1000000: "IDLE_PRIORITY_CLASS",
+#     0x2000000: "HIGH_PRIORITY_CLASS",
+#     0x4000000: "REALTIME_PRIORITY_CLASS",
 }
-
 
 class JobDate:
 
@@ -122,11 +172,7 @@ class JobDate:
         elif self.scheduled:
             return "{}-{:02}-{:02} {:02}:{:02}:{:02}.{}".format(self.Year, self.Month, self.Day, self.Hour, self.Minute, self.Second, self.Milliseconds)
             # return "{0} {1} {2:02}:{3:02}:{4:02}.{5} {6}".format(mon, self.Day, self.Hour, self.Minute, self.Second, self.Milliseconds, self.Year)
-        return "Task not yet run"
-
-# http://msdn.microsoft.com/en-us/library/aa379358%28v=vs.85%29.aspx
-# http://msdn.microsoft.com/en-us/library/cc248286%28v=prot.10%29.aspx
-
+        return ""
 
 class UUID:
 
@@ -149,195 +195,107 @@ class UUID:
 class Job:
 
     def __init__(self, data):
+        info = {
+            "ProductInfo": "",
+            "FileVersion": "",
+            "UUID": "",
+            "Priorities": "",
+            "MaximumRunTime": "",
+            "ExitCode": "",
+            "Status": "",
+            "Flags": "",
+            "RunDate": "",
+            "RunningInstances": "",
+            "Application": "",
+            "Parameters": "",
+            "WorkingDirectory": "",
+            "User": "",
+            "Comment": "",
+            "ScheduledDate": "",
+            "ErrorParsing": False
+        }
+
         '''
         Fixed length section
         http://msdn.microsoft.com/en-us/library/cc248286%28v=prot.13%29.aspx
         '''
-        self.ProductInfo = struct.unpack("<H", data[:2])[0]
-        self.FileVersion = struct.unpack("<H", data[2:4])[0]
-        self.UUID = UUID(data[4:20])
-        self.AppNameLenOffset = struct.unpack("<H", data[20:22])[0]
-        self.TriggerOffset = struct.unpack("<H", data[22:24])[0]
-        self.ErrorRetryCount = struct.unpack("<H", data[24:26])[0]
-        self.ErrorRetryInterval = struct.unpack("<H", data[26:28])[0]
-        self.IdleDeadline = struct.unpack("<H", data[28:30])[0]
-        self.IdleWait = struct.unpack("<H", data[30:32])[0]
-        self.Priority = struct.unpack(">I", data[32:36])[0]
-        self.MaxRunTime = struct.unpack("<i", data[36:40])[0]
-        self.ExitCode = struct.unpack("<i", data[40:44])[0]
-        self.Status = struct.unpack("<i", data[44:48])[0]
-        self.Flags = struct.unpack(">I", data[48:52])[0]
-        self.RunDate = JobDate(data[52:68])
+        try:
+            info["ProductInfo"] = struct.unpack("<H", data[:2])[0]
+            info["FileVersion"] = struct.unpack("<H", data[2:4])[0]
+            info["UUID"] = UUID(data[4:20])
+            self.AppNameLenOffset = struct.unpack("<H", data[20:22])[0]
+            self.TriggerOffset = struct.unpack("<H", data[22:24])[0]
+            self.ErrorRetryCount = struct.unpack("<H", data[24:26])[0]
+            self.ErrorRetryInterval = struct.unpack("<H", data[26:28])[0]
+            self.IdleDeadline = struct.unpack("<H", data[28:30])[0]
+            self.IdleWait = struct.unpack("<H", data[30:32])[0]
+            self.Priority = struct.unpack(">I", data[32:36])[0]
+            info["MaximumRunTime"] = struct.unpack("<i", data[36:40])[0] # In milliseconds
+            info["ExitCode"] = struct.unpack("<i", data[40:44])[0]
+            info["Status"] = struct.unpack("<i", data[44:48])[0]
+            self.Flags = struct.unpack(">I", data[48:52])[0]
+            info["RunDate"] = JobDate(data[52:68])
+        except Exception as exc:
+            info["ErrorParsing"] = str(exc)
+
+        info["ProductInfo"] = products.get(info["ProductInfo"], "None")
+        info["Status"] = task_status.get(info["Status"], "Unknown Status")
+        theflags = ""
+        for flag in flags:
+            if self.Flags & flag == flag:
+                theflags += flags[flag] + ", "
+        info["Flags"] = theflags.rstrip(", ")
+        priority = ""
+        for p in priorities:
+            if self.Priority & p == p:
+                priority += priorities[p] + ", "
+        info["Priorities"] = priority.rstrip(", ")
+
         '''
         Variable length section
         http://msdn.microsoft.com/en-us/library/cc248287%28v=prot.10%29.aspx
         '''
 
-        theflags = ""
-        for flag in flags:
-            if self.Flags & flag == flag:
-                theflags += flags[flag] + ", "
-        self.Flags_verbose = theflags.rstrip(", ")
+        try:
+            info["RunningInstances"] = struct.unpack("<H", data[68:70])[0]
+            self.NameLength = struct.unpack("<H", data[70:72])[0]
+            self.cursor = 72 + (self.NameLength * 2)
+            if self.NameLength > 0:
+                info["Application"] = data[72:self.cursor].decode("utf-16").rstrip('\x00')
+            self.ParameterSize = struct.unpack("<H", data[self.cursor:self.cursor + 2])[0]
+            self.cursor += 2
+            info["Parameters"] = ""
+            if self.ParameterSize > 0:
+                info["Parameters"] = data[self.cursor:self.cursor + self.ParameterSize * 2].decode("utf-16").rstrip('\x00')
+                self.cursor += (self.ParameterSize * 2)
+            self.WorkingDirectorySize = struct.unpack("<H", data[self.cursor:self.cursor + 2])[0]
+            self.cursor += 2
+            info["WorkingDirectory"] = "Working Directory not set"
+            if self.WorkingDirectorySize > 0:
+                info["WorkingDirectory"] = data[self.cursor:self.cursor + (self.WorkingDirectorySize * 2)].decode("utf-16").rstrip('\x00')
+                self.cursor += (self.WorkingDirectorySize * 2)
+            self.UserSize = struct.unpack("<H", data[self.cursor:self.cursor + 2])[0]
+            self.cursor += 2
+            info["User"] = "User not set"
+            if self.UserSize > 0:
+                info["User"] = data[self.cursor:self.cursor + self.UserSize * 2].decode("utf-16").rstrip('\x00')
+                self.cursor += (self.UserSize * 2)
+            self.CommentSize = struct.unpack("<H", data[self.cursor:self.cursor + 2])[0]
+            self.cursor += 2
+            info["Comment"] = "Comment not set"
+            if self.CommentSize > 0:
+                info["Comment"] = data[self.cursor:self.cursor + self.CommentSize * 2].decode("utf-16").rstrip('\x00')
+                self.cursor += self.CommentSize * 2
+            # this is probably User Data + Reserved Data:
+            self.UserData = data[self.cursor:self.cursor + 18]
+            self.cursor += 18
+            # This isn't really documented, but this is the time the job was scheduled to run:
+            if len(data) >= self.cursor + 20:
+                info["ScheduledDate"] = JobDate(data[self.cursor:self.cursor + 20], scheduled=True)
+        except Exception as exc:
+            info["ErrorParsing"] =str(exc)
 
-        self.RunningInstanceCount = struct.unpack("<H", data[68:70])[0]
-        self.NameLength = struct.unpack("<H", data[70:72])[0]
-        self.cursor = 72 + (self.NameLength * 2)
-        if self.NameLength > 0:
-            self.Name = data[72:self.cursor].decode("utf-16").rstrip('\x00')
-        self.ParameterSize = struct.unpack("<H", data[self.cursor:self.cursor + 2])[0]
-        self.cursor += 2
-        self.Parameter = ""
-        if self.ParameterSize > 0:
-            self.Parameter = data[self.cursor:self.cursor + self.ParameterSize * 2].decode("utf-16").rstrip('\x00')
-            self.cursor += (self.ParameterSize * 2)
-        self.WorkingDirectorySize = struct.unpack("<H", data[self.cursor:self.cursor + 2])[0]
-        self.cursor += 2
-        self.WorkingDirectory = "Working Directory not set"
-        if self.WorkingDirectorySize > 0:
-            self.WorkingDirectory = data[self.cursor:self.cursor + (self.WorkingDirectorySize * 2)].decode("utf-16").rstrip('\x00')
-            self.cursor += (self.WorkingDirectorySize * 2)
-        self.UserSize = struct.unpack("<H", data[self.cursor:self.cursor + 2])[0]
-        self.cursor += 2
-        self.User = "User not set"
-        if self.UserSize > 0:
-            self.User = data[self.cursor:self.cursor + self.UserSize * 2].decode("utf-16").rstrip('\x00')
-            self.cursor += (self.UserSize * 2)
-        self.CommentSize = struct.unpack("<H", data[self.cursor:self.cursor + 2])[0]
-        self.cursor += 2
-        self.Comment = "Comment not set"
-        if self.CommentSize > 0:
-            self.Comment = data[self.cursor:self.cursor + self.CommentSize * 2].decode("utf-16").rstrip('\x00')
-            self.cursor += self.CommentSize * 2
-        # this is probably User Data + Reserved Data:
-        self.UserData = data[self.cursor:self.cursor + 18]
-        self.cursor += 18
-        # This isn't really documented, but this is the time the job was scheduled to run:
-        self.ScheduledDate = JobDate(data[self.cursor:self.cursor + 20], scheduled=True)
+        self.data = info
 
     def _get_job_info(self):
-        lines = []
-        lines.append("Product Info: {0}".format(products.get(self.ProductInfo, "None")))
-        lines.append("File Version: {0}".format(self.FileVersion))
-        lines.append("UUID: {0}".format(self.UUID))
-        priority = ""
-        for p in priorities:
-            if self.Priority & p == p:
-                priority += priorities[p] + ", "
-        if priority != "":
-            lines.append("Priorities: {0}".format(priority.rstrip(", ")))
-        hours, ms = divmod(self.MaxRunTime, 3600000)
-        minutes, ms = divmod(ms, 60000)
-        seconds = ms / 1000
-        lines.append("Maximum Run Time: {0:02}:{1:02}:{2:02}.{3} (HH:MM:SS.MS)".format(hours, minutes, seconds, ms))
-        lines.append("Exit Code: {0}".format(self.ExitCode))
-        lines.append("Status: {0}".format(task_status.get(self.Status, "Unknown Status")))
-        theflags = ""
-        for flag in flags:
-            if self.Flags & flag == flag:
-                theflags += flags[flag] + ", "
-        lines.append("Flags: {0}".format(theflags.rstrip(", ")))
-        lines.append("Date Run: {0}".format(self.RunDate))
-        lines.append("Running Instances: {0}".format(self.RunningInstanceCount))
-        lines.append("Application: {0}".format(self.Name))
-        if self.Parameter != "":
-            lines.append("Parameters: {0}".format(self.Parameter))
-        lines.append("Working Directory: {0}".format(self.WorkingDirectory))
-        lines.append("User: {0}".format(self.User))
-        lines.append("Comment: {0}".format(self.Comment))
-        lines.append("Scheduled Date: {0}".format(self.ScheduledDate))
-        return lines
-
-    def __repr__(self):
-        lines = ""
-        lines += "Product Info: {0}\n".format(products.get(self.ProductInfo, "None"))
-        lines += "File Version: {0}\n".format(self.FileVersion)
-        lines += "UUID: {0}\n".format(self.UUID)
-        priority = ""
-        for p in priorities:
-            if self.Priority & p == p:
-                priority += priorities[p] + ", "
-        if priority != "":
-            lines += "Priorities: {0}\n".format(priority.rstrip(", "))
-        hours, ms = divmod(self.MaxRunTime, 3600000)
-        minutes, ms = divmod(ms, 60000)
-        seconds = ms / 1000
-        lines += "Maximum Run Time: {0:02}:{1:02}:{2:02}.{3} (HH:MM:SS.MS)\n".format(hours, minutes, seconds, ms)
-        lines += "Exit Code: {0}\n".format(self.ExitCode)
-        lines += "Status: {0}\n".format(task_status.get(self.Status, "Unknown Status"))
-        theflags = ""
-        for flag in flags:
-            if self.Flags & flag == flag:
-                theflags += flags[flag] + ", "
-        lines += "Flags: {0}\n".format(theflags.rstrip(", "))
-        lines += "Date Run: {0}\n".format(self.RunDate)
-        lines += "Running Instances: {0}\n".format(self.RunningInstanceCount)
-        lines += "Application: {0}\n".format(self.Name)
-        if self.Parameter != "":
-            lines += "Parameters: {0}\n".format(self.Parameter)
-        lines += "Working Directory: {0}\n".format(self.WorkingDirectory)
-        lines += "User: {0}\n".format(self.User)
-        lines += "Comment: {0}\n".format(self.Comment)
-        lines += "Scheduled Date: {0}\n".format(self.ScheduledDate)
-        return lines
-
-
-def usage():
-    print("jobparser.py:\n")
-    print(" -f <job>")
-    print(" -d <directory of job files>")
-
-
-def main():
-    file = None
-    dir = None
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "hf:d:", ["help", "file=", "dir="])
-    except err:
-        print(str(err))
-        sys.exit(2)
-    for o, a in opts:
-        if o in ("-h", "--help"):
-            usage()
-            sys.exit(2)
-        elif o in ("-f", "--file"):
-            if os.path.isfile(a):
-                file = open(a, "rb")
-            else:
-                print(a + " is not a file")
-                usage()
-                return
-        elif o in ("-d", "--dir"):
-            dir = a
-        else:
-            assert False, "unhandled option\n\n"
-            sys.exit(2)
-
-    if file is None and dir is None:
-        usage()
-        return
-
-    if dir is not None and os.path.isdir(dir):
-        for fname in os.listdir(dir):
-            if fname.endswith(".job") and os.path.isfile(os.path.join(dir, fname)):
-                file = open(os.path.join(dir, fname), "rb")
-                try:
-                    job = Job(file.read(0x2000))
-                    print("*" * 72)
-                    print("File: " + os.path.join(dir, fname))
-                    print(job)
-                    print("*" * 72)
-                except:
-                    print("Unable to process file: " + os.path.join(dir, fname))
-
-        file = None
-
-    # I'm not sure what's the largest a job file can be, but I'm setting a limit
-    # just to avoid accidental imports of large files
-    elif file is not None:
-        data = file.read(0x2000)
-        job = Job(data)
-        print(job)
-
-
-if __name__ == "__main__":
-    main()
+        return self.data

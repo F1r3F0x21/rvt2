@@ -27,7 +27,7 @@ from tqdm import tqdm
 
 from plugins.external import jobparser
 import base.job
-from base.utils import check_directory, check_file, save_csv, save_json, relative_path, windows_format_path, date_to_iso
+from base.utils import check_directory, check_file, save_csv, save_json, relative_path, windows_format_path, date_to_iso, get_partition
 from base.commands import run_command, yield_command
 from plugins.common.RVT_files import GetTimeline
 from plugins.windows.RVT_os_info import CharacterizeWindows
@@ -265,6 +265,26 @@ def registry_key_tree_to_json(volumekey, depth=0, hive='SOFTWARE', data=None, ev
                 event[f'registry.data.DynamicInfo'] = value.value()
 
 
+class BaseRegistry(base.job.BaseModule):
+    """ Base class to parse registry keys with Registry library """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('path', '')
+        self.set_default_config('volume_id', '')
+
+    def get_outfile(self, prefix_name, extension='csv', volume_id='', user=''):
+        """ Set output filename. Format {prefix_name}_{volume_id}_{user}.{extension} """
+        id = volume_id if volume_id else self.myconfig('volume_id', None)
+        outfolder = self.myconfig('outdir')
+        check_directory(outfolder, create=True)
+        self.outfile = os.path.join(outfolder, '{}{}{}.{}'.format(
+            prefix_name, '_{}'.format(id) if id else '', '_{}'.format(user) if user else '', extension))
+
+    def run(self, path=""):
+        raise NotImplementedError
+
+
 class AllKeys(base.job.BaseModule):
     """ Parses all keys and subkeys from a registry hive """
 
@@ -332,13 +352,12 @@ class AllKeys(base.job.BaseModule):
             self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
 
 
-class AmCache(base.job.BaseModule):
+class AmCache(BaseRegistry):
     """ Parses Amcache.hve registry hive. """
 
     def read_config(self):
         super().read_config()
         self.set_default_config('path', '')
-        self.set_default_config('volume_id', '')
         self.set_default_config('max_days', 90)
 
     def run(self, path=""):
@@ -347,11 +366,8 @@ class AmCache(base.job.BaseModule):
         self.hash_dict = {}
 
         # Determine output filename
-        id = self.myconfig('volume_id', None)
-        self.partition = id if id else 'p01'  # needed to get OS info
-        outfolder = self.myconfig('outdir')
-        check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'amcache{}.csv'.format('_{}'.format(id) if id else ''))
+        self.partition = get_partition(path, self.myconfig('mountdir'))  # needed to get OS info
+        self.get_outfile('amcache', extension='csv', volume_id=self.partition)
         self.alienvault = alienvault(api_key=self.config.get('IP_API_keys', 'alienvault_key', None))
         self.days = int(self.myconfig('max_days'))
 
@@ -426,7 +442,7 @@ class AmCache(base.job.BaseModule):
             },
             'Windows Server 2012': {
                 '': ['File'],
-                'R2': ['File']
+                'R2': ['File', 'InventoryApplication', 'InventoryApplicationFile']
             },
             "Windows Server 2008": {
                 "RTM": ["Programs", "File"],
@@ -618,7 +634,7 @@ class AmCache(base.job.BaseModule):
             yield app
 
 
-class ShimCache(base.job.BaseModule):
+class ShimCache(BaseRegistry):
     """ Extracts ShimCache information from registry hives. """
 
     # TODO: .sdb shim database files (ex: Windows/AppPatch/sysmain.sdb)
@@ -626,17 +642,14 @@ class ShimCache(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('path', '')
-        self.set_default_config('volume_id', '')
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
         self.shimcache_path = path
 
         # Determine output filename
-        id = self.myconfig('volume_id', None)
-        outfolder = self.myconfig('outdir')
-        check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'shimcache{}.csv'.format('_{}'.format(id) if id else ''))
+        self.partition = get_partition(path, self.myconfig('mountdir'))
+        self.get_outfile('shimcache', extension='csv', volume_id=self.partition)
 
         self.logger().debug("Parsing shimcache on {}".format(self.shimcache_path))
         save_csv(self.parse_ShimCache_hive(self.shimcache_path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
@@ -679,13 +692,12 @@ class ShimCache(base.job.BaseModule):
                     yield OrderedDict([('LastModified', date), ('AppPath', path), ('Executed', executed)])
 
 
-class SysCache(base.job.BaseModule):
+class SysCache(BaseRegistry):
     """ Parse SysCache registry hive """
 
     def read_config(self):
         super().read_config()
         self.set_default_config('path', '')
-        self.set_default_config('volume_id', '')
         self.set_default_config('max_days', 90)
 
     def run(self, path=""):
@@ -693,12 +705,8 @@ class SysCache(base.job.BaseModule):
 
         # Determine output filename
         # Partition is needed to get inode information
-        self.partition = self.myconfig('volume_id', None)
-        if not self.partition:
-            self.partition = relative_path(path, self.myconfig('mountdir')).split('/')[0] or 'p01'
-        outfolder = self.myconfig('outdir')
-        check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, f'syscache_{self.partition}.csv')
+        self.partition = get_partition(path, self.myconfig('mountdir'))
+        self.get_outfile('syscache', extension='csv', volume_id=self.partition)
 
         self.days = int(self.myconfig('max_days'))
         self.logger().debug("Parsing SysCache hive: {}".format(path))
@@ -768,7 +776,7 @@ class SysCache(base.job.BaseModule):
             yield result
 
 
-class AppCompat(base.job.BaseModule):
+class AppCompat(BaseRegistry):
     """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time
     
     Configuration section:
@@ -782,7 +790,6 @@ class AppCompat(base.job.BaseModule):
     def read_config(self):
         super().read_config()
         self.set_default_config('path', '')
-        self.set_default_config('volume_id', '')
         self.set_default_config('cmd', '')
         #self.set_default_config('cmd', '{windows_tool} {executable} -f {path} --csv {outdir} --csvf {filename} --nl')
         self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'AppCompatCacheParser.exe'))
@@ -795,10 +802,8 @@ class AppCompat(base.job.BaseModule):
             path = self.myconfig('path')
 
         # Determine output filename
-        id = self.myconfig('volume_id', None)
-        outfolder = self.myconfig('outdir')
-        check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, 'appcompatcache{}.csv'.format('_{}'.format(id) if id else ''))
+        self.partition = get_partition(path, self.myconfig('mountdir'))
+        self.get_outfile('appcompatcache', extension='csv', volume_id=self.partition)
         tmp_file = os.path.join(os.path.dirname(self.outfile), 'temp_' + os.path.basename(self.outfile))
 
         cmd = self.myconfig('cmd', None)
@@ -857,7 +862,7 @@ class AppCompat(base.job.BaseModule):
             return False
 
 
-class UserAssist(base.job.BaseModule):
+class UserAssist(BaseRegistry):
     """ Parses UserAssist registry key in NTUSER.DAT hive.
 
     Configuration section:
@@ -883,19 +888,17 @@ name" are automatically set by the job. The rest are the same ones specified in 
         # Take path from params if not provided as an argument
         if not path:
             path = self.myconfig('path')
+        self.partition = get_partition(path, self.myconfig('mountdir'))
 
         regfiles = get_hives(path)
         if 'ntuser' not in regfiles:
             self.logger().warning('No valid NTUSER.DAT registry hives provided')
             return []
 
-        id = self.myconfig('volume_id', None)  # Volume identifier
-        check_directory(self.myconfig('outdir'), create=True)
-
         cmd = self.myconfig('cmd')
 
         for user in tqdm(regfiles['ntuser'], total=len(regfiles['ntuser']), desc=self.section):
-            output_filename = 'userassist_{}_{}.csv'.format(id if id else '', user)
+            self.get_outfile('userassist', extension='csv', volume_id=self.partition, user=user)
             hive = regfiles['ntuser'][user]
 
             convert_paths = self.myflag('convert_paths')
@@ -904,7 +907,7 @@ name" are automatically set by the job. The rest are the same ones specified in 
                         'batch_file': windows_format_path(self.myconfig('batch_file'), enclosed=True) if convert_paths else self.myconfig('batch_file'),
                         'hive': windows_format_path(hive, enclosed=True) if convert_paths else hive,
                         'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True) if convert_paths else self.myconfig('outdir'),
-                        'filename': windows_format_path(output_filename, enclosed=True) if convert_paths else output_filename}
+                        'filename': windows_format_path(self.outfile, enclosed=True) if convert_paths else self.outfile}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
 
             output_folder_to_remove = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H")
@@ -1010,7 +1013,7 @@ class UserAssistAnalysis(base.job.BaseModule):
                     yield res
 
 
-class Shellbags(base.job.BaseModule):
+class Shellbags(BaseRegistry):
     """ Parses Shellbags registry key in NTUSER.DAT and/or usrclass.dat hive.
 
     Configuration section:
@@ -1032,6 +1035,7 @@ class Shellbags(base.job.BaseModule):
         # Take path from params if not provided as an argument
         if not path:
             path = self.myconfig('path')
+        self.partition = get_partition(path, self.myconfig('mountdir'))
 
         # Get NTUSER.DAT and UsrClass.dat hives path for every user
         regfiles = get_hives(path)
@@ -1043,15 +1047,12 @@ class Shellbags(base.job.BaseModule):
             for user, hive in regfiles.get(user_hive, {}).items():
                 usr_folders[os.path.dirname(hive)] = user
 
-        id = self.myconfig('volume_id', None)  # Volume identifier
-        check_directory(self.myconfig('outdir'), create=True)
-
         cmd = self.myconfig('cmd')
 
         for hives_dir in tqdm(usr_folders, total=len(usr_folders), desc=self.section):
             user = usr_folders[hives_dir]
             # Only one user should own a folder with NTUSER.dat or UsrClasss.dat hives. Will overwrite if not.
-            output_filename = 'shellbags_{}_{}.csv'.format(id if id else '', user)
+            self.get_outfile('shellbags', extension='csv', volume_id=self.partition, user=user)
 
             convert_paths = self.myflag('convert_paths')
             cmd_vars = {'windows_tool': self.myconfig('windows_tool'),
@@ -1065,7 +1066,7 @@ class Shellbags(base.job.BaseModule):
             # SBECmd.exe saves the output in a file called Deduplicated.csv. Change the name:
             if os.path.exists(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv')):
                 shutil.move(os.path.join(self.myconfig('outdir'), 'Deduplicated.csv'),
-                            os.path.join(self.myconfig('outdir'), output_filename))
+                            os.path.join(self.myconfig('outdir'), self.outfile))
 
         # Remove summary file created by app
         os.remove(os.path.join(self.myconfig('outdir'), '!SBECmd_Messages.txt'))
@@ -1108,27 +1109,6 @@ class ShellbagsAnalysis(base.job.BaseModule):
                     yield res
 
 
-class BaseRegistry(base.job.BaseModule):
-    """ Base class to parse registry keys with Registry library """
-
-    def read_config(self):
-        super().read_config()
-        self.set_default_config('path', '')
-        self.set_default_config('volume_id', '')
-
-    def get_outfile(self, prefix_name, extension='csv'):
-        """ Set output filename. Format {prefix_name}_{volume_id}.{extension} """
-        id = self.myconfig('volume_id', None)
-        self.partition = id if id else 'p01'  # needed to get OS info
-        outfolder = self.myconfig('outdir')
-        check_directory(outfolder, create=True)
-        self.outfile = os.path.join(outfolder, '{}{}.{}'.format(
-            prefix_name, '_{}'.format(id) if id else '', extension))
-
-    def run(self, path=""):
-        raise NotImplementedError
-
-
 class RunKeys(BaseRegistry):
     """ Get autostart key contents from registry hives.
     Run Keys exist for all users in SOFTWARE hive and for individual users in NTUSER.DAT.
@@ -1136,7 +1116,8 @@ class RunKeys(BaseRegistry):
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.get_outfile('run_keys', extension='csv')
+        self.partition = get_partition(path, self.myconfig('mountdir'))
+        self.get_outfile('run_keys', extension='csv', volume_id=self.partition)
         self.logger().debug("Parsing {}".format(path))
 
         regfiles = get_hives(path)
@@ -1205,7 +1186,8 @@ class Services(BaseRegistry):
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.get_outfile('services', extension='json')
+        self.partition = get_partition(path, self.myconfig('mountdir'))
+        self.get_outfile('services', extension='json', volume_id=self.partition)
         self.logger().debug("Parsing {}".format(path))
 
         entries = self.parse_services_keys(path)
@@ -1242,7 +1224,8 @@ class Tasks(BaseRegistry):
 
     def run(self, path=""):
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.get_outfile('tasks', extension='csv')
+        self.partition = get_partition(path, self.myconfig('mountdir'))
+        self.get_outfile('tasks', extension='csv', volume_id=self.partition)
         self.logger().debug("Parsing {}".format(path))
 
         entries = self.parse_tasks_keys(path)

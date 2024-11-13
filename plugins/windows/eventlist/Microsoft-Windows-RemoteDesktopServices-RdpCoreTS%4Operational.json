@@ -50,7 +50,7 @@
     "path": {
       "EventData": {
         "Name": ["ConnType", "ClientIP"],
-        "transform": {"ConnType": "network.transport", "ClientIP": "client.ip"}
+        "transform": {"ConnType": "network.transport", "ClientIP": "client.address"}
       },
       "System/Correlation/#attributes":{
          "Name": ["ActivityID"]
@@ -63,7 +63,7 @@
     "path": {
       "EventData": {
         "Name": ["IPString"],
-        "transform": {"IPString": "source.ip"}
+        "transform": {"IPString": "source.address"}
       },
       "System/Correlation/#attributes":{
          "Name": ["ActivityID"]
