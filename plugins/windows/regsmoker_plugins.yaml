@@ -153,7 +153,8 @@ software:
     filename: persistence/activesetup.csv
     output: csv
   amsiproviders:
-    filename: persistence/amsiproviders.json
+    filename: persistence/amsiproviders.csv
+    output: csv
   drivers32:
     filename: persistence/drivers32.json
   imagefile:
@@ -365,7 +366,7 @@ sam:
     filename: user_account/samparse.json
 security:
   polacdms:
-    filename: user_account/polacdms.json
+    filename: user_account/polacdms.csv
     output: csv
   auditpol:
     filename: eventlog_info/auditpol.csv

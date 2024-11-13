@@ -224,22 +224,40 @@ class Regsmoker(base.job.BaseModule):
         with open(os.path.join(output_path, 'rules.json'), 'a') as f_out:
             for hive, hivefile in regfiles.items():
                 if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd'):
+                    tlog1, tlog2 = self._get_transaction(hivefile)
                     for fname, values in self.rules_dict.items():
                         if hive.lower() in values:
                             try:
                                 sigma = self.reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname))
+                                results = None
                                 if sigma.check_conditions():
-                                    f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                    results = sigma.get_result()
+                                    f_out.write(f"{json.dumps(results)}\n")
+                                if tlog1 is not None:
+                                    sigma2 = self.reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname), tlog1, tlog2)
+                                    if sigma.check_conditions():
+                                        results2 = sigma2.get_result()
+                                        if results != results2:
+                                            f_out.write(f"{json.dumps(results2)}\n")
                             except Exception as exc:
                                 self.logger().warning(f"Problems applying rule {fname} against file {hivefile}. {exc}")
                 elif hive in ('ntuser', 'usrclass'):
                     for hfile in hivefile.values():
+                        tlog1, tlog2 = self._get_transaction(hfile)
                         for fname, values in self.rules_dict.items():
                             if hive.lower() in values:
                                 try:
                                     sigma = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
+                                    results = None
                                     if sigma.check_conditions():
-                                        f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                        results = sigma.get_result()
+                                        f_out.write(f"{json.dumps(results)}\n")
+                                    if tlog1 is not None:
+                                        sigma2 = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname), tlog1, tlog2)
+                                        if sigma.check_conditions():
+                                            results2 = sigma2.get_result()
+                                            if results != results2:
+                                                f_out.write(f"{json.dumps(results2)}\n")
                                 except Exception as exc:
                                     self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
                 elif hive in ('user', 'userclass'):
@@ -251,10 +269,19 @@ class Regsmoker(base.job.BaseModule):
                         for fnames, values in self.rules_dict.items():
                             if hive.lower() in values:
                                 for hfile in hfiles:
+                                    tlog1, tlog2 = self._get_transaction(hfile)
                                     try:
                                         sigma = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
+                                        results = None
                                         if sigma.check_conditions():
-                                            f_out.write(f"{json.dumps(sigma.get_result())}\n")
+                                            results = sigma.get_result()
+                                            f_out.write(f"{json.dumps(results)}\n")
+                                        if tlog1 is not None:
+                                            sigma2 = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname), tlog1, tlog2)
+                                            if sigma.check_conditions():
+                                                results2 = sigma2.get_result()
+                                                if results != results2:
+                                                    f_out.write(f"{json.dumps(results2)}\n")
                                     except Exception as exc:
                                         self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
         return []
@@ -269,6 +296,23 @@ class Regsmoker(base.job.BaseModule):
                 data = yaml.safe_load(f_in)
             rules_dict[fil] = data['logsource']['service'].lower()
         return rules_dict
+
+    def _get_transaction(self, filename):
+        """ returns transaction files if exists """
+
+        base_path = os.path.dirname(filename)
+        if base_path == '':
+            base_path = '.'
+        filename = os.path.basename(filename).lower()
+        tlog1 = None
+        tlog2 = None
+        for fname in os.listdir(base_path):
+            if fname.lower().startswith(filename):
+                if fname.lower().endswith('log1'):
+                    tlog1 = os.path.join(base_path, fname)
+                elif fname.lower().endswith('log2'):
+                    tlog2 = os.path.join(base_path, fname)
+        return tlog1, tlog2
 
     def get_data(self, filename, plugin_name, skip_lastwrite=False, skip_empty_keys=False):
 
@@ -288,6 +332,27 @@ class Regsmoker(base.job.BaseModule):
                         yield new_res.pop('lastwrite')
             else:
                 yield json.dumps(res)
+
+        tlog1, tlog2 = self._get_transaction(filename)
+        if tlog1 != None:  # There are transaction logs
+            plugin2 = self.reg_plugin.Plugin(filename, os.path.join(self.regsmoker_path, os.path.join('plugins', f"{plugin_name}.yaml")), tlog1=tlog1, tlog2=tlog2)
+            plugin2.get_data()
+
+            for res in plugin2.data:
+                if res in plugin.data:
+                    continue
+                if not skip_lastwrite and not skip_empty_keys:
+                    yield res
+                elif skip_lastwrite and skip_empty_keys:
+                    new_res = {}
+                    for k in res:
+                        if len(res[k]) == 1:
+                            continue
+                        else:
+                            new_res = res
+                            yield new_res.pop('lastwrite')
+                else:
+                    yield json.dumps(res)
 
     def json_to_csv(self, item, swap_fields=False):
 
