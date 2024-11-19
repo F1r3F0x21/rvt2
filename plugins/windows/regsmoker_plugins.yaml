@@ -136,6 +136,9 @@ software:
     output: csv
   defender:
     filename: installed_programs/defender.json
+  defender_exclusions:
+    filename: installed_programs/defender_exclusions.csv
+    output: csv
   installer:
     filename: installed_programs/installer.csv
     output: csv
