@@ -221,6 +221,8 @@ software:
 ntuser:
   appcompatflags:
     filename: execution/appcompatflags_user.json
+  defender_smartscreen:
+    filename: installed_programs/defender_smartscreen.json
   pslogging:
     filename: installed_programs/pslogging_user.json
   shc:
