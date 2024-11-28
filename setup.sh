@@ -399,17 +399,14 @@ install_zimmerman_tools(){
 }
 
 install_hayabusa(){
-  # hayabusa installation
   HAYABUSA_PATH="external_tools/hayabusa"
-  local DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/Yamato-Security/hayabusa/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "-all-platforms.zip$" | head -1)
+  local DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/Yamato-Security/hayabusa/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "all-platforms.zip$" | head -1)
   local VERSION=$(echo $DOWNLOAD_URL | sed -rn "s/.*hayabusa-([0-9.][0-9.]*)-all-platforms.zip/\1/p")
 
   mkdir $HAYABUSA_PATH
-  chown -R rvt:incide $HAYABUSA_PATH
   cd $HAYABUSA_PATH
   wget $DOWNLOAD_URL
   unzip "hayabusa-$VERSION-all-platforms.zip"
-  chown -R rvt:incide .
   rm "hayabusa-$VERSION-all-platforms.zip"
   mv "./hayabusa-$VERSION-lin-x64-gnu" hayabusa-lin-x64-gnu
   chmod +x ./hayabusa-lin-x64-gnu

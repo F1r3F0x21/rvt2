@@ -193,11 +193,9 @@ update_hayabusa(){
     if [ $VERSION != $NEWVERSION ]; then
         mv "$HAYABUSA_PATH" "HAYABUSA_TMP" && \
         mkdir $HAYABUSA_PATH && \
-        chown -R rvt:incide $HAYABUSA_PATH && \
         cd $HAYABUSA_PATH && \
         wget $DOWNLOAD_URL && \
         unzip "hayabusa-$NEWVERSION-all-platforms.zip" && \
-        chown -R rvt:incide . && \
         rm "hayabusa-$NEWVERSION-all-platforms.zip" && \
         mv "./hayabusa-$NEWVERSION-lin-x64-gnu" hayabusa-lin-x64-gnu && \
         chmod +x ./hayabusa-lin-x64-gnu && \

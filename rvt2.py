@@ -157,7 +157,7 @@ def set_global_vars(config, args):
     pattern = r'^(?P<caseid>\d{6})-(?P<casename>DR-[^-]+-[^_-]+)'
     arguments = re.search(pattern, updated_vars['source'])
     if not arguments and job_needs_source(args.job):
-        logging.warning(f"Source ({updated_vars['source']}) does not follow the expected format. Getting 'client' and 'casename' from parameters or configuration")
+        logging.info(f"Source ({updated_vars['source']}) does not follow the expected format. Getting 'client' and 'casename' from parameters or configuration")
     elif arguments:
         caseid = arguments.group('caseid')
         casename = arguments.group('casename')
