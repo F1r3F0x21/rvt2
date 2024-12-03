@@ -96,7 +96,8 @@ class Lnk(object):
 
         Output fields:
             drive_type; drive_sn; machine_id; path; network_path; size; atributes; description;
-            command line arguments; file_id; volume_id; birth_file_id; birth_volume_id; f_mtime; f_atime; f_ctime
+            command line arguments; fileDroidDate; fileBirthDroidDate; fileDroidMAC; fileBirthDroidMAC;
+            file_id; volume_id; birth_file_id; birth_volume_id; f_mtime; f_atime; f_ctime
         """
 
         try:
@@ -153,14 +154,14 @@ class Lnk(object):
             vol_objectID = lnk.get_droid_volume_identifier()
             b_vol_objectID = lnk.get_birth_droid_volume_identifier()
             fileDroid = uuid.UUID(file_objectID)
-            fileBirdDroid = uuid.UUID(b_file_objectID)
+            fileBirthDroid = uuid.UUID(b_file_objectID)
             fileDroidDate = datetime.datetime.fromtimestamp((fileDroid.time - 0x01b21dd213814000) * 100 / 1e9)
             fileDroidMAC = ":".join(re.findall("..", "%012x" % fileDroid.node))
-            fileBirdDroidDate = datetime.datetime.fromtimestamp((fileBirdDroid.time - 0x01b21dd213814000) * 100 / 1e9)
-            fileBirdDroidMAC = ":".join(re.findall("..", "%012x" % fileBirdDroid.node))
+            fileBirthDroidDate = datetime.datetime.fromtimestamp((fileBirthDroid.time - 0x01b21dd213814000) * 100 / 1e9)
+            fileBirthDroidMAC = ":".join(re.findall("..", "%012x" % fileBirthDroid.node))
         except Exception as exc:
             self.logger.debug("pylnk can't get file identifier. error={}".format(exc))
-            file_objectID, b_file_objectID, vol_objectID, b_vol_objectID, fileDroidDate, fileDroidMAC, fileBirdDroidDate, fileBirdDroidMAC = ['', '', '', '', '', '', '', '']
+            file_objectID, b_file_objectID, vol_objectID, b_vol_objectID, fileDroidDate, fileDroidMAC, fileBirthDroidDate, fileBirthDroidMAC = ['', '', '', '', '', '', '', '']
 
         file_times = [lnk.get_file_modification_time(), lnk.get_file_access_time(), lnk.get_file_creation_time()]
 
@@ -172,7 +173,7 @@ class Lnk(object):
 
         try:
             data = [drive, sn, machine_id, path, network_path, file_size, self.convertAttributes(lnk.get_file_attribute_flags()), lnk.get_description(),
-                    lnk.get_command_line_arguments(), fileDroidDate, fileBirdDroidDate, fileDroidMAC, fileBirdDroidMAC, file_objectID, b_file_objectID, vol_objectID, b_vol_objectID, *file_times]
+                    lnk.get_command_line_arguments(), fileDroidDate, fileBirthDroidDate, fileDroidMAC, fileBirthDroidMAC, file_objectID, b_file_objectID, vol_objectID, b_vol_objectID, *file_times]
         except Exception as exc:
             self.logger.debug("Lnk Error. error=%s", exc)
             return -1
@@ -228,7 +229,7 @@ class LnkParser(base.job.BaseModule):
         """
 
         headers = ["mtime", "atime", "ctime", "btime", "drive_type", "drive_sn", "machine_id", "path", "network_path", "size", "atributes", "description",
-                   "command line arguments", "fileDroidDate", "fileBirdDroidDate", "fileDroidMAC", "fileBirdDroidMAC", "file_id", "birth_file_id", "volume_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file", "volumeDroid", "volumeBirdDroid", "fileDroid", "fileBirdDroid"]
+                   "command line arguments", "fileDroidDate", "fileBirthDroidDate", "fileDroidMAC", "fileBirthDroidMAC", "file_id", "birth_file_id", "volume_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file"]
 
         relative_files_list = files_list
         if files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
@@ -247,7 +248,7 @@ class LnkParser(base.job.BaseModule):
 
             if lnk == -1:
                 self.logger().debug("Problems with file {}".format(abs_file))
-                yield OrderedDict(zip(headers, data[rel_file] + ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", rel_file]))
+                yield OrderedDict(zip(headers, data[rel_file] + [""] * 20 + [rel_file]))
             else:
                 yield OrderedDict(zip(headers, data[rel_file] + lnk + [rel_file]))
 
@@ -295,7 +296,7 @@ class LnkParser(base.job.BaseModule):
         final_ofs = {'w10': 4, 'w7': 0}
 
         headers = ["Open date", "Application", "interaction_count", "drive_type", "drive_sn", "machine_id", "path", "network_path", "size", "atributes", "description",
-                   "command line arguments", "fileDroidDate", "fileBirdDroidDate", "fileDroidMAC", "fileBirdDroidMAC", "file_id", "birth_file_id", "volume_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file"]
+                   "command line arguments", "fileDroidDate", "fileBirthDroidDate", "fileDroidMAC", "fileBirthDroidMAC", "file_id", "birth_file_id", "volume_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file"]
 
         # Main loop
         for abs_jl, jl in zip(files_list, relative_files_list):
@@ -361,12 +362,12 @@ class LnkParser(base.job.BaseModule):
 
                     # volumeDroid = uuid.UUID(bytes_le=stream[8:24])
                     # fileDroid = uuid.UUID(bytes_le=stream[24:40])
-                    # volumeBirdDroid = uuid.UUID(bytes_le=stream[40:56])
-                    # fileBirdDroid = uuid.UUID(bytes_le=stream[56:72])
+                    # volumeBirthDroid = uuid.UUID(bytes_le=stream[40:56])
+                    # fileBirthDroid = uuid.UUID(bytes_le=stream[56:72])
                     # fileDroidDate = datetime.datetime.fromtimestamp((fileDroid.time - 0x01b21dd213814000) * 100 / 1e9)
                     # fileDroidMAC = ":".join(re.findall("..", "%012x" % fileDroid.node))
-                    # fileBirdDroidDate = datetime.datetime.fromtimestamp((fileBirdDroid.time - 0x01b21dd213814000) * 100 / 1e9)
-                    # fileBirdDroidMAC = ":".join(re.findall("..", "%012x" % fileBirdDroid.node))
+                    # fileBirthDroidDate = datetime.datetime.fromtimestamp((fileBirthDroid.time - 0x01b21dd213814000) * 100 / 1e9)
+                    # fileBirthDroidMAC = ":".join(re.findall("..", "%012x" % fileBirthDroid.node))
 
                     # Get MSFILETIME
                     try:
@@ -374,10 +375,7 @@ class LnkParser(base.job.BaseModule):
                     except Exception as exc:
                         self.logger().debug("Problems unpacking MSFILETIME with filename={} error={}".format(abs_jl, exc))
                         break
-
                     timestamp = getFileTime(time0, time1)
-
-                    interaction_count, = struct.unpack("I", stream[116:120])
 
                     # sz: Length of Unicodestring data
                     try:
@@ -387,6 +385,14 @@ class LnkParser(base.job.BaseModule):
                         self.logger().debug("Problems unpaking unicode string size with filename={} error={}".format(abs_jl, exc))
                         # self.logger().debug(stream[sz_ofs[version][0]:sz_ofs[version][1]])
                         break
+
+                    interaction_count = ''
+                    if version == 'w10':
+                        try:
+                            interaction_count, = struct.unpack("I", stream[116:120])
+                        except Exception as exc:
+                            self.logger().debug("Problems unpaking interaction_count with filename={} error={}".format(abs_jl, exc))
+                            interaction_count = ''
 
                     ofs += entry_ofs[version]
                     sz2 = sz * 2   # Unicode 2 bytes
@@ -402,9 +408,8 @@ class LnkParser(base.job.BaseModule):
                             self.logger().debug("Problems decoding path with filename=%s error=%s", abs_jl, exc)
                     path = path.replace("\00", "")
 
+                    # Extract lnk data
                     temp = tempfile.NamedTemporaryFile()
-                    # Move to the next entry
-                    ofs += sz2 + final_ofs[version]
                     try:
                         aux = ole.openstream(id_entry)
                     except Exception as exc:
@@ -412,25 +417,26 @@ class LnkParser(base.job.BaseModule):
                         self.logger().debug("ole.openstream failed")
                         temp.close()
                         break
-                    datos = aux.read()
-                    temp.write(datos)
+                    temp_data = aux.read()
+                    temp.write(temp_data)
                     temp.flush()
 
-                    # Extract lnk data
                     lnk = Lnk(temp.name, self.encoding, logger=self.logger())
                     lnk = lnk.get_lnk_info()
-
                     temp.close()
 
                     n_hash = os.path.basename(jl).split(".")[0]
                     if lnk == -1:
                         # yield OrderedDict(zip(headers, [time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp)), self.dicID.get(n_hash, n_hash), interaction_count, fileDroidDate.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        #                                 fileBirdDroidDate.strftime("%Y-%m-%dT%H:%M:%SZ"), "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", jl, fileDroidMAC, fileBirdDroidMAC, volumeDroid, volumeBirdDroid, fileDroid, fileBirdDroid]))
-                        yield OrderedDict(zip(headers, [time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp)), self.dicID.get(n_hash, n_hash), interaction_count, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", jl]))
+                        #                                 fileBirthDroidDate.strftime("%Y-%m-%dT%H:%M:%SZ"), "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", jl, fileDroidMAC, fileBirthDroidMAC, volumeDroid, volumeBirthDroid, fileDroid, fileBirthDroid]))
+                        yield OrderedDict(zip(headers, [time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp)), self.dicID.get(n_hash, n_hash), interaction_count] + [""] * 20 + [jl]))
                     else:
                         # yield OrderedDict(zip(headers, [time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp)), self.dicID.get(n_hash, n_hash), interaction_count, fileDroidDate.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        #                                 fileBirdDroidDate.strftime("%Y-%m-%dT%H:%M:%SZ")] + lnk + [jl, fileDroidMAC, fileBirdDroidMAC, volumeDroid, volumeBirdDroid, fileDroid, fileBirdDroid]))
+                        #                                 fileBirthDroidDate.strftime("%Y-%m-%dT%H:%M:%SZ")] + lnk + [jl, fileDroidMAC, fileBirthDroidMAC, volumeDroid, volumeBirthDroid, fileDroid, fileBirthDroid]))
                         yield OrderedDict(zip(headers, [time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp)), self.dicID.get(n_hash, n_hash), interaction_count] + lnk + [jl]))
+
+                    # Move to the next entry
+                    ofs += sz2 + final_ofs[version]
 
             ole.close()
 
@@ -444,7 +450,7 @@ class LnkParser(base.job.BaseModule):
         split_str = b"\x4C\x00\x00\x00\x01\x14\x02\x00"
 
         headers = ["Application", "drive_type", "drive_sn", "machine_id", "path", "network_path", "size", "atributes", "description", "command line arguments", "fileDroidDate",
-                   "fileBirdDroidDate", "fileDroidMAC", "fileBirdDroidMAC", "file_id", "birth_file_id", "volume_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file"]
+                   "fileBirthDroidDate", "fileDroidMAC", "fileBirthDroidMAC", "file_id", "birth_file_id", "volume_id", "birth_volume_id", "f_mtime", "f_atime", "f_ctime", "file"]
 
         relative_files_list = files_list
         if files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
@@ -465,7 +471,7 @@ class LnkParser(base.job.BaseModule):
 
                 n_hash = os.path.basename(jl).split(".")[0]
                 if lnk == -1:
-                    yield OrderedDict(zip(headers, [self.dicID.get(n_hash, n_hash), "", "", "", "", "", "", "", "", "", "", "", "", jl]))
+                    yield OrderedDict(zip(headers, [self.dicID.get(n_hash, n_hash)] + [""] * 20 + [jl]))
                 else:
                     yield OrderedDict(zip(headers, [self.dicID.get(n_hash, n_hash)] + lnk + [jl]))
 
