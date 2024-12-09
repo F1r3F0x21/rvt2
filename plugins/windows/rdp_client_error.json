@@ -1,24 +1,51 @@
 0: No error
 1: User-initiated client disconnect.
 2: User-initiated client logoff.
-3: Your Remote Desktop Services session has ended, possibly for one of the following reasons:  The administrator has ended the session. An error occurred while the connection was being established. A network problem occurred.
+3: Your Remote Desktop Services session has ended, possibly for one of the following reasons: The administrator has ended the session. An error occurred while the connection was being established. A network problem occurred.
 4: The remote session ended because the total login time limit was reached. This limit is set by the server administrator or by network policies.
+5: Your Remote Desktop Services session has ended. Another user connected to the remote computer, so your connection was lost. Try connecting again, or contact your network administrator or technical support group.
+6: The connection was disconnected because the remote computer is low on memory.
+7: This computer cant connect to the remote computer. Try connecting again. If the problem continues, contact the owner of the remote computer or your network administrator.
+8: The client could not establish a connection to the remote computer. The most likely causes for this error are: 1) Remote connections might not be enabled at the remote computer. 2) The maximum number of  connections was exceeded at the remote computer. 3) A network error occurred while establishing a connection. 4) The remote computer might not support the required FIPS security level. Please lower the client side required security level Policy, or contact  your network administrator for assistance.
+9: The connection was denied because the user account is not authorized for remote login.
+256: The remote session was disconnected because there was an internal error in the remote computers licensing protocol.
+257: The remote session was disconnected because there are no Remote Desktop License Servers available to provide a license. Please contact the server administrator.
+258: The remote session was disconnected because there are no Remote Desktop client access licenses available for this computer. Please contact the server administrator.
+259: The remote session was disconnected because the remote computer received an invalid licensing message from this computer.
 260: Remote Desktop cant find the computer X. This might mean that X does not belong to the specified network.
-262: This computer cant connect to the remote computer.  Your computer does not have enough virtual memory available.
+261: The remote session was disconnected because the Remote Desktop client access license stored on this computer is in an invalid format.
+262: This computer cant connect to the remote computer. Your computer does not have enough virtual memory available.
 263: The remote session was disconnected because the client prematurely ended the licensing protocol.
-264: This computer cant connect to the remote computer.  The two computers couldnt connect in the amount of time allotted.
-516: Remote Desktop cant connect to the remote computer for one of these reasons:  1) Remote access to the server is not enabled 2) The remote computer is turned off 3) The remote computer is not available on the network  Make sure the remote computer is turned on and connected to the network, and that remote access is enabled.
-772: This computer cant connect to the remote computer.  The connection was lost due to a network error.
+264: This computer cant connect to the remote computer. The two computers couldnt connect in the amount of time allotted.
+265: The remote session was disconnected because the local computers client access license could not be upgraded or renewed. Please contact the server administrator.
+266: The smart card service is not running. Please start the smart card service and try again.
+267: The remote session was disconnected because license store creation failed with access denied. Please run the remote desktop client with elevated privileges.
+516: Remote Desktop cant connect to the remote computer for one of these reasons: 1) Remote access to the server is not enabled 2) The remote computer is turned off 3) The remote computer is not available on the network  Make sure the remote computer is turned on and connected to the network, and that remote access is enabled.
+522: A smart card reader was not detected. Please attach a smart card reader and try again.
+772: This computer cant connect to the remote computer. The connection was lost due to a network error.
+778: There is no card inserted in the smart card reader. Please insert your smart card and try again.
+1024: Remote Desktop Connection could not find the destination computer. This can happen if the computer name is incorrect or the computer is not yet registered with RD Connection Broker. Try connecting again, or contact your network administrator.
+1026: An error occurred while Remote Desktop Connection was loading the destination computer. Try connecting again, or contact your network administrator.
+1028: An error occurred while Remote Desktop Connection was redirecting to the destination computer. Try connecting again, or contact your network administrator.
+1029: Couldnt connect to the remote computer (there was a problem setting up the virtual machine). Try connecting again, or contact your network administrator for help.
 1030: Because of a security error, the client could not connect to the remote computer. Verify that you are logged on to the network, and then try connecting again.
+1031: Windows cant find the IP address of the destination virtual machine. This can happen if the virtual machine doesnt have Hyper-V enlightenments and the name of the virtual machine doesnt match the computer  name in Windows. Contact your network administrator for assistance.
 1032: The specified computer name contains invalid characters.
-1796: This computer cant connect to the remote computer.  Try connecting again.
+1033: Connection processing has been canceled. Try connecting again, or contact your network administrator.
+1034: An error has occurred in the smart card subsystem. Please contact your helpdesk about this error.
+1040: Your computer cant connect to the remote computer because the Connection Broker couldnt validate the settings specified in your RDP file. Contact your network administrator for assistance.
+1041: A timeout error occurred while Remote Desktop Connection was starting the virtual machine. Try connecting again, or contact your network administrator.
+1042: A session monitoring error occurred while Remote Desktop Connection was starting the virtual machine. Try connecting again, or contact your network administrator.
+1289: Server not configured for SSL.
+1796: This computer cant connect to the remote computer. Try connecting again.
 1800: Your computer could not connect to another console session on the remote computer because you already have a console session in progress.
+2055: This computer cant connect to the remote computer. Check the user name, domain name and password and try again.
 2056: The remote computer disconnected the session because of an error in the licensing protocol.
-2308: Your Remote Desktop Services session has ended.  The connection to the remote computer was lost, possibly due to network connectivity problems.
+2308: Your Remote Desktop Services session has ended. The connection to the remote computer was lost, possibly due to network connectivity problems.
 2311: The connection has been terminated because an unexpected server authentication certificate was received from the remote computer.
 2312: A licensing error occurred while the client was attempting to connect (Licensing timed out).
 2567: The specified username does not exist.
-2820: This computer cant connect to the remote computer.  An error occurred that prevented the connection.
+2820: This computer cant connect to the remote computer. An error occurred that prevented the connection.
 2822: Because of an error in data encryption, this session will end.
 2823: The user account is currently disabled and cannot be used.
 2825: The remote computer requires Network Level Authentication, which your computer does not support.
@@ -34,12 +61,16 @@
 3848: A connection will not be made because credentials may not be sent to the remote computer.
 4103: The system administrator has restricted the times during which you may log in. Try logging in later.
 4104: The remote session was disconnected because your computer is running low on video resources.
+4339: The remote computer does not support RemoteApp. For assistance, contact your system administrator.
 4359: The system administrator has limited the computers you can log on with. Try logging on at a different computer.
+4360: UI: Internally triggered Reconnect
+4498: The remote session was disconnected because of a decryption error at the server. Please try connecting to the remote computer again.
 4615: You must change your password before logging on the first time.
 4871: The system administrator has restricted the types of logon (network or interactive) that you may use.
 5127: The Kerberos sub-protocol User2User is required.
 6919: Remote Desktop cannot connect to the remote computer because the authentication certificate received from the remote computer is expired or invalid. In some cases, this error might also be caused by a large time discrepancy between the client and server computers.
 7431: Remote Desktop cannot verify the identity of the remote computer because there is a time or date difference between your computer and the remote computer.
+8711: Your computer cant connect to the remote computer because your smart card is locked out. Contact your network administrator about unlocking your smart card or resetting your PIN.
 9479: Could not auto-reconnect to your applications,please re-launch your applications
 9732: Client and server versions do not match. Please upgrade your client software and then try connecting again.
 33554433: Failed to reconnect to the remote program. Please restart the remote program.
@@ -62,6 +93,8 @@
 50331664: Your computer cant connect to the remote computer because an incorrect version of rpcrt4.dll has been detected.
 50331665: Your computer cant connect to the remote computer because no smart card service is installed.
 50331666: Your computer cant stay connected to the remote computer because the smart card has been removed.
+50331667: Your computer cant connect to the remote computer because no smart card is available. Try again using a smart card.
+50331668: Your computer cant stay connected to the remote computer because the smart card has been removed. Reinsert the smart card and then try again.
 50331669: Your computer cant connect to the remote computer because the user name or password is not valid.
 50331671: Your computer cant connect to the remote computer because a security package error occurred in the transport layer.
 50331672: The Remote Desktop Gateway server has ended the connection.
@@ -76,10 +109,14 @@
 50331683: Your computer cant connect to the remote computer because the Remote Desktop Gateway server does not support the request.
 50331684: Your computer cant connect to the remote computer because the client does not support one of the Remote Desktop Gateways capabilities.
 50331685: Your computer cant connect to the remote computer because the Remote Desktop Gateway server and this computer are incompatible
+50331686: Your computer cant connect to the remote computer because the credentials used are not valid. Insert a valid smart card and type a PIN or password, and then try connecting again.
 50331687: Your computer cant connect to the remote computer because your computer or device did not pass the Network Access Protection requirements set by your network administrator.
 50331688: Your computer cant connect to the remote computer because no certificate was configured to use at the Remote Desktop Gateway server.
 50331689: Your computer cant connect to the remote computer because the RD Gateway server that you are trying to connect to is not allowed by your computer administrator.
 50331690: Your computer cant connect to the remote computer because your computer or device did not meet the Network Access Protection requirements set by your network administrator, for one of the following reasons:  1) The Remote Desktop Gateway server name and the servers public key certificate subject name do not match. 2) The certificate has expired or has been revoked. 3) The certificate root authority does not trust the certificate. 4) The certificate key extension does not support encryption. 5) Your computer cannot verify the certificate revocation list.
+50331691: Your computer cant connect to the remote computer because a user name and password are required to authenticate to the Remote Desktop Gateway server instead of smart card credentials.
+50331692: Your computer cant connect to the remote computer because smart card credentials are required to authenticate to the Remote Desktop Gateway server instead of a user name and password.
+50331693: Your computer cant connect to the remote computer because no smart card reader is detected. Connect a smart card reader and then try again, or contact your network administrator for assistance.
 50331695: Your computer cant connect to the remote computer because authentication to the firewall failed due to missing firewall credentials.
 50331696: Your computer cant connect to the remote computer because authentication to the firewall failed due to invalid firewall credentials.
 50331699: The connection has been disconnected because the session timeout limit was reached.
@@ -88,6 +125,8 @@
 50331703: Your computer cant connect to the remote computer because the Remote Desktop Gateway server is expecting an authentication method different from the one attempted.
 50331704: The RD Gateway connection ended because periodic user authentication failed.
 50331705: The RD Gateway connection ended because periodic user authorization failed.
+50331707: Your computer cant connect to the remote computer because the Remote Desktop Gateway and the remote computer are unable to exchange policies.
+50331708: Your computer cant connect to the remote computer, possibly because the smart card is not valid, the smart card certificate was not found in the certificate store, or the Certificate Propagation service is not running. Contact your network administrator for assistance.
 50331709: To use this program or computer, first log on to the following website: <a href=></a>.
 50331710: To use this program or computer, you must first log on to an authentication website. Contact your network administrator for assistance.
 50331711: Your session has ended. To continue using the program or computer, first log on to the following website: <a href=></a>.

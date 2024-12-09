@@ -27,7 +27,7 @@
     "path": {
       "EventData": {
         "Name": ["Value"],
-        "transform": {"Value": "data.DisconnectReason"}
+        "transform": {"Value": "data.Reason"}
       },
       "System/Correlation/#attributes":{
         "Name": ["ActivityID"]

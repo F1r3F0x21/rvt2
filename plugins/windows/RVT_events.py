@@ -26,13 +26,13 @@ import base.job
 from base.utils import check_folder, save_csv
 
 
-def load_fields(filename):
+def load_fields(filename, default_regex="(.*?):(.*)\n"):
     """ Loads fields from file as a dict """
 
     items = {}
 
     with open(filename, 'r') as fin:
-        regex = re.compile("(.*):(.*)\n")
+        regex = re.compile(default_regex)
         for line in fin:
             aux = regex.search(line)
             items[aux.group(1)] = aux.group(2).lstrip()
@@ -392,6 +392,13 @@ class Security(EventJob):
                 if 'data.TicketEncryptionType' in ev.keys():
                     if ev['data.TicketEncryptionType'] in encr.keys():
                         ev['data.TicketEncryptionType'] = encr[ev['data.TicketEncryptionType']]
+            if ev['event.code'] == '4648':
+                if (ev.get('data.TargetServerName', '') == 'localhost') or (ev.get('destination.user.name', '').endswith('$')):
+                    ev['source.address'] = ev.pop('data.IpAddress','')
+                    ev['source.port'] = ev.pop('data.IpPort','')
+                else:
+                    ev['destination.address'] = ev.pop('data.IpAddress','')
+                    ev['destination.port'] = ev.pop('data.IpPort','')
             yield ev
         self.save_stats(events_parser.evtx_stats())
 
@@ -480,7 +487,7 @@ class SMBServer(EventJob):
         if not path:
             return []
 
-        errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "smb_error.json"))
+        errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "sec_error.json"))
 
         json_file = self.config.config[self.config.job_name]['json_conf']
         events_parser = GetEvents(path, json_file, logger=self.logger())
@@ -529,6 +536,7 @@ class RDPClient(EventJob):
             return []
 
         error_reason = load_fields(os.path.join(self.config.config['windows']['plugindir'], "rdp_client_error.json"))
+        # https://social.technet.microsoft.com/wiki/contents/articles/37870.remote-desktop-client-troubleshooting-disconnect-codes-and-reasons.aspx
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 

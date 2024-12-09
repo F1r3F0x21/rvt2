@@ -29,6 +29,7 @@ import ast
 import base64
 import re
 from textwrap import wrap
+from natsort import natsorted
 from plugins.windows.RVT_os_info import CharacterizeWindows
 from base.utils import sanitize_ip
 
@@ -1004,42 +1005,57 @@ class Collapse(base.job.BaseModule):
 
 
 class SortResults(base.job.BaseModule):
-    """ Sort the data from from_module, and yields results again.
+    """ Alphanumeric sort of data provided by 'from_module'.
     Take note that this operation loses some benefits of using generators,
-    since sort operation must know all the items and the generator is consumed
-
-    Warning: Sorting is not safe when sorting keys values are not strings
+        since sort operation must know all the items and the generator is consumed
+    WARNING: If some data entry does not contain any of 'fields', it will be yielded first
 
     Configuration:
-        - **fields**: Space separated keys to sort by
-        - **reverse**: Sort order
+        - **fields**: Space separated keys to sort by. If not provided, this job just yields the original input data. The field order is relevant
+        - **reverse**: If True, sort in reverse. Default: False
+        - **ignore_empty**: If True and some key value is empty or '-', sort by the following key in 'fields' instead. Default: False
     """
 
     def read_config(self):
         super().read_config()
         self.set_default_config('fields', '')
         self.set_default_config('reverse', False)
+        self.set_default_config('ignore_empty', False)
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
         fields = self.myarray('fields')
         reverse = self.myflag('reverse')
+        ignore_empty = self.myflag('ignore_empty')
+
+        # From module can be either a base.job.BaseModule or data as an iterator
+        if isinstance(self.from_module, base.job.BaseModule):
+            _source = self.from_module.run(path)
+        else:
+            _source = self.from_module
 
         if not fields:
-            yield from self.from_module.run(path)
+            yield from _source
         else:
             self.logger().debug(f'Sorting by fields "{fields}" results from path "{path}"')
-            yield from sorted(self.from_module.run(path), key=safe_string_itemgetter(*fields), reverse=reverse)
+            results = []
+            for data in _source:
+                results.append(data.copy())  # Make a copy of the object in case it is mutated in every iteration
+            if ignore_empty:
+                yield from natsorted(results, key=safe_itemgetter_chained(*fields), reverse=reverse)
+            else:
+                yield from natsorted(results, key=safe_itemgetter(*fields), reverse=reverse)
 
 
-def safe_string_itemgetter(*items):
-    """ Variation from operator itemgetter that helps to sort missing keys at first place"""
-    if len(items) == 1:
-        item = items[0]
+def safe_itemgetter(*items):
+    """ Variation from operator itemgetter that helps to sort data with missing keys """
+    def g(obj):
+        return tuple(obj.get(item, '') for item in items)
+    return g
 
-        def g(obj):
-            return obj.get(item, '')
-    else:
-        def g(obj):
-            return tuple(obj.get(item, '') for item in items)
+def safe_itemgetter_chained(*items):
+    """ Variation from operator itemgetter that helps to sort data with missing keys
+    If some key value is empty or '-', sort by the following key """
+    def g(obj):
+        return tuple(obj.get(item, '') for item in items if (obj.get(item, '') and obj.get(item, '') != '-'))
     return g

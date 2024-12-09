@@ -344,17 +344,18 @@ def sanitize_ip(value, logger=logging):
     """ Adapt IP fields to Elastic IPv4 or IPv6 addresses format (see https://www.elastic.co/guide/en/elasticsearch/reference/current/ip.html)
 
     Possible inputs to convert:
-    - ''                        --> null (Ipfield throws error when processing empty string)
-    - `-`                       --> null
-    - LOCAL                     --> ::1
-    - [123.123.123.123]         --> 123.123.123.123
-    - ::ffff:10.100.1.87        --> 10.100.1.87 (Revert the default IPv4toIPv6 convention to simplify reading)
-    - 123.123.123.123::1980     --> ip=123.123.123.123, port=1980 (Ports are treated as separated field)
-    - ::1234:5678:1.2.3.4:443   --> ip=::1234:5678:1.2.3.4, port=443
-    - [2603:10a6:7:94:cafe::d6]:3 --> ip=2603:10a6:7:94:cafe::d6, port=3
-    - 123.123.123.123           --> 123.123.123.123 (Valid IPv4 format. No changes)
-    - 2001:db8:1::ab9:C0A8:102  --> 2001:db8:1::ab9:C0A8:102 (Valid IPv6 format. No changes)
-    - ::1234:5678:1.2.3.4       --> ::1234:5678:1.2.3.4 (Valid dual IPv6 format. No changes)
+    - ''                            --> null (Ipfield throws error when processing empty string)
+    - `-`                           --> null
+    - LOCAL                         --> ::1
+    - [123.123.123.123]             --> 123.123.123.123
+    - ::ffff:10.100.1.87            --> 10.100.1.87 (Revert the default IPv4toIPv6 convention to simplify reading)
+    - 123.123.123.123::1980         --> ip=123.123.123.123, port=1980 (Ports are treated as separated field)
+    - ::1234:5678:1.2.3.4:443       --> ip=::1234:5678:1.2.3.4, port=443
+    - [2603:10a6:7:94:cafe::d6]:3   --> ip=2603:10a6:7:94:cafe::d6, port=3
+    - fe80::e44c:5:12:653c%6:55158  --> ip=fe80::e44c:5:12:653c, port=55158
+    - 123.123.123.123               --> 123.123.123.123 (Valid IPv4 format. No changes)
+    - 2001:db8:1::ab9:C0A8:102      --> 2001:db8:1::ab9:C0A8:102 (Valid IPv6 format. No changes)
+    - ::1234:5678:1.2.3.4           --> ::1234:5678:1.2.3.4 (Valid dual IPv6 format. No changes)
 
     Any other escenario will return null as IP value.
 
@@ -365,6 +366,11 @@ def sanitize_ip(value, logger=logging):
         return (None, None)
     if value.lower().startswith('local'):
         return ('::1', None)
+
+    # Remove zone indices or scope identifiers after IP (for example, '%eth0'), since Elastic does not support them
+    m = re.search(r'%[^:\]]+', value)
+    if m:
+        value = value[:m.span()[0]] + value[m.span()[1]:]
 
     # Regular expression to match IPv4 or Ipv6 address and optional port
     ip_pattern = re.compile(r'^\[?(?P<ip>.*?)\]?(?::(?P<port>\d+))?$')
@@ -541,6 +547,21 @@ def parse_microsoft_timestamp(timestamp):
     unix_time = float(timestamp) *1e-7 - 11644473600
     return datetime.datetime.fromtimestamp(unix_time, datetime.timezone.utc)
 
+
+def get_duration(logon_time, logoff_time, date_format="%Y-%m-%d %H:%M:%S.%f %Z"):
+    """ Time difference between two events
+        Input default format: '%Y-%m-%d %H:%M:%S.%f %Z'
+        Output format: '%H:%M:%S'
+    """
+    try:
+        logon_dt = datetime.datetime.strptime(logon_time, date_format)
+        logoff_dt = datetime.datetime.strptime(logoff_time, date_format)
+    except Exception:
+        return ''
+    session_duration = logoff_dt - logon_dt
+    hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 # ----------------------------
 # OTHER

@@ -21,7 +21,7 @@ import dateutil.parser
 import xmltodict
 import base64
 import base.job
-from base.utils import check_folder, get_windows_user_from_path, date_to_iso
+from base.utils import check_folder, get_windows_user_from_path, date_to_iso, get_duration
 
 
 class Teamviewer_connections(base.job.BaseModule):
@@ -658,6 +658,7 @@ class Summary(base.job.BaseModule):
                         "Type": "Incoming",
                         "Start": line.get("StartDate",""),
                         "End": line.get("EndDate",""),
+                        "Duration": get_duration(line.get("StartDate",""), line.get("EndDate",""), date_format="%Y-%m-%dT%H:%M:%S%z"),
                         "User": line.get("DestinationLoggedUser",""),
                         "SessionID": line.get("SessionID",""),
                         "Hostname": line.get("SourceHost",""),
@@ -672,6 +673,7 @@ class Summary(base.job.BaseModule):
                         "Type": "Outgoing",
                         "Start": line.get("StartDate",""),
                         "End": line.get("EndDate",""),
+                        "Duration": get_duration(line.get("StartDate",""), line.get("EndDate",""), date_format="%Y-%m-%dT%H:%M:%S%z"),
                         "SessionID": line.get("SessionID",""),
                         "Hostname": line.get("SourceLoggedUser",""),
                         "User": line.get("User",""),
@@ -732,6 +734,7 @@ class Summary(base.job.BaseModule):
                 data_inc["LogFilename"] = filename.strip()
             elif event_id == 101:
                 data_inc["End"] = line.get("Time","")
+                data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 data_inc["Type"] = "Incoming"
                 data_inc["Program"] = "Screenconnect"
                 data_inc["LogFilename"] = filename.strip()
@@ -774,6 +777,7 @@ class Summary(base.job.BaseModule):
                     data_inc["Program"] = "ChromeRD"
                     data_inc["LogFilename"] = filename.strip()
                 data_inc["End"] = line.get("Time","")
+                data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 yield data_inc
                 data_inc = {}
         if data_inc:
@@ -814,6 +818,7 @@ class Summary(base.job.BaseModule):
             if stop_closed_match:
                 data_inc["Type"] = "Incoming"
                 data_inc["End"] = line.get("Time","")
+                data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 data_inc["Program"] = "Splashtop"
                 data_inc["LogFilename"] = filename.strip()
                 yield data_inc
@@ -824,7 +829,7 @@ class Summary(base.job.BaseModule):
     def zoho(self, path, filename):
         # Starting incoming connection events include "key" (SessionID) and "id" (ClientID)
         start = re.compile(r'.*initializeSocketHandler:\sCreating\sWebSocket\sConnection\s.*?key=(\d+).*')
-        end = re.compile(r'.*agentprotocolhandler.*Stop\sremote\ssession.*')
+        end = re.compile(r'.*Stop\sremote\ssession.*')
 
         data_inc = {}
         for line in self.from_module.run(path):
@@ -842,19 +847,22 @@ class Summary(base.job.BaseModule):
                 data_inc["LogFilename"] = filename.strip()
                 continue
 
-            inc_end_match = end.match(message)
-            if inc_end_match:
-                if data_inc:
-                    data_inc["End"] = line.get("Time","")
-                    yield data_inc
-                    data_inc = {}
-                else:
-                    data_inc["Type"] = "Incoming"
-                    data_inc["End"] = line.get("Time","")
-                    data_inc["Program"] = "Zoho"
-                    data_inc["LogFilename"] = filename.strip()
-                    yield data_inc
-                    data_inc = {}
+            if line.get('Application', '') == 'agentprotocolhandler.cpp':
+                inc_end_match = end.match(message)
+                if inc_end_match:
+                    if data_inc:
+                        data_inc["End"] = line.get("Time","")
+                        data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S%z")
+                        yield data_inc
+                        data_inc = {}
+                    else:
+                        data_inc["Type"] = "Incoming"
+                        data_inc["End"] = line.get("Time","")
+                        data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S%z")
+                        data_inc["Program"] = "Zoho"
+                        data_inc["LogFilename"] = filename.strip()
+                        yield data_inc
+                        data_inc = {}
         if data_inc:
             yield data_inc
     
@@ -882,6 +890,7 @@ class Summary(base.job.BaseModule):
             if inc_end_match:
                 if data_inc.get("SessionID","") == inc_end_match.group(1):
                     data_inc["End"] = line.get("Time","")
+                    data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 else:
                     if data_inc:
                         yield data_inc
@@ -889,6 +898,7 @@ class Summary(base.job.BaseModule):
                     else:
                         data_inc["Type"] = "Incoming"
                         data_inc["End"] = line.get("Time","")
+                        data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         data_inc["SessionID"] = inc_end_match.group(1)
                         data_inc["Program"] = "Dwagent"
                         data_inc["IP"] = line.get("IP", "") if line.get("IP", "") != "" else inc_end_match.group(2)
@@ -924,6 +934,7 @@ class Summary(base.job.BaseModule):
             if inc_end_match:
                 if data_inc.get("SessionID","") == inc_end_match.group(2):
                     data_inc["End"] = line.get("Time","")
+                    data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 else:
                     if data_inc:
                         yield data_inc
@@ -931,6 +942,7 @@ class Summary(base.job.BaseModule):
                     else:
                         data_inc["Type"] = "Incoming"
                         data_inc["End"] = line.get("Time","")
+                        data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         data_inc["Hostname"] = inc_end_match.group(1)
                         data_inc["SessionID"] = inc_end_match.group(2)
                         data_inc["Program"] = "Supremo"
@@ -957,6 +969,7 @@ class Summary(base.job.BaseModule):
             if out_end_match:
                 if data_out.get("FromTo","") == (out_end_match.group(1) + " -> " + out_end_match.group(3)):
                     data_out["End"] = line.get("Time","")
+                    data_out["Duration"] = get_duration(data_out.get("Start", ""), data_out["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 else:
                     if data_out:
                         yield data_out
@@ -964,6 +977,7 @@ class Summary(base.job.BaseModule):
                     else:
                         data_out["Type"] = "Outgoing"
                         data_out["End"] = line.get("Time","")
+                        data_out["Duration"] = get_duration(data_out.get("Start", ""), data_out["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         data_out["Hostname"] = out_end_match.group(2)
                         data_out["FromTo"] = out_end_match.group(1) + " -> " + out_end_match.group(3)
                         data_out["SessionID"] = out_end_match.group(3)
@@ -1018,18 +1032,22 @@ class Summary(base.job.BaseModule):
                     date_obj_out = date_to_iso(data_out["Start"], logger=self.logger())
                     if date_obj_inc > date_obj_out:
                         data_inc["End"] = line.get("Time","")
+                        data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         yield data_inc
                         data_inc = {}
                     else:
                         data_out["End"] = line.get("Time","")
+                        data_out["Duration"] = get_duration(data_out.get("Start", ""), data_out["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         yield data_out
                         data_out = {}
                 elif data_inc:
                     data_inc["End"] = line.get("Time","")
+                    data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                     yield data_inc
                     data_inc = {}
                 elif data_out:
                     data_out["End"] = line.get("Time","")
+                    data_out["Duration"] = get_duration(data_out.get("Start", ""), data_out["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                     yield data_out
                     data_out = {}
 

@@ -4,8 +4,8 @@
     "provider": "Microsoft-Windows-Eventlog",
     "path": {
       "UserData/LogFileCleared":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "Channel"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "Channel": "log.file.path"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "Channel"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "Channel": "log.file.path"}
        }
     }
   },
@@ -17,8 +17,8 @@
     "action": "account-logged-on",
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "TargetUserName", "TargetDomainName", "TargetLogonId", "LogonType", "LogonProcessName", "AuthenticationPackageName", "ProcessName", "IpAddress", "IpPort"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "IpAddress": "source.ip", "IpPort": "source.port", "ProcessName": "process.name"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "TargetUserName", "TargetDomainName", "TargetUserSid", "TargetLogonId", "LogonType", "LogonProcessName", "AuthenticationPackageName", "ProcessName", "IpAddress", "IpPort", "WorkstationName", "ElevatedToken", "ImpersonationLevel"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetUserSid": "destination.user.id", "IpAddress": "source.ip", "IpPort": "source.port", "ProcessName": "process.name", "WorkstationName": "client.hostname"}
       }
     }
   },
@@ -29,8 +29,8 @@
     "type": ["info", "error"],
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "TargetUserName", "TargetDomainName", "FailureReason", "SubStatus", "TargetLogonId", "LogonType", "LogonProcessName", "AuthenticationPackageName", "ProcessName", "IpAddress", "IpPort"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "IpAddress": "source.ip", "IpPort": "source.port", "ProcessName": "process.name"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "TargetUserName", "TargetDomainName", "FailureReason", "SubStatus", "LogonType", "LogonProcessName", "AuthenticationPackageName", "ProcessName", "IpAddress", "IpPort"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "IpAddress": "source.ip", "IpPort": "source.port", "ProcessName": "process.name"}
       }
     }
   },
@@ -41,8 +41,8 @@
     "type": ["end"],
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "TargetLogonId", "LogonType"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetLogonId", "TargetUserSid", "LogonType"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetUserSid": "destination.user.id"}
       }
     }
   },
@@ -51,8 +51,8 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["TargetUserName", "TargetDomainName", "TargetLogonId"],
-        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain"}
+        "Name": ["TargetUserName", "TargetDomainName", "TargetUserSid", "TargetLogonId"],
+        "transform": {"TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetUserSid": "destination.user.id"}
       }
     }
   },
@@ -63,8 +63,8 @@
     "type": ["info"],
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "TargetUserName", "TargetDomainName", "SubjectLogonId", "ProcessName", "IpAddress", "IpPort"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "IpAddress": "source.ip", "IpPort": "source.port", "ProcessName": "process.name"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "TargetUserName", "TargetDomainName", "TargetServerName", "SubjectLogonId", "ProcessName", "IpAddress", "IpPort"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "ProcessName": "process.name"}
       }
     }
   },
@@ -73,8 +73,8 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ObjectServer", "ObjectType", "ObjectName", "AccessReason", "ProcessName"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "ObjectServer": "file.name", "ObjectType": "registry.data.type", "ObjectName": "registry.key", "ProcessName": "process.name"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ObjectServer", "ObjectType", "ObjectName", "AccessReason", "ProcessName"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "ObjectServer": "file.name", "ObjectType": "registry.data.type", "ObjectName": "registry.key", "ProcessName": "process.name"}
       }
     }
   },
@@ -85,8 +85,8 @@
     "type": ["change"],
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ObjectName", "ObjectValueName", "OperationType", "OldValueType", "OldValue", "NewValueType", "NewValue", "ProcessName"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain",  "ObjectName": "registry.key", "ObjectValueName": "registry.value", "NewValueType": "registry.data.strings", "ProcessName": "process.name"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ObjectName", "ObjectValueName", "OperationType", "OldValueType", "OldValue", "NewValueType", "NewValue", "ProcessName"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id",  "ObjectName": "registry.key", "ObjectValueName": "registry.value", "NewValueType": "registry.data.strings", "ProcessName": "process.name"}
       }
     }
   },
@@ -104,8 +104,8 @@
     "type": ["access", "info"],
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ObjectServer", "ObjectType", "ObjectName", "AccessReason", "ProcessName"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "ObjectServer": "file.name", "ObjectType": "registry.data.type", "ObjectName": "registry.key", "ProcessName": "process.name"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ObjectServer", "ObjectType", "ObjectName", "AccessReason", "ProcessName"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "ObjectServer": "file.name", "ObjectType": "registry.data.type", "ObjectName": "registry.key", "ProcessName": "process.name"}
       }
     }
   },
@@ -114,8 +114,8 @@
     "provider": "Microsoft-Windows-Security-Auditing",
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "PrivilegeList"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "PrivilegeList"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id"}
       }
     }
   },
@@ -126,8 +126,8 @@
     "type": ["start"],
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "NewProcessID", "NewProcessName", "ParentProcessName", "CommandLine", "TargetUserName", "TargetDomainName"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "NewProcessName": "process.name", "ParentProcessName": "process.parent.name", "CommandLine": "process.command_line", "TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "NewProcessID", "NewProcessName", "ParentProcessName", "CommandLine", "TargetUserName", "TargetDomainName", "TargetUserSid", "TargetLogonId"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "NewProcessName": "process.name", "ParentProcessName": "process.parent.name", "CommandLine": "process.command_line", "TargetUserName": "destination.user.name", "TargetDomainName": "destination.domain", "TargetUserSid": "destination.user.id"}
       }
     }
   },
@@ -138,8 +138,8 @@
     "type": ["end"],
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "Status", "ProcessId", "ProcessName"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "ProcessId": "process.id", "ProcessName": "process.name"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "Status", "ProcessId", "ProcessName"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "ProcessId": "process.id", "ProcessName": "process.name"}
       }
     }
   },
@@ -150,8 +150,8 @@
     "type": ["installation"],
     "path": {
       "EventData":{
-        "Name": ["SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ServiceName", "ServiceFileName", "ServiceStartType", "ServiceAccount", "ServiceType"],
-        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "ServiceName": "service.name", "ServiceFileName": "file.path", "ServiceType": "service.type"}
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "ServiceName", "ServiceFileName", "ServiceStartType", "ServiceAccount", "ServiceType"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "ServiceName": "service.name", "ServiceFileName": "file.path", "ServiceType": "service.type"}
       }
     }
   },

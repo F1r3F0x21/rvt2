@@ -20,10 +20,13 @@ import ast
 import datetime
 import re
 import dateutil.parser
+import hashlib
+import base64
 import base.job
 from collections import defaultdict
-from base.utils import save_md_table, save_csv, date_to_iso
+from base.utils import save_md_table, save_csv, date_to_iso, sanitize_ip, get_duration
 from plugins.windows.RVT_os_info import CharacterizeWindows
+from plugins.windows.RVT_events import load_fields
 
 
 class Filter_Events(base.job.BaseModule):
@@ -39,8 +42,15 @@ class Filter_Events(base.job.BaseModule):
                 yield event
 
 
-class LogonRDP(base.job.BaseModule):
-    """ Extracts logon and rdp artifacts """
+class IncomingLogon(base.job.BaseModule):
+    """ Extracts incoming logon and RDP information from Windows events
+        - 21, 22, 23, 24, 25, 39, 40 (TerminalServices-LocalSessionManager)
+        - 65, 66, 102, 131, 140 (RemoteDesktopServices-RdpCoreTS)
+        - 1149 (TerminalServices-RemoteConnectionManager)
+        - 4624, 4625, 4634, 4647, 4648, 4778, 4779 (Security-Auditing)
+        - 12, 13 (Microsoft-Windows-Kernel-General)
+        - 4 (OpenSSH)
+    """
 
     def run(self, path=None):
         """
@@ -50,73 +60,98 @@ class LogonRDP(base.job.BaseModule):
 
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        logID = {}
-        actID = {}
+        logID = defaultdict(list)
+        actID = defaultdict(list)
         openssh = []
+        events_4778_4779 = []
+        events_65_66 = []
+        self.events_12_13 = []
 
         for event in self.from_module.run(path):
-            ev = dict()
+            # Skip informational OpenSSH events
             if event['event.code'] == '4' and 'service' in event.get('category', []):
                 continue
-            ev['TimeCreated'] = event.get('event.created', '')
-            ev['EventID'] = event.get('event.code', '')
-            ev['Description'] = event.get('message', '')
-            ev['ActivityID'] = event.get('data.ActivityID', '')
-            ev['SessionID'] = event.get('data.SessionID', '')
-            ev['ConnType'] = event.get('data.ConnType', '')
-            ev['LogonType'] = event.get('data.LogonType', '')
-            ev['LogonTypeStr'] = event.get('data.LogonTypeStr', '')
-            ev['source.port'] = event.get('source.port', '')
-            ev['ProcessName'] = event.get('process.name', '')
-            ev['Logon.ProcessName'] = event.get('data.LogonProcessName', '')
-            ev['AuthenticationPackageName'] = event.get('data.AuthenticationPackageName', '')
-            ev['client.hostname'] = event.get('client.hostname', '')   # Only events 4778 and 4779
+            # Skip event 4648 if it refers to an outgoing authentication
+            if event.get('event.code', '') == "4648":
+                if not (event.get('data.TargetServerName', '') == 'localhost') or (event.get('destination.user.name', '').endswith('$')):
+                    continue
 
-            for ip_name in ['client.ip', 'client.address', 'source.ip', 'source.address']:
+            # Main output structure
+            ev = {
+                'TimeCreated': event.get('event.created', ''),
+                'EventID': event.get('event.code', ''),
+                'Description': event.get('message', ''),
+                'LogonType': event.get('data.LogonType', ''),           # Events 4624, 4625, 4634 (Security)
+                'LogonTypeStr': event.get('data.LogonTypeStr', ''),     # Events 4624, 4625, 4634 (Security)
+                'LogonID': '',
+                'SessionID': event.get('data.SessionID', ''),           # Events 21, 22, 23, 24, 25, 39, 40 (TerminalServices-LocalSessionManager) and event 66 (RemoteDesktopServices-RdpCoreTS)
+                'ActivityID': event.get('data.ActivityID', ''),
+                'User': '',
+                'TargetUser': '',
+                #'TargetServer': event.get('data.TargetServerName', ''), # Event 4648 (security)
+                'SourceIP': '',
+                'SourcePort': event.get('source.port', ''),             # Events 4624, 4625, 4648 (Security)
+                'SourceHostname': event.get('client.hostname', ''),     # Events 4624, 4778, 4779 (Security)
+                'ConnectionName': '',
+                'ProcessName': event.get('process.name', ''),           # Events 4624, 4625, 4648 (Security)
+                'LogonProcessName': event.get('data.LogonProcessName', '').strip(),  # Events 4624, 4625 (Security)
+                'AuthenticationPackageName': event.get('data.AuthenticationPackageName', ''),  # Events 4624, 4625 (Security)
+                'ConnType': event.get('network.transport', ''),         # Event 131 (RemoteDesktopServices-RdpCoreTS)
+                'ReasonStr': ''
+            }
+
+            if ev['EventID'] in ["12", "13"]:
+                self.events_12_13.append(ev)
+                yield ev
+                continue  # No extra data on these events
+
+            for ip_name in [
+                'client.ip',       # Events 131 (RemoteDesktopServices-RdpCoreTS)
+                'client.address',  # Events 131 (RemoteDesktopServices-RdpCoreTS), 4478, 4779 (Security)
+                'source.ip',       # Events 4624, 4625 (Security), 4 (OpenSSH)
+                'source.address'   # Events 21, 22, 24, 25 (TerminalServices-LocalSessionManager), 1149 (TerminalServices-RemoteConnectionManager), 140 (RemoteDesktopServices-RdpCoreTS), 4648 (Security)
+                ]:
                 if ip_name in event.keys():
-                    ev['source.ip'] = event[ip_name]
-
+                    ev['SourceIP'] = event[ip_name]
+            if ev['EventID'] == "131":
+                ev['SourceIP'], ev['SourcePort'] = sanitize_ip(ev['SourceIP'])
             if "data.ConnectionName" in event.keys():
-                ev['ConnectionName'] = event['data.ConnectionName']
+                ev['ConnectionName'] = event['data.ConnectionName']  # Events 65 and 66 (RemoteDesktopServices-RdpCoreTS)
             else:
-                ev['ConnectionName'] = event.get('data.SessionName')
-            if 'data.ReasonStr' in event.keys():
+                ev['ConnectionName'] = event.get('data.SessionName', '')  # Events 4778 and 4779 (Security)
+            if 'data.ReasonStr' in event.keys():  # Event 40 (TerminalServices-LocalSessionManager)
                 ev['ReasonStr'] = event['data.ReasonStr']
-            elif 'data.DisconnectReason' in event.keys():
-                ev['ReasonStr'] = event['data.DisconnectReason']
+            elif 'data.Error' in event.keys():  # Event 4625 (Security)
+                ev['ReasonStr'] = event['data.Error']
             else:
                 ev['ReasonStr'] = event.get('data.Reason', '')
-            if 'source.user.name' in event.keys():
+            if 'data.Reason' in event.keys():  # Only event 40 (TerminalServices-LocalSessionManager)
+                ev['Reason'] = event.get('data.Reason', '')
+            if 'source.user.name' in event.keys():  # Events 4624, 4625, 4648 (Security)
                 if event['source.user.name'] != '-':
-                    ev['User'] = "{}\\{}".format(event['source.domain'], event['source.user.name'])
-                else:
-                    ev['User'] = '-'
-            elif 'client.source.name' in event.keys():
-                ev['User'] = event['client.source.name']
-            elif 'destination.user' in event.keys():
-                ev['User'] = event['destination.user']
+                    ev['User'] = "{}\\{}".format(event.get('source.domain', ''), event['source.user.name'])
             else:
-                ev['User'] = event.get('User', '')
-            if 'destination.user.name' in event.keys():
+                ev['User'] = '-'
+            if 'destination.user.name' in event.keys():  # Events 21, 23, 24, 25 (TerminalServices-LocalSessionManager), 1149 (TerminalServices-RemoteConnectionManager), 4624, 4625, 4634, 4647, 4648, 4478, 4779 (Security)
+                ev['TargetUser'] = '-'
                 if event['destination.user.name'] != '-':
-                    if 'destination.domain' in event.keys():
+                    if event.get('destination.domain', ''):
                         ev['TargetUser'] = "{}\\{}".format(event['destination.domain'], event['destination.user.name'])
                     else:
                         ev['TargetUser'] = event['destination.user.name']
-                else:
-                    ev['TargetUser'] = '-'
             else:
                 ev['TargetUser'] = ''
-            if 'data.TargetLogonId' in event.keys():
+            if 'data.TargetLogonId' in event.keys():  # Events 4624, 4634, 4647 (Security)
                 ev['LogonID'] = event['data.TargetLogonId']
+            elif 'data.SubjectLogonId' in event.keys():  # Event 4648, 4625 (Security)
+                ev['LogonID'] = event['data.SubjectLogonId']
             else:
-                ev['LogonID'] = event.get('data.LogonID', '')
+                ev['LogonID'] = event.get('data.LogonID', '')  # Events 4778, 4779 (Security)
 
-            if ev['EventID'] in ("4624", "4634", "4647", "4648"):
-                if ev['LogonID'] not in logID.keys():
-                    logID[ev['LogonID']] = []
+            # Join events by LogonId and ActivityID
+            if ev['EventID'] in ("4624", "4634", "4647"):  # Ignore event 4648 because the LogonID does not correlate. Ignore 4625 because it is the SubjectLogonId
                 logID[ev['LogonID']].append(ev)
-            elif ev['EventID'] == "4":
+            elif ev['EventID'] == "4":  # OpenSSH
                 if 'start' in event.get('type', []):
                     ev["ConnType"] = "logon"
                 elif 'end' in event.get('type', []):
@@ -124,20 +159,29 @@ class LogonRDP(base.job.BaseModule):
                 else:
                     ev["ConnType"] = ""
                 openssh.append(ev)
-            elif ev['EventID'] in ("21", "23", "24", "25", "39", "40", "65", "66", "102", "131", "140", "1149"):
-                if ev['ActivityID'] not in actID.keys():
-                    actID[ev['ActivityID']] = []
-                actID[ev['ActivityID']].append(ev)
             elif ev['EventID'] in ("4778", "4779"):
-                activity = self.relateIDs(ev, actID)
-                if activity != '':
-                    actID[activity].append(ev)
-                    logID[ev['LogonID']].append(ev)
-            yield ev
-        self.extractRDP(actID)
-        self.extractLogon(logID)
-        self.extractLogonNetwork(logID)
-        self.extractLogon8(logID, openssh)
+                logID[ev['LogonID']].append(ev)
+                events_4778_4779.append(ev)
+            elif ev['EventID'] in ("65", "66"):
+                events_65_66.append(ev)
+            if ev['EventID'] in ("21", "23", "24", "25", "39", "40", "65", "66", "102", "131", "140", "1149"):
+                actID[ev['ActivityID']].append(ev)
+            final_event = ev.copy()
+            final_event.pop('Reason', '')   # Only needed for actID, but ignored in the final result
+            yield final_event
+
+        # Correlate events (4778, 4779) with events (65, 66)
+        # Do this outside the loop since events are provided sorted by source and not in strict chronological order
+        for to_relate_event in events_4778_4779:
+            activity = self._relateIDs(to_relate_event, events_65_66)
+            if activity != '':
+                actID[activity].append(to_relate_event)
+        self.events_12_13 = sorted(self.events_12_13, key=lambda k: k['TimeCreated'])
+
+        # Create additional tables combining events
+        self.extractLogon(logID)            # Generates `incoming_sessions.md`
+        self.extractRDP(actID)              # Generates `rdp_incoming.md/csv`
+        self.extractLogon8(logID, openssh)  # Generates `logons_cleartext.md/csv` and `openssh_sessions.md/csv`
 
     def __difTimestamp__(self, d1, d0):
         """ get seconds between dates in ISO format
@@ -152,166 +196,390 @@ class LogonRDP(base.job.BaseModule):
             return 1.e5
         return abs((dateutil.parser.parse(d1) - dateutil.parser.parse(d0)).total_seconds())
 
-    def relateIDs(self, ev, actID):
-        """ relates events 4778 and 4779 with RDP events
+    def _relateIDs(self, ev, ev_65_66):
+        """ Assign an activityID to events 4778 and 4779 based on the closest events 65 and 66
         Args:
             ev (dict): event 4778 or 4779 to relate
-            actID (dict): dict with list of RDP events with key ActivityID and values a list of events
+            ev_65_66 (list): list of dicts containing events 65 and 66
         Returns:
             str: activityID closer to ev
         """
         d0 = 100000
         actual_actID = ''
         t0 = dateutil.parser.parse(ev['TimeCreated'])
-        for k, v in actID.items():
-            for event in v:
-                if "data.ConnectionName" in event.keys() and ev['ConnectionName'] == event['data.ConnectionName']:
-                    d1 = abs((dateutil.parser.parse(event['TimeCreated']) - t0).total_seconds())
-                    if d1 < d0:
-                        actual_actID = event['ActivityID']
-                        d0 = d1
+        for event in ev_65_66:
+            if event['EventID'] in ("65", "66") and ev['ConnectionName'] == event['ConnectionName']:
+                d1 = abs((dateutil.parser.parse(event['TimeCreated']) - t0).total_seconds())
+                if d1 < d0:  # Take the closest of the RdpCoreTS events with same ConnectionName
+                    actual_actID = event['ActivityID']
+                    d0 = d1
         return actual_actID
 
+    def _power_time(self, previous_time, current_time):
+        """ Get the oldest poweron/poweroff event between 'previous_time' and 'current_time' """
+
+        for ev in self.events_12_13:
+            if current_time > ev['TimeCreated'] > previous_time:
+                if ev['EventID'] == "13":
+                    return (ev['TimeCreated'], 'poweroff')
+                else:
+                    return (ev['TimeCreated'], 'poweron')
+        return (current_time, 'unknown')
+
     def extractLogon(self, logID):
+        """ 
+        Gets successful logon sessions from the following Security events:
+        4624, 4634, 4647, 4778, 4779
+        """
 
-        results = []
+        results = self._extract_logon(logID)
+        sort_module = base.job.load_module(self.config, 'base.mutations.SortResults', extra_config={'fields': 'Logon Logoff', 'ignore_empty': True}, from_module=results)
+        results_sorted = list(sort_module.run())
+        save_md_table(results_sorted, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'incoming_sessions.md'),
+                      file_exists='OVERWRITE')
+
+    def _extract_logon(self, logID):
         for logon_id, eventlist in logID.items():
-            logon = '-'
-            ip = '-'
+            empty_result = {
+                'Logon': '',
+                'Logoff': '',
+                'IP': '-',
+                'Hostname': '',
+                'User': '',
+                'LogonType': '',
+                'LogonTypeStr': '',
+                'LogonProcessName': '',
+                'AuthenticationPackage': '',
+                'ProcessName': '',
+                'Duration': '',
+                'Comment': '',
+                'LogonID': logon_id
+            }
+            result = empty_result
             ln = len(eventlist)
-            result = {}
-            for e, v in enumerate(eventlist):
-                if v['LogonType'] in ("3", "4", "5"):
+            pending = False
+            for e, v in enumerate(sorted(eventlist, key=lambda d: d['TimeCreated'])):
+                # if v['LogonType'] in ("3", "4", "5"):
+                #     continue
+                if v['EventID'] == '4624':  # Logon
+                    result.update({
+                        'Logon': v['TimeCreated'],
+                        'IP': v.get('SourceIP'),
+                        'Hostname': v.get('SourceHostname'),
+                        'User': v['TargetUser'],
+                        'LogonType': v['LogonType'],
+                        'LogonTypeStr': v['LogonTypeStr'],
+                        'LogonProcessName': v.get('LogonProcessName'),
+                        'AuthenticationPackage': v.get('AuthenticationPackageName'),
+                        'ProcessName': v.get('ProcessName')
+                    })
+                    pending = True
+                elif v['EventID'] == '4778':  # Reconnect
+                    if result['Logoff']:  # Previously desconnected
+                        result['Duration'] = get_duration(result['Logon'], result['Logoff'])
+                        yield result
+                        result = empty_result
+                    result.update({
+                        'Logon': v['TimeCreated'],
+                        'IP': v.get('SourceIP'),
+                        'Hostname': v.get('SourceHostname'),
+                        'User': v['TargetUser'],
+                        'Comment': 'Reconnection'
+                    })
+                    pending = True
+                elif v['EventID'] == '4779':  # Disconnect
+                    result.update({
+                        'Logoff': v['TimeCreated'],
+                        'IP': v.get('SourceIP'),
+                        'Hostname': v.get('SourceHostname'),
+                        'User': v['TargetUser']
+                    })
+                    pending = True
+                elif v['EventID'] == '4647':  # Logoff
+                    result.update({
+                        'Logoff': v['TimeCreated'],
+                        'User': v['TargetUser']
+                    })
+                    pending = True
+                elif v['EventID'] == '4634':  # Logoff
+                    result.update({
+                        'Logoff': v['TimeCreated'],
+                        'User': v['TargetUser'],
+                        'LogonType': v['LogonType'],
+                        'LogonTypeStr': v['LogonTypeStr']
+                    })
+                    result['Duration'] = get_duration(result['Logon'], result['Logoff'])
+                    yield result
+                    result = empty_result
+                    pending = False
                     continue
-                if v['EventID'] == '4634':
-                    results.append({'Login': logon, 'IP': ip, 'Logoff': v['TimeCreated'], 'User': v['TargetUser'], 'LogonType': v['LogonType'], 'LogonID': logon_id})
-                    logon = ''
-                    ip = ''
-                    continue
-                if v['EventID'] == '4624':
-                    logon = v['TimeCreated']
-                    ip = v.get('source.ip')
-                    result = {'Login': logon, 'IP': ip, 'Logoff': '', 'User': v['TargetUser'], 'LogonType': v['LogonType'], 'LogonID': logon_id}
-                if e == ln - 1 and result:
-                    results.append(result)
-
-        save_md_table(results, config=None,
-                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logon_offs.md'),
-                      fieldnames='Login IP Logoff User LogonType LogonID',
-                      file_exists='OVERWRITE')
-
-    def extractLogonNetwork(self, logID):
-        """ Only events 4624 and 4634 with LogonType 3 (Network) """
-
-        results = []
-        event_types = {'4624': 'Login (UTC)', '4634': 'Logoff (UTC)'}
-        logons = defaultdict(dict)
-        for eventlist in logID.values():
-            for e, v in enumerate(eventlist):
-                if v['EventID'] not in ["4624", "4634"]:
-                    continue
-                if not v['LogonType'] == "3":
-                    continue
-                logon_id = v['LogonID']
-                event_type = event_types[v['EventID']]
-                logons[logon_id][event_type] = date_to_iso(v['TimeCreated'], sep=' ', timespec='seconds', hide_tz=True, logger=self.logger())
-                logons[logon_id]['User'] = v['TargetUser']
-                logons[logon_id]['LogonType'] = v['LogonTypeStr']
-                # The following information is only available in 4624 events
-                if v['EventID'] == "4624":
-                    logons[logon_id]['SourceIP'] = v.get('source.ip')
-                    logons[logon_id]['SourcePort'] = v.get('source.port')
-                    logons[logon_id]['ProcessName'] = v['Logon.ProcessName']
-                    logons[logon_id]['AuthenticationPackage'] = v['AuthenticationPackageName']
-
-        results = [logon for logon in logons.values()]
-
-        save_md_table(results, config=None,
-                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_network.md'),
-                      fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
-                      backticks_fields='User',
-                      date_fields="['Login (UTC)', 'Logoff (UTC)']",
-                      file_exists='OVERWRITE')
+                if e == ln - 1 and pending:
+                    result['Duration'] = get_duration(result['Logon'], result['Logoff'])
+                    yield result
 
     def extractRDP(self, actID):
+        """
+        Takes into account the following events:
+        21,23,24,25,39,40 (TerminalServices-LocalSessionManager)
+        65,66,102,131,140 (RemoteDesktopServices-RdpCoreTS)
+        1149 (TerminalServices-RemoteConnectionManager)
+        4778,4779 (Security-Auditing)
+        """
 
         results = []
-        suser = ''
-        auxtime = ''
-        auxtime2 = ''
-        for eventlist in actID.values():
-            act = dict()
+        for activity_id, eventlist in actID.items():
+            if not activity_id:
+                continue  # Events without ActivityID are not reliable
+            empty_result = {
+                'Logon': '',
+                'Logoff': '',
+                'SourceIP': '',
+                'SourceHost': '',
+                'TargetUser': '',
+                'Outcome': 'unknown',  # (success, failure, unknown)
+                'Duration': '',
+                'Reason': '',  # End of session reason
+                'ConnectionName': '',
+                'ActivityID': activity_id,
+                'SessionID': '',
+                'Comment': ''
+            }
+            act = empty_result.copy()
             insession = False
-            for e, v in enumerate(eventlist):
-                if v['EventID'] in ('23', '24'):
-                    if not insession and self.__difTimestamp__(v["TimeCreated"], auxtime2) < 1:
-                        continue  # two logoff events consecutives
-                    if v['EventID'] == '23' and ('reason' not in act.keys() or act['reason'] == ''):
-                        act['reason'] = 'logoff succeeded'
-                    insession = False
-                    act['TargetUser'] = v['TargetUser']
-                    results.append({'Login': act.get('t0', '-'), 'SubjectUser': act.get('subjectUser', ''), 'IP': act.get('ip', ''), 'Logoff': v['TimeCreated'], 'User': act.get('TargetUser', ''), 'Reason': act.get('reason', '')})
-                    act = dict()
-                    auxtime2 = v['TimeCreated']
-                elif v['EventID'] in ('39', '40'):
-                    act['reason'] = v['ReasonStr']
-                elif v['EventID'] in ('21', '25'):
-                    if 't0' in act.keys() and act['t0'] not in ('', '-'):
-                        if self.__difTimestamp__(v["TimeCreated"], act['t0']) < 1:  # login event repeated
-                            continue
-                        else:  # unfinished event
-                            results.append({'Login': act.get('t0', '-'), 'SubjectUser': act.get('subjectUser', ''), 'IP': act.get('ip', ''), 'Logoff': act.get('t1', ''), 'User': act.get('TargetUser', ''), 'Reason': act.get('reason', '')})
-                    insession = True
-                    act['t1'] = '-'
-                    act['reason'] = ''
-                    if 'subjectUser' not in act.keys():
-                        act['subjectUser'] = ''
-                    act['t0'] = v['TimeCreated']
-                    act['ip'] = v.get('source.ip')
-                    act['targetUser'] = v['User']
-                    if self.__difTimestamp__(v['TimeCreated'], auxtime) < 2:
-                        act['subjectUser'] = suser
-                elif v['EventID'] == '1149':
-                    act['TargetUser'] = v['TargetUser']
-                    auxtime = v['TimeCreated']
+            completed = False  # If True --> At least one session recorded
+            success = False
+            # Keep track of start and end times for the different log sources
+            start_time = ''     # "TerminalServices-LocalSessionManager" start events (21, 25)
+            end_time = ''       # "TerminalServices-LocalSessionManager" end events (23, 24, 39, 40)
+            core_ts_start = ''  # "RemoteDesktopServices-RdpCoreTS" start events (131, 65, 66)
+            core_ts_end = ''    # "RemoteDesktopServices-RdpCoreTS" end events (102, 140)
+            rcm_start = ''      # "TerminalServices-RemoteConnectionManager" start event (1149)
+            aux_end = ''
 
-            if ('t0' in act.keys() and act['t0'] not in ('', '-')) or ('t1' in act.keys() and act['t1'] not in ('', '-')):  # for writing unclosed event
-                results.append({'Login': act.get('t0', '-'), 'SubjectUser': act.get('subjectUser', ''), 'IP': act.get('ip', ''), 'Logoff': act.get('t1', '-'), 'User': act.get('TargetUser', ''), 'Reason': act.get('reason', '')})
-        save_md_table(results, config=None,
-                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'rdp.md'),
-                      fieldnames='Login SubjectUser IP Logoff User Reason',
+            for v in sorted(eventlist, key=lambda d: d['TimeCreated']):
+                if v['EventID'] == '131':  # Network Connection -> The server accepted a new TCP connection from client
+                    act['SourceIP'] = v.get('SourceIP')
+                    core_ts_start = v['TimeCreated']
+                elif v['EventID'] == '65':  # Network Connection -> Connection RDP-Tcp#xx created
+                    act['ConnectionName'] = v.get('ConnectionName')
+                    core_ts_start = v['TimeCreated']
+                elif v['EventID'] == '1149':  # Network Connection -> User authentication succeeded
+                    act.update({
+                        'SourceIP': v['SourceIP'],
+                        'TargetUser': v['TargetUser']
+                    })
+                    rcm_start = v['TimeCreated']
+                elif v['EventID'] == '66':  # Logon -> The connection RDP-Tcp#xx was assigned to session Y
+                    act['ConnectionName'] = v.get('ConnectionName')
+                    act['SessionID'] = v.get('SessionID')
+                    success = True
+                    core_ts_start = v['TimeCreated']
+                    end_time = aux_end = ''
+                elif v['EventID'] == '140':  # Authentication -> Failed because the user name or password is not correct
+                    act.update({
+                        'Logoff': v['TimeCreated'],
+                        'SourceIP': v.get('SourceIP', act['SourceIP']),
+                        'Outcome': 'failure',
+                        'Reason': 'Authentication Failure'
+                    })
+                    success = False
+                    act['Duration'] = get_duration(act['Logon'], act['Logoff'])
+                    results.append(act.copy())
+                    success = False
+                    act = empty_result.copy()
+                    start_time = end_time = core_ts_start = core_ts_end = rcm_start = aux_end = ''
+                    aux_end = v['TimeCreated']
+                    core_ts_end = v['TimeCreated']
+                elif v['EventID'] in ('21', '25'):  # Logon -> Session logon/reconnection succeeded
+                    if start_time:
+                        if self.__difTimestamp__(v["TimeCreated"], start_time) < 1:  # Logon event repeated
+                            continue
+                        else:  # Unfinished event
+                            act['Logon'] = start_time
+                            if end_time and end_time > start_time:
+                                act['Logoff'] = end_time
+                            else:
+                                # Try to get a poweroff event time as logoff time
+                                dt, power_event_type = self._power_time(act['Logon'], v['TimeCreated'])
+                                act['Logoff'] = dt
+                                act['Comment'] = 'Session end time not reliable'
+                                if power_event_type == 'poweroff':
+                                    act['Reason'] = 'Possible computer poweroff or restart'
+                                elif power_event_type == 'poweron':
+                                    act['Reason'] = "Start event, possibly caused by an unexpected poweroff"
+                                else:
+                                    act['Reason'] = "Unknown"
+                            act['Duration'] = get_duration(act['Logon'], act['Logoff'])
+                            results.append(act.copy())
+                            completed = True
+                            success = False
+                            act = empty_result.copy()
+                            start_time = end_time = core_ts_start = core_ts_end = rcm_start = aux_end = ''
+                    insession = True
+                    success = True
+                    start_time = v['TimeCreated']
+                    end_time = aux_end = ''
+                    act.update({
+                        'SourceIP': v.get('SourceIP'),
+                        'TargetUser': v['TargetUser'],
+                        'Outcome': 'success',
+                        'SessionID': v.get('SessionID'),
+                        'Comment': "Reconnection" if v["EventID"] == '25' else ''
+                    })
+                elif v['EventID'] == '102':  # Session Disconnect -> The server has terminated main RDP connection with the client
+                    core_ts_end = v['TimeCreated']
+                elif v['EventID'] == '39':  # Session Disconnect -> Session X has been disconnected by session Y
+                    end_time = v['TimeCreated']
+                    success = True
+                elif v['EventID'] == '40':  # Session Disconnect -> Session X has been disconnected, reason code Z
+                    if v.get('Reason') == '0':  # Do not write "No additional information is available"
+                        act['Reason'] = ''
+                    else:
+                        act['Reason'] = v['ReasonStr']
+                    end_time = v['TimeCreated']
+                    success = True
+                elif v['EventID'] in ('4778', '4779'):  # Session Disconnect/Reconnect
+                    act.update({
+                        'SourceIP': v.get('SourceIP'),
+                        'SourceHost': v.get('SourceHostname'),
+                        'TargetUser': v['TargetUser'],
+                        'ConnectionName': v.get('ConnectionName')
+                    })
+                elif v['EventID'] in ('23', '24'):  # 23 (Session logoff succeeded) / 24 (Session has been disconnected)
+                    # Skip the second of two consecutive logoff events. When logging off, 23 comes first and then 24 may appear. When start -> disconnect, 24 may come before 23
+                    if not insession and self.__difTimestamp__(v["TimeCreated"], aux_end) < 5:  # 5 seconds is a compromise time range
+                        start_time = end_time = core_ts_start = core_ts_end = rcm_start = aux_end = ''
+                        insession = False
+                        continue
+                    elif not insession and not act['Reason']:
+                        act['Comment'] = 'Possible timeout'
+                    if v['EventID'] == '23' and not act.get('Reason'):
+                        act['Reason'] = 'Session logoff succeeded'
+                    insession = False
+                    act.update({
+                        'Logoff': v['TimeCreated'],
+                        'TargetUser': v['TargetUser'],
+                        'SourceIP': act['SourceIP'] or v.get('SourceIP', ''),  # Despite event 24 has IP data, this value is not as reliable as other events
+                        'Outcome': 'success',
+                        'SessionID': v.get('SessionID')
+                    })
+                    if start_time:
+                        act['Logon'] = start_time
+                    elif core_ts_start:
+                        act['Logon'] = core_ts_start
+                        act['Comment'] = 'Session start time not reliable'
+                    elif rcm_start:
+                        act['Logon'] = rcm_start
+                        act['Comment'] = 'Session start time not reliable'
+                    else:
+                        act['Logon'] = '-'
+                    act['Duration'] = get_duration(act['Logon'], act['Logoff'])
+                    results.append(act.copy())
+                    completed = True
+                    success = False
+                    act = empty_result.copy()
+                    start_time = end_time = core_ts_start = core_ts_end = rcm_start = aux_end = ''
+                    aux_end = v['TimeCreated']
+
+            # Handle abnormal end of ActivityID scenarios
+            # 1. No formal "LocalSessionManager" end
+            if start_time:
+                act['Logon'] = start_time
+                act['Reason'] = act['Reason'] or 'Unknown'
+                if (end_time and end_time > start_time):  # Unknown disconnection reason
+                    act['Logoff'] = end_time
+                elif (core_ts_end and core_ts_end > start_time):   # Unexpected "RemoteDesktopServices-RdpCoreTS" end
+                    act['Logoff'] = core_ts_end
+                    act['Comment'] = "No formal end to the session"
+                else:   # Session still running
+                    act['Logoff'] = '-'
+                    act['Reason'] = ''
+                    act['Comment'] = 'Active session'
+                act['Duration'] = get_duration(act['Logon'], act['Logoff'])
+                results.append(act.copy())
+            # 2. Session with no successful start
+            elif end_time:
+                # Previous data exists in "TerminalServices-LocalSessionManager".
+                if completed:  # Sometimes event 40 is recorded after 24. This means the session formally ends with 24 but no actual connection was stablished since event 40
+                    continue
+                # No previous data in "TerminalServices-LocalSessionManager"
+                act['Logoff'] = end_time
+                act['Outcome'] = 'success'
+                act['Comment'] = 'Session start time not reliable'
+                if (core_ts_start and core_ts_start < end_time):  # Previous data in "RdpCoreTS"
+                    act['Logon'] = core_ts_start
+                elif (rcm_start and rcm_start < end_time):  # Previous data in "RemoteConnectionManager"
+                    # Usually those records last longer, but the event time will be of the first connection, ignoring recoonections
+                    act['Logon'] = rcm_start
+                else:   # No previous data at all
+                    act['Logon'] = '-'
+                act['Duration'] = get_duration(act['Logon'], act['Logoff'])
+                results.append(act.copy())
+            # 3. "RdpCoreTS" sessions with no "TerminalServices-LocalSessionManager" events
+            elif core_ts_end and not completed:
+                act['Logoff'] = core_ts_end
+                act['Outcome'] = 'success' if success else 'failure'
+                if (core_ts_start and core_ts_start < core_ts_end):
+                    act['Logon'] = core_ts_start
+                elif (rcm_start and rcm_start < end_time):
+                    act['Logon'] = rcm_start
+                    act['Outcome'] = 'unknown'
+                else:
+                    act['Logon'] = '-'
+                act['Duration'] = get_duration(act['Logon'], act['Logoff'])
+                results.append(act.copy())
+            # 4. Only an event 1149
+            elif rcm_start:
+                act['Logon'] = rcm_start
+                act['Outcome'] = 'unknown'
+                act['Logoff'] = '-'
+                act['Duration'] = get_duration(act['Logon'], act['Logoff'])
+                results.append(act.copy())
+
+        # Sort results
+        sort_module = base.job.load_module(self.config, 'base.mutations.SortResults', extra_config={'fields': 'Logon Logoff', 'ignore_empty': True}, from_module=results)
+        results_sorted = list(sort_module.run())
+        # Output results in CSV and JSON
+        save_csv(results_sorted, config=None,
+                 outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'rdp_incoming.csv'),
+                 file_exists='OVERWRITE')
+        save_md_table(results_sorted, config=None,
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'rdp_incoming.md'),
                       file_exists='OVERWRITE')
 
+    def _find_closest_date(self, loginfo, openssh):
+        """ Get values for IP and port given OpenSSH events"""
+        login = None
+        logoff = None
+        if 'Login (UTC)' in loginfo.keys():
+            login = datetime.datetime.strptime(loginfo['Login (UTC)'], "%Y-%m-%d %H:%M:%S")
+        if 'Logoff (UTC)' in loginfo.keys():
+            logoff = datetime.datetime.strptime(loginfo['Logoff (UTC)'], "%Y-%m-%d %H:%M:%S")
+
+        for ev in openssh:
+            if 'Login (UTC)' in loginfo.keys() and 'Logoff (UTC)' in loginfo.keys():
+                if loginfo['Login (UTC)'] <= ev['TimeCreated'][:19] <= loginfo['Logoff (UTC)']:
+                    return ev['SourceIP'], ev['SourcePort']
+            elif 'Login (UTC)' not in loginfo.keys():  # if Security events are not long enough
+                if ev['TimeCreated'][:19] <= loginfo['Logoff (UTC)']:
+                    dte = datetime.datetime.strptime(ev['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S")
+                    if (logoff - dte).total_seconds() < 5:
+                        return ev['SourceIP'], ev['SourcePort']
+            elif 'Logoff (UTC)' not in loginfo.keys():  # if session is still active
+                if loginfo['Login (UTC)'] <= ev['TimeCreated'][:19]:
+                    dte = datetime.datetime.strptime(ev['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S")
+                    if (dte - login).total_seconds() < 5:
+                        return ev['SourceIP'], ev['SourcePort']
+        return "", ""
+
     def extractLogon8(self, logID, openssh):
-        """ Only events 4624 and 4634 with LogonType 8 (ClearPassword) and events 4 of ssh """
+        """ Only events 4624 and 4634 with LogonType 8 (ClearPassword) and events 4 of OpenSSH """
 
         results = []
         event_types = {'4624': 'Login (UTC)', '4634': 'Logoff (UTC)'}
         logons = defaultdict(dict)
-
-        def find_closest_date(loginfo, openssh):
-            login = None
-            logoff = None
-            if 'Login (UTC)' in loginfo.keys():
-                login = datetime.datetime.strptime(loginfo['Login (UTC)'], "%Y-%m-%d %H:%M:%S")
-            if 'Logoff (UTC)' in loginfo.keys():
-                logoff = datetime.datetime.strptime(loginfo['Logoff (UTC)'], "%Y-%m-%d %H:%M:%S")
-
-            for ev in openssh:
-                if 'Login (UTC)' in loginfo.keys() and 'Logoff (UTC)' in loginfo.keys():
-                    if loginfo['Login (UTC)'] <= ev['TimeCreated'][:19] <= loginfo['Logoff (UTC)']:
-                        return ev['source.ip'], ev['source.port']
-                elif 'Login (UTC)' not in loginfo.keys():  # if Security events are not long enough
-                    if ev['TimeCreated'][:19] <= loginfo['Logoff (UTC)']:
-                        dte = datetime.datetime.strptime(ev['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S")
-                        if (logoff - dte).total_seconds() < 5:
-                            return ev['source.ip'], ev['source.port']
-                elif 'Logoff (UTC)' not in loginfo.keys():  # if Security events are not long enough
-                    if loginfo['Login (UTC)'] <= ev['TimeCreated'][:19]:
-                        dte = datetime.datetime.strptime(ev['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S")
-                        if (dte - login).total_seconds() < 5:
-                            return ev['source.ip'], ev['source.port']
-            return "", ""
+        openssh = sorted(openssh, key=lambda d: d['TimeCreated'])
 
         for eventlist in logID.values():
             for e, v in enumerate(eventlist):
@@ -326,60 +594,77 @@ class LogonRDP(base.job.BaseModule):
                 logons[logon_id]['LogonType'] = v['LogonTypeStr']
                 # The following information is only available in 4624 events
                 if v['EventID'] == "4624":
-                    logons[logon_id]['SourceIP'] = v.get('source.ip')
-                    logons[logon_id]['SourcePort'] = v.get('source.port')
+                    logons[logon_id]['SourceIP'] = v.get('SourceIP')
+                    logons[logon_id]['SourcePort'] = v.get('SourcePort')
                     logons[logon_id]['ProcessName'] = v['ProcessName']
                     logons[logon_id]['AuthenticationPackage'] = v['AuthenticationPackageName']
         for logid in logons.keys():
+            if 'Login (UTC)' in logons[logid] and 'Logoff (UTC)' in logons[logid]:
+                logons[logid]['Duration'] = get_duration(logons[logid]['Login (UTC)'], logons[logid]['Logoff (UTC)'], date_format="%Y-%m-%d %H:%M:%S")
             if logons[logid].get('SourceIP') in ('', '-', '::') and logons[logid]['ProcessName'] == 'C:\\Windows\\System32\\OpenSSH\\sshd.exe':
                 # Complete the missing source IP information with events 8 from OpenSSH
-                logons[logid]['SourceIP'], logons[logid]['SourcePort'] = find_closest_date(logons[logid], openssh)
+                logons[logid]['SourceIP'], logons[logid]['SourcePort'] = self._find_closest_date(logons[logid], openssh)
 
         results = [logon for logon in logons.values()]
+        sort_module = base.job.load_module(self.config, 'base.mutations.SortResults', extra_config={'fields': '"Login (UTC)" "Logoff (UTC)"', 'ignore_empty': True}, from_module=results)
+        results_sorted = list(sort_module.run())
 
-        save_csv(results, config=None,
+        save_csv(results_sorted, config=None,
             outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.csv'),
-            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
+            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
             file_exists='OVERWRITE')
-        save_md_table(results, config=None,
+        save_md_table(results_sorted, config=None,
             outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.md'),
-            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
+            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
             backticks_fields='User',
             date_fields="['Login (UTC)', 'Logoff (UTC)']",
             file_exists='OVERWRITE')
-        openssh = sorted(openssh, key=lambda d: d['TimeCreated'])
 
-        # Generates a table using openssh events. There are a problem because there is no identifier to distinguish sessions
-
+        # Generates a table using OpenSSH events
+        # There is no identifier to discriminate sessions. 'SourcePort' is the next best thing
         results = []
         temporal_dict = {}
         for ev in openssh:
-            if 'logoff' not in ev['ConnType'] and 'logon' not in ev['ConnType'] or ev['Description'].startswith("Received"):
+            if 'logoff' not in ev['ConnType'] and 'logon' not in ev['ConnType']:
                 continue
-            if ev['source.port'] not in temporal_dict.keys():  # New login
+            s_port = ev['SourcePort']
+            if ev['Description'].startswith("Received"):
+                to_be_popped = []
+                for k in temporal_dict:
+                    if 'Login (UTC)' in temporal_dict[k] and temporal_dict[k]['Login (UTC)'] < ev['TimeCreated']:
+                        temporal_dict[k]['Logoff (UTC)'] = ev['TimeCreated']
+                        temporal_dict[k]['Duration'] = get_duration(temporal_dict[k]['Login (UTC)'], ev['TimeCreated'])
+                        results.append(temporal_dict[k])
+                        to_be_popped.append(k)
+                for p in to_be_popped:
+                    temporal_dict.pop(p)
+                continue
+            if s_port not in temporal_dict.keys():  # New login
                 if ev['ConnType'] == 'logoff':  # Misses logon event
-                    results.append({'Logoff (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']})
+                    results.append({'Logoff (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['SourceIP'], 'Port': s_port})
                 elif ev['ConnType'] == 'logon':
-                    temporal_dict[ev['source.port']] = {}
-                    temporal_dict[ev['source.port']] = {'Login (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']}
+                    temporal_dict[s_port] = {'Login (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['SourceIP'], 'Port': s_port}
             else:
-                if ev['ConnType'] == 'logoff':  # Misses logon event
-                    temporal_dict[ev['source.port']]['Logoff (UTC)'] = ev['TimeCreated']
-                    results.append(temporal_dict[ev['source.port']])
-                    temporal_dict.pop(ev['source.port'])
-                elif ev['ConnType'] == 'logon':
-                    results.append(temporal_dict[ev['source.port']])
-                    temporal_dict[ev['source.port']] = {'Login (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['source.ip'], 'Port': ev['source.port']}
-                    temporal_dict.pop(ev['source.port'])
+                if ev['ConnType'] == 'logoff':
+                    temporal_dict[s_port]['Logoff (UTC)'] = ev['TimeCreated']
+                    temporal_dict[s_port]['Duration'] = get_duration(temporal_dict[k]['Login (UTC)'], ev['TimeCreated'])
+                    results.append(temporal_dict[s_port])
+                    temporal_dict.pop(s_port)
+                elif ev['ConnType'] == 'logon':  # Two consecutives logon events
+                    temporal_dict[s_port] = {'Login (UTC)': ev['TimeCreated'], 'User': ev['User'], 'IP': ev['SourceIP'], 'Port': s_port}
+
         for k in temporal_dict:
             results.append(temporal_dict[k])
-        save_csv(results, config=None,
+
+        sort_module = base.job.load_module(self.config, 'base.mutations.SortResults', extra_config={'fields': '"Login (UTC)" "Logoff (UTC)"', 'ignore_empty': True}, from_module=results)
+        results_sorted = list(sort_module.run())
+        save_csv(results_sorted, config=None,
             outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.csv'),
-            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'IP', 'Port']",
+            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'IP', 'Port']",
             file_exists='OVERWRITE')
-        save_md_table(results, config=None,
+        save_md_table(results_sorted, config=None,
             outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.md'),
-            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'User', 'IP', 'Port']",
+            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'IP', 'Port']",
             backticks_fields='User',
             date_fields="['Login (UTC)', 'Logoff (UTC)']",
             file_exists='OVERWRITE')
@@ -407,7 +692,6 @@ class RDPIncoming(base.job.BaseModule):
             ev = dict()
             ev['EventID'] = event.get('event.code', '')
             ev['TimeCreated'] = event.get('event.created', '')
-            ev['Description'] = event.get('message', '')
 
             if ev['EventID'] in ("12", "13"):
                 power_ev.append(ev)
@@ -426,33 +710,35 @@ class RDPIncoming(base.job.BaseModule):
 
     def extractRDP(self, aID, power_ev):
 
-        for eventlist in aID.values():
-            act = dict()
+        for activity_id, eventlist in aID.items():
+            empty_result = {
+                'Logon': '-',
+                'Logoff':'-',
+                'SourceAddress': '',
+                'User': '',
+                'Comments': '',
+                'ActivityID': activity_id
+            }
+            act = empty_result.copy()
             written = True
-            act['LoginDate'] = '-'
-            act['LogoffDate'] = '-'
-            act['User'] = ''
-            act['SourceAddress'] = ''
-            act['Comments'] = ''
             length = len(eventlist) - 1
 
             for e, v in enumerate(sorted(eventlist, key=lambda k: k['TimeCreated'])):
-                # self.logger().debug("%s %s" % (v['TimeCreated'], v['EventID']))
 
                 if written:  # New login
                     if v['EventID'] in ('21', '22', '25'):
                         if act['SourceAddress'] == '':
                             act['SourceAddress'] = v.get('SourceAddress', '')
                         act['User'] = v.get('User', '')
-                        act['LoginDate'] = v['TimeCreated']
+                        act['Logon'] = v['TimeCreated']
                         written = False
                         if v['EventID'] == '25':
                             act['Comments'] += "Reconnection."
 
                 else:
-                    if v['EventID'] in '21':  # opened session without close before
-                        dt, reason = self.find_poweroff(act['LoginDate'], v['TimeCreated'], power_ev)
-                        act['LogoffDate'] = dt
+                    if v['EventID'] in '21':  # Open session without previous logoff
+                        dt, reason = self.find_poweroff(act['Logon'], v['TimeCreated'], power_ev)
+                        act['Logoff'] = dt
                         if reason == 'poweroff':
                             act['Comments'] += "Poweroff or restart."
                         elif reason == 'poweron':
@@ -460,42 +746,19 @@ class RDPIncoming(base.job.BaseModule):
                         else:
                             act['Comments'] += "Unknown date"
                         written = True
-                        yield {
-                            'LoginDate': act.get('LoginDate', '-'),
-                            'LogoffDate': act.get('LogoffDate', '-'),
-                            'User': act.get('User', ''),
-                            'SourceAddress': act.get('SourceAddress', ''),
-                            'Comments': act.get('Comments', '')
-                        }
-                        act['LoginDate'] = '-'
-                        act['LogoffDate'] = '-'
-                        act['User'] = ''
-                        act['SourceAddress'] = ''
-                        act['Comments'] = ''
+                        yield act
+                        act = empty_result.copy()
+
                     elif v['EventID'] in ('23', '24'):
-                        act['LogoffDate'] = v['TimeCreated']
-                        yield {
-                            'LoginDate': act.get('LoginDate', '-'),
-                            'LogoffDate': act.get('LogoffDate', '-'),
-                            'User': act.get('User', ''),
-                            'SourceAddress': act.get('SourceAddress', ''),
-                            'Comments': act.get('Comments', '')
-                        }
-                        # self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
-                        act['LoginDate'] = '-'
-                        act['LogoffDate'] = '-'
-                        act['User'] = ''
-                        act['SourceAddress'] = ''
-                        act['Comments'] = ''
+                        act['Logoff'] = v['TimeCreated']
+                        yield act
+                        act = empty_result.copy()
                         written = True
+
                 if length == e and not written:
-                    yield {
-                        'LoginDate': act.get('LoginDate', '-'),
-                        'LogoffDate': act.get('LogoffDate', '-'),
-                        'User': act.get('User', ''),
-                        'SourceAddress': act.get('SourceAddress', ''),
-                        'Comments': act.get('Comments', '')
-                    }
+                    # Session started but log has ended
+                    yield act
+
 
     def find_poweroff(self, previous_time, actual_time, power_ev):
         """ Finds date of poweroff or poweron as logout date """
@@ -556,84 +819,229 @@ class RDPGateway(base.job.BaseModule):
                 ev['SourceAddress'] = ''
 
 
-class RDPOutgoing(base.job.BaseModule):
-    """ Extracts events related to outgoing RDP connections """
+class OutgoingLogon(base.job.BaseModule):
+    """ Extracts events related to outgoing RDP connections:
+        - 1024, 1025, 1026, 1027, 1029, 1102, 1105 (Microsoft-Windows-TerminalServices-ClientActiveXCore)
+        - 4648 (Security)
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('outfile_md', os.path.join(self.myconfig('analysisdir'), 'events', 'rdp_outgoing.md'))
 
     def run(self, path=None):
         """
         Attrs:
             path (str): Absolute path to the parsed Security.xml
         """
-
         self.check_params(path, check_path=True, check_path_exists=True)
+
         # RDP Outgoing events display only user SID. Get user name
         # TODO: events.json should have a way to identify partition
         partition = None
         os_info = CharacterizeWindows(config=self.config)
         users_sid = os_info.get_users_names(partition=partition)
+
         actID = {}
+        self.events_4648 = []
+        self.b64_hash_users = {}
+        self.servers = defaultdict(list)    # key: IP, values: (hostname, first_occurrence_datetime)
+        self.all_addresses = set()
+        users_4648 = set()
+        hash_version = ''
 
         for event in self.from_module.run(path):
-            ev = dict()
-            ev['TimeCreated'] = event.get('event.created', '')
-            ev['EventID'] = event.get('event.code', '')
-            ev['Description'] = event.get('message', '')
-            ev['ActivityID'] = event.get('data.ActivityID', '')
-            ev['Address'] = event.get('destination.address', '')
-            ev['user.id'] = event.get('user.id', '')
-            ev['User'] = users_sid.get(ev['user.id'], ev['user.id'])
-            ev['B64Hash'] = event.get('data.Base64Hash', '')
+            # Skip event 4648 if it is an incoming or local authentication
+            if event.get('event.code', '') == "4648":
+                if (event.get('data.TargetServerName', '') == 'localhost') or (event.get('destination.user.name', '').endswith('$')):
+                    continue
+            # Get the hash algorithm for the destination user (only one time):
+            # https://www.aon.com/cyber-solutions/aon_cyber_labs/remote-desktop-event-log-analysis_variations-in-logging-for-event-id-1029/
+            if not hash_version and event.get('event.code', '') == "1029":
+                hash_length = len(event.get('data.Base64Hash', '').rstrip('-'))
+                # Consider either single or dual hash
+                if hash_length in (28, 57):
+                    hash_version = 'v1'
+                elif hash_length in (44, 89):
+                    hash_version = 'v2'
 
-            if ev['ActivityID'] not in actID.keys():
-                actID[ev['ActivityID']] = []
-            actID[ev['ActivityID']].append(ev)
+            # Main output structure
+            ev = {
+                'TimeCreated': event.get('event.created', ''),
+                'EventID': event.get('event.code', ''),
+                'Description': event.get('message', ''),
+                'ActivityID': event.get('data.ActivityID', ''),
+                'SourceUser': '',
+                'user.id': event.get('user.id', ''),
+                'Address': event.get('destination.address', ''),                            # Events 1024, 1102, 4648
+                'B64Hash': event.get('data.Base64Hash', ''),                                # Event 1029
+                'DestinationUser': event.get('destination.user.name', ''),                  # Event 4648
+                'DestinationPort': event.get('destination.port', ''),                       # Event 4648
+                'DestinationHost': event.get('data.TargetServerName', ''),                  # Event 4648
+                'DestinationDomain': event.get('destination.domain', ''),                   # Events 1027, 4648
+                'ReasonCode': event.get('data.Reason'),                                     # Event 1026
+                'Reason': event.get('data.ReasonStr') or event.get('data.Reason')           # Event 1026
+            }
+            if ev['EventID'] == "4648":
+                ev['SourceUser'] = event.get('source.user.name', '')
+                self.events_4648.append(ev)
+            else:
+                ev['SourceUser'] = users_sid.get(event.get('user.id', ''), event.get('user.id', ''))
 
-        for result in self.extractRDP(actID):
-            yield result
+            if ev['ActivityID'] and not ev['EventID'] == "1027":
+                if ev['ActivityID'] not in actID.keys():
+                    actID[ev['ActivityID']] = []
+                actID[ev['ActivityID']].append(ev)
+            yield ev
+
+        # Calculate expected b64_hash values
+        hash_version = hash_version or 'v2'
+        for ev in self.events_4648:
+            if ev['DestinationUser'] in users_4648:
+                continue
+            self.b64_hash_users[self.b64_hash(ev['DestinationUser'], version=hash_version)] = ev['DestinationUser']
+            users_4648.add(ev['DestinationUser'])
+
+        # Associate IP with Hostname
+        for ev_auth in self.events_4648:
+            if ev_auth['Address'] and ev_auth['Address'] != '-':
+                found_hostname = False
+                if ev_auth['Address'] not in self.servers:
+                    self.servers[ev_auth['Address']].append((ev_auth['DestinationHost'], datetime.datetime.strptime(ev_auth['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S")))
+                else:
+                    for dest_hostname in self.servers[ev_auth['Address']]:
+                        if dest_hostname[0] == ev_auth['DestinationHost']:
+                            found_hostname = True
+                            break
+                    if not found_hostname:
+                        self.servers[ev_auth['Address']].append((ev_auth['DestinationHost'], datetime.datetime.strptime(ev_auth['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S")))
+
+        # Calculate RDP outgoing sessions
+        results = self.extractRDP(actID)
+        sort_module = base.job.load_module(self.config, 'base.mutations.SortResults', extra_config={'fields': '"LoginDate" "LogoffDate"', 'ignore_empty': True}, from_module=results)
+        results_sorted = list(sort_module.run())
+        save_md_table(results_sorted, config=None,
+            outfile=self.myconfig('outfile_md'),
+            backticks_fields='SourceUser',
+            date_fields="['LoginDate', 'LogoffDate']",
+            file_exists='OVERWRITE')
+        save_csv(results_sorted, config=None,
+            outfile=self.myconfig('outfile_md')[:-2] + 'csv',
+            file_exists='OVERWRITE')
+
+    def b64_hash(self, username, version='v2'):
+        """ Calculate the base64 of the HASH of a username/domain
+            v1: (Windows 7 / Server 2012 R2) --> sha1
+            v2: (Windows 10 / WS 2016) --> sha256
+        """
+        if version.lower() not in ['v1', 'v2']:
+            return ''
+        hash_algorithm = {'v1': hashlib.sha1, 'v2': hashlib.sha256}
+        username = username.encode('utf-16le')
+        hash = hash_algorithm[version.lower()](username).digest()
+        return base64.b64encode(hash).decode()
+
+    def _search_authentication(self, event, address):
+        """ Get extra information (DestinationUsername and DestinationHostname) from event 4648
+            Arguments:
+                - **event**: Event 1029 data enriched with same ActivityID events
+                - **address**: Set of IPs/Hostnames for the current session
+        """
+        target_user, target_server = ('', '')
+        # Get target server
+        for addr in address:
+            if addr not in self.all_addresses:
+                self.all_addresses.add(addr)
+            if addr in self.servers:  # Check if previously calculated
+                for server in self.servers[addr]:
+                    hostname, first_occurrence = server
+                    # Get the last hostname associated with IP given an event time
+                    if datetime.datetime.strptime(event['TimeCreated'][:19], "%Y-%m-%d %H:%M:%S") > first_occurrence:
+                        target_server = hostname
+                if not target_server:
+                    target_server = self.servers[addr][0][0]  # Assume the first one after the event is the valid one
+                    break
+        # Get target user
+        b64_hashes = event['B64Hash'].rstrip('-')
+        if len(b64_hashes) in (57, 89):  # Dual hash
+            for ind_hash in b64_hashes.split('-'):
+                if self.b64_hash_users.get(ind_hash):
+                    target_user = self.b64_hash_users[ind_hash]
+        else:  # Single hash
+            target_user = self.b64_hash_users.get(b64_hashes, '')
+        return target_user, target_server
 
     def extractRDP(self, actID):
 
-        for eventlist in actID.values():
-            act = dict()
-            writted = True
-            act['LoginDate'] = '-'
-            act['LogoffDate'] = '-'
+        for activity_ID, eventlist in actID.items():
+            act = {
+                'LoginDate': '-',
+                'LogoffDate': '-',
+                'Address': '',
+                'SourceUser': '-',
+                'SID': '',
+                'B64Hash': '',
+                'DestinationUser': '',
+                'DestinationHost': '',
+                'Status': 'Unknown',
+                'Duration': '',
+                'ActivityID': activity_ID,
+                'Message': ''
+            }
+            written = True
+            success = False
+            started = False
+            ended = False
+            destination_address = set()
 
             for v in sorted(eventlist, key=lambda k: k['TimeCreated']):
-                # self.logger().debug("%s %s %s" % (v['TimeCreated'], v['EventID'], v['ActivityID']))
-                if 'SID' not in act.keys() and 'user.id' in v.keys():
+                if not act['SID']:  # Get SID and user from first event
                     act['SID'] = v['user.id']
-                    act['User'] = v['User']
+                    act['SourceUser'] = v['SourceUser']
                 if v['EventID'] in ('1024', '1102'):
-                    act['Address'] = v['Address']
-                elif v['EventID'] == '1025':
+                    destination_address.add(v['Address'])  # Sometimes IP, sometimes hostname
                     act['LoginDate'] = v['TimeCreated']
-                    writted = False
-                elif v['EventID'] == '1026' and act['LoginDate'] != '-':
+                    started = True
+                if v['EventID'] == '1102':
+                    success = True
+                elif v['EventID'] == '1025':  # Login successful
+                    act['LoginDate'] = v['TimeCreated']
+                    written = False  # Signal there is information yet to be yielded
+                    started = True
+                    success = True
+                elif v['EventID'] == '1029' and not act['B64Hash']:
+                    act['B64Hash'] = v.get('B64Hash', '')
+                    act['DestinationUser'], act['DestinationHost'] = self._search_authentication(v, destination_address)
+                    started = True
+                elif v['EventID'] == '1105' and not ended and not success:
+                    act['LogoffDate'] = v['TimeCreated']  # Store it in case there is no later event 1026
+                    ended = True
+                elif v['ReasonCode'] in ['263', '519', '1289', '1801']:  # These events are part of the connection process and do not indicate a session end 
+                    continue
+                elif v['EventID'] == '1026':  # Logoff
                     act['LogoffDate'] = v['TimeCreated']
-                    yield {
-                        'LoginDate': act.get('LoginDate', '-'),
-                        'LogoffDate': act.get('LogoffDate', '-'),
-                        'Address': act.get('Address', ''),
-                        'SID': act.get('SID', '-'),
-                        'User': act.get('User', '-'),
-                        'B64Hash': act.get('B64Hash', '')
-                    }
-                    # self.logger().debug("%s %s" % (act['LoginDate'], act['LogoffDate']))
+                    act['Address'] = '/'.join(destination_address)
+                    act['Status'] = 'Success' if success else 'Failure'
+                    act['Message'] = v.get('Reason', '')
+                    act['Duration'] = get_duration(act['LoginDate'], act['LogoffDate'])
+                    yield act
+                    written = True
+                    ended = True
+                    # Reset times, for reconnection cases where ActivityID is conserved
                     act['LoginDate'] = '-'
                     act['LogoffDate'] = '-'
-                    writted = True
-                elif v['EventID'] == '1029' and 'B64Hash' not in act.keys():
-                    act['B64Hash'] = v.get('B64Hash', '')
-            if not writted:
-                yield {
-                    'LoginDate': act.get('LoginDate', '-'),
-                    'LogoffDate': act.get('LogoffDate', '-'),
-                    'Address': act.get('Address', ''),
-                    'SID': act.get('SID', '-'),
-                    'User': act.get('User', '-'),
-                    'B64Hash': act.get('B64Hash', '')
-                }
+                    started = False
+                    success = False
+            if not written and not ended:  # Unfinished session
+                act['Address'] = '/'.join(destination_address)
+                act['Status'] = 'Success' if success else 'Failure'
+                act['Duration'] = get_duration(act['LoginDate'], act['LogoffDate'])
+                yield act
+            elif not written and not success:  # Failure or the start took place before available event logs
+                act['Address'] = '/'.join(destination_address)
+                act['Status'] = 'Failure' if started else 'Success'
+                act['Duration'] = get_duration(act['LoginDate'], act['LogoffDate'])
+                yield act
 
 
 class Poweron(base.job.BaseModule):
@@ -938,9 +1346,7 @@ class USB(base.job.BaseModule):
 
 
 class USBConnections(base.job.BaseModule):
-    """ Extracts events related with usb plugs
-
-    Events should be sorted"""
+    """ Extracts events related with USB plugs """
 
     def run(self, path=None):
         """ Extracts USB sticks' plugins and plugoffs data """
@@ -1046,14 +1452,15 @@ class USBPlugs2(base.job.BaseModule):
             plugs[device].append({'TimeCreated': ev['TimeCreated'], 'action': ev['action'], 'VolumeName': ev['VolumeName']})
 
         results = self.get_plugs(plugs)
-        devices2 = []
-        for dev in devices:
-            devices2.append(dev.to_dict())
-
-        save_md_table(results, config=None,
+        sort_module = base.job.load_module(self.config, 'base.mutations.SortResults', extra_config={'fields': 'plugged_in plugged_off', 'ignore_empty': True}, from_module=results)
+        results_sorted = list(sort_module.run())
+        save_md_table(results_sorted, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_plugs2.md'),
                       fieldnames='plugged_in plugged_off Vendor Model SerialNumber VolumeName',
                       file_exists='OVERWRITE')
+        devices2 = []
+        for dev in devices:
+            devices2.append(dev.to_dict())
         save_md_table(devices2, config=None,
                       outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'usb_info.md'),
                       fieldnames='DeviceID Vendor Model SerialNumber Capacity',
@@ -1455,13 +1862,11 @@ class Powershell(base.job.BaseModule):
     def suspicious_functions_score(self, command):
         """ return value depending on functions and strings """
 
-        from .RVT_events import load_fields
-
-        tmpdict = load_fields(os.path.join(self.config.config['windows']['plugindir'], 'ps_list.json'))
+        tmpdict = load_fields(os.path.join(self.config.config['windows']['plugindir'], 'ps_list.json'), default_regex="(.*):(.*)\n")
         regex = {}
         for k, v in tmpdict.items():
             if k.startswith("["):
-                regex[re.compile(f'\\{k[:-1]}\]')] = v
+                regex[re.compile(k.replace("[", "\\[").replace("]", "\\]"))] = v
             else:
                 regex[re.compile(f'\W{k}\W')] = v
 

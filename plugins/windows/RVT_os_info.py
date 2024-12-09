@@ -468,6 +468,12 @@ class GetUserFromSID(base.job.BaseModule):
             user_field = sid_field
 
         os_info = CharacterizeWindows(config=self.config)
+        # Check once if the registry has been parsed
+        users_sid = os_info.get_users_names(partition=partition)
+        if not users_sid:
+            yield from self.from_module.run(path)
+            return []
+
         for data in self.from_module.run(path):
             if sid_field not in data:
                 # Create user_field anyway
