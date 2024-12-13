@@ -88,7 +88,7 @@ class IncomingLogon(base.job.BaseModule):
                 'ActivityID': event.get('data.ActivityID', ''),
                 'User': '',
                 'TargetUser': '',
-                'TargetServer': event.get('data.TargetServerName', ''), # Event 4648 (security)
+                # 'TargetServer': event.get('data.TargetServerName', ''), # Event 4648 (security)
                 'SourceIP': '',
                 'SourcePort': event.get('source.port', ''),             # Events 4624, 4625, 4648 (Security)
                 'SourceHostname': event.get('client.hostname', ''),     # Events 4624, 4776, 4778, 4779 (Security)
@@ -229,7 +229,7 @@ class IncomingLogon(base.job.BaseModule):
         return (current_time, 'unknown')
 
     def extractLogon(self, logID):
-        """ 
+        """
         Gets successful logon sessions from the following Security events:
         4624, 4634, 4647, 4778, 4779
         """
@@ -715,7 +715,7 @@ class RDPIncoming(base.job.BaseModule):
         for activity_id, eventlist in aID.items():
             empty_result = {
                 'Logon': '-',
-                'Logoff':'-',
+                'Logoff': '-',
                 'SourceAddress': '',
                 'User': '',
                 'Comments': '',
@@ -760,7 +760,6 @@ class RDPIncoming(base.job.BaseModule):
                 if length == e and not written:
                     # Session started but log has ended
                     yield act
-
 
     def find_poweroff(self, previous_time, actual_time, power_ev):
         """ Finds date of poweroff or poweron as logout date """
@@ -1017,7 +1016,7 @@ class OutgoingLogon(base.job.BaseModule):
                 elif v['EventID'] == '1105' and not ended and not success:
                     act['LogoffDate'] = v['TimeCreated']  # Store it in case there is no later event 1026
                     ended = True
-                elif v['ReasonCode'] in ['263', '519', '1289', '1801']:  # These events are part of the connection process and do not indicate a session end 
+                elif v['ReasonCode'] in ['263', '519', '1289', '1801']:  # These events are part of the connection process and do not indicate a session end
                     continue
                 elif v['EventID'] == '1026':  # Logoff
                     act['LogoffDate'] = v['TimeCreated']

@@ -1,0 +1,56 @@
+{
+  "27": {
+    "description": "Connection state - All connections have succeeded since the previous period.",
+    "provider": "Microsoft-Windows-UniversalTelemetryClient",
+    "path": {
+      "EventData": {
+        "Name": ["Environment", "EventsUploaded", "EventsDropped", "LastEventlogWrittenTime"]
+      }
+    }
+  },
+  "28": {
+    "description": "Connection state - Some connections have failed since the previous period.",
+    "provider": "Microsoft-Windows-UniversalTelemetryClient",
+    "path": {
+      "EventData": {
+        "Name": ["Environment", "EventsUploaded", "EventsDropped", "LastEventlogWrittenTime", "SuccessfulConnections", "FailedConnections", "LastHttpError"]
+      }
+    }
+  },
+  "29": {
+    "description": "Connection state - Some connections have failed since the previous period.",
+    "provider": "Microsoft-Windows-UniversalTelemetryClient",
+    "path": {
+      "EventData": {
+        "Name": ["Environment", "EventsUploaded", "EventsDropped", "LastEventlogWrittenTime", "FailedConnections", "LastHttpError", "ProxySettingDetected", "SslCertValidationFailures", "LastSslCertFailure"]
+      }
+    }
+  },
+  "55": {
+    "description": "Is the Internet available. <data.State>",
+    "provider": "Microsoft-Windows-UniversalTelemetryClient",
+    "path": {
+      "EventData": {
+        "Name": ["Environment", "State"]
+      }
+    }
+  },
+  "56": {
+    "description": "Is a free network available. <data.State>",
+    "provider": "Microsoft-Windows-UniversalTelemetryClient",
+    "path": {
+      "EventData": {
+        "Name": ["Environment", "State"]
+      }
+    }
+  },
+  "61": {
+    "description": "Is the Battery Saver state enabled. <data.State>",
+    "provider": "Microsoft-Windows-UniversalTelemetryClient",
+    "path": {
+      "EventData": {
+        "Name": ["Environment", "State"]
+      }
+    }
+  }
+}
