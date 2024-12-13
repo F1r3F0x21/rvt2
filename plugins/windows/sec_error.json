@@ -1,4 +1,22 @@
 0x0: Status OK
+0x00010002: An invalid SMB client request is received by the server
+0x00050002: The client request received by the server contains an invalid TID value
+0x00160002: The client request received by the server contains an unknown SMB command code
+0x005b0002: The client request to the server contains an invalid UID value
+0x00fb0002: The client request received by the server is for a non-standard SMB operation
+0x80000005: The data was too large to fit into the specified buffer
+0x80000006: No more files were found that match the file specification
+0x8000002d: The create operation stopped after reaching a symbolic link
+0xc0000002: The requested operation is not implemented
+0xc000000d: The parameter specified in the request is not valid
+0xc000000e: A device that does not exist was specified
+0xc0000010: The specified request is not a valid operation for the target device
+0xc0000016: If extended security has been negotiated, additional authentication information is to be exchanged
+0xc0000022: The client did not have the required permission needed for the operation
+0xc0000023: The buffer is too small to contain the entry
+0xc0000034: The object name is not found
+0xc0000035: The object name already exists
+0xc000003a: The path to the directory specified was not found
 0xc000005e: There are currently no logon servers available to service the logon request
 0xc0000064: User logon with misspelled or bad user account
 0xc000006a: User logon with misspelled or bad password
@@ -8,14 +26,24 @@
 0xc0000070: User logon from unauthorized workstation
 0xc0000071: The user account password has expired
 0xc0000072: User logon to account disabled by administrator
+0xc00000a5: A specified impersonation level is invalid
+0xc00000b5: The specified I/O operation was not completed before the time-out period expired
+0xc00000ba: The file specified as a target is a directory and the caller specified it could not be a directory
+0xc00000bb: The client request is not supported
+0xc00000c9: The network name specified by the client has been deleted on the server
 0xc00000dc: Indicates the Sam Server was in the wrong state to perform the desired operation
 0xc0000133: Clocks between DC and other computer too far out of sync
 0xc000015b: The user has not been granted the requested logon type (aka logon right) at this machine
 0xc000018c: The logon request failed because the trust relationship between the primary domain and the trusted domain failed
 0xc0000192: An attempt was made to logon, but the netlogon service was not started
 0xc0000193: User logon with expired account
+0xc0000203: The user session specified by the client has been deleted on the server
+0xc0000205: Insufficient server memory to perform the requested operation
+0xc000020c: The transport connection is now disconnected
 0xc0000224: User is required to change password at next logon
 0xc0000225: The object was not found
 0xc0000234: The user account has been automatically locked because too many invalid logon attempts or password change attempts have been requested
 0xc00002ee: Failure Reason: An Error occurred during Logon
+0xc000035c: The client's session has expired; the client MUST re-authenticate to continue accessing resources
 0xc0000413: Logon Failure: The machine you are logging onto is protected by an authentication firewall. The specified account is not allowed to authenticate to the machine
+0xc000205a: The client has requested too many UID values from the server

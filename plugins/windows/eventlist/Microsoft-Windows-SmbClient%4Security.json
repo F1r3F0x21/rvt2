@@ -1,6 +1,6 @@
 {
   "31001":{
-    "description": "An attempt to initialize a security context failed.",
+    "description": "An attempt to initialize a security context failed",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],
@@ -12,7 +12,7 @@
     }
   },
   "31010":{
-    "description": "The SMB client failed to connect to the share.",
+    "description": "The SMB client failed to connect to the share",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],
@@ -24,13 +24,13 @@
     }
   },
   "31017":{
-    "description": "RejectedInsecureGuestAuth.",
+    "description": "Rejected an insecure guest logon",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],
     "path": {
       "EventData":{
-        "Name": ["ServerName", "ShareName", "Status", "Reason"],
+        "Name": ["ServerName", "UserName"],
         "transform": {"ServerName": "destination.domain", "UserName": "user.name"}
       }
     }

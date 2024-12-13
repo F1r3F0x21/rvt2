@@ -1,6 +1,6 @@
 {
   "30800":{
-    "description": "The server name cannot be resolved.",
+    "description": "The server name cannot be resolved",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],
@@ -12,7 +12,7 @@
     }
   },
   "30803":{
-    "description": "Failed to establish a network connection.",
+    "description": "Failed to establish a network connection",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],
@@ -24,7 +24,7 @@
     }
   },
   "30804":{
-    "description": "A network connection was disconnected.",
+    "description": "A network connection was disconnected",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],
@@ -36,7 +36,7 @@
     }
   },
   "30805":{
-    "description": "The client lost its session to the server.",
+    "description": "The client lost its session to the server",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info"],
@@ -48,7 +48,7 @@
     }
   },
   "30806":{
-    "description": "The client re-established its session to the server.",
+    "description": "The client re-established its session to the server",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info"],
@@ -60,19 +60,19 @@
     }
   },
   "30807":{
-    "description": "The connection to the share was lost.",
+    "description": "The connection to the share was lost",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info"],
     "path": {
       "EventData":{
         "Name": ["ServerName", "SessionId", "Address", "Status"],
-        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "Address": "data.Address", "Status": "data.Status"}
+        "transform": {"ServerName": "data.ShareName", "SessionId": "data.SessionID", "Address": "data.Address", "Status": "data.Status"}
       }
     }
   },
   "30808":{
-    "description": "The connection to the share was re-established.",
+    "description": "The connection to the share was re-established",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info"],
@@ -84,7 +84,7 @@
     }
   },
   "30809":{
-    "description": "A request timed out because there was no response from the server.",
+    "description": "A request timed out because there was no response from the server",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],
@@ -96,7 +96,7 @@
     }
   },  
   "30822":{
-    "description": "Failed to establish an SMB multichannel network connection.",
+    "description": "Failed to establish an SMB multichannel network connection",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],
@@ -108,7 +108,7 @@
     }
   },
   "30823":{
-    "description": "The connection was terminated due to one or more IO request timeouts.",
+    "description": "The connection was terminated due to one or more IO request timeouts",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
     "type": ["info", "error"],

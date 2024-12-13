@@ -11,7 +11,7 @@
       },
       "UserData/EventData": {
         "Name": ["ClientAddress", "ClientName", "ConnectionGUID", "SessionGUID", "SessionId", "Status", "TranslatedStatus", "UserName"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "ConnectionGUID": "data.ConnectionGUID", "SessionGUID": "data.SessionGUID", "SessionId": "data.SessionID", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
+        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.domain", "ConnectionGUID": "data.ConnectionGUID", "SessionGUID": "data.SessionGUID", "SessionId": "data.SessionID", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
       }
     }
   },
@@ -27,7 +27,7 @@
       },
       "UserData/EventData": {
         "Name": ["ClientAddress", "ClientName", "GrantedAccess", "MappedAccess", "SessionID", "ShareName", "SharePath", "ShareSecurityDescriptor", "Status", "TranslatedStatus", "UserName"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "GrantedAccess": "data.GrantedAccess", "MappedAccess": "data.MappedAccess", "SessionId": "data.SessionID", "ShareName": "data.ShareName", "SharePath": "data.SharePath", "ShareSecurityDescriptor": "data.ShareSecurityDescriptor", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
+        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.domain", "GrantedAccess": "data.GrantedAccess", "MappedAccess": "data.MappedAccess", "SessionId": "data.SessionID", "ShareName": "data.ShareName", "SharePath": "data.SharePath", "ShareSecurityDescriptor": "data.ShareSecurityDescriptor", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
       }
     }
   },
@@ -43,7 +43,7 @@
       },
       "UserData/EventData": {
         "Name": ["ClientAddress", "ClientName", "ShareName", "SharePath"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.address", "ShareName": "data.ShareName", "SharePath": "data.SharePath"}
+        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.domain", "ShareName": "data.ShareName", "SharePath": "data.SharePath"}
       }
     }
   }

@@ -47,7 +47,7 @@ class IncomingLogon(base.job.BaseModule):
         - 21, 22, 23, 24, 25, 39, 40 (TerminalServices-LocalSessionManager)
         - 65, 66, 102, 131, 140 (RemoteDesktopServices-RdpCoreTS)
         - 1149 (TerminalServices-RemoteConnectionManager)
-        - 4624, 4625, 4634, 4647, 4648, 4778, 4779 (Security-Auditing)
+        - 4624, 4625, 4634, 4647, 4648, 4776, 4778, 4779 (Security-Auditing)
         - 12, 13 (Microsoft-Windows-Kernel-General)
         - 4 (OpenSSH)
     """
@@ -88,10 +88,10 @@ class IncomingLogon(base.job.BaseModule):
                 'ActivityID': event.get('data.ActivityID', ''),
                 'User': '',
                 'TargetUser': '',
-                #'TargetServer': event.get('data.TargetServerName', ''), # Event 4648 (security)
+                'TargetServer': event.get('data.TargetServerName', ''), # Event 4648 (security)
                 'SourceIP': '',
                 'SourcePort': event.get('source.port', ''),             # Events 4624, 4625, 4648 (Security)
-                'SourceHostname': event.get('client.hostname', ''),     # Events 4624, 4778, 4779 (Security)
+                'SourceHostname': event.get('client.hostname', ''),     # Events 4624, 4776, 4778, 4779 (Security)
                 'ConnectionName': '',
                 'ProcessName': event.get('process.name', ''),           # Events 4624, 4625, 4648 (Security)
                 'LogonProcessName': event.get('data.LogonProcessName', '').strip(),  # Events 4624, 4625 (Security)
@@ -121,7 +121,7 @@ class IncomingLogon(base.job.BaseModule):
                 ev['ConnectionName'] = event.get('data.SessionName', '')  # Events 4778 and 4779 (Security)
             if 'data.ReasonStr' in event.keys():  # Event 40 (TerminalServices-LocalSessionManager)
                 ev['ReasonStr'] = event['data.ReasonStr']
-            elif 'data.Error' in event.keys():  # Event 4625 (Security)
+            elif 'data.Error' in event.keys():  # Event 4625, 4776 (Security)
                 ev['ReasonStr'] = event['data.Error']
             else:
                 ev['ReasonStr'] = event.get('data.Reason', '')
@@ -132,7 +132,7 @@ class IncomingLogon(base.job.BaseModule):
                     ev['User'] = "{}\\{}".format(event.get('source.domain', ''), event['source.user.name'])
             else:
                 ev['User'] = '-'
-            if 'destination.user.name' in event.keys():  # Events 21, 23, 24, 25 (TerminalServices-LocalSessionManager), 1149 (TerminalServices-RemoteConnectionManager), 4624, 4625, 4634, 4647, 4648, 4478, 4779 (Security)
+            if 'destination.user.name' in event.keys():  # Events 21, 23, 24, 25 (TerminalServices-LocalSessionManager), 1149 (TerminalServices-RemoteConnectionManager), 4624, 4625, 4634, 4647, 4648, 4478, 4776, 4779 (Security)
                 ev['TargetUser'] = '-'
                 if event['destination.user.name'] != '-':
                     if event.get('destination.domain', ''):
@@ -147,6 +147,8 @@ class IncomingLogon(base.job.BaseModule):
                 ev['LogonID'] = event['data.SubjectLogonId']
             else:
                 ev['LogonID'] = event.get('data.LogonID', '')  # Events 4778, 4779 (Security)
+            if ev['EventID'] == "4776":
+                ev['AuthenticationPackageName'] = 'NTLM'
 
             # Join events by LogonId and ActivityID
             if ev['EventID'] in ("4624", "4634", "4647"):  # Ignore event 4648 because the LogonID does not correlate. Ignore 4625 because it is the SubjectLogonId
@@ -922,7 +924,6 @@ class OutgoingLogon(base.job.BaseModule):
         results_sorted = list(sort_module.run())
         save_md_table(results_sorted, config=None,
             outfile=self.myconfig('outfile_md'),
-            backticks_fields='SourceUser',
             date_fields="['LoginDate', 'LogoffDate']",
             file_exists='OVERWRITE')
         save_csv(results_sorted, config=None,

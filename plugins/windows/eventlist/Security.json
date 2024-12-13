@@ -638,7 +638,7 @@
     "path": {
       "EventData":{
         "Name": ["PackageName", "TargetUserName", "Workstation", "Status"],
-        "transform": {"TargetUserName": "destination.user.name", "ClientAddress": "source.address"}
+        "transform": {"TargetUserName": "destination.user.name", "Workstation": "client.hostname"}
       }
     }
   },

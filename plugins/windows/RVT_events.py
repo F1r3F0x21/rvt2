@@ -303,7 +303,7 @@ class Security(EventJob):
                                 "%%8451": "Failure Added"}
 
         # errordict for event 4625
-        errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "sec_error.json"))
+        errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "sec_error.json"), default_regex="(.*):(.*)\n")
 
         LogonTypeStr = load_fields(os.path.join(self.config.config['windows']['plugindir'], "logontype.json"))
 
@@ -474,28 +474,57 @@ class System(EventJob):
         self.save_stats(events_parser.evtx_stats())
 
 
-class SMBServer(EventJob):
+class SMBClientServer(EventJob):
     """ """
 
     def run(self, path=None):
         """
-        Attrs:
-            path (str): Absolute path to Microsoft-Windows-SMBServer%4Security.evtx
+        Config:
+            evtx_filename (str): Filename of the evtx file, without `.evtx` extension. Example: Microsoft-Windows-SmbClient%4Connectivity
         """
 
-        path = self.get_evtx(path, r"/Microsoft-Windows-SMBServer%4Security.evtx$")
+        evtx_filename = self.myconfig('evtx_filename', None)
+        path = self.get_evtx(path, rf"/{evtx_filename}.evtx$")
         if not path:
             return []
 
-        errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "sec_error.json"))
-
+        errordict = load_fields(os.path.join(self.config.config['windows']['plugindir'], "sec_error.json"), default_regex="(.*):(.*)\n")
         json_file = self.config.config[self.config.job_name]['json_conf']
+
         events_parser = GetEvents(path, json_file, logger=self.logger())
         for ev in events_parser.parse():
+            for addr in ["data.ClientAddress", "data.LocalAddress", "data.Address"]:
+                if addr in ev.keys():
+                    ev['client.ip'] = self._decode_address(ev[addr])
+                    ev.pop(addr, '')
+            if "data.RemoteAddress" in ev.keys():
+                ev['destination.ip'] = self._decode_address(ev["data.RemoteAddress"])
+                ev.pop("data.RemoteAddress", '')
             if "data.Status" in ev.keys():
-                ev["data.Error"] = errordict.get(ev["data.Status"], ev["data.Status"])
+                error_in_hex = ''
+                if ev["data.Status"].startswith('0x'):
+                    error_in_hex = ev["data.Status"]
+                else:
+                    try:
+                        error_in_hex = hex(int(ev["data.Status"]))
+                    except Exception:
+                        pass
+                if error_in_hex:
+                    ev["data.Error"] = errordict.get(error_in_hex, error_in_hex)
             yield ev
         self.save_stats(events_parser.evtx_stats())
+
+    def _decode_address(self, hex_string):
+        # Convert the hex string to bytes
+        try:
+            data = bytes.fromhex(hex_string)
+            if len(data) >= 8:
+                ip = ".".join(map(str, data[4:8]))
+                return ip
+            return ''
+        except Exception as exc:
+            self.logger().debug(exc)
+            return ''
 
 
 class RDPLocal(EventJob):
