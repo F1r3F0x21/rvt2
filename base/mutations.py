@@ -218,6 +218,49 @@ class GetFields(base.job.BaseModule):
             return []
 
 
+class GetDotFields(base.job.BaseModule):
+    """ Get data from from_module, yield only the specified fields.
+        It may be also used to set the fields order of appearence.
+        Fields are getted with dot notation
+
+    Module description:
+        - **path**: not used, passed to *from_module*.
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+
+    Configuration:
+        - **section**: Section from configuration where new values are to be retrieved
+        - **fields**: A list of fields to be yielded.
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('section', 'DEFAULT')
+        self.set_default_config('fields', '')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        fields = self.myarray('fields')
+        self.logger().debug(f'Getting fields: {fields}')
+
+        results = self.from_module.run(path)
+        if results is not None:
+            for data in results:
+                yield {k: self.get_value(k, data) for k in fields}
+        else:
+            return []
+
+    def get_value(self, dotted_str, dict_obj):
+        names = dotted_str.split('.')
+        if len(names) == 1:
+            return dict_obj.get(dotted_str, '')
+        elif names[0] in dict_obj.keys():
+            return self.get_value(".".join(names[1:]), dict_obj[names[0]])
+        else:
+            return ''
+
+
 class RenameFields(base.job.BaseModule):
     """ Rename the specified field names with the provided new names.
 
@@ -441,10 +484,10 @@ class SplitField(base.job.BaseModule):
         for data in self.from_module.run(path):
             try:
                 splitted = data[field].split(separator)
-                for i,new_field in zip(new_fields_index,new_fields):
+                for i, new_field in zip(new_fields_index, new_fields):
                     data[new_field] = splitted[int(i)]
                 yield data
-            except:
+            except Exception:
                 yield data
 
 
@@ -630,8 +673,8 @@ class AdaptIpFormat(base.job.BaseModule):
         if not port_fields:
             port_fields = fields.copy()
             if not ignore_port:
-                for name, replacement in zip(['IP', 'Ip', 'ip', 'Address', 'address'],['Port', 'Port', 'port', 'Port', 'port']):
-                    port_fields = [f.replace(name,replacement) for f in port_fields]
+                for name, replacement in zip(['IP', 'Ip', 'ip', 'Address', 'address'], ['Port', 'Port', 'port', 'Port', 'port']):
+                    port_fields = [f.replace(name, replacement) for f in port_fields]
 
         relation = list(zip(fields, port_fields))
         for data in self.from_module.run(path):
@@ -658,6 +701,7 @@ class CalculateHash(base.job.BaseModule):
         - **algorithm**: Hash algorithm to use. Default: sha256.
         - **from_dir**: Base directory to use if provided path is relative.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('algorithm', 'sha256')
@@ -697,6 +741,7 @@ class SkipResults(base.job.BaseModule):
         - **condition**: **all** (all provided fields must be empty to skip data) or **any** (if any provided field is empty, skip data)
         - **fields_not_present: what to do if any of the provided fields are not present in data. Availabale options are **skip** (default) or **keep**
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('fields', '')
@@ -714,7 +759,7 @@ class SkipResults(base.job.BaseModule):
             if not fields:
                 semicolon_copy = None
             else:
-                semicolon_copy = [v if v!="-" else None for k,v in data.items() if k in fields]
+                semicolon_copy = [v if v != "-" else None for k, v in data.items() if k in fields]
             if not semicolon_copy:
                 if not_present != "keep":  # Skip data if fields not present
                     continue
@@ -742,6 +787,7 @@ class FilterData(base.job.BaseModule):
         - **is_regex**: if True, compare using regex. Otherwise, use and exact match. Default: False
         - **operator**: operator to apply to every item in 'conditions'. Options: 'and' or 'or'.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('conditions', 'None')
@@ -770,7 +816,7 @@ class FilterData(base.job.BaseModule):
 
         is_regex = self.myflag('is_regex')
         if is_regex and events:
-            events = [(k, re.compile(v, re.I)) for k,v in events]
+            events = [(k, re.compile(v, re.I)) for k, v in events]
 
         for data in self.from_module.run(path):
             if not events:
@@ -812,6 +858,7 @@ class DateRange(base.job.BaseModule):
                 NULL: return an empty string as the date value
         - **dayfirst**: Force this option to interpret 03/07/2022 as July 3rd instead of March 7th. Be careful, since this overrides common ISO notation, and 2022-01-06 will be parsed as 1st of June, not 6th of January.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('field', '')
@@ -878,6 +925,7 @@ class ForEach(base.job.BaseModule):
     Configuration:
         - **run_job**: The name of he job to run
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('run_job', '')
@@ -947,7 +995,7 @@ class FeedJobsParameters(base.job.BaseModule):
             else:
                 params = dict(path=path)
         else:
-            params=dict()
+            params = dict()
 
         if self.local_config:
             params.update(self.local_config)
@@ -981,6 +1029,7 @@ class Collapse(base.job.BaseModule):
     Configuration section:
         - **field**: collapse documents using this field name as the common field.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('field', '_id')
