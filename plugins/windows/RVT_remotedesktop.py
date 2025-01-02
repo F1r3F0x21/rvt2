@@ -79,7 +79,7 @@ class Teamviewer_connections(base.job.BaseModule):
                     'User': user,
                     'Partition': partition
                 }
-                    
+
 
 class Teamviewer(base.job.BaseModule):
     """ Extracts information about Teamviewer log """
@@ -118,7 +118,7 @@ class Teamviewer(base.job.BaseModule):
 
             else:
                 # Some events extend more than one line. Append them to the previous event
-                prev_line_dict["Message"] = prev_line_dict.get("Message","") + line
+                prev_line_dict["Message"] = prev_line_dict.get("Message", "") + line
 
         if len(prev_line_dict) != 0:
             yield prev_line_dict
@@ -268,9 +268,9 @@ class GoogleChromeRemoteDesktop(base.job.BaseModule):
                 else:
                     event["IP"] = message_dict[1]
                 event["HostIP"] = message_dict[2]
-                #event["Channel"] = message_dict[3]
+                # event["Channel"] = message_dict[3]
                 event["ConnectionType"] = message_dict[4]
-            
+
             elif event["event.code"] in ['1', '2', '5']:
                 message_dict = ast.literal_eval(event["data.text"])
                 event["User"], event["SessionID"] = self.user_session_from_client(message_dict[0])
@@ -285,7 +285,7 @@ class GoogleChromeRemoteDesktop(base.job.BaseModule):
             user = match.group(1)
             session_id = match.group(2)
         return user, session_id
-    
+
 
 class DWAgent(base.job.BaseModule):
     """ Extracts information about DWAgent logs """
@@ -319,10 +319,10 @@ class DWAgent(base.job.BaseModule):
                     log_entry_dict["IP"] = ip
 
                 yield log_entry_dict
-            
+
             else:
                 self.logger().warning("Regex pattern failed parsing: " + line)
-            
+
 
 class Splashtop(base.job.BaseModule):
     """ Extracts information about Splashtop logs """
@@ -625,9 +625,9 @@ class RemoteDesktopApp(base.job.BaseModule):
                 with open(os.path.join(thumbnailpath, fname), 'r') as fin:
                     b = fin.read()
                 b = xmltodict.parse(b)
-                if len(b) > 1 and 'EncodedThumbnail' in b['SerializableModel'].keys():
-                    with open(os.path.join(outdir, f"thumb_{fname[:-5]}.jpg"), 'wb') as fout:
-                        fout.write(base64.b64decode(b['SerializableModel']['EncodedThumbnail']))
+                if len(b) > 0 and 'a:EncodedThumbnail' in b['SerializableModel'].keys():
+                    with open(os.path.join(outdir, f"thumb_{fname[:-6]}.jpg"), 'wb') as fout:
+                        fout.write(base64.b64decode(b['SerializableModel']['a:EncodedThumbnail']))
 
 
 class Summary(base.job.BaseModule):
@@ -656,39 +656,39 @@ class Summary(base.job.BaseModule):
             for line in self.from_module.run(path):
                 yield {
                         "Type": "Incoming",
-                        "Start": line.get("StartDate",""),
-                        "End": line.get("EndDate",""),
-                        "Duration": get_duration(line.get("StartDate",""), line.get("EndDate",""), date_format="%Y-%m-%dT%H:%M:%S%z"),
-                        "User": line.get("DestinationLoggedUser",""),
-                        "SessionID": line.get("SessionID",""),
-                        "Hostname": line.get("SourceHost",""),
-                        "Mode": line.get("ConnectionMode",""),
-                        "Partition": line.get("Partition",""),
+                        "Start": line.get("StartDate", ""),
+                        "End": line.get("EndDate", ""),
+                        "Duration": get_duration(line.get("StartDate", ""), line.get("EndDate", ""), date_format="%Y-%m-%dT%H:%M:%S%z"),
+                        "User": line.get("DestinationLoggedUser", ""),
+                        "SessionID": line.get("SessionID", ""),
+                        "Hostname": line.get("SourceHost", ""),
+                        "Mode": line.get("ConnectionMode", ""),
+                        "Partition": line.get("Partition", ""),
                         "Program": "TeamViewer",
                         "LogFilename": filename.strip()
-                }            
+                }
         elif filename == Teamviewer_out_con:
             for line in self.from_module.run(path):
                 yield {
                         "Type": "Outgoing",
-                        "Start": line.get("StartDate",""),
-                        "End": line.get("EndDate",""),
-                        "Duration": get_duration(line.get("StartDate",""), line.get("EndDate",""), date_format="%Y-%m-%dT%H:%M:%S%z"),
-                        "SessionID": line.get("SessionID",""),
-                        "Hostname": line.get("SourceLoggedUser",""),
-                        "User": line.get("User",""),
-                        "Mode": line.get("ConnectionMode",""),
-                        "Partition": line.get("Partition",""),
+                        "Start": line.get("StartDate", ""),
+                        "End": line.get("EndDate", ""),
+                        "Duration": get_duration(line.get("StartDate", ""), line.get("EndDate", ""), date_format="%Y-%m-%dT%H:%M:%S%z"),
+                        "SessionID": line.get("SessionID", ""),
+                        "Hostname": line.get("SourceLoggedUser", ""),
+                        "User": line.get("User", ""),
+                        "Mode": line.get("ConnectionMode", ""),
+                        "Partition": line.get("Partition", ""),
                         "Program": "TeamViewer",
                         "LogFilename": filename.strip()
                 }
         elif filename == Anydesk_inc_con:
             for line in self.from_module.run(path):
                 yield {
-                        "Type": line.get("Type",""),
-                        "Start": line.get("Time",""),
-                        "User": line.get("User",""),
-                        "SessionID": line.get("SessionID",""),
+                        "Type": line.get("Type", ""),
+                        "Start": line.get("Time", ""),
+                        "User": line.get("User", ""),
+                        "SessionID": line.get("SessionID", ""),
                         "Program": "AnyDesk",
                         "LogFilename": filename.strip()
                 }
@@ -710,12 +710,12 @@ class Summary(base.job.BaseModule):
             for line in self.from_module.run(path):
                 yield {
                         "Type": "Incoming",
-                        "Start": line.get("LastLaunch",""),
-                        "User": line.get("FriendlyName",""),
-                        "SessionID": line.get("ConnectionId",""),
-                        "Hostname": line.get("HostName",""),
-                        "Mode": line.get("ConnectionType",""),
-                        "Partition": line.get("Partition",""),
+                        "Start": line.get("LastLaunch", ""),
+                        "User": line.get("FriendlyName", ""),
+                        "SessionID": line.get("ConnectionId", ""),
+                        "Hostname": line.get("HostName", ""),
+                        "Mode": line.get("ConnectionType", ""),
+                        "Partition": line.get("Partition", ""),
                         "Program": "RemoteDesktopApp",
                         "LogFilename": filename.strip()
                 }
@@ -729,11 +729,11 @@ class Summary(base.job.BaseModule):
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
-                data_inc["Start"] = line.get("Time","")
+                data_inc["Start"] = line.get("Time", "")
                 data_inc["Program"] = "Screenconnect"
                 data_inc["LogFilename"] = filename.strip()
             elif event_id == 101:
-                data_inc["End"] = line.get("Time","")
+                data_inc["End"] = line.get("Time", "")
                 data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 data_inc["Type"] = "Incoming"
                 data_inc["Program"] = "Screenconnect"
@@ -742,7 +742,7 @@ class Summary(base.job.BaseModule):
                 data_inc = {}
         if data_inc:
             yield data_inc
-    
+
     def chrome(self, path, filename):
         data_inc = {}
 
@@ -754,35 +754,35 @@ class Summary(base.job.BaseModule):
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
-                data_inc["Start"] = line.get("Time","")
+                data_inc["Start"] = line.get("Time", "")
                 data_inc["Program"] = "ChromeRD"
                 data_inc["LogFilename"] = filename.strip()
-                data_inc["User"] = line.get("User","")
-                data_inc["SessionID"] = line.get("SessionID",data_inc["User"])
-                #data_inc["SessionID"] = line.get("SessionID","")
+                data_inc["User"] = line.get("User", "")
+                data_inc["SessionID"] = line.get("SessionID", data_inc["User"])
+                # data_inc["SessionID"] = line.get("SessionID", "")
 
             elif event_id == "4":
                 ip_str = line.get("IP")
                 ip = ip_str.split(":", 1)[0]
                 host_ip_str = line.get("HostIP")
                 host_ip = host_ip_str.split(":", 1)[0]
-                if (data_inc.get("User","") == line.get("User") and data_inc.get("SessionID","") == line.get("SessionID")):
+                if (data_inc.get("User", "") == line.get("User") and data_inc.get("SessionID", "") == line.get("SessionID")):
                     data_inc["IP"] = data_inc.get("IP", "") + "[IP: " + ip + " HostIP: " + host_ip + "]"
-                elif data_inc.get("SessionID","") == line.get("User"):
+                elif data_inc.get("SessionID", "") == line.get("User"):
                     data_inc["IP"] = data_inc.get("IP", "") + "[IP: " + ip + " HostIP: " + host_ip + "]"
-                     
+
             elif event_id == "2":
                 if data_inc.get("Type", "") == "":
                     data_inc["Type"] = "Incoming"
                     data_inc["Program"] = "ChromeRD"
                     data_inc["LogFilename"] = filename.strip()
-                data_inc["End"] = line.get("Time","")
+                data_inc["End"] = line.get("Time", "")
                 data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 yield data_inc
                 data_inc = {}
         if data_inc:
             yield data_inc
-    
+
     def splashtop(self, path, filename):
         start_can_connect = re.compile(r'ok,\sclient\s\((.*?)\)\scan\sconnect\sto\s.*')
         start_disp_name = re.compile(r'disp\sname\s(.*)')
@@ -798,7 +798,7 @@ class Summary(base.job.BaseModule):
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
-                data_inc["Start"] = line.get("Time","")
+                data_inc["Start"] = line.get("Time", "")
                 data_inc["Hostname"] = start_can_connect_match.group(1)
                 data_inc["Program"] = "Splashtop"
                 data_inc["LogFilename"] = filename.strip()
@@ -817,7 +817,7 @@ class Summary(base.job.BaseModule):
             stop_closed_match = stop_closed.match(message)
             if stop_closed_match:
                 data_inc["Type"] = "Incoming"
-                data_inc["End"] = line.get("Time","")
+                data_inc["End"] = line.get("Time", "")
                 data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 data_inc["Program"] = "Splashtop"
                 data_inc["LogFilename"] = filename.strip()
@@ -841,7 +841,7 @@ class Summary(base.job.BaseModule):
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
-                data_inc["Start"] = line.get("Time","")
+                data_inc["Start"] = line.get("Time", "")
                 data_inc["SessionID"] = str(inc_start_match.group(1))
                 data_inc["Program"] = "Zoho"
                 data_inc["LogFilename"] = filename.strip()
@@ -851,13 +851,13 @@ class Summary(base.job.BaseModule):
                 inc_end_match = end.match(message)
                 if inc_end_match:
                     if data_inc:
-                        data_inc["End"] = line.get("Time","")
+                        data_inc["End"] = line.get("Time", "")
                         data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S%z")
                         yield data_inc
                         data_inc = {}
                     else:
                         data_inc["Type"] = "Incoming"
-                        data_inc["End"] = line.get("Time","")
+                        data_inc["End"] = line.get("Time", "")
                         data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S%z")
                         data_inc["Program"] = "Zoho"
                         data_inc["LogFilename"] = filename.strip()
@@ -865,7 +865,7 @@ class Summary(base.job.BaseModule):
                         data_inc = {}
         if data_inc:
             yield data_inc
-    
+
     def dwagent(self, path, filename):
         start = re.compile(r'Open\ssession\s\(id:\s(\S+?),\sip:\s(\d+\.\d+\.\d+\.\d+),\s.*')
         end = re.compile(r'Close\ssession\s\(id:\s(\S+?),\sip:\s(\d+\.\d+\.\d+\.\d+),\s.*')
@@ -879,17 +879,17 @@ class Summary(base.job.BaseModule):
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
-                data_inc["Start"] = line.get("Time","")
+                data_inc["Start"] = line.get("Time", "")
                 data_inc["SessionID"] = inc_start_match.group(1)
                 data_inc["Program"] = "Dwagent"
                 data_inc["LogFilename"] = filename.strip()
                 data_inc["IP"] = line.get("IP", "") if line.get("IP", "") != "" else inc_start_match.group(2)
                 continue
-            
+
             inc_end_match = end.match(message)
             if inc_end_match:
-                if data_inc.get("SessionID","") == inc_end_match.group(1):
-                    data_inc["End"] = line.get("Time","")
+                if data_inc.get("SessionID", "") == inc_end_match.group(1):
+                    data_inc["End"] = line.get("Time", "")
                     data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 else:
                     if data_inc:
@@ -897,7 +897,7 @@ class Summary(base.job.BaseModule):
                         data_inc = {}
                     else:
                         data_inc["Type"] = "Incoming"
-                        data_inc["End"] = line.get("Time","")
+                        data_inc["End"] = line.get("Time", "")
                         data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         data_inc["SessionID"] = inc_end_match.group(1)
                         data_inc["Program"] = "Dwagent"
@@ -923,7 +923,7 @@ class Summary(base.job.BaseModule):
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
-                data_inc["Start"] = line.get("Time","")
+                data_inc["Start"] = line.get("Time", "")
                 data_inc["Hostname"] = inc_start_match.group(1)
                 data_inc["SessionID"] = inc_start_match.group(2)
                 data_inc["Program"] = "Supremo"
@@ -932,8 +932,8 @@ class Summary(base.job.BaseModule):
 
             inc_end_match = inc_end.match(message)
             if inc_end_match:
-                if data_inc.get("SessionID","") == inc_end_match.group(2):
-                    data_inc["End"] = line.get("Time","")
+                if data_inc.get("SessionID", "") == inc_end_match.group(2):
+                    data_inc["End"] = line.get("Time", "")
                     data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 else:
                     if data_inc:
@@ -941,7 +941,7 @@ class Summary(base.job.BaseModule):
                         data_inc = {}
                     else:
                         data_inc["Type"] = "Incoming"
-                        data_inc["End"] = line.get("Time","")
+                        data_inc["End"] = line.get("Time", "")
                         data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         data_inc["Hostname"] = inc_end_match.group(1)
                         data_inc["SessionID"] = inc_end_match.group(2)
@@ -950,25 +950,25 @@ class Summary(base.job.BaseModule):
                         yield data_inc
                         data_inc = {}
                 continue
-            
+
             out_start_match = out_start.match(message)
             if out_start_match:
                 if data_out:
                     yield data_out
                     data_out = {}
                 data_out["Type"] = "Outgoing"
-                data_out["Start"] = line.get("Time","")
+                data_out["Start"] = line.get("Time", "")
                 data_out["Hostname"] = out_start_match.group(2)
                 data_out["FromTo"] = out_start_match.group(1) + " -> " + out_start_match.group(3)
                 data_out["SessionID"] = out_start_match.group(3)
                 data_out["Program"] = "Supremo"
                 data_out["LogFilename"] = filename.strip()
                 continue
-            
+
             out_end_match = out_end.match(message)
             if out_end_match:
-                if data_out.get("FromTo","") == (out_end_match.group(1) + " -> " + out_end_match.group(3)):
-                    data_out["End"] = line.get("Time","")
+                if data_out.get("FromTo", "") == (out_end_match.group(1) + " -> " + out_end_match.group(3)):
+                    data_out["End"] = line.get("Time", "")
                     data_out["Duration"] = get_duration(data_out.get("Start", ""), data_out["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                 else:
                     if data_out:
@@ -976,7 +976,7 @@ class Summary(base.job.BaseModule):
                         data_out = {}
                     else:
                         data_out["Type"] = "Outgoing"
-                        data_out["End"] = line.get("Time","")
+                        data_out["End"] = line.get("Time", "")
                         data_out["Duration"] = get_duration(data_out.get("Start", ""), data_out["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         data_out["Hostname"] = out_end_match.group(2)
                         data_out["FromTo"] = out_end_match.group(1) + " -> " + out_end_match.group(3)
@@ -985,7 +985,7 @@ class Summary(base.job.BaseModule):
                         data_out["LogFilename"] = filename.strip()
                         yield data_out
                         data_out = {}
-        
+
         if data_out:
             yield data_out
         if data_inc:
@@ -1005,8 +1005,8 @@ class Summary(base.job.BaseModule):
                     yield data_inc
                     data_inc = {}
                 data_inc["Type"] = "Incoming"
-                data_inc["Start"] = line.get("Time","")
-                data_inc["User"] = line.get("User","")
+                data_inc["Start"] = line.get("Time", "")
+                data_inc["User"] = line.get("User", "")
                 data_inc["Hostname"] = inc_req_match.group(1)
                 data_inc["Program"] = "AnyDesk"
                 data_inc["LogFilename"] = filename.strip()
@@ -1018,8 +1018,8 @@ class Summary(base.job.BaseModule):
                     yield data_out
                     data_out = {}
                 data_out["Type"] = "Outgoing"
-                data_out["Start"] = line.get("Time","")
-                data_out["User"] = line.get("User","")
+                data_out["Start"] = line.get("Time", "")
+                data_out["User"] = line.get("User", "")
                 data_out["Hostname"] = out_conn_match.group(1)
                 data_out["Program"] = "AnyDesk"
                 data_out["LogFilename"] = filename.strip()
@@ -1031,22 +1031,22 @@ class Summary(base.job.BaseModule):
                     date_obj_inc = date_to_iso(data_inc["Start"], logger=self.logger())
                     date_obj_out = date_to_iso(data_out["Start"], logger=self.logger())
                     if date_obj_inc > date_obj_out:
-                        data_inc["End"] = line.get("Time","")
+                        data_inc["End"] = line.get("Time", "")
                         data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         yield data_inc
                         data_inc = {}
                     else:
-                        data_out["End"] = line.get("Time","")
+                        data_out["End"] = line.get("Time", "")
                         data_out["Duration"] = get_duration(data_out.get("Start", ""), data_out["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                         yield data_out
                         data_out = {}
                 elif data_inc:
-                    data_inc["End"] = line.get("Time","")
+                    data_inc["End"] = line.get("Time", "")
                     data_inc["Duration"] = get_duration(data_inc.get("Start", ""), data_inc["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                     yield data_inc
                     data_inc = {}
                 elif data_out:
-                    data_out["End"] = line.get("Time","")
+                    data_out["End"] = line.get("Time", "")
                     data_out["Duration"] = get_duration(data_out.get("Start", ""), data_out["End"], date_format="%Y-%m-%dT%H:%M:%S.%f%z")
                     yield data_out
                     data_out = {}
@@ -1068,6 +1068,4 @@ class Summary(base.job.BaseModule):
             yield data_out
         if data_inc:
             yield data_inc
-
-
 
