@@ -427,12 +427,12 @@ class System(EventJob):
 
         json_file = self.config.config[self.config.job_name]['json_conf']
 
-        fields = {'20250': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'Port']},
-                  '20253': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'Port']},
-                  '20255': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'Port', 'destination.user', 'desc']},
+        fields = {'20250': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'destination.port']},
+                  '20253': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'destination.port']},
+                  '20255': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.port', 'destination.user', 'data.Description']},
                   '20271': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.user', 'source.ip', 'reasonStr', 'reason']},
-                  '20272': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.user', 'Port', 'startDate', 'startHour', 'enddate', 'endHour', 'minutes', 'seconds', 'bytes.send', 'bytes.received', 'reasonStr']},
-                  '20274': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'Port', 'destination.ip', 'EventReceivedTime', 'SourceModuleName', 'SourceModuleType']},
+                  '20272': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.user', 'destination.port', 'data.startDate', 'data.startHour', 'data.enddate', 'data.endHour', 'data.minutes', 'data.seconds', 'bytes.send', 'bytes.received', 'reasonStr']},
+                  '20274': {'provider': 'RemoteAccess', 'fields': ['data.RoutingDomainID', 'data.coID', 'destination.user', 'source.port', 'destination.ip', 'data.EventReceivedTime', 'data.SourceModuleName', 'data.SourceModuleType']},
                   '20275': {'provider': 'RemoteAccess', 'fields': ['data.coID', 'destination.user', 'connection.name', 'reason']},
                   }
 
@@ -461,12 +461,6 @@ class System(EventJob):
                 ev.pop('data.#text')
                 for e, field in enumerate(fields[ev['event.code']]['fields']):
                     if data[e] == '(NULL)' or data[e] == '':
-                        continue
-                    if field == 'others':
-                        for item in data[e][1:].split('\n'):
-                            aux_fields = re.search("(.*) = (.*)", item)
-                            ev[aux_fields.group(1)] = aux_fields.group(2)
-                            ev['message'] = ev['message'].replace('<%s>' % aux_fields.group(1), aux_fields.group(2))
                         continue
                     ev[field] = data[e]
                     ev['message'] = ev['message'].replace('<%s>' % field, data[e])
@@ -744,21 +738,22 @@ class Application(EventJob):
         if not path:
             return []
 
-        fields = {'1000': {'provider': 'Application Error', 'fields': ['product.name', 'product.version', 'timestamp1', 'module.name', 'module.version', 'module.timestamp2', 'error.code', 'offset', 'process.id', 'application.starttime', 'application.path', 'module.path', 'report.id', 'package.full_name', 'package-relative_application.id']},
-                  '1001': {'provider': 'Windows Error Reporting', 'fields': ['Fault_bucket', 'type', 'event.name', 'response', 'cab.id', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'Attached_files', 'Attached_path', 'Analysis_symbol', 'rechecking_for_solution', 'report.id', 'report.status']},
-                  '1002': {'provider': 'Application Hang', 'fields': ['product name', 'product.version', 'process.id', 'application.starttime', 'application.terminationtime', 'application.path', 'report.id']},
+        # https://learn.microsoft.com/en-us/windows/win32/msi/event-logging
+        fields = {'1000': {'provider': 'Application Error', 'fields': ["data.AppName", "data.AppVersion", "data.AppTimeStamp", "data.ModuleName", "data.ModuleVersion", "data.ModuleTimeStamp", "data.ExceptionCode", "data.FaultingOffset", "data.ProcessId", "data.ProcessCreationTime", "data.AppPath", "data.ModulePath", "data.IntegratorReportId", "data.PackageFullName", "data.PackageRelativeAppId"]},
+                  '1001': {'provider': 'Windows Error Reporting', 'fields': ["data.Bucket", "data.BucketType", "data.EventName", "data.Response", "data.CabId", "data.P1", "data.P2", "data.P3", "data.P4", "data.P5", "data.P6", "data.P7", "data.P8", "data.P9", "data.P10", "data.AttachedFiles", "data.StorePath", "data.AnalysisSymbol", "data.Rechecking", "data.ReportId", "data.ReportStatus", "data.HashedBucket", "data.CabGuid"]},
+                  '1002': {'provider': 'Application Hang', 'fields': ["data.AppName", "data.AppVersion", "data.ProcessId", "data.StartTime", "data.TerminationTime", "data.ExeFileName", "data.ReportId", "data.PackageFullName", "data.PackageRelativeAppId", "data.HangType"]},
                   '1013': {'provider': 'MsiInstaller', 'fields': ['error.message']},
-                  '1025': {'provider': 'MsiInstaller', 'fields': ['product.name', 'path', 'process.name', 'process.pid']},
+                  '1025': {'provider': 'MsiInstaller', 'fields': ['product.name', 'file.path', 'process.name', 'process.pid']},
                   '1029': {'provider': 'MsiInstaller', 'fields': ['product.name']},
-                  '1033': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'status', 'manufacturer']},
-                  '1034': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'status', 'manufacturer']},
-                  '1035': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'status', 'manufacturer']},
-                  '1038': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'reboot.type', 'reason', 'manufacturer']},
-                  '10005': {'provider': 'MsiInstaller', 'fields': ['error', 'arg1', 'arg2', 'arg3', 'arg4', 'arg5']},
-                  '11707': {'provider': 'MsiInstaller', 'fields': ['status']},
-                  '11708': {'provider': 'MsiInstaller', 'fields': ['status']},
-                  '17806': {'provider': 'MSSQLSERVER', 'fields': ['error.code', 'state', 'reason', 'reason2', 'source.address']},
-                  '18456': {'provider': 'MSSQLSERVER', 'fields': ['destination.user.name', 'reason', 'source.address']},
+                  '1033': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'data.status', 'product.manufacturer']},
+                  '1034': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'data.status', 'product.manufacturer']},
+                  '1035': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'data.status', 'product.manufacturer']},
+                  '1038': {'provider': 'MsiInstaller', 'fields': ['product.name', 'product.version', 'product.language', 'data.RebootType', 'error.message', 'product.manufacturer']},
+                  '10005': {'provider': 'MsiInstaller', 'fields': ['error.code', 'data.arg1', 'data.arg2', 'data.arg3', 'data.arg4', 'data.arg5']},
+                  '11707': {'provider': 'MsiInstaller', 'fields': ['data.status']},
+                  '11708': {'provider': 'MsiInstaller', 'fields': ['data.status']},
+                  '17806': {'provider': 'MSSQLSERVER', 'fields': ['error.code', 'data.state', 'error.message', 'data.Reason', 'source.address']},
+                  '18456': {'provider': 'MSSQLSERVER', 'fields': ['destination.user.name', 'error.message', 'source.address']},
                   '20220': {'provider': 'RasClient', 'fields': []},
                   '20221': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection', 'connection.type', 'connection.name', 'others']},
                   '20222': {'provider': 'RasClient', 'fields': ['data.coID', 'source.user', 'connection.name', 'others']},

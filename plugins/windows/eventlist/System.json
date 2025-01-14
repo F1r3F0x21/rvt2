@@ -100,6 +100,15 @@
       }
     }
   },
+  "1001":{
+    "description": "The computer has rebooted from a bugcheck. The bugcheck was: {EventData[param1]}. A dump was saved in: {EventData[param2]}. Report Id: {EventData[param3]}.",
+    "provider": "Microsoft-Windows-WER-SystemErrorReporting",
+    "path": {
+      "EventData": {
+        "Name": ["param1", "param2", "param5"]
+      }
+    }
+  },
   "1074":{
     "description": "An application causes the system to restart, or user initiates a restart or shutdown",
     "provider": "USER32",
@@ -236,7 +245,7 @@
     }
   },
   "20250": {
-    "description": "The user <destination.user> has connected and has been successfully authenticated on port <Port>.",
+    "description": "The user <destination.user> has connected and has been successfully authenticated on port <destination.port>.",
     "provider": "RemoteAccess",
     "category": ["audit"],
     "type": ["info" ,"auth"],
@@ -247,7 +256,7 @@
     }
   },
   "20253": {
-    "description": "The user <destination.user> connected to port <Port> has been disconnected because no network protocols were successfully negotiated.",
+    "description": "The user <destination.user> connected to port <destination.port> has been disconnected because no network protocols were successfully negotiated.",
     "provider": "RemoteAccess",
     "category": ["connection"],
     "type": ["error"],
@@ -258,7 +267,7 @@
     }
   },
   "20255": {
-    "description": "The following error occurred in the Point to Point Protocol module on port: <Port>, UserName: <destination.user>. Connection time expired.",
+    "description": "The following error occurred in the Point to Point Protocol module on port: <destination.port>, UserName: <destination.user>. Connection time expired.",
     "provider": "RemoteAccess",
     "category": ["connection"],
     "type": ["error"],
@@ -269,7 +278,7 @@
     }
   },
   "20271": {
-    "description": "The user <destination.user> connected from <source.ip> but failed an authentication attempt due to the following reason: <reason>",
+    "description": "The user <destination.user> connected from <source.ip> but failed an authentication attempt due to the following reason: <reasonStr>",
     "provider": "RemoteAccess",
     "category": ["authentication"],
     "type": ["error"],
@@ -280,7 +289,7 @@
     }
   },
   "20272": {
-    "description": "The user <destination.user> connected on port <Port> on <startDate> at <startHour> and disconnected on <endDate> at <endHour>.  The user was active for <minutes> minutes <seconds> seconds.  <bytes.sent> bytes were sent and <bytes.received> bytes were received. The reason for disconnecting was demande utilisateur. The tunnel used was WAN Miniport (IKEv2). The quarantine state was .",
+    "description": "The user <destination.user> connected on port <destination.port> on <data.startDate> at <data.startHour> and disconnected on <data.endDate> at <data.endHour>.  The user was active for <data.minutes> minutes <data.seconds> seconds.  <bytes.sent> bytes were sent and <bytes.received> bytes were received. The reason for disconnecting was <reasonStr>.",
     "provider": "RemoteAccess",
     "category": ["audit"],
     "type": ["info"],
@@ -291,7 +300,7 @@
     }
   },
   "20274": {
-    "description": "The user <source.user> connected on port <Port> has been assigned address <destination.ip>",
+    "description": "The user <source.user> connected on port <source.port> has been assigned address <destination.ip>",
     "provider": "RemoteAccess",
     "category": ["audit"],
     "type": ["info"],
