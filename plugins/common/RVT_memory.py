@@ -33,7 +33,7 @@ class Volatility(base.job.BaseModule):
         self.volatility = self.myconfig('volatility')
         plugins = self.myconfig('volatility_plugins').split()
         imagedir = self.myconfig('imagedir')
-        path = None
+        # path = None
         if os.path.isdir(imagedir):
             for fname in os.listdir(imagedir):
                 if fname.startswith(self.myconfig('source')):
@@ -43,7 +43,14 @@ class Volatility(base.job.BaseModule):
         self.volatility = self.config.get('plugins.common', 'volatility', '/usr/local/bin/vol.py')
 
         if not path:
-            raise base.job.RVTError('No path to a memory image provided. Please, specify the path as the argument to the job')
+            mntdir = os.path.join(self.myconfig('sourcedir'), 'mnt')
+            for p in os.listdir(mntdir):
+                for fname in os.listdir(os.path.join(mntdir, p)):
+                    if fname == 'PhysicalMemory.mem':
+                        path = os.path.join(mntdir, p, fname)
+                        break
+            if not path:
+                raise base.job.RVTError('No path to a memory image provided. Please, specify the path as the argument to the job')
         elif not os.path.exists(path):
             raise base.job.RVTError('Provided path {} does not exist. Please, use an actual memory image file as argument')
 
