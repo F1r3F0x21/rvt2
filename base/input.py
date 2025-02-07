@@ -268,6 +268,7 @@ class JSONReader(AllLinesInFile):
         - **reverse** (Boolean): If True, yield every line in reverse order. Defaults to False
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file.
+        - **check_path_exists** (Boolean): If True and provided path does not exist, raise an error. If False, just warn and continue
     """
 
     def read_config(self):
@@ -284,7 +285,7 @@ class JSONReader(AllLinesInFile):
             self.check_params(path, check_path=True, check_path_exists=True)
         except base.job.RVTErrorNotExistingPath as exc:
             if not self.myflag('check_path_exists'):
-                self.logger().warning(exc)
+                self.logger().info(exc)
                 return []
             raise exc
         for line in super().run(path):
@@ -347,7 +348,7 @@ class CSVReader(base.job.BaseModule):
             self.check_params(path, check_path=True, check_path_exists=True)
         except base.job.RVTErrorNotExistingPath as exc:
             if not self.myflag('check_path_exists'):
-                self.logger().warning(exc)
+                self.logger().info(exc)
                 return []
             raise exc
 

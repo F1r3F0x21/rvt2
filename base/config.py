@@ -55,7 +55,7 @@ BOLD_SEQ = "\033[1m"
 def parse_conf_array(value):
     r""" Parses a value in an option and returns it as an array.
 
-    Values are sepparated using spaces or new lines.
+    Values are separated using spaces or new lines.
     Double quotes can be used as quoting chars.
     Spaces can be espaced with a backslash.
 

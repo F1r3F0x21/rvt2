@@ -66,7 +66,9 @@ class ActivitiesCacheAnalysis(base.job.BaseModule):
             Arguments:
                 - ** path **: Path to directory where output files from ActivitiesCache are stored
         """
-        check_directory(path, error_missing=True)
+        if not check_directory(path):
+            self.logger().info(f'No previous output files generated in {path}')
+            return []
         outfile = self.myconfig('outfile')
         check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
 

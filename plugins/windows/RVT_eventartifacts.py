@@ -1806,7 +1806,7 @@ class MSSQL(base.job.BaseModule):
 
         self.check_params(path, check_path=True, check_path_exists=True)
 
-        regex = re.compile("CLIENTE: (.*)\]")
+        regex = re.compile(r"CLIENT.?: (.*)\]")
 
         for event in self.from_module.run(path):
 
@@ -1868,7 +1868,7 @@ class Powershell(base.job.BaseModule):
             if k.startswith("["):
                 regex[re.compile(k.replace("[", "\\[").replace("]", "\\]"))] = v
             else:
-                regex[re.compile(f'\W{k}\W')] = v
+                regex[re.compile(rf'\W{k}\W')] = v
 
         n = 0
         for k, v in regex.items():

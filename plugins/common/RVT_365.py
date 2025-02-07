@@ -33,7 +33,7 @@ class Parse_Audit_Logs(base.job.BaseModule):
             # Commmon fields
             common_fields = ['RecordType', 'Identity', 'IsValid', 'ObjectState']
             for field in common_fields:
-                data[field] = row[field]
+                data[field] = row.get(field, '')
 
             # Audit Data regular fields
             try:
@@ -48,7 +48,8 @@ class Parse_Audit_Logs(base.job.BaseModule):
             ad_fields = ['CreationTime', 'UserId', 'Operation', 'ClientIP', 'LogonError', 'ObjectId', 'ResultStatus', 'UserKey']
             for field in ad_fields:
                 data[field] = audit_data.get(field,"")
-            data['ClientIP'] = data['ClientIP'].lstrip('::ffff:')
+            if data['ClientIP']:
+                data['ClientIP'] = data['ClientIP'].lstrip('::ffff:')
             data["ModifiedProperties"] = ""
 
             # Fields on RecordType=AzureActiveDirectoryStsLogon
