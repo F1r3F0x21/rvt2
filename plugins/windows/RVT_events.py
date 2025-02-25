@@ -739,7 +739,7 @@ class Application(EventJob):
             return []
 
         # https://learn.microsoft.com/en-us/windows/win32/msi/event-logging
-        fields = {'1000': {'provider': 'Application Error', 'fields': ["data.AppName", "data.AppVersion", "data.AppTimeStamp", "data.ModuleName", "data.ModuleVersion", "data.ModuleTimeStamp", "data.ExceptionCode", "data.FaultingOffset", "data.ProcessId", "data.ProcessCreationTime", "data.AppPath", "data.ModulePath", "data.IntegratorReportId", "data.PackageFullName", "data.PackageRelativeAppId"]},
+        fields = {'1000': {'provider': 'Application Error', 'fields': ["data.AppName", "data.AppVersion", "data.AppTimeStamp", "data.ModuleName", "data.ModuleVersion", "data.ModuleTimeStamp", "data.ExceptionCode", "data.FaultingOffset", "data.ProcessId", "data.ProcessCreationTime", "data.AppPath", "data.ModulePath", "data.ReportId", "data.PackageFullName", "data.PackageRelativeAppId"]},
                   '1001': {'provider': 'Windows Error Reporting', 'fields': ["data.Bucket", "data.BucketType", "data.EventName", "data.Response", "data.CabId", "data.P1", "data.P2", "data.P3", "data.P4", "data.P5", "data.P6", "data.P7", "data.P8", "data.P9", "data.P10", "data.AttachedFiles", "data.StorePath", "data.AnalysisSymbol", "data.Rechecking", "data.ReportId", "data.ReportStatus", "data.HashedBucket", "data.CabGuid"]},
                   '1002': {'provider': 'Application Hang', 'fields': ["data.AppName", "data.AppVersion", "data.ProcessId", "data.StartTime", "data.TerminationTime", "data.ExeFileName", "data.ReportId", "data.PackageFullName", "data.PackageRelativeAppId", "data.HangType"]},
                   '1013': {'provider': 'MsiInstaller', 'fields': ['error.message']},

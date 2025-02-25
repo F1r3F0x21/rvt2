@@ -180,7 +180,7 @@
     "provider": "Application Error",
     "path": {
       "EventData": {
-        "Name": ["AppName", "AppVersion", "AppTimeStamp", "ModuleName", "ModuleVersion", "ModuleTimeStamp", "ExceptionCode", "FaultingOffset", "ProcessId", "ProcessCreationTime", "AppPath", "ModulePath", "IntegratorReportId", "PackageFullName", "PackageRelativeAppId"]
+        "Name": ["AppName", "AppVersion", "AppTimeStamp", "ModuleName", "ModuleVersion", "ModuleTimeStamp", "ExceptionCode", "FaultingOffset", "ProcessId", "ProcessCreationTime", "AppPath", "ModulePath", "ReportId", "PackageFullName", "PackageRelativeAppId"]
       },
       "EventData/Data":{
         "Name": ["#text"]

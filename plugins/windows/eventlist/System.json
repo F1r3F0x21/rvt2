@@ -105,7 +105,8 @@
     "provider": "Microsoft-Windows-WER-SystemErrorReporting",
     "path": {
       "EventData": {
-        "Name": ["param1", "param2", "param5"]
+        "Name": ["param1", "param2", "param3"],
+        "transform": {"param1": "bug check", "param2": "data.dump.file", "param3": "data.ReportId"}
       }
     }
   },
