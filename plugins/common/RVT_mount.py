@@ -33,9 +33,11 @@ class Mount(base.job.BaseModule):
         - **nbd_device** (str): for VMDX images (nbd), the device to use.
         - **remove_info** (bool): if True, remove previous information gathered about disk. Use this if any error occurs
     """
+
     def run(self, path=None):
         """ If path is provided, it is an abolsolute path to the image to mount.
         If not, search imagedir for available images """
+
         disk = getSourceImage(self.myconfig, imagefile=path)
         disk.mount(partitions=self.myconfig('partitions'), vss=self.myconfig('vss'), unzip_path=self.myconfig('unzip_path'))
         if self.from_module:
@@ -47,6 +49,7 @@ class UMount(base.job.BaseModule):
     """ Run from_module and then umount all partitions in a disk.
 
     """
+
     def run(self, path=None):
         """ If path is provided, it is an abolsolute path to the image to unmount.
         If not, search imagedir for available images """

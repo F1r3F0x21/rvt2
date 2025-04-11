@@ -25,7 +25,6 @@ from plugins.linux.RVT_os_info import CharacterizeLinux
 
 
 class LinuxStandardLog(base.job.BaseModule):
-    
     """ Extract the Logfile
 
     Module description:
@@ -47,7 +46,7 @@ class LinuxStandardLog(base.job.BaseModule):
         # VMware ESXi syslog. With optional log level, no hostname and strict processid
         esxi = re.compile(
             r'^(?:<(?P<pri>\d|\d{2}|1[1-8]\d|19[01])>\s*(?P<version>\d+)\s+)?'
-            #r'(?:(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+))?\s+'
+            # r'(?:(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+))?\s+'
             r'(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+)\s+'
             r'(?:(?P<level>debug|verbose|info|informational|notice|warn|warning|alert|error|critical|emergency|(De|In|No|Wa|Al|Cr|Em|Er)\(\d+\))\s+)?'
             r'(?P<appname>[^\[\s]+)'
@@ -69,7 +68,7 @@ class LinuxStandardLog(base.job.BaseModule):
         # RFC3164 (BSD)
         rfc3164 = re.compile(
             r'^(?:<(?P<pri>\d|\d{2}|1[1-8]\d|19[01])>\s*(?P<version>\d+)\s+)?'
-            #r'(?:(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+))?\s+'
+            # r'(?:(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+))?\s+'
             r'(?P<timestamp>[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|[-+0-9T:.Z]+)\s+'
             r'(?:(?P<hostname>[^\s]+)\s+)?'
             r'(?P<appname>[^\[\s]+)'
@@ -96,7 +95,7 @@ class LinuxStandardLog(base.job.BaseModule):
             "structured_data": "log.syslog.structured_data",
             "message": "message"
         }
-        
+
         self.aux_date = datetime.datetime(1901, 1, 1)
         for line in self.from_module.run(path):
             for i, pattern in enumerate([esxi, rfc5424, rfc3164, syslog_pattern]):
@@ -122,7 +121,7 @@ class LinuxStandardLog(base.job.BaseModule):
                     count_lines += 1
                     previous_line_dict["message"] = previous_line_dict.get("message", '') + '\n' + line
                 else:
-                    self.logger().warning("Regex pattern failed at the start with line " + line)
+                    self.logger().warning(f"Regex pattern failed at the start with line {line}")
                     count_lines = 0
 
         if len(previous_line_dict) != 0:
@@ -191,7 +190,7 @@ class ESXiStandardLog(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-    
+
     def run(self, path=None):
         esxilog = re.compile(r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s(\S*)\s(\S*)\s\[(.*?)\]\s*(.*)')
         filename = os.path.basename(path)
@@ -204,7 +203,7 @@ class ESXiStandardLog(base.job.BaseModule):
                 if prev_line_dict and "Time" in prev_line_dict:
                     yield prev_line_dict
                     prev_line_dict = {}
-                timestamp, level, process, details, message  = match.groups(default='')
+                timestamp, level, process, details, message = match.groups(default='')
                 prev_line_dict = {
                     "Time": timestamp,
                     "Message": first_message + message.strip(),
@@ -215,10 +214,10 @@ class ESXiStandardLog(base.job.BaseModule):
                 }
                 first_message = ""
             else:
-                if prev_line_dict.get("Message","") == "":
+                if prev_line_dict.get("Message", "") == "":
                     first_message = line
                 else:
-                    prev_line_dict["Message"] = prev_line_dict.get("Message","") + "\n" + line
+                    prev_line_dict["Message"] = f'{prev_line_dict.get("Message", "")}\n{line}'
         if prev_line_dict:
             yield prev_line_dict
 
@@ -234,7 +233,7 @@ class ESXiShellSyslogLog(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-    
+
     def run(self, path=None):
         esxilog = re.compile(r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d*Z)\s*(.*?):\s*(.*)')
         filename = os.path.basename(path)
@@ -245,7 +244,7 @@ class ESXiShellSyslogLog(base.job.BaseModule):
                 if prev_line_dict:
                     yield prev_line_dict
                     prev_line_dict = {}
-                timestamp, process, message  = match.groups(default='')
+                timestamp, process, message = match.groups(default='')
                 prev_line_dict = {
                     "Time": timestamp,
                     "Message": message.strip(),
@@ -253,10 +252,10 @@ class ESXiShellSyslogLog(base.job.BaseModule):
                     "LogFilename": filename
                 }
             else:
-                if prev_line_dict.get("Message","") != "":
-                    prev_line_dict["Message"] = prev_line_dict.get("Message","") + "\n" + line
+                if prev_line_dict.get("Message", "") != "":
+                    prev_line_dict["Message"] = f'{prev_line_dict.get("Message", "")}\n{line}'
                 else:
-                    self.logger().warning("Regex pattern failed with some logline input " + line)
+                    self.logger().warning(f"Regex pattern failed with some logline input {line}")
         if prev_line_dict:
             yield prev_line_dict
 
@@ -268,15 +267,16 @@ class JournalLogs(base.job.BaseModule):
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
     """
+
     def read_config(self):
         super().read_config()
-    
+
     def run(self, path=None):
         out_dir = self.myconfig('outdir')
         check_folder(out_dir)
 
         command = f"journalctl --directory {path} -o short-iso"
-        env = {'TZ':"UTC"}  # Return journalctl results in UTC instead of localtime
+        env = {'TZ': "UTC"}  # Return journalctl results in UTC instead of localtime
         process_regex = re.compile(r'(?P<appname>[^\[\s\:]+)(?:\[(?P<procid>[^\]\s]+)\])?\s?:?')
         self.logger().info("Extracting Journal logs. It might take some time")
 
@@ -302,7 +302,7 @@ class JournalLogs(base.job.BaseModule):
                 }
                 previous_data = data
             else:
-                previous_data["message"] = previous_data.get("message", '') + '\n' + output_splitted[3]
+                previous_data["message"] = f'{previous_data.get("message", "")}\n{output_splitted[3]}'
 
         if len(previous_data) != 0:
             yield previous_data
@@ -315,16 +315,17 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
     """
+
     def read_config(self):
         super().read_config()
-    
+
     def run(self, path=None):
         df_sshlogin_aux = pd.DataFrame()
         aux_list_pids = []
 
         p_prog_accepted = re.compile(r'.*Accepted\s([^\s]+)\sfor\s(\S+)\sfrom\s([\d\.]+)\sport\s(\d+).*')
         p_prog_closed = re.compile(r'.*pam_unix\(sshd:session\):\ssession\sclosed\sfor\suser\s(\S+).*')
-        
+
         for line in self.from_module.run(path):
             line_pid = line["log.syslog.procid"]
             match_p_accepted = p_prog_accepted.match(line["message"].strip())
@@ -332,8 +333,8 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
             if match_p_accepted:
                 method, user_name, ut_host, port = match_p_accepted.groups()
                 data = {'pid': line_pid,
-                        'user.name': user_name, 
-                        'method': method, 
+                        'user.name': user_name,
+                        'method': method,
                         'ut_host': ut_host,
                         'port': port,
                         '@timestamp': line['@timestamp'],
@@ -347,8 +348,8 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
                 if match_p_closed:
                     if "pid" not in df_sshlogin_aux.columns:
                         data = {'pid': line_pid,
-                                'user.name':  str(match_p_closed.groups()[0]),
-                                'method': 'Uknown', 
+                                'user.name': str(match_p_closed.groups()[0]),
+                                'method': 'Uknown',
                                 'ut_host': 'Uknown',
                                 'port': 'Uknown',
                                 '@timestamp': line['@timestamp'],
@@ -372,18 +373,18 @@ class AnalysisLinuxSshLog(base.job.BaseModule):
                             time_difference = datetime_to - datetime_from
                             if str(time_difference).startswith("-"):
                                 time_difference = datetime_from - datetime_to
-                                negative="-"
+                                negative = "-"
                             total_seconds = int(time_difference.total_seconds())
                             hours, remainder = divmod(abs(total_seconds), 3600)
                             minutes, seconds = divmod(remainder, 60)
                             formatted_result = f"{negative}{hours:02}:{minutes:02}:{seconds:02}"
 
                             df_sshlogin_aux.at[index, "ut_time_total"] = formatted_result
-                            yield df_sshlogin_aux.loc[index, ['@timestamp','user.name', 'method', 'ut_host', 'port', 'ut_time_to', 'ut_time_total']].to_dict()
+                            yield df_sshlogin_aux.loc[index, ['@timestamp', 'user.name', 'method', 'ut_host', 'port', 'ut_time_to', 'ut_time_total']].to_dict()
                         else:
                             data = {'pid': line_pid,
-                                    'user.name':  str(match_p_closed.groups()[0]), 
-                                    'method': 'Uknown', 
+                                    'user.name': str(match_p_closed.groups()[0]),
+                                    'method': 'Uknown',
                                     'ut_host': 'Uknown',
                                     'port': 'Uknown',
                                     '@timestamp': line['@timestamp'],

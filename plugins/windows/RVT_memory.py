@@ -45,7 +45,7 @@ class Hiberfil(base.job.BaseModule):
             hiberlist = search.search("/hiberfil.sys$")
 
             for h in hiberlist:
-                aux = re.search("{}/([^/]*)/".format(base.utils.relative_path(self.myconfig('mountdir'), self.myconfig('casedir'))), h)
+                aux = re.search(f"{base.utils.relative_path(self.myconfig('mountdir'), self.myconfig('casedir'))}/([^/]*)/", h)
                 partition = aux.group(1)
                 profile = version = self.myconfig('profile')
                 if not profile:  # This is the default configuration
@@ -71,7 +71,7 @@ class Hiberfil(base.job.BaseModule):
         """ Create an image copy of hiberfil.sys """
 
         skip_dump = False
-        hiber_raw = os.path.join(outdir, "hiberfil_{}.raw".format(partition))
+        hiber_raw = os.path.join(outdir, f"hiberfil_{partition}.raw")
         if os.path.exists(hiber_raw) and os.path.getsize(hiber_raw) > 0:
             if not self.myflag('overwrite_imagecopy'):
                 self.logger().warning('Imagecopy {} already exists. Existing copy will be used. If you want to create a new one, set parameter `overwrite_imagecopy` to True')
@@ -81,10 +81,10 @@ class Hiberfil(base.job.BaseModule):
 
         if not skip_dump:
             self._check_version(profile, file, hiber_raw)
-            self.logger().debug('Creating an imagecopy of file {} at {}'.format(file, hiber_raw))
-            with open(os.path.join(outdir, "hiberinfo_{}.txt".format(partition)), 'w') as pf:
-                pf.write("Profile: %s\nVersion: %s" % (profile, version))
-            run_command([self.volatility, "--profile={}".format(profile), "-f", file, "imagecopy", "-O", hiber_raw], logger=self.logger())
+            self.logger().debug(f'Creating an imagecopy of file {file} at {hiber_raw}')
+            with open(os.path.join(outdir, f"hiberinfo_{partition}.txt"), 'w') as pf:
+                pf.write(f"Profile: {profile}\nVersion: {version}")
+            run_command([self.volatility, f"--profile={profile}", "-f", file, "imagecopy", "-O", hiber_raw], logger=self.logger())
 
         return hiber_raw
 
@@ -96,25 +96,25 @@ class Hiberfil(base.job.BaseModule):
             profile (str): volatility profile
         """
         if not os.path.isfile(archive):
-            raise base.job.RVTError('No raw extraction file generated. File does not exist: {}'.format(archive))
+            raise base.job.RVTError(f'No raw extraction file generated. File does not exist: {archive}')
 
         plugins = self.myarray('volatility_plugins')
 
         partition = re.search(r"/hiberfil_([vp\d]+)\.raw$", archive)
         partition = partition.group(1)
-        hiber_output = os.path.join(self.myconfig('outdir'), "data_{}.txt".format(partition))
+        hiber_output = os.path.join(self.myconfig('outdir'), f"data_{partition}.txt")
 
-        self.logger().debug("Extracting information from {}".format(archive.split(self.myconfig('outputdir'))[-1]))
+        self.logger().debug(f"Extracting information from {archive.split(self.myconfig('outputdir'))[-1]}")
 
         with open(hiber_output, "a") as f:
             for plugin in plugins:
-                self.logger().debug("Plugin {}".format(plugin))
-                output = subprocess.check_output([self.volatility, "--profile={}".format(profile), "-f", archive, plugin]).decode()
-                f.write("*********** {} ************\n{}\n".format(plugin, output))
+                self.logger().debug(f"Plugin {plugin}")
+                output = subprocess.check_output([self.volatility, f"--profile={profile}", "-f", archive, plugin]).decode()
+                f.write(f"*********** {plugin} ************\n{output}\n")
 
     def _check_version(self, profile, file, hiber_raw):
         if profile.startswith('Win10') or profile.startswith('Win8'):
-            raise base.job.RVTError("{} could not be descompressed with a linux distro. Descompress with Windows 8 o higher hiberfil.sys file using https://arsenalrecon.com/weapons/hibernation-recon/. Save output at {}".format(file, hiber_raw))
+            raise base.job.RVTError(f"{file} could not be descompressed with a linux distro. Descompress with Windows 8 o higher hiberfil.sys file using https://arsenalrecon.com/weapons/hibernation-recon/. Save output at {hiber_raw}")
         return
 
 
@@ -155,14 +155,14 @@ class MemoryShare(base.job.BaseModule):
     def volatility_results(self, path, outdir, profile, partition='p01'):
 
         self.logger().debug(f"Extracting information from {path}")
-        outfile = os.path.join(outdir, "data_{}.txt".format(partition))
+        outfile = os.path.join(outdir, f"data_{partition}.txt")
         plugins = self.myarray('volatility_plugins')
 
         with open(outfile, "a") as f:
             for plugin in plugins:
-                self.logger().debug("Running plugin {}".format(plugin))
-                output = subprocess.check_output([self.volatility, "--profile={}".format(profile), "-f", path, plugin]).decode()
-                f.write("*********** {} ************\n{}\n".format(plugin, output))
+                self.logger().debug(f"Running plugin {plugin}")
+                output = subprocess.check_output([self.volatility, f"--profile={profile}", "-f", path, plugin]).decode()
+                f.write(f"*********** {plugin} ************\n{output}\n")
 
 
 def get_win_profile(partition, config):
@@ -220,11 +220,11 @@ def get_win_profile(partition, config):
 
     os_version = CharacterizeWindows(config=config).get_windows_version(partition=partition)
     architecture = "x64" if os_version.get('ProcessorArchitecture', '').lower() == 'amd64' else "x86"
-    prof = "{}.{}{}".format(os_version.get("Version", ""), os_version.get("BuildNumber", ""), architecture)
+    prof = f'{os_version.get("Version", "")}.{os_version.get("BuildNumber", "")}{architecture}'
     if prof not in profile.keys():
-        prof = "{}{}".format(os_version.get("Version", ""), architecture)
+        prof = f'{os_version.get("Version", "")}{architecture}'
         if prof not in profile.keys():
-            raise base.job.RVTError("Windows version not in the profiles list: {}".format(str(os_version)))
+            raise base.job.RVTError(f"Windows version not in the profiles list: {str(os_version)}")
 
     return profile[prof], prof
 

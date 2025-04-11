@@ -22,7 +22,7 @@ import os
 import shutil
 import uuid
 import hashlib
-import json
+import ujson as json
 import re
 import logging
 import base.job
@@ -36,6 +36,7 @@ from pathlib import Path, PureWindowsPath
 # ----------------------------
 # PATH MANAGEMENT
 # ----------------------------
+
 
 def check_folder(path):
     """ Check is a path is a folder and create if not exists.
@@ -59,14 +60,14 @@ def check_directory(path, create=False, delete_exists=False, error_exists=False,
     """
     if os.path.exists(path):
         if error_exists:
-            raise base.job.RVTError('{} exists'.format(path))
+            raise base.job.RVTError(f'{path} exists')
         if not os.path.isdir(path):
-            raise base.job.RVTError('{} exists and it is not a directory'.format(path))
+            raise base.job.RVTError(f'{path} exists and it is not a directory')
         if delete_exists:
             shutil.rmtree(path)
     else:
         if error_missing:
-            raise base.job.RVTError('{} does not exist'.format(path))
+            raise base.job.RVTError(f'{path} does not exist')
     if create:
         os.makedirs(path, exist_ok=True)
     return os.path.exists(path)
@@ -96,14 +97,14 @@ def check_file(path, error_missing=False, error_exists=False, delete_exists=Fals
 
     if exists:
         if error_exists:
-            raise base.job.RVTError('{} exists'.format(path))
+            raise base.job.RVTError(f'{path} exists')
         if not (os.path.isfile(path) or os.path.islink(path)):
-            raise base.job.RVTError('{} exists and it is not a file'.format(path))
+            raise base.job.RVTError(f'{path} exists and it is not a file')
         if delete_exists:
             os.remove(path)
     else:
         if error_missing:
-            raise base.job.RVTError('{} does not exist'.format(path))
+            raise base.job.RVTError(f'{path} does not exist')
     if create_parent and valid_path:
         check_directory(os.path.dirname(path), create=True)
     return exists
@@ -177,6 +178,7 @@ def get_windows_user_from_path(path, logger=logging):
 # OUTPUT MANAGEMENT
 # ----------------------------
 
+
 def save_output(data, config=None, output_module='base.output.CSVSink', **kwargs):
     """
     Save data in some standard output format file. This is a convenient function to run a ``base.output`` modules from inside another module.
@@ -207,6 +209,7 @@ def save_csv(data, config=None, **kwargs):
         kwargs (dict): The extra configuration for the `base.output.CSVSink` module. You'd want to set, at least, `outfile`.
     """
     save_output(data, config, 'base.output.CSVSink', **kwargs)
+
 
 def save_dummy(data, config=None, **kwargs):
     """
@@ -248,12 +251,13 @@ def save_md_table(data, config=None, **kwargs):
 # ID AND HASH GENERATION
 # ----------------------------
 
+
 def generate_id(data=None):
     """ Generate a unique ID for a piece of data. If data is None, returns a random indentifier.
 
     The identifier is created using::
 
-        uuid.uuid5(uuid.NAMESPACE_URL, 'file:///{}/{}?{}'.format(dirname, filename, embedded_path))
+        uuid.uuid5(uuid.NAMESPACE_URL, f'file:///{dirname}/{filename}?{embedded_path}')
 
     If the data already provides and identifier in an field ``_id``, pop this field from data and return it.
     """
@@ -275,9 +279,9 @@ def generate_id(data=None):
         embedded_path = embedded_path.encode(errors='backslashreplace').decode()
     if dirname and filename:
         if embedded_path:
-            return uuid.uuid5(uuid.NAMESPACE_URL, 'file:///{}/{}?{}'.format(dirname, filename, embedded_path))
+            return uuid.uuid5(uuid.NAMESPACE_URL, f'file:///{dirname}/{filename}?{embedded_path}')
         else:
-            return uuid.uuid5(uuid.NAMESPACE_URL, 'file:///{}/{}'.format(dirname, filename))
+            return uuid.uuid5(uuid.NAMESPACE_URL, f'file:///{dirname}/{filename}')
     else:
         # not enough information: random ID
         return uuid.uuid4()
@@ -298,7 +302,7 @@ def generate_hash(data=None, algorithm='md5', logger=logging):
         return data.pop('_id')
 
     dhash = _select_hash_algorithm(algorithm, logger=logger)
-    encoded = json.dumps(data, sort_keys=True).encode()
+    encoded = json.dumps(data, sort_keys=True, escape_forward_slashes=False).encode()
     dhash.update(encoded)
     return dhash.hexdigest()
 
@@ -330,7 +334,7 @@ def _select_hash_algorithm(name='sha256', logger=logging):
     algorithms = {'sha1': hashlib.sha1(),
                   'sha256': hashlib.sha256(),
                   'sha512': hashlib.sha512(),
-                  'md5': hashlib.md5(),}
+                  'md5': hashlib.md5(), }
     if name.lower() not in algorithms:
         logger.warning(f'Selected hash algorithm name "{name}" not supported. Available options: {algorithms.keys()}. Taking default algorithm sha256')
         name = 'sha256'
@@ -339,6 +343,7 @@ def _select_hash_algorithm(name='sha256', logger=logging):
 # ----------------------------
 # IP MANAGEMENT
 # ----------------------------
+
 
 def sanitize_ip(value, logger=logging):
     """ Adapt IP fields to Elastic IPv4 or IPv6 addresses format (see https://www.elastic.co/guide/en/elasticsearch/reference/current/ip.html)
@@ -443,6 +448,7 @@ def check_integer(value):
 # DATE MANAGEMENT
 # ----------------------------
 
+
 def date_to_iso(source, input_timezone="UTC", output_timezone="UTC", on_fail='NULL', dayfirst=False, sep="T", timespec='auto', hide_tz=False, logger=logging):
     """ Get input data representing a date and return a string in ISO format. Both input and output timezones are editable. """
     dt = to_localized_date(source, tz_name=input_timezone, dayfirst=dayfirst, on_fail=on_fail, logger=logger)
@@ -458,12 +464,12 @@ def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL', log
         return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='DATETIME')
     try:
         # Timestamp input
-        if type(source) == int or (type(source) == str and source.isdigit()):
+        if isinstance(type(source), int) or (isinstance(source, str) and source.isdigit()):
             dt = datetime.datetime.fromtimestamp(int(source), datetime.timezone.utc)
         # Datetime input
-        elif type(source) == datetime.datetime:
+        elif isinstance(type(source), datetime.datetime):
             dt = source
-        # String input            
+        # String input
         else:
             # WARNING: dateutil uses American notation when in doubt: 09/03/2022 is September 3rd
             # Using dayfirst parameter enforces European notation, but fails interpreting ISO format
@@ -497,8 +503,8 @@ def convert_to_iso(source_datetime, sep='T', timespec='auto', tz_name='UTC', hid
         logger.warning(f'Output timezone provided is not valid: {tz_name}. Time {source_datetime} will be expressed in UTC')
         tz = pytz.utc
 
-    if type(source_datetime) != datetime.datetime:
-        #logger.debug(f'Expected a datetime object as input. Input provided: {source_datetime}')
+    if not isinstance(source_datetime, datetime.datetime):
+        # logger.debug(f'Expected a datetime object as input. Input provided: {source_datetime}')
         return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='ISO', tz_name=tz_name, sep=sep, timespec=timespec, hide_tz=hide_tz)
 
     try:
@@ -530,7 +536,7 @@ def _on_fail_dates(on_fail_condition='EPOCH', output_type='DATETIME', tz_name='U
         tz = pytz.utc
     on_fail_iso = {'EPOCH': on_fail_datetime['EPOCH'].astimezone(tz),
                    'NOW': on_fail_datetime['NOW'].astimezone(tz),
-                   'NULL': ""}  
+                   'NULL': ""}
     for condition in ['EPOCH', 'NOW']:
         on_fail_iso[condition] = on_fail_iso[condition].replace(tzinfo=on_fail_iso[condition].tzinfo if not hide_tz else None).isoformat(sep=sep, timespec=timespec)
     return on_fail_iso.get(on_fail_condition.upper(), "")
@@ -544,7 +550,7 @@ def parse_microsoft_timestamp(timestamp):
     UNIX time is specified as the number of seconds since January 1, 1970.
     There are 134,774 days (or 11,644,473,600 seconds) between these dates.
     """
-    unix_time = float(timestamp) *1e-7 - 11644473600
+    unix_time = float(timestamp) * 1e-7 - 11644473600
     return datetime.datetime.fromtimestamp(unix_time, datetime.timezone.utc)
 
 
@@ -566,6 +572,7 @@ def get_duration(logon_time, logoff_time, date_format="%Y-%m-%d %H:%M:%S.%f %Z")
 # ----------------------------
 # OTHER
 # ----------------------------
+
 
 def human_readable_size(num):
     """ Converts bytes to human readable magnitudes """

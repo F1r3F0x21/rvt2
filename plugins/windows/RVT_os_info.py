@@ -16,7 +16,7 @@
 import os
 import re
 import datetime
-import json
+import ujson as json
 from collections import defaultdict
 import base.job
 from base.utils import check_directory, check_file
@@ -38,7 +38,7 @@ class CharacterizeWindows(base.job.BaseModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.users_sid = {}
-        #self.aux_file = self.config.config['.'.join([__name__, self.__class__.__name__])]['aux_file']
+        # self.aux_file = self.config.config['.'.join([__name__, self.__class__.__name__])]['aux_file']
         self.aux_file = self.myconfig('aux_file')
 
     def read_config(self):
@@ -114,8 +114,8 @@ class CharacterizeWindows(base.job.BaseModule):
             for partition_to_characterize in self.get_available_partitions():
                 try:
                     list(base.job.run_job(self.config.copy(), 'windows.autorip_analyze',
-                        path=os.path.join(self.myconfig('mountdir'), partition_to_characterize, '[Ww][Ii][Nn][Dd][Oo][Ww][Ss]/[Ss]ystem32/[Cc]onfig'),
-                        extra_config=dict(volume_id=partition_to_characterize, ripplugins=ripplugins_file)))
+                                          path=os.path.join(self.myconfig('mountdir'), partition_to_characterize, '[Ww][Ii][Nn][Dd][Oo][Ww][Ss]/[Ss]ystem32/[Cc]onfig'),
+                                          extra_config=dict(volume_id=partition_to_characterize, ripplugins=ripplugins_file)))
                 except base.job.RVTError as exc:
                     self.logger().warning(exc)
                     self.ripplugins = {}
@@ -137,7 +137,7 @@ class CharacterizeWindows(base.job.BaseModule):
 
         # Main loop to populate os_info
         for plug in os_plugins:
-            hivefile = os.path.join(self.hives_dir, '{}_{}.txt'.format(self.plugin_files[plug], part))
+            hivefile = os.path.join(self.hives_dir, f'{self.plugin_files[plug]}_{part}.txt')
             if not check_file(hivefile):
                 continue
             with open(hivefile, 'r') as f_in:
@@ -148,7 +148,7 @@ class CharacterizeWindows(base.job.BaseModule):
                             last_write = f_in.readline()[11:].rstrip('\n')
                             f_in.readline()
                             last_user = f_in.readline()[22:].rstrip('\n')
-                            self.os_info[part]['LastLoggedOn'] = '{} ({})'.format(last_write, last_user)
+                            self.os_info[part]['LastLoggedOn'] = f'{last_write} ({last_user})'
                             break
                     continue
                 elif plug == 'timezone':
@@ -162,7 +162,7 @@ class CharacterizeWindows(base.job.BaseModule):
                                 if line.startswith('  TimeZoneKeyName'):
                                     line = line[len('  TimeZoneKeyName') + 3:].rstrip('\n')
                                     tz_name = line[:line.find('Time') + 4]
-                            self.os_info[part]['TimeZone'] = '{} {}'.format(tz_name, bias)
+                            self.os_info[part]['TimeZone'] = f'{tz_name} {bias}'
                             break
                     continue
                 elif plug == 'nic2':
@@ -188,15 +188,15 @@ class CharacterizeWindows(base.job.BaseModule):
 
         # Skip displaying partition info if it does not contain an OS
         if not self.os_info.get(part, None):
-            self.logger().debug('No OS information for partition {}'.format(part))
+            self.logger().debug(f'No OS information for partition {part}')
             return
 
         # users = {'username': '', 'creation_time': '', 'last_log': ''}
         users = {}
         # user_profiles = {'username': '', 'creation_time': '', 'last_log': '', 'sid': ''}
         user_profiles = {}
-        samparse_hivefile = os.path.join(self.hives_dir, '{}_{}.txt'.format(self.plugin_files['samparse'], part))
-        profilelist_hivefile = os.path.join(self.hives_dir, '{}_{}.txt'.format(self.plugin_files['profilelist'], part))
+        samparse_hivefile = os.path.join(self.hives_dir, f'{self.plugin_files["samparse"]}_{part}.txt')
+        profilelist_hivefile = os.path.join(self.hives_dir, f'{self.plugin_files["profilelist"]}_{part}.txt')
 
         # Usually samparse and profilelist should be on the same outputfile, but treat it separately just in case
         if not check_file(samparse_hivefile) or not profilelist_hivefile:
@@ -295,7 +295,7 @@ class CharacterizeWindows(base.job.BaseModule):
             part, user, middle_path = fn_parts.groups()
             # Additional UsrClass.dat outside common locations will be ommited
             if middle_path.lower() not in ('', '/appdata/local/microsoft/windows'):
-                self.logger().warning('Found extra user hive at {}. Consider analyzing this file separately'.format(filename))
+                self.logger().warning(f'Found extra user hive at {filename}. Consider analyzing this file separately')
                 continue
 
             ntusers[part].append([user, datetime.datetime.strptime(dates['b'], "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d %H:%M:%S")])
@@ -312,13 +312,13 @@ class CharacterizeWindows(base.job.BaseModule):
             except ValueError:
                 pass
         # Default answer
-        self.logger().debug('No correct date format found for {}'.format(date_string))
+        self.logger().debug(f'No correct date format found for {date_string}')
         return datetime.datetime.min
 
     def get_information(self, item, partition='p01'):
         """ Get selected OS or user information by reading a previously defined json file where information is stored """
 
-        self.logger().debug('Getting {} information about partition {}'.format(item, partition))
+        self.logger().debug(f'Getting {item} information about partition {partition}')
         os_info_keys = ["productname", "installationtype", "editionid", "currentbuild", "productid", "registeredowner", "registeredorganization",
                         "installdate", "shutdowntime", "timezone", "lastloggedon", "processorarchitecture", "computername"]
         users_info_keys = ["users", "user_profiles"]
@@ -327,7 +327,7 @@ class CharacterizeWindows(base.job.BaseModule):
         elif item.lower() in users_info_keys:
             default_output = defaultdict(dict)
         else:
-            raise base.job.RVTError('Selected item <{}> is not a recognized OS attribute'.format(item))
+            raise base.job.RVTError(f'Selected item <{item}> is not a recognized OS attribute')
 
         # Parse the minimal information from hives if not done before
         if not os.path.exists(self.aux_file):
@@ -362,7 +362,7 @@ class CharacterizeWindows(base.job.BaseModule):
 
         # Return if no registry information about users is available
         if not partition:
-                return {}
+            return {}
 
         try:
             users = self.get_information("user_profiles", partition=partition)

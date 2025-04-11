@@ -20,7 +20,7 @@ import sqlite3
 import csv
 import biplist
 import datetime
-import json
+import ujson as json
 
 import base.job
 import base.utils
@@ -49,7 +49,7 @@ class Characterization(base.job.BaseModule):
         Returns:
             An array of a dictionary with the extracted documentation
         """
-        self.logger().debug('Parsing: %s', path)
+        self.logger().debug(f'Parsing: {path}')
         self.check_params(path, check_path=True, check_path_exists=True)
 
         if not base.utils.check_file(os.path.join(path, 'Manifest.plist')):
@@ -86,7 +86,7 @@ class Characterization(base.job.BaseModule):
         with open(self.myconfig('outfile_json'), 'w') as outfile_json:
             json.dump(data, outfile_json, indent=4)
 
-        self.logger().info("iPhone's characterization exported at %s", self.myconfig('outfile'))
+        self.logger().info(f"iPhone's characterization exported at {self.myconfig('outfile')}")
 
         return [data]
 
@@ -152,7 +152,7 @@ class Characterization(base.job.BaseModule):
         data['RequiresEncryption'] = str(ldBackup.get('RequiresEncryption', '')) or str(ldBackup.get('WillEncrypt', '')) or 'Undefined'
 
     def parse_accounts(self, data):
-        conn = sqlite3.connect('file://{}/HomeDomain/Library/Accounts/Accounts3.sqlite?mode=ro'.format(self.path), uri=True)
+        conn = sqlite3.connect(f'file://{self.path}/HomeDomain/Library/Accounts/Accounts3.sqlite?mode=ro', uri=True)
         c = conn.cursor()
         query = """
             SELECT a.ZACCOUNTTYPEDESCRIPTION, a.ZCREDENTIALTYPE,
@@ -194,7 +194,7 @@ class Characterization(base.job.BaseModule):
 class LoadApolloVersion(base.job.BaseModule):
     def run(self, path=None):
         version = Characterization(self.config).get_property('Version').split('.')[0]
-        conf_file = os.path.join(self.config.config['ios']['plugindir'], 'apollo', 'rvt2-ios-{}.ini'.format(version))
+        conf_file = os.path.join(self.config.config['ios']['plugindir'], 'apollo', f'rvt2-ios-{version}.ini')
         if os.path.exists(conf_file):
             self.config.read(conf_file)
         return []

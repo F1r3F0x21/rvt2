@@ -14,10 +14,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import datetime
 import base.job
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
 from base.utils import check_folder, check_directory, parse_microsoft_timestamp
 
 
@@ -28,7 +26,7 @@ class WerParser(base.job.BaseModule):
     """
 
     def run(self, path=""):
-        self.logger().debug('"Input path to ReportArchive: " {}'.format(path))
+        self.logger().debug(f'"Input path to ReportArchive: " {path}')
         self.check_params(path, check_path=True, check_path_exists=True)
 
         # Define output file
@@ -36,7 +34,7 @@ class WerParser(base.job.BaseModule):
         check_folder(base_path)
 
         if not os.path.isdir(path):
-            raise base.job.RVTError('Provided path {} is not a directory'.format(path))
+            raise base.job.RVTError(f'Provided path {path} is not a directory')
 
         check_directory(base_path, create=True)
 
@@ -100,13 +98,13 @@ class WerParser(base.job.BaseModule):
                                 wer_report[field_name].append(field_value)
                             else:
                                 wer_report[field_name] = [field_value]
-                    elif "." in sl[0]: # e.g. Response.BucketId = some_val
+                    elif "." in sl[0]:  # e.g. Response.BucketId = some_val
                         field_name = sl[0].split(".", 1)
                         if field_name[0] not in wer_report:
                             wer_report[field_name[0]] = {field_name[1]: sl[1]}
                         else:
                             wer_report[field_name[0]][field_name[1]] = sl[1]
-                    else: # base case, Line uses simple encoding of KEY=VALUE
+                    else:  # base case, Line uses simple encoding of KEY=VALUE
                         wer_report[sl[0]] = sl[1]
 
             # Parse out SHA1 of executable. Same format as hash in AmCache. Only first 31,457,280 bytes of file get hashed

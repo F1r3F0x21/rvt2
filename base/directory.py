@@ -74,7 +74,7 @@ class DirectoryFilter(base.job.BaseModule):
                 for extension in base.config.parse_conf_array(self.config.get(myfilter, 'extension', '')):
                     filter_extensions.append(extension)
             self.filter_extensions = set(filter_extensions)
-            self.logger().debug('Parsing only: %s', self.filter_extensions)
+            self.logger().debug(f'Parsing only: {self.filter_extensions}')
         else:
             self.filter_extensions = None
         # progress configuration
@@ -124,7 +124,7 @@ class DirectoryFilter(base.job.BaseModule):
             for info in self._parse_directory(path):
                 yield info
         else:
-            raise base.job.RVTError('Unknown file type (does it exist?): {}'.format(path))
+            raise base.job.RVTError(f'Unknown file type (does it exist?): {path}')
 
     def _estimate_subdirectories(self, path):
         """ Estimate the number of subdirectories in the path. Path must be a directory """
@@ -133,7 +133,7 @@ class DirectoryFilter(base.job.BaseModule):
             # estimating the number of subdirectories may be very long. Do not estimate if progress is disabled
             total_subdirectories = base.commands.estimate_iterations(path, self.myconfig('progress.cmd'))
         # Notice total_interations is the number of subdirectories, not files
-        self.logger().debug('total_subdirectories=%s', total_subdirectories)
+        self.logger().debug(f'total_subdirectories={total_subdirectories}')
         return total_subdirectories
 
     def _parse_directory(self, path):
@@ -154,14 +154,14 @@ class DirectoryFilter(base.job.BaseModule):
                     if root == lastParsed:
                         lastParsed = None
                     else:
-                        self.logger().debug('Skipping path="%s" reason="already parsed"', filepath)
+                        self.logger().debug(f'Skipping path="{filepath}" reason="already parsed"')
                         continue
                 # parse the file
                 if self._should_process_file(filepath):
                     for info in self.from_module.run(filepath):
                         yield info
                 else:
-                    self.logger().debug('Skipping path="%s" reason="filtered out"', filepath)
+                    self.logger().debug(f'Skipping path="{filepath}" reason="filtered out"')
                 # save the last parsed root
                 if self.myflag('restartable'):
                     self.config.store_set('last_dir_parsed', root)
@@ -182,6 +182,7 @@ class FileParser(base.job.BaseModule):
         - **parsers**: A list of regex and modules. First, the regular expression matching a filename; second, the jobname to run on this filename.
             Example: ['(.*[Ww]indows/audit/.*.csv) myplugin.myjob', '(.*[Ww]indows/auditlogs/.*.txt) myplugin.myjob2']
     """
+
     def read_config(self):
         base.job.BaseModule.read_config(self)
         self.set_default_config('parsers', '')
@@ -196,7 +197,7 @@ class FileParser(base.job.BaseModule):
                 yield fileinfo
         for regex, parser in self.regex_list:
             if regex.match(path):
-                self.logger().debug('Matched path: {}'.format(path))
+                self.logger().debug(f'Matched path: {path}')
                 for fileinfo in base.job.run_job(self.config.copy(), parser, path=[path]):
                     yield fileinfo
 
@@ -251,7 +252,7 @@ class GlobFilter(base.job.BaseModule):
         self.check_params(path, check_from_module=True, check_path=True)
         ftype = self.myconfig('ftype').lower()
 
-        self.logger().debug('Searching glob pattern: {}'.format(path))
+        self.logger().debug(f'Searching glob pattern: {path}')
 
         if self.myflag('sorted') or self.myflag('reverse'):
             list_files = glob.glob(path, recursive=self.myflag('recursive'))
@@ -262,7 +263,7 @@ class GlobFilter(base.job.BaseModule):
         exclude_extensions = self.myarray('exclude_extensions')
         if exclude_extensions:
             list_files = [path for path in list_files if not any(path.endswith(ext) for ext in exclude_extensions)]
-        
+
         only_extensions = self.myarray('only_extensions')
         if only_extensions:
             list_files = [path for path in list_files if any(path.endswith(ext) for ext in only_extensions)]
@@ -273,7 +274,7 @@ class GlobFilter(base.job.BaseModule):
                 if ftype == 'all' or \
                         (ftype == 'file' and os.path.isfile(filepath)) or \
                         (ftype == 'directory' and os.path.isdir(filepath)):
-                    self.logger().debug('Matching glob file: {}'.format(filepath))
+                    self.logger().debug(f'Matching glob file: {filepath}')
                     results = self.from_module.run(filepath)
                     if results is not None:
                         for info in results:
@@ -315,6 +316,7 @@ class FileClassifier(base.job.BaseModule):
         office
 
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -417,7 +419,7 @@ class DirectoryClear(base.job.BaseModule):
         elif os.path.isfile(target_path):
             os.remove(target_path)
             return []
-        self.logger().debug('{} not recognized as file or directory'.format(target_path))
+        self.logger().debug(f'{target_path} not recognized as file or directory')
         return []
 
 
@@ -461,7 +463,7 @@ class GlobClear(base.job.BaseModule):
         ftype = self.myconfig('ftype').lower()
 
         items_removed = False
-        self.logger().debug('Removing all {} matching glob pattern: {}'.format(ftype, target_path))
+        self.logger().debug(f'Removing all {ftype} matching glob pattern: {target_path}')
         for filepath in glob.iglob(target_path, recursive=self.myflag('recursive')):
             if ftype == 'all' or \
                     (ftype == 'file' and os.path.isfile(filepath)) or \
@@ -476,7 +478,8 @@ class GlobClear(base.job.BaseModule):
                     self.logger().debug(f'File {filepath} has been deleted')
 
         if not items_removed:
-            self.logger().debug('No file or directory matching "{}" has been deleted'.format(target_path))
+            self.logger().debug(f'No file or directory matching "{target_path}" has been deleted')
+
 
 class GlobClearEmptyFile(base.job.BaseModule):
     """ Remove the the empty files specified by glob pattern 'target'.
@@ -492,7 +495,7 @@ class GlobClearEmptyFile(base.job.BaseModule):
             raise base.job.RVTError('Target path to remove not selected'.format(target_path))
 
         items_removed = False
-        self.logger().debug('Removing all empty files matching glob pattern: {}'.format( target_path))
+        self.logger().debug(f'Removing all empty files matching glob pattern: {target_path}')
         try:
             for filepath in glob.iglob(target_path, recursive=self.myflag('recursive')):
                 if os.path.isfile(filepath):
@@ -505,7 +508,7 @@ class GlobClearEmptyFile(base.job.BaseModule):
                 raise
             self.logger().warning(exc)
         if not items_removed:
-            self.logger().debug('No empty file matching "{}" has been deleted'.format(target_path))
+            self.logger().debug(f'No empty file matching "{target_path}" has been deleted')
 
         # If this job is used as a module, continue the module chain
         if self.from_module is not None:
@@ -515,7 +518,6 @@ class GlobClearEmptyFile(base.job.BaseModule):
 
 
 class CopyFile(base.job.BaseModule):
-    
     """  A module that copy a file set in 'path' to a specific folder
 
     Configuration:
@@ -542,26 +544,26 @@ class CopyFile(base.job.BaseModule):
                     if not target_path.startswith(mountdir):
                         search = GetFiles(self.config)
                         target_path_list = search.search(target_path)
-                        
+
                         mountdirlist = mountdir.split(os.path.sep)
                         target_path_list = target_path_list[0].split(os.path.sep)
 
                         index = mountdirlist.index(target_path_list[0])
                         final_list = mountdirlist
-                        
+
                         for directory in target_path_list:
                             if index < len(mountdirlist):
-                                final_list[index] = directory    
+                                final_list[index] = directory
                             else:
                                 final_list.append(directory)
                             index += 1
-                            
+
                         target_path = os.path.sep.join(final_list)
                     basename = os.path.basename(target_path)
                 else:
                     # If not a symbolic link, use the provided path
                     basename = os.path.basename(path)
-                
+
                 outfile = self.myconfig('outfile')
                 file_out = os.path.join(outdir, outfile.format(path=basename))
                 new_permissions = 0o644

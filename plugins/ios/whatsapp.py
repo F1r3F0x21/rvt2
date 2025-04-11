@@ -95,12 +95,12 @@ class WhatsApp(plugins.ios.IOSModule):
         chatstorage_file = os.path.join(os.path.join(path, 'AppDomainGroup-group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite'))
 
         if not base.utils.check_file(chatstorage_file):
-            self.logger().warning("The file %s do not exists", chatstorage_file)
+            self.logger().warning(f"The file {chatstorage_file} do not exists")
             return []
 
         # Execute query and parse messages
-        self.logger().debug('Parsing: %s', chatstorage_file)
-        with sqlite3.connect('file://{}?mode=ro'.format(chatstorage_file), uri=True) as conn:
+        self.logger().debug(f'Parsing: {chatstorage_file}')
+        with sqlite3.connect(f'file://{chatstorage_file}?mode=ro', uri=True) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor = self.execute_query(chatstorage_file, cursor)
                 for line in cursor:
@@ -194,7 +194,7 @@ class WhatsApp(plugins.ios.IOSModule):
                 try:
                     dates[limit_date] = dateutil.parser.parse(self.myconfig(limit_date)).strftime('%Y-%m-%d %H:%M')
                 except Exception:
-                    raise base.job.RVTError('Parameter start_date {} not recognized as correct date. Try something like 2019-08-25'.format(self.myconfig(limit_date)))
+                    raise base.job.RVTError(f'Parameter start_date {self.myconfig(limit_date)} not recognized as correct date. Try something like 2019-08-25')
         start_date_filter = 'ZMESSAGEDATE > "{}"'.format(dates['start_date']) if dates['start_date'] else ''
         end_date_filter = 'ZMESSAGEDATE < "{}"'.format(dates['end_date']) if dates['end_date'] else ''
 
@@ -206,11 +206,11 @@ class WhatsApp(plugins.ios.IOSModule):
         num_filters = len(activated_filters)
         query = 'SELECT * FROM messages'  # messages
         if num_filters >= 1:
-            query += ' WHERE {}'.format(activated_filters[0])
+            query += f' WHERE {activated_filters[0]}'
         if num_filters >= 2:
-            query += ' AND {}'.format(activated_filters[1])
+            query += f' AND {activated_filters[1]}'
         if num_filters == 3:
-            query += ' AND {}'.format(activated_filters[2])
+            query += f' AND {activated_filters[2]}'
 
         return query
 
@@ -246,11 +246,11 @@ class WhatsApp(plugins.ios.IOSModule):
         phone_number = "" if line[4] is None else line[4].split("@")[0]
 
         # Message and status types
-        readable_type = self.type_switcher.get(line[10], "Unknown: {}".format(line[10]))
+        readable_type = self.type_switcher.get(line[10], f"Unknown: {line[10]}")
         status = self.status_switcher.get(line[11], line[11])
 
         # Message for the several types
-        message = "[System message: {}]".format(readable_type)
+        message = f"[System message: {readable_type}]"
         if line[8] is not None:
             message = self._sanitize_message(line[8])
 
@@ -313,7 +313,7 @@ class WhatsApp(plugins.ios.IOSModule):
 
         # Warn for media files not found when expected
         if message_type in [1, 2, 3, 8, 11] and media_location is None:
-            media_filename = '[System message: {}]: not found'.format(self.type_switcher[message_type])
+            media_filename = f'[System message: {self.type_switcher[message_type]}]: not found'
 
         media_outdir = self.myconfig('media_outdir').format(message_group=message_group)
         base.utils.check_directory(media_outdir, create=True)
@@ -375,9 +375,9 @@ class WhatsAppChatSessions(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
         chatstorage_file = os.path.join(os.path.join(path, 'AppDomainGroup-group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite'))
         if not base.utils.check_file(chatstorage_file):
-            self.logger().warning("The file %s do not exists", chatstorage_file)
+            self.logger().warning(f"The file {chatstorage_file} do not exists")
             return []
-        conn = sqlite3.connect('file://{}?mode=ro'.format(chatstorage_file), uri=True)
+        conn = sqlite3.connect(f'file://{chatstorage_file}?mode=ro', uri=True)
         c = conn.cursor()
         for line in c.execute('SELECT DISTINCT ZCHATSESSION FROM ZWAMESSAGE'):
             yield(dict(message_group=line[0]))
@@ -402,18 +402,18 @@ class WhatsAppKeywords(base.job.BaseModule):
 
         # Get list of keywords to search
         kw_file = self.myconfig('kw_file')
-        self.logger().debug('Testing existance of {}'.format(kw_file))
+        self.logger().debug(f'Testing existance of {kw_file}')
         base.utils.check_file(kw_file, error_missing=True)
         keywords = getSearchItems(kw_file)
 
         for kw_name, kw in keywords.items():
-            self.logger().debug('Searching kw {} in whatsapp conversations'.format(kw))
+            self.logger().debug(f'Searching kw {kw} in whatsapp conversations')
             for group in os.listdir(whatsapp_dir):
                 if not os.path.isdir(os.path.join(whatsapp_dir, group)) or group == 'None':
                     continue
                 # Take +- 5 lines from the conversation hit
                 with open(os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv'), "a") as kw_hits_file:
-                    run_command(['grep', '-iP', '-C', '5', "'{}'".format(kw), os.path.join(whatsapp_dir, group, 'whatsapp.csv')], stdout=kw_hits_file)
+                    run_command(['grep', '-iP', '-C', '5', f"'{kw}'", os.path.join(whatsapp_dir, group, 'whatsapp.csv')], stdout=kw_hits_file)
                     run_command(['sort', '-u', '-o', os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv'), os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv')])
                     with open(os.path.join(whatsapp_dir, group, 'whatsapp_kw_tmp.csv'), "w") as tmp_file:
                         run_command(['grep', '-v', '^--$', os.path.join(whatsapp_dir, group, 'whatsapp_kw.csv')], stdout=tmp_file)

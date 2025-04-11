@@ -36,8 +36,8 @@ class Notifications(base.job.BaseModule):
         srch_aux = srch.search(path)
         partition = srch_aux.group(1)
         user = srch_aux.group(3)
-        self.logger().info('Extracting windows Notifications from user {} at {}'.format(user, partition))
-        outfile = os.path.join(base_path, 'notifications_{}_{}.csv'.format(partition, user))
+        self.logger().info(f'Extracting windows Notifications from user {user} at {partition}')
+        outfile = os.path.join(base_path, f'notifications_{partition}_{user}.csv')
         save_json(self.parse(path), outfile=outfile, file_exists='OVERWRITE', quoting=1)
 
     def parse(self, path):

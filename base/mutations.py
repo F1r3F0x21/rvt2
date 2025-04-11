@@ -74,7 +74,7 @@ class SetFields(base.job.BaseModule):
                 except KeyError as exc:
                     if self.myflag('stop_on_error'):
                         raise base.job.RVTError(exc)
-                    self.logger().warning('Key not found: %s', exc)
+                    self.logger().warning(f'Key not found: {exc}')
             yield newdata
 
 
@@ -92,6 +92,7 @@ class CommonFields(base.job.BaseModule):
             - **filename_stem**: if True, output also the filename without last extension.
             - **disabled**: if True, do not add anything and just yield the result. Useful in configurable module chains
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('generate_id', 'False')
@@ -291,7 +292,7 @@ class RenameFields(base.job.BaseModule):
             return []
 
         if len(fields) != len(new_fields):
-            raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
+            raise base.job.RVTError(f'`fields` and `new_fields` must have the same number of items. Fields: {fields}; New fields: {new_fields}')
 
         repl = dict(zip(fields, new_fields))
         for data in self.from_module.run(path):
@@ -369,7 +370,7 @@ class DateFields(base.job.BaseModule):
             raise base.job.RVTError('`missing_action` must be one of (IGNORE, SKIP_ANY, SKIP_ALL, REPLACE')
 
         if new_fields and len(new_fields) != len(fields):
-            raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
+            raise base.job.RVTError(f'`fields` and `new_fields` must have the same number of items. Fields: {fields}; New fields: {new_fields}')
 
         # Get local time from analyzed machine OS settings
         if input_timezone.lower() == 'local' or output_timezone.lower() == 'local':
@@ -424,6 +425,7 @@ class RemoveFields(base.job.BaseModule):
     Configuration:
         - **fields**: List of fields to drop.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('fields', '')
@@ -479,7 +481,7 @@ class SplitField(base.job.BaseModule):
             raise base.job.RVTError('`new_fields` and `new_fields_index` must be provided')
 
         if len(new_fields) != len(new_fields_index):
-            raise base.job.RVTError('`new_fields` and `new_fields_index` must have the same number of items. Fields: {}; Indexes: {}'.format(new_fields, new_fields_index))
+            raise base.job.RVTError(f'`new_fields` and `new_fields_index` must have the same number of items. Fields: {new_fields}; Indexes: {new_fields_index}')
 
         for data in self.from_module.run(path):
             try:
@@ -560,11 +562,11 @@ class SpaceText(base.job.BaseModule):
         try:
             steps = [int(step) for step in steps]
         except ValueError:
-            raise base.job.RVTError('`steps` must contain integers. Steps: {}'.format(steps))
+            raise base.job.RVTError(f'`steps` must contain integers. Steps: {steps}')
         if len(steps) == 1:
             steps = [steps[0]] * len(fields)
         if len(fields) != len(steps):
-            raise base.job.RVTError('`fields` and `steps` must have the same number of items. Fields: {}; Steps: {}'.format(fields, steps))
+            raise base.job.RVTError(f'`fields` and `steps` must have the same number of items. Fields: {fields}; Steps: {steps}')
 
         for data in self.from_module.run(path):
             for i, field in enumerate(fields):
@@ -596,7 +598,7 @@ class DecodeFields(base.job.BaseModule):
         fields = self.myarray('fields')
         new_fields = self.myarray('new_fields')
         if new_fields and len(new_fields) != len(fields):
-            raise base.job.RVTError('`fields` and `new_fields` must have the same number of items. Fields: {}; New fields: {}'.format(fields, new_fields))
+            raise base.job.RVTError(f'`fields` and `new_fields` must have the same number of items. Fields: {fields}; New fields: {new_fields}')
 
         if not fields:
             yield from self.from_module.run(path)
@@ -669,7 +671,7 @@ class AdaptIpFormat(base.job.BaseModule):
             return []
 
         if port_fields and (len(fields) != len(port_fields)):
-            raise base.job.RVTError('`fields` and `port_fields` must have the same number of items. Fields: {}; Port fields: {}'.format(fields, port_fields))
+            raise base.job.RVTError(f'`fields` and `port_fields` must have the same number of items. Fields: {fields}; Port fields: {port_fields}')
         if not port_fields:
             port_fields = fields.copy()
             if not ignore_port:
@@ -1101,6 +1103,7 @@ def safe_itemgetter(*items):
     def g(obj):
         return tuple(obj.get(item, '') for item in items)
     return g
+
 
 def safe_itemgetter_chained(*items):
     """ Variation from operator itemgetter that helps to sort data with missing keys

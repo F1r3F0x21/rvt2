@@ -21,7 +21,6 @@ from base.utils import save_csv, save_dummy
 
 
 class Cron(base.job.BaseModule):
-    
     """ Extract the cron tasks and scripts
 
     Module description:
@@ -33,7 +32,6 @@ class Cron(base.job.BaseModule):
         super().read_config()
         self.set_default_config('outdir', None)
         self.set_default_config('mountdir', None)
-    
 
     def run(self, path=None):
         base_path = self.myconfig('outdir')
@@ -43,9 +41,9 @@ class Cron(base.job.BaseModule):
 
         script_data = []
         file_path = path[len(mount_dir):]
-        
+
         script_data.append("#########################################################################")
-        script_data.append("#" + file_path)
+        script_data.append(f"# {file_path}")
         script_data.append("#########################################################################")
 
         is_cron = False
@@ -53,14 +51,13 @@ class Cron(base.job.BaseModule):
             match = prog.match(line)
             if match:
                 is_cron = True
-                keys = ["Minute", "Hour", "Day of Month", "Month", "Day of Week", "user.name", "process.command_line","file.path"]
+                keys = ["Minute", "Hour", "Day of Month", "Month", "Day of Week", "user.name", "process.command_line", "file.path"]
                 values = list(match.groups())
                 values.append(str(file_path))
                 crontab_dict = {key: value for key, value in zip(keys, values)}
                 yield crontab_dict
             else:
                 script_data.append(line)
-                    
 
         if not is_cron:
             txt_out = os.path.join(base_path, 'cronScripts.txt')
@@ -69,13 +66,12 @@ class Cron(base.job.BaseModule):
             extra_data = []
             for line in script_data:
                 if line and not line.startswith('#'):
-                    extra_data.append({'line':line,'file.path':file_path})
+                    extra_data.append({'line': line, 'file.path': file_path})
             csv_out = os.path.join(base_path, 'cronReferences.csv')
-            save_csv(extra_data, outfile=csv_out, file_exists='APPEND') 
+            save_csv(extra_data, outfile=csv_out, file_exists='APPEND')
 
 
 class AnacronTab(base.job.BaseModule):
-    
     """ Extract the anacrontab tasks and scripts
 
     Module description:
@@ -85,7 +81,6 @@ class AnacronTab(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-    
 
     def run(self, path=None):
         base_path = self.myconfig('outdir')
@@ -107,13 +102,13 @@ class AnacronTab(base.job.BaseModule):
                     yield crontab_dict
                 else:
                     script_data.append(line)
-                    
+
         extra_data = []
         for line in script_data:
             if line and not line.startswith('#'):
-                extra_data.append({'line':line,'file.path':file_path})
+                extra_data.append({'line': line, 'file.path': file_path})
         csv_out = os.path.join(base_path, 'cronReferences.csv')
-        save_csv(extra_data, outfile=csv_out, file_exists='APPEND') 
+        save_csv(extra_data, outfile=csv_out, file_exists='APPEND')
 
 
 class CronLog(base.job.BaseModule):
@@ -125,14 +120,14 @@ class CronLog(base.job.BaseModule):
     """
 
     def read_config(self):
-        super().read_config()    
+        super().read_config()
 
-    def run(self, path=None):        
+    def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
         filename = os.path.basename(path)
         pattern = r'(\w+\s+\d+\s\d+:\d+:\d+)\s([\w.-]+)\s(.*\[\d+\]):(\s.*)'
         prog = re.compile(pattern)
-        
+
         for line in self.from_module.run(path):
             match = prog.match(line)
             if match:
@@ -146,4 +141,4 @@ class CronLog(base.job.BaseModule):
                 }
                 yield log_entry_dict
             else:
-                self.logger().warning("Regex pattern failed with some logline input " + line)
+                self.logger().warning(f"Regex pattern failed with some logline input {line}")

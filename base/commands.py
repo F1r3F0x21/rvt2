@@ -40,7 +40,7 @@ def run_command(cmd, stdout=None, stderr=None, logger=logging, from_dir=None):
         If *stdout* is provided, returns ``None``. If no *stdout*, returns the decoded UTF-8 output.
     """
 
-    logger.debug("Running: cmd='%s', from_dir='%s'", cmd, from_dir)
+    logger.debug(f"Running: cmd='{cmd}', from_dir='{from_dir}'")
     if from_dir is not None:
         current_dir = os.getcwd()
         os.chdir(from_dir)
@@ -48,12 +48,12 @@ def run_command(cmd, stdout=None, stderr=None, logger=logging, from_dir=None):
         if stdout is not None:
             # NOTE: you cannot run commands as shell if you pass an array!
             # In that case, only cmd[0] is run
-            subprocess.run(cmd, stdout=stdout, stderr=stderr, shell=(type(cmd) == str))
+            subprocess.run(cmd, stdout=stdout, stderr=stderr, shell=(isinstance(cmd, str)))
             return None
         else:
             # NOTE: you cannot run commands as shell if you pass an array!
             # In that case, only cmd[0] is run
-            return subprocess.check_output(cmd, stderr=stderr, shell=(type(cmd) == str)).decode()
+            return subprocess.check_output(cmd, stderr=stderr, shell=(isinstance(cmd, str))).decode()
     except Exception as exc:
         raise exc
     finally:
@@ -73,12 +73,12 @@ def yield_command(cmd, stderr=None, logger=logging, from_dir=None, **kwargs):
     Yields:
         UTF-8 decoded lines from the output of the command.
     """
-    logger.debug("Running: cmd='%s', from_dir='%s'", cmd, from_dir)
+    logger.debug(f"Running: cmd='{cmd}', from_dir='{from_dir}'")
     if from_dir is not None:
         current_dir = os.getcwd()
         os.chdir(from_dir)
     try:
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr, shell=(type(cmd) == str), **kwargs) as proc:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr, shell=(isinstance(cmd, str)), **kwargs) as proc:
             for line in proc.stdout:
                 yield line.decode()
     except Exception as exc:
@@ -104,7 +104,7 @@ def estimate_iterations(path, cmd, from_dir=None, logger=logging):
     try:
         return int(run_command(cmd.format(path=path), logger=logger, from_dir=from_dir).strip())
     except Exception as exc:
-        logger.warning('Cannot estimate number of iterations: %s', exc)
+        logger.warning(f'Cannot estimate number of iterations: {exc}')
         return float('inf')
 
 
@@ -121,6 +121,7 @@ class Command(base.job.BaseModule):
         :stdout: If empty, do not overwrite ``stdout``. If provided, save ``stdout`` to this filename
         :append: If *True*, append to the ``output`` file. If *False* and the file exists, remove it
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('cmd', '')
@@ -145,7 +146,7 @@ class Command(base.job.BaseModule):
                     stdout = open(outfilename, 'w')
                 else:
                     stdout = open(outfilename, 'a')
-                self.logger().debug('outfile="%s"', outfilename)
+                self.logger().debug(f'outfile="{outfilename}"')
             run_command(cmd, stdout=stdout, logger=self.logger(), from_dir=self.myconfig('from_dir'))
         finally:
             if stdout is not None:
@@ -216,12 +217,12 @@ class RegexFilter(base.job.BaseModule):
         kwlist = self.myconfig('keyword_list')
         # Normally keyword_list will be a python list object, but can also be provided as string in configuration files
         # Example as string: '[\"ANNOTATION:::my\ regex\",\"second\ reg.[xX]\"]'
-        if kwlist and isinstance(kwlist,str):
+        if kwlist and isinstance(kwlist, str):
             kwlist = self.myarray('keyword_list')
         if not kwlist:
             if not os.path.exists(keyword_file):
-                raise base.job.RVTError('The keyword file does not exists: {}'.format(keyword_file))
-            self.logger().debug('Keyword file: %s. Path: %s', keyword_file, path)
+                raise base.job.RVTError(f'The keyword file does not exists: {keyword_file}')
+            self.logger().debug(f'Keyword file: {keyword_file}. Path: {path}')
             with open(keyword_file) as f:
                 kwlist = f.readlines()
 
@@ -240,7 +241,7 @@ class RegexFilter(base.job.BaseModule):
                     continue
                 command = self.myconfig('cmd').format(regex=keyword_regex, path=relative_path(path, from_dir))
                 if not not_logged:
-                    self.logger().debug('Searching for keyword {} on file: {}'.format(keyword_regex, path))
+                    self.logger().debug(f'Searching for keyword {keyword_regex} on file: {path}')
                 with subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE) as proc:
                     for line in proc.stdout:
                         line = line.strip().decode(encoding)

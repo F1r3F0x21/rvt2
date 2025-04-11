@@ -655,42 +655,42 @@ class Summary(base.job.BaseModule):
         if filename == Teamviewer_inc_con:
             for line in self.from_module.run(path):
                 yield {
-                        "Type": "Incoming",
-                        "Start": line.get("StartDate", ""),
-                        "End": line.get("EndDate", ""),
-                        "Duration": get_duration(line.get("StartDate", ""), line.get("EndDate", ""), date_format="%Y-%m-%dT%H:%M:%S%z"),
-                        "User": line.get("DestinationLoggedUser", ""),
-                        "SessionID": line.get("SessionID", ""),
-                        "Hostname": line.get("SourceHost", ""),
-                        "Mode": line.get("ConnectionMode", ""),
-                        "Partition": line.get("Partition", ""),
-                        "Program": "TeamViewer",
-                        "LogFilename": filename.strip()
+                    "Type": "Incoming",
+                    "Start": line.get("StartDate", ""),
+                    "End": line.get("EndDate", ""),
+                    "Duration": get_duration(line.get("StartDate", ""), line.get("EndDate", ""), date_format="%Y-%m-%dT%H:%M:%S%z"),
+                    "User": line.get("DestinationLoggedUser", ""),
+                    "SessionID": line.get("SessionID", ""),
+                    "Hostname": line.get("SourceHost", ""),
+                    "Mode": line.get("ConnectionMode", ""),
+                    "Partition": line.get("Partition", ""),
+                    "Program": "TeamViewer",
+                    "LogFilename": filename.strip()
                 }
         elif filename == Teamviewer_out_con:
             for line in self.from_module.run(path):
                 yield {
-                        "Type": "Outgoing",
-                        "Start": line.get("StartDate", ""),
-                        "End": line.get("EndDate", ""),
-                        "Duration": get_duration(line.get("StartDate", ""), line.get("EndDate", ""), date_format="%Y-%m-%dT%H:%M:%S%z"),
-                        "SessionID": line.get("SessionID", ""),
-                        "Hostname": line.get("SourceLoggedUser", ""),
-                        "User": line.get("User", ""),
-                        "Mode": line.get("ConnectionMode", ""),
-                        "Partition": line.get("Partition", ""),
-                        "Program": "TeamViewer",
-                        "LogFilename": filename.strip()
+                    "Type": "Outgoing",
+                    "Start": line.get("StartDate", ""),
+                    "End": line.get("EndDate", ""),
+                    "Duration": get_duration(line.get("StartDate", ""), line.get("EndDate", ""), date_format="%Y-%m-%dT%H:%M:%S%z"),
+                    "SessionID": line.get("SessionID", ""),
+                    "Hostname": line.get("SourceLoggedUser", ""),
+                    "User": line.get("User", ""),
+                    "Mode": line.get("ConnectionMode", ""),
+                    "Partition": line.get("Partition", ""),
+                    "Program": "TeamViewer",
+                    "LogFilename": filename.strip()
                 }
         elif filename == Anydesk_inc_con:
             for line in self.from_module.run(path):
                 yield {
-                        "Type": line.get("Type", ""),
-                        "Start": line.get("Time", ""),
-                        "User": line.get("User", ""),
-                        "SessionID": line.get("SessionID", ""),
-                        "Program": "AnyDesk",
-                        "LogFilename": filename.strip()
+                    "Type": line.get("Type", ""),
+                    "Start": line.get("Time", ""),
+                    "User": line.get("User", ""),
+                    "SessionID": line.get("SessionID", ""),
+                    "Program": "AnyDesk",
+                    "LogFilename": filename.strip()
                 }
         elif filename == Anydesk_logs:
             yield from self.anyDeskMatch(path, filename)
@@ -709,15 +709,15 @@ class Summary(base.job.BaseModule):
         elif filename == RemoteDesktopApp:
             for line in self.from_module.run(path):
                 yield {
-                        "Type": "Incoming",
-                        "Start": line.get("LastLaunch", ""),
-                        "User": line.get("FriendlyName", ""),
-                        "SessionID": line.get("ConnectionId", ""),
-                        "Hostname": line.get("HostName", ""),
-                        "Mode": line.get("ConnectionType", ""),
-                        "Partition": line.get("Partition", ""),
-                        "Program": "RemoteDesktopApp",
-                        "LogFilename": filename.strip()
+                    "Type": "Incoming",
+                    "Start": line.get("LastLaunch", ""),
+                    "User": line.get("FriendlyName", ""),
+                    "SessionID": line.get("ConnectionId", ""),
+                    "Hostname": line.get("HostName", ""),
+                    "Mode": line.get("ConnectionType", ""),
+                    "Partition": line.get("Partition", ""),
+                    "Program": "RemoteDesktopApp",
+                    "LogFilename": filename.strip()
                 }
 
     def screenconnect(self, path, filename):

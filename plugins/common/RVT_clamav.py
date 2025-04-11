@@ -78,7 +78,7 @@ class Clamav(base.job.BaseModule):
                 try:
                     run_command([self.clamdscan, '--fdpass', '-l', os.path.join(self.outpath, 'clamav_results.txt'), path])
                 except Exception:
-                    self.logger().warning("Problems scanning %s" % path)
+                    self.logger().warning(f"Problems scanning {path}")
             if self.user_folder and not all_folders:
                 for folder in os.listdir(path):
                     user_path = os.path.join(path, folder, 'Users')
@@ -88,7 +88,7 @@ class Clamav(base.job.BaseModule):
                         try:
                             run_command([self.clamdscan, '--fdpass', '-l', os.path.join(self.outpath, 'clamav_results.txt'), user_path])
                         except Exception:
-                            self.logger().warning("Problems scanning %s" % user_path)
+                            self.logger().warning(f"Problems scanning {user_path}")
             if self.system and not all_folders:
                 s = ('windows', 'program files', 'program files (x64)', 'programdata', 'perflogs')
                 for folder in os.listdir(path):
@@ -99,7 +99,7 @@ class Clamav(base.job.BaseModule):
                             try:
                                 run_command([self.clamdscan, '--fdpass', '-l', os.path.join(self.outpath, 'clamav_results.txt'), os.path.join(path, folder, sf)])
                             except Exception:
-                                self.logger().warning("Problems scanning %s" % os.path.join(path, folder, sf))
+                                self.logger().warning(f"Problems scanning {os.path.join(path, folder, sf)}")
         else:
             if all_folders:
                 regex = re.compile("\.exe$", re.I)

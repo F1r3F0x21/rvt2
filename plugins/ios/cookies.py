@@ -37,6 +37,7 @@ class Cookies(base.job.BaseModule):
     - '/HomeDomain/Library/Cookies/Cookies.binarycookies'
     - '/HomeDomain/Library/Cookies/com.apple.appstored.binarycookies'
     """
+
     def run(self, path):
         """
         Parameters:
@@ -46,7 +47,7 @@ class Cookies(base.job.BaseModule):
             ``{"date_creation", "date_expiration", "name", "domain", "value", "cookie_path", "flags"}``
         """
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.logger().debug('Parsing: %s', path)
+        self.logger().debug(f'Parsing: {path}')
 
         # cookie files according to the possible iOS versions
         possible_cookie_files = [
@@ -64,7 +65,7 @@ class Cookies(base.job.BaseModule):
         file_header = binary_file.read(4).decode()                             # File Magic String:cook
 
         if str(file_header) != 'cook':
-            self.logger().warning("%s is not a binary cookie file", cookie_file)
+            self.logger().warning(f"{cookie_file} is not a binary cookie file")
 
         num_pages = unpack('>i', binary_file.read(4))[0]               # Number of pages in the binary file: 4 bytes
 

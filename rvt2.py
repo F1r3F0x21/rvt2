@@ -25,7 +25,7 @@ import os
 import sys
 import argparse
 import logging
-import json
+import ujson as json
 import pprint
 import re
 
@@ -59,7 +59,7 @@ def load_plugin(pluginpath, config):
         :config: The configuration object
     """
     name = os.path.basename(pluginpath)
-    logging.debug('Loading plugin: %s from %s', name, pluginpath)
+    logging.debug(f'Loading plugin: {name} from {pluginpath}')
     # Add the parent path to the python path
     sys.path.insert(0, os.path.dirname(pluginpath))
     # Add any configuration file inside this directory
@@ -70,7 +70,7 @@ def load_plugin(pluginpath, config):
     pythonpaths = base.config.parse_conf_array(config.get(name, 'pythonpath', ''))
     for pythonpath in pythonpaths:
         if pythonpath not in sys.path:
-            logging.debug('Adding pythonpath: %s', pythonpath)
+            logging.debug(f'Adding pythonpath: {pythonpath}')
             sys.path.insert(0, pythonpath)
     # Run the function in 'plugin.load_plugin', if any
     try:
@@ -78,7 +78,7 @@ def load_plugin(pluginpath, config):
         if hasattr(mod, 'load_plugin'):
             mod.load_plugin(config)
     except Exception as exc:
-        logging.warning('Exception loading module: %s', exc)
+        logging.warning(f'Exception loading module: {exc}')
 
 
 class StoreDict(argparse.Action):
@@ -95,6 +95,7 @@ class StoreDict(argparse.Action):
         Namespace(params={'one': 'one_value', 'two': 'True', 'three': 'three_value1=three_value2', 'four': 'four_value'})
 
     """
+
     def __call__(self, parser, namespace, values, option_string=None):
         # get the current dictionary in the namespace, if any
         kv = getattr(namespace, self.dest, {})
@@ -239,7 +240,7 @@ def configure_logging(config, verbose=False, jobname=None):
         except Exception as exc:
             # after an exception, configure the basic logging system
             base.config.configure_logging(config, basic=True)
-            logging.error('Couldn\'t configure the logging system: %s', exc)
+            logging.error(f'Couldn\'t configure the logging system: {exc}')
 
 
 def main(params=sys.argv[1:]):
@@ -278,7 +279,7 @@ def main(params=sys.argv[1:]):
     # Sanitize morgue variables
     if args.morgue:
         args.morgue = args.morgue.rstrip('/')
-    if args.globals.get('morgue',''):
+    if args.globals.get('morgue', ''):
         args.globals['morgue'] = args.globals['morgue'].rstrip('/')
 
     # Update initial variables in globals
@@ -302,7 +303,7 @@ def main(params=sys.argv[1:]):
     # Configure the logging subsystem using a generic configuration
     configure_logging(config, args.verbose, None)
     # NOW we can log the configuration files, since the logging system is already up
-    logging.debug('Configuration files: %s', args.config)
+    logging.debug(f'Configuration files: {args.config}')
 
     # Induce 'client' and 'casename' if only 'source' is set
     set_global_vars(config, args)
@@ -310,9 +311,9 @@ def main(params=sys.argv[1:]):
 
     # Load additional pythonpath
     for pythonpath in base.config.parse_conf_array(config.get('rvt2', 'pythonpath', '')):
-        logging.debug('Loading pythonpath: %s', pythonpath)
+        logging.debug(f'Loading pythonpath: {pythonpath}')
         sys.path.insert(0, pythonpath)
-    logging.debug('Pythonpath: %s', sys.path)
+    logging.debug(f'Pythonpath: {sys.path}')
     # Load additional plugins directories
     for pluginspath in base.config.parse_conf_array(config.get('rvt2', 'plugins', '')):
         load_plugin(pluginspath, config)
@@ -336,7 +337,7 @@ def main(params=sys.argv[1:]):
     try:
         for results in base.job.run_job(config, args.job, args.paths, extra_config=args.params, nested_logs=2, nested_registers=2, main_job=True, recursive_error=False):
             if args.print:
-                print(json.dumps(results))
+                print(json.dumps(results, escape_forward_slashes=False))
     except KeyboardInterrupt:
         pass
     except Exception:

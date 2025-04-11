@@ -44,10 +44,10 @@ class DeletedStats(base.job.BaseModule):
         self.lastDate = datetime.date(1970, 1, 1)
 
         # Process Timeline deleted files
-        self.timelineBodyFile = os.path.join(self.myconfig('timelinesdir'), '{}_BODY.csv'.format(self.source))
+        self.timelineBodyFile = os.path.join(self.myconfig('timelinesdir'), f'{self.source}_BODY.csv')
         check_file(self.timelineBodyFile, error_missing=True)
-        # cmd = r"grep '(deleted' {} | grep -v FILE_NAME | cut -d'|' -f2 | sed 's_^[0-9-][0-9-]*/mnt/\(.*\) (deleted.*$_\1_' | sort -u".format(self.timelineBodyFile)
-        cmd = r"grep '(deleted' {} | grep -v '\$FILE_NAME' | cut -d'|' -f2,3,7".format(self.timelineBodyFile)
+        # cmd = rf"grep '(deleted' {self.timelineBodyFile} | grep -v FILE_NAME | cut -d'|' -f2 | sed 's_^[0-9-][0-9-]*/mnt/\(.*\) (deleted.*$_\1_' | sort -u"
+        cmd = rf"grep '(deleted' {self.timelineBodyFile} | grep -v '\$FILE_NAME' | cut -d'|' -f2,3,7"
         deletedTimelineFiles = shell_command(cmd)
         df_timeline = self.get_dataframe(deletedTimelineFiles, 'timeline')
 
@@ -63,17 +63,17 @@ class DeletedStats(base.job.BaseModule):
             self.partName = ''.join(['p', p.partition])
             if p.isMountable:
 
-                self.usnJrnlFile = os.path.join(self.myconfig('journaldir'), 'UsnJrnl_{}.csv'.format(p.partition))
+                self.usnJrnlFile = os.path.join(self.myconfig('journaldir'), f'UsnJrnl_{p.partition}.csv')
                 check_file(self.usnJrnlFile, error_missing=True)
-                df_u = self.get_dataframe(shell_command(r"grep 'DELETE CLOSE' {} | cut -d',' -f 1,2,4".format(self.usnJrnlFile)), 'usnjrnl')
+                df_u = self.get_dataframe(shell_command(rf"grep 'DELETE CLOSE' {self.usnJrnlFile} | cut -d',' -f 1,2,4"), 'usnjrnl')
 
-                self.indxFile = os.path.join(self.myconfig('timelinesdir'), '{}_INDX_timeline.csv'.format(p.partition))
+                self.indxFile = os.path.join(self.myconfig('timelinesdir'), f'{p.partition}_INDX_timeline.csv')
                 if not check_file(self.indxFile):
                     df_i = pd.DataFrame()
-                # cmd = "grep -v 'SHORT FILENAME FORMAT' {} | grep -v 'NOT OBTAINED' | grep -v 'invalid MFTReference' | cut -d ';' -f 3,4,5,7".format(self.indxFile)   # real
-                # cmd = r"tail -n +2 {} | grep -va 'SHORT FILENAME FORMAT' | grep -va 'NOT OBTAINED' | grep -va 'invalid MFTReference' | cut -d ';' -f 2,5,9,14 ".format(self.indxFile)  # unsorted
-                # cmd = r"tail -n +2 {} | grep -va 'SHORT FILENAME FORMAT' | grep -va 'NOT OBTAINED' | cut -d ';' -f 2,5,9,14 ".format(self.indxFile)  # unsorted
-                cmd = r"tail -n +2 {} | grep -va 'SHORT FILENAME FORMAT' | grep -va 'NOT OBTAINED' | cut -d ';' -f 3,4,6,7,9 ".format(self.indxFile)  # real
+                # cmd = f"grep -v 'SHORT FILENAME FORMAT' {self.indxFile} | grep -v 'NOT OBTAINED' | grep -v 'invalid MFTReference' | cut -d ';' -f 3,4,5,7"   # real
+                # cmd = rf"tail -n +2 {self.indxFile} | grep -va 'SHORT FILENAME FORMAT' | grep -va 'NOT OBTAINED' | grep -va 'invalid MFTReference' | cut -d ';' -f 2,5,9,14 "  # unsorted
+                # cmd = rf"tail -n +2 {self.indxFile} | grep -va 'SHORT FILENAME FORMAT' | grep -va 'NOT OBTAINED' | cut -d ';' -f 2,5,9,14 "  # unsorted
+                cmd = rf"tail -n +2 {self.indxFile} | grep -va 'SHORT FILENAME FORMAT' | grep -va 'NOT OBTAINED' | cut -d ';' -f 3,4,6,7,9 "  # real
                 df_i = self.get_dataframe(shell_command(cmd), 'indx')
 
                 df_usnjrnl = self.join_dataframes(df_usnjrnl, df_u)
@@ -81,7 +81,7 @@ class DeletedStats(base.job.BaseModule):
 
         # TODO: timeline_all does not need columns source or reliable
         # Compare Timeline against INDX to extract unique (assuming deleted) files in INDX
-        cmd = r"cut -d'|' -f2 {} | grep -v '\$FILE_NAME'".format(self.timelineBodyFile)
+        cmd = rf"cut -d'|' -f2 {self.timelineBodyFile} | grep -v '\$FILE_NAME'"
         df_all_timeline = self.get_dataframe(shell_command(cmd), 'timeline_all')
         self.logger().debug('Obtaining unique files in INDX')
         df_indx = self.get_deleted_in_INDX(df_all_timeline, df_indx)
@@ -91,7 +91,7 @@ class DeletedStats(base.job.BaseModule):
         df_global = self.combine_artifacts([df_usnjrnl, df_recycle, df_timeline, df_indx])
         print(df_global.shape, df_global.columns)
         duplicated_bin = df_global.duplicated('Filename', keep='first')  # First sources have precedence
-        self.logger().debug('Found {} duplicated files merging sources'.format(duplicated_bin.sum()))
+        self.logger().debug(f'Found {duplicated_bin.sum()} duplicated files merging sources')
         print('before dropping', df_global.shape)
         df_global = df_global[~duplicated_bin]
         # df_global.drop_duplicates('Filename', keep='first', inplace=True)
@@ -100,7 +100,7 @@ class DeletedStats(base.job.BaseModule):
         print(df_global.head())
 
         # Save global DataFrame
-        # outfile = os.path.join(self.outFolder, '{}_deleted.csv'.format(self.source))
+        # outfile = os.path.join(self.outFolder, f'{self.source}_deleted.csv')
         outfile = '/home/pgarcia/global_deleted.csv'
         with open(outfile, 'w') as f:
             f.write(df_global.to_csv(index=False))
@@ -140,9 +140,9 @@ class DeletedStats(base.job.BaseModule):
                 df.drop(columns='Date', inplace=True)
             # df = pd.read_csv(StringIO("\n".join(file)), **options_csv[artifact], parse_dates=True, infer_datetime_format=True)
         except Exception as e:
-            self.logger().error('{}:{}'.format(type(e), e))
+            self.logger().error(f'{type(e)}:{e}')
 
-        self.logger().debug('Data loaded from artifact: {}'.format(artifact))
+        self.logger().debug(f'Data loaded from artifact: {artifact}')
         # print(df.head())
         return df
 
@@ -163,7 +163,7 @@ class DeletedStats(base.job.BaseModule):
     def get_dataframe(self, file, artifact=None):
         """ Return a df from a file with usefull columns added depending on the artifact. """
         df = self.load_data(file, artifact)
-        self.logger().debug('Shape before: {}'.format(df.shape))
+        self.logger().debug(f'Shape before: {df.shape}')
 
         if artifact == 'timeline_all':
             self.set_filename(df, artifact)
@@ -198,7 +198,7 @@ class DeletedStats(base.job.BaseModule):
         else:
             df['Partition'] = self.partName
 
-        self.logger().debug('Shape after: {}'.format(df.shape))
+        self.logger().debug(f'Shape after: {df.shape}')
         # print(df[df.Filename == 'p04/Repositorio/fwk/branches/xf-3.4.9.invalid/xf-3.4.6/xf/xf-boot/pom.xml'])
 
         print(df.columns)
@@ -303,8 +303,7 @@ class DeletedStats(base.job.BaseModule):
             return
         self.firstDate = min(self.firstDate, index[0].date())
         self.lastDate = max(self.lastDate, index[-1].date())
-        self.logger().debug('Initial date: {}\tEnd Date: {}'.format(
-            self.firstDate.strftime('%Y-%m-%d'), self.firstDate.strftime('%Y-%m-%d')))
+        self.logger().debug(f"Initial date: {self.firstDate.strftime('%Y-%m-%d')}\tEnd Date: {self.firstDate.strftime('%Y-%m-%d')}")
 
     def add_file_type_cols(self, df, types=['Office', 'System', 'Images', 'TempFiles']):
         """ Add binary columns to 'df' related to file extensions types. """
@@ -384,6 +383,6 @@ class DeletedStats(base.job.BaseModule):
 
     def groupCols(self, groupObj):
         for grp, subdf in groupObj:
-            print('{}: {} files'.format(grp, subdf.size))
+            print(f'{grp}: {subdf.size} files')
             print(*subdf.values, sep='\n')
         # return pd.concat({grp: subdf for grp, subdf in groupObj})

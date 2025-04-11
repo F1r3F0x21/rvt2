@@ -15,19 +15,19 @@
 
 import base.job
 import os
-import subprocess, shlex
+import subprocess
+import shlex
 from . import get_username
 from base.utils import check_folder, save_csv
 
 
 class BashFilesCp(base.job.BaseModule):
-    
     """ Extract the essential information about bash configs.
 
     Module description:
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
-    
+
     Configuration:
         - **all_users**: False default, True for copy files that are executed when any user account logs in.
     """
@@ -53,15 +53,15 @@ class BashFilesCp(base.job.BaseModule):
                 else:
                     prefix_file = "ERROR"
                 prefix_file_ = prefix_file + "_"
-                username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=sub_folder)
-                file_out = os.path.join(bash_dir, prefix_file, prefix_file_+ username + '.txt')
+                username = get_username(path, mount_dir=self.myconfig('mountdir'), subfolder=sub_folder)
+                file_out = os.path.join(bash_dir, prefix_file, f'{prefix_file_}{username}.txt')
                 folder_out = os.path.join(bash_dir, prefix_file)
 
             check_folder(folder_out)
-            
+
             command = "cp -r " + path + " " + file_out
             args = shlex.split(command)
-            process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
             output = process.stderr.readline().strip()
             if output:
@@ -69,7 +69,6 @@ class BashFilesCp(base.job.BaseModule):
 
 
 class BashHistory(base.job.BaseModule):
-    
     """ Extract the essential information about bash history in Bash_History file.
 
     Module description:
@@ -83,19 +82,19 @@ class BashHistory(base.job.BaseModule):
 
     def run(self, path=None):
         base_path = self.myconfig('outdir')
-        username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=".bash_history")
-        
+        username = get_username(path, mount_dir=self.myconfig('mountdir'), subfolder=".bash_history")
+
         list_commands = []
         list_commands_dict = []
         for line in self.from_module.run(path):
-            if line != "ls" and line != "clear" :
+            if line != "ls" and line != "clear":
                 list_commands.append(line)
-                list_commands_dict.append({'command':line})
-        
+                list_commands_dict.append({'command': line})
+
         folder_out = os.path.join(base_path, "bash_history")
         check_folder(folder_out)
-        
-        csv_out = os.path.join(folder_out, 'bash_history_' + username + '.csv')
-        save_csv(list_commands_dict, outfile=csv_out, file_exists='APPEND') 
-        
-        yield {username:list_commands}
+
+        csv_out = os.path.join(folder_out, f'bash_history_{username}.csv')
+        save_csv(list_commands_dict, outfile=csv_out, file_exists='APPEND')
+
+        yield {username: list_commands}

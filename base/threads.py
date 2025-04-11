@@ -31,7 +31,8 @@ def run_job(*args, daemon=False, **kwargs):
     Returns:
         The new thread
     """
-    logging.info('Starting new job in a different thread: job="%s" daemon=%s', args[1], daemon)
+
+    logging.info(f'Starting new job in a different thread: job="{args[1]}" daemon={daemon}')
     t = threading.Thread(target=worker, args=args, kwargs=kwargs)
     t.daemon = daemon
     t.start()
@@ -43,6 +44,7 @@ def worker(*args, **kwargs):
 
     This worker only consumes the generator returned by the job. It does nothing else
     """
+
     for data in base.job.run_job(*args, **kwargs):
         pass
 
@@ -54,6 +56,7 @@ class Fork(base.job.BaseModule):
         - **secondary_job**: The name of the job to run in the secondary thread. This job cannot be composite (only 'modules' allowed)
           and it will receive the data in the last module of the chain.
     """
+
     def read_config(self):
         self.set_default_config('secondary_job', 'base.output.JSONSink')
 
@@ -91,6 +94,7 @@ class _InjectedInput(base.job.BaseModule):
 
     This module is not intended to be used directly in any job other than a Fork.
     """
+
     def run(self, path):
         self.check_params(path, check_from_module=True)
         # actually, from_module is the queue

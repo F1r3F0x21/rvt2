@@ -240,6 +240,7 @@ class MyExtendedInterpolation(configparser.ExtendedInterpolation):
     if the section has an inherits options. If there is
     an inherits options, look for the option in the inherits
     section and then the DEFAULTS section. """
+
     def before_get(self, parser, section, option, value, defaults):
         inherits_from = parser.get(section, 'inherits', raw=True, fallback=None)
         if inherits_from:
@@ -261,6 +262,7 @@ class Config:
     Attributes:
         config (configparser.SafeConfigParser): the actual configuration object.
     """
+
     def __init__(self, filenames=None, config=None, job_name=None):
         if config is None:
             self.config = configparser.ConfigParser(interpolation=MyExtendedInterpolation())
@@ -291,6 +293,7 @@ class Config:
         Returns:
             The value of the option.
         """
+
         if not self.config.has_section(section):
             return self.config[DEFAULTSECT].get(option, default)
         value = self.config[section].get(option, None)
@@ -300,12 +303,13 @@ class Config:
                 try:
                     return self.config[inheritance].get(option, default)
                 except KeyError:
-                    raise KeyError('Section {} tries to inherit from non-existent section: {}'.format(section, inheritance)) from None
+                    raise KeyError(f'Section {section} tries to inherit from non-existent section: {inheritance}') from None
             return default
         return value
 
     def get_boolean(self, section, option, default=False):
         """ A convenience method for boolean options """
+
         value = self.get(section, option, str(default))
         return value in ('True', 'true', 'TRUE', 1)
 
@@ -316,6 +320,7 @@ class Config:
             path (str): The path of the single file or directory to read the configuration from.
             pattern (regex): If the path is a directory, use this pattern to select configuration files.
         """
+
         if os.path.isdir(path):
             for conffile in glob.iglob(os.path.join(path, pattern), recursive=True):
                 self.read(conffile)
@@ -324,6 +329,7 @@ class Config:
 
     def copy(self):
         """ Returns a deep copy of this configuration object """
+
         import pickle
         # deep copy of a configparser using ExtendedInterpolator
         # See https://stackoverflow.com/questions/23416370/manually-building-a-deep-copy-of-a-configparser-in-python-2-7
@@ -333,20 +339,24 @@ class Config:
 
     def has_section(self, section):
         """ Return True if the configuration has a section """
+
         return self.config.has_section(section)
 
     def sections(self):
         """ Returns a list of sections in this config """
+
         return self.config.sections()
 
     def options(self, section):
         """ Return the options in a section """
+
         if self.has_section(section):
             return self.config.options(section)
         return []
 
     def set(self, section, option, value):
         """ Add a configuration to a section. If the section does not exists, add it. """
+
         if not self.config.has_section(section):
             self.config.add_section(section)
         self.config[section][option] = value
@@ -366,6 +376,7 @@ class Config:
             default: the default value of the option. Do not rely on these options to exist an always use a default value.
             job_name: if provided, read the option from this job_name.
         """
+
         if job_name is None:
             job_name = self.job_name
         if self.__localStore is None:
@@ -396,6 +407,7 @@ class Config:
             save (Boolean): whether the local store must be saved inmediately in the file configured in section *job_name*, option *localstore*.
                 If there is no file configured, do not save the localstore. If the localStore was not dirty, it is not saved.
         """
+
         # if the localstore is not created, read the option once
         if self.__localStore is None:
             self.store_get(option, None)
@@ -461,6 +473,7 @@ class ColoredFormatter(logging.Formatter):
 
 class TelegramHandler(logging.Handler):
     """ A logging handler to send messages to a list of telegram chatids """
+
     def __init__(self, level=logging.INFO, token='', chatids=''):
         super().__init__(level)
         self.chatids = parse_conf_array(chatids)
@@ -471,7 +484,7 @@ class TelegramHandler(logging.Handler):
         if self.token and self.chatids:
             for chatid in self.chatids:
                 try:
-                    requests.get('https://api.telegram.org/bot{}/sendMessage'.format(self.token), data=dict(chat_id=chatid, text=msg))
+                    requests.get(f'https://api.telegram.org/bot{self.token}/sendMessage', data=dict(chat_id=chatid, text=msg))
                 except Exception:
                     pass
 

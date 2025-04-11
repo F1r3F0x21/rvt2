@@ -22,7 +22,7 @@
 import os
 import csv
 import sqlite3
-import json
+import ujson as json
 import sys
 import zipfile
 import gzip
@@ -41,6 +41,7 @@ class DummyReader(base.job.BaseModule):
     Configuration:
         - **number**: Yields this many of empty dictionaries
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('number', '10')
@@ -73,6 +74,7 @@ class GeneratorReader(base.job.BaseModule):
     Attributes:
         from_module: Any generator-like object such a list. Yields its contents.
     """
+
     def run(self, path=None):
         """ Path is ignored. """
         self.check_params(path, check_from_module=True)
@@ -105,8 +107,8 @@ class AllLinesInFile(base.job.BaseModule):
         with open(path, 'r', encoding=encoding) as infile:
             if not self.myflag('reverse'):
                 for line in tqdm(infile, total=total_iterations,
-                                desc='Reading {}'.format(os.path.basename(path)),
-                                disable=self.myflag('progress.disable')):
+                                 desc=f'Reading {os.path.basename(path)}',
+                                 disable=self.myflag('progress.disable')):
                     yield line.strip()
             else:
                 size = os.path.getsize(path)
@@ -126,26 +128,27 @@ class AllLinesInFile(base.job.BaseModule):
 
 class AllLinesInCompressedFile(base.job.BaseModule):
     """ Pass to from_module each line in a compressed file as the path.
- 
+
     Configuration:
         - **encoding** (String): The encoding to use. Defaults to utf-8
         - **reverse** (Boolean): If True, yield every line in reverse order. Defaults to False
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **chunk.size** (Integer): Size of the chunk when reading in reverse order. Defaults to 65536
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('encoding', 'utf-8')
         self.set_default_config('reverse', False)
         self.set_default_config('progress.disable', 'False')
         self.set_default_config('chunk.size', 65536)
- 
+
     def run(self, path):
         """ Read all lines from the path and pass them to from_module """
         self.check_params(path, check_path=True, check_path_exists=True)
         self.encoding = self.myconfig('encoding')
         is_gzip = False
- 
+
         # Check what kind of compressed file it is
         if zipfile.is_zipfile(path):
             self.logger().info(f'Found ZIP file {path}')
@@ -163,7 +166,7 @@ class AllLinesInCompressedFile(base.job.BaseModule):
         else:
             self.logger().warning(f'Input file not in a well known compressed format (zip, gzip). Path: {path}')
             return []
- 
+
     def read_zip(self, path):
         with zipfile.ZipFile(path, 'r') as f:
             # If many files exist inside the ZIP, it will read them one after another
@@ -173,13 +176,13 @@ class AllLinesInCompressedFile(base.job.BaseModule):
                     if not self.myflag('reverse'):
                         internal.seek(0)  # Reset the file pointer to the beginning
                         for line in tqdm(internal, total=line_count,
-                                        desc='Reading {}'.format(os.path.basename(file)),
-                                        disable=self.myflag('progress.disable')):
+                                         desc=f'Reading {os.path.basename(file)}',
+                                         disable=self.myflag('progress.disable')):
                             yield line.strip().decode(self.encoding)
                     else:
                         for line in tqdm(self.reverse_readlines(f, chunk_size=int(self.myconfig('chunk.size')), encoding=self.encoding), total=line_count,
-                                        desc='Reading {}'.format(os.path.basename(path)),
-                                        disable=self.myflag('progress.disable')):
+                                         desc=f'Reading {os.path.basename(path)}',
+                                         disable=self.myflag('progress.disable')):
                             yield line
 
     def read_gzip(self, path):
@@ -189,15 +192,14 @@ class AllLinesInCompressedFile(base.job.BaseModule):
             if not self.myflag('reverse'):
                 f.seek(0)  # Reset the file pointer to the beginning
                 for line in tqdm(f, total=line_count,
-                                desc='Reading {}'.format(os.path.basename(path)),
-                                disable=self.myflag('progress.disable')):
+                                 desc=f'Reading {os.path.basename(path)}',
+                                 disable=self.myflag('progress.disable')):
                     yield line.strip().decode()
             else:
                 for line in tqdm(self.reverse_readlines(f, chunk_size=int(self.myconfig('chunk.size')), encoding=self.encoding), total=line_count,
-                                desc='Reading {}'.format(os.path.basename(path)),
-                                disable=self.myflag('progress.disable')):
+                                 desc=f'Reading {os.path.basename(path)}',
+                                 disable=self.myflag('progress.disable')):
                     yield line
-
 
     def reverse_readlines(self, file_object, chunk_size=65536, encoding='utf-8'):
         """ Reads a file object in chunks in reverse, yielding each line from the end of the file to the beginning.
@@ -239,6 +241,7 @@ class ForAllLinesInFile(base.job.BaseModule):
         - **progress.disable** (Boolean): If True, disable the progress bar.
         - **progress.cmd** (String): The shell command to run to estimate the number of lines in the file.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('encoding', 'utf-8')
@@ -251,7 +254,7 @@ class ForAllLinesInFile(base.job.BaseModule):
         total_iterations = base.commands.estimate_iterations(path, self.myconfig('progress.cmd'))
         with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
             for line in tqdm(infile, total=total_iterations,
-                             desc='Reading {}'.format(os.path.basename(path)),
+                             desc=f'Reading {os.path.basename(path)}',
                              disable=self.myflag('progress.disable')):
                 newpath = line.strip()
                 if not newpath:
@@ -376,9 +379,9 @@ class CSVReader(base.job.BaseModule):
                     delimiter=delimiter, quotechar=self.myconfig('quotechar'))
                 # Main loop
                 for data in tqdm(reader, total=total_iterations,
-                                initial=initial_progress,
-                                desc='Reading {}'.format(os.path.basename(path)),
-                                disable=self.myflag('progress.disable')):
+                                 initial=initial_progress,
+                                 desc=f'Reading {os.path.basename(path)}',
+                                 disable=self.myflag('progress.disable')):
                     yield data
 
             # Reverse reading
@@ -386,7 +389,7 @@ class CSVReader(base.job.BaseModule):
                 size = os.path.getsize(path)
                 if not self.fieldnames:
                     reader = csv.DictReader(
-                        [infile.readline(), 'Dummy'], # In order to guess fieldnames, csv.DictReader need at least a second line
+                        [infile.readline(), 'Dummy'],  # In order to guess fieldnames, csv.DictReader need at least a second line
                         restval=self.myconfig('restval'), restkey=self.myconfig('restkey'),
                         delimiter=delimiter, quotechar=self.myconfig('quotechar'))
                     for i in reader:
@@ -409,7 +412,6 @@ class CSVReader(base.job.BaseModule):
                             yield from reader
                             pbar.update(1)
                             end = line_end
-
 
     def _iter_csv(self, path=None):
         input_object = self.from_module.run(path)
@@ -444,6 +446,7 @@ class SQLiteReader(base.job.BaseModule):
         - **query**: If the query in the module section is empty, read the SQL query from the job section.
         - **read_only**: If True, open the database in read_only mode
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('query', '')
@@ -458,17 +461,17 @@ class SQLiteReader(base.job.BaseModule):
             try:
                 query = self.config.get(self.config.job_name, 'query', None)
             except Exception as exc:
-                self.logger().error('Cannot decode query for section %s: %s', self.section, str(exc))
+                self.logger().error(f'Cannot decode query for section {self.section}: {str(exc)}')
             if not query:
                 self.logger().error('A query must be provided')
                 raise base.job.RVTError('A query must be provided')
 
         connect_args = {'database': path}
         if self.myflag('read_only'):
-            path = "file://{}?mode=ro&immutable=1".format(path)
+            path = f"file://{path}?mode=ro&immutable=1"
             connect_args = {'database': path, 'uri': True}
 
-        self.logger().debug('Query: %s', query)
+        self.logger().debug(f'Query: {query}')
 
         with sqlite3.connect(**connect_args) as conn:
             conn.row_factory = _dict_factory

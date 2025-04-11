@@ -42,9 +42,9 @@ class USBSetupAPI(base.job.BaseModule):
         # Case when path is provided
         if path:
             if not os.path.exists(path):
-                self.logger().warning('Provided path does not exist: {}'.format(path))
+                self.logger().warning(f'Provided path does not exist: {path}')
                 return []
-            self.logger().debug('Extracting USB devices information from {}'.format(path))
+            self.logger().debug(f'Extracting USB devices information from {path}')
             partition = self.myconfig('volume_id')
             output_file = os.path.join(outdir, "usb_setupapi{}.csv".format('_{}'.format(partition) if partition else ''))
             save_csv(self.parse_setupapi(path), outfile=output_file, file_exists='OVERWRITE')
@@ -61,10 +61,10 @@ class USBSetupAPI(base.job.BaseModule):
 
         files_by_partition = Counter()
         for i, setupapi_file in enumerate(setupapi):
-            self.logger().debug('Extracting USB devices information from {}'.format(setupapi_file))
+            self.logger().debug(f'Extracting USB devices information from {setupapi_file}')
             setupapi_path = os.path.join(self.myconfig('casedir'), setupapi_file)
             if not os.path.isfile(setupapi_path):
-                self.logger().warning("{} does not exist. Try to mount disk's partition.".format(setupapi_path))
+                self.logger().warning(f"{setupapi_path} does not exist. Try to mount disk's partition.")
                 continue
 
             # Set a name for the output file based on the partition is found
@@ -73,7 +73,7 @@ class USBSetupAPI(base.job.BaseModule):
             output_file = os.path.join(outdir, "usb_setupapi_{}{}.csv".format(partition, '_{}'.format(files_in_partition) if files_in_partition else ''))
             files_by_partition[partition] += 1
 
-            self.logger().debug('Saving output in {}'.format(output_file))
+            self.logger().debug(f'Saving output in {output_file}')
             save_csv(self.parse_setupapi(setupapi_path), outfile=output_file, file_exists='OVERWRITE')
             # Remove unnecessary empty files
             if os.path.getsize(output_file) == 0:
@@ -99,8 +99,8 @@ class USBSetupAPI(base.job.BaseModule):
                 aux = regex.search(line)
                 if aux:
                     a = OrderedDict([("Device", aux.group(1)), ("Start", ""), ("End", ""), ("UMP", ""),
-                                    ("HardwareID", ""), ("DevDesc", ""), ("DrvDesc", ""), ("Provider", ""),
-                                    ("Signer", ""), ("DrvDate", ""), ("Version", ""), ("Status", "")])
+                                     ("HardwareID", ""), ("DevDesc", ""), ("DrvDesc", ""), ("Provider", ""),
+                                     ("Signer", ""), ("DrvDate", ""), ("Version", ""), ("Status", "")])
 
                     line = file.readline()
                     a["Start"] = regexstart.search(line).group(1)

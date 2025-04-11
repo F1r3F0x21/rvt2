@@ -15,7 +15,7 @@
 
 import os
 import logging
-import json
+import ujson as json
 from tqdm import tqdm
 
 from base.utils import check_directory
@@ -49,13 +49,13 @@ def write_registry_file(filename, pluginlist, hivedict, regfiles, rip='/opt/regr
                         for user in regfiles[hiv].keys():
                             if not regfiles[hiv][user]:
                                 continue
-                            f.write("\n************* Extracting from User {} *************\n\n".format(user))
+                            f.write(f"\n************* Extracting from User {user} *************\n\n")
                             output = run_command([rip, "-r", regfiles[hiv][user], "-p", plugin], stderr=logfile, logger=logger)
-                            f.write("{}\n".format(output))
+                            f.write(f"{output}\n")
                     else:
                         output = run_command([rip, "-r", regfiles[hiv], "-p", plugin], stderr=logfile, logger=logger)
                         f.write(output)
-                    f.write("\n\n{}\n\n".format(separator))
+                    f.write(f"\n\n{separator}\n\n")
                 except Exception as exc:
                     logger.error(exc)
                     continue
@@ -81,7 +81,7 @@ class Autorip(base.job.BaseModule):
         self.set_default_config('rip', '/opt/regripper/rip.pl')
         self.set_default_config('pluginshives', os.path.join(self.config.config['windows']['plugindir'], 'regripper_plugins.json'))
         self.set_default_config('ripplugins', os.path.join(self.config.config['windows']['plugindir'], 'autorip.json'))
-        self.set_default_config('errorfile', os.path.join(self.myconfig('sourcedir'), "{}_aux.log".format(self.myconfig('source'))))
+        self.set_default_config('errorfile', os.path.join(self.myconfig('sourcedir'), f"{self.myconfig('source')}_aux.log"))
         self.set_default_config('volume_id', 'p01')
 
     def run(self, path=""):
@@ -124,7 +124,7 @@ class Autorip(base.job.BaseModule):
         with open(errorlog, 'a') as logfile:
             for ar in tqdm(ripplugins, total=len(ripplugins), desc=self.section):
                 output_filename = os.path.join(output_path, '{}{}.txt'.format(ar['file'], '_{}'.format(id) if id else ''))
-                self.logger().debug('Writing {}'.format(output_filename))
+                self.logger().debug(f'Writing {output_filename}')
                 write_registry_file(output_filename, ar['plugins'], hivedict,
                                     regfiles, rip, logger=self.logger(), logfile=logfile)
 

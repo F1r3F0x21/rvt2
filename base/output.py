@@ -21,7 +21,7 @@
 
 import os
 import sys
-import json
+import ujson as json
 import csv
 import base.job
 import base.config
@@ -99,7 +99,7 @@ class BaseSink(base.job.BaseModule):
                     file_mode = 'w'
                 else:
                     self.logger().error(f'Outfile already exist: "{outfilename}"')
-                    raise TypeError('Outfile already exists: {}'.format(outfilename))
+                    raise TypeError(f'Outfile already exists: {outfilename}')
 
             # create the dirname, if not exists
             # if dirname is empty, outfilename is probably a relative path
@@ -134,7 +134,7 @@ class JSONSink(BaseSink):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('indent', None)
+        self.set_default_config('indent', 0)
         self.set_default_config('ensure_ascii', True)
 
     def run(self, path=None):
@@ -147,7 +147,7 @@ class JSONSink(BaseSink):
 
         for fileinfo in self._source(path):
             try:
-                jsondata = json.dumps(fileinfo, indent=indent, ensure_ascii=self.myflag('ensure_ascii'))
+                jsondata = json.dumps(fileinfo, indent=indent, ensure_ascii=self.myflag('ensure_ascii'), escape_forward_slashes=False)
                 outputfile.write(jsondata)
                 outputfile.write('\n')
                 yield fileinfo
@@ -155,7 +155,7 @@ class JSONSink(BaseSink):
                 if self.myflag('stop_on_error'):
                     raise
                 else:
-                    self.logger().warning('{}: {}'.format(exc, fileinfo.get('path', '')))
+                    self.logger().warning(f"{exc}: {fileinfo.get('path', '')}")
 
         try:
             if not outputfile == sys.stdout:
@@ -333,7 +333,7 @@ class MDTableSink(BaseSink):
                 if self.myflag('stop_on_error'):
                     raise
                 else:
-                    self.logger().warning('{}: {}'.format(exc, fileinfo.get('path', '')))
+                    self.logger().warning(f"{exc}: {fileinfo.get('path', '')}")
 
         # outputfile.write("\n")  # Prepare room for next table in case appending outputs
         try:
@@ -342,22 +342,23 @@ class MDTableSink(BaseSink):
         except Exception as exc:
             self.logger().warning(f'Exception while closing the file: {exc}')
 
+
 class DummySink(BaseSink):
     """ A module that prints the results from other modules to a file or standard output.
- 
+
     Configuration:
         - **outfile** (str): If provided, saved to this file (absolute path) instead of standard output. CONSOLE is a special name: prints to standard output.
         - **file_exists** (str): If outfile exists, APPEND (this is the default behaviour), OVERWRITE or throw an ERROR.
     """
- 
+
     def read_config(self):
         super().read_config()
- 
+
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
- 
+
         outputfile = self._outputfile()
- 
+
         for fileinfo in self._source(path):
             try:
                 outputfile.write(fileinfo)
@@ -367,15 +368,17 @@ class DummySink(BaseSink):
                 if self.myflag('stop_on_error'):
                     raise
                 else:
-                    self.logger().warning('{}: {}'.format(exc, fileinfo.get('path', '')))
- 
+                    self.logger().warning(f"{exc}: {fileinfo.get('path', '')}")
+
         try:
             if not outputfile == sys.stdout:
                 outputfile.close()
         except Exception as exc:
             self.logger().warning(f'Exception while closing the file: {exc}')
 
+
 class MirrorPath(base.job.BaseModule):
     """ A basic module that yields the path. """
+
     def run(self, path):
         yield dict(path=path)

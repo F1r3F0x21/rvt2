@@ -33,7 +33,7 @@ class RdpCache(base.job.BaseModule):
 
         self.logger().info("Starting extraction of rdp cache image files")
 
-        # self.Files = GetFiles(self.config, vss=self.myflag("vss"))
+        # self.Files = GetFiles(self.config)
         self.mountdir = self.myconfig('mountdir')
 
         base_path = self.myconfig('outdir')
@@ -48,12 +48,12 @@ class RdpCache(base.job.BaseModule):
         srch_aux = srch.search(path)
         partition = srch_aux.group(1)
         user = srch_aux.group(3)
-        self.logger().info('Extracting RDP cache images from user {} at {}'.format(user, partition))
-        outdir = os.path.join(base_path, 'imgs_{}_{}'.format(partition, user))
+        self.logger().info(f'Extracting RDP cache images from user {user} at {partition}')
+        outdir = os.path.join(base_path, f'imgs_{partition}_{user}')
         check_directory(outdir, create=True)
         run_command([python3, bmcc, '-s', path, '-d', outdir])
         self.logger().info('Joining images')
-        self.join_images(outdir, os.path.join(base_path, '{}_{}'.format(partition, user)))
+        self.join_images(outdir, os.path.join(base_path, f'{partition}_{user}'))
 
         self.logger().info("RDP cache extraction done")
         return []
@@ -104,4 +104,4 @@ class RdpCache(base.job.BaseModule):
                 else:
                     imgs.append(Image.open(os.path.join(inputdir, i)))
 
-            get_concat_v_blank(vimgs).save(os.path.join('{}_{}.bmp'.format(base_filename, fkey)))
+            get_concat_v_blank(vimgs).save(os.path.join(f'{base_filename}_{fkey}.bmp'))

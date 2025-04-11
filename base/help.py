@@ -34,6 +34,7 @@ class Help(base.job.BaseModule):
     Configuration section:
         - **show_vars**: List of variables in the section to show. If "ALL", show all variables. If Empty, do not show context variables.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('show_vars', '')
@@ -57,9 +58,9 @@ class Help(base.job.BaseModule):
 
     def _classify_path(self, path):
         """ Classify the path as a plugin, job or a module.
-        
+
         To classify a path, this function checks the configuration section:
-        
+
         - If it has a 'plugindir' option, returns 'plugin'
         - It it has a  'description', returns 'job'
         - else, returns 'module' and hope for the best """
@@ -98,7 +99,7 @@ class Help(base.job.BaseModule):
                     for line in descfile:
                         description = description + line
         if description is None:
-            self.logger().warn('job="%s" has no description', path)
+            self.logger().warn(f'job="{path}" has no description')
             description = ''
         jobs = []
         for job in self._get_jobs_in_job(path):
@@ -111,7 +112,7 @@ class Help(base.job.BaseModule):
                 job=path,
                 description=description,
                 short=description.split('\n')[0],
-                jobs = jobs,
+                jobs=jobs,
                 other_vars=other_vars,
                 params=ast.literal_eval(self.config.get(path, 'default_params', '{}')),
                 params_help=ast.literal_eval(self.config.get(path, 'params_help', '{}')),

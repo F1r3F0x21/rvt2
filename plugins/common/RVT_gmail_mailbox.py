@@ -60,7 +60,7 @@ def sanitize_text(texto):
 def check_make_search_file(fname, webmail, kw):
     if not os.path.isfile(fname):
         with open(fname, "w") as f:
-            f.write('# Search file autmaticaly created by rvt2\n# for {} webmail detection\n{}'.format(webmail, kw))
+            f.write(f'# Search file autmaticaly created by rvt2\n# for {webmail} webmail detection\n{kw}')
 
 
 class Gmail(base.job.BaseModule):
@@ -84,11 +84,11 @@ class Gmail(base.job.BaseModule):
 
             for i in os.listdir(searches_path):
                 if i.startswith("all_gmail") and os.stat(os.path.join(searches_path, i)).st_size > 0:
-                    self.logger().debug("Extracting data from {}".format(i))
+                    self.logger().debug(f"Extracting data from {i}")
                     self.extract_from_gmail(os.path.join(searches_path, i), of)
 
                 if i.startswith("all_u003cspan") and os.stat(os.path.join(searches_path, i)).st_size > 0:
-                    self.logger().debug("Extracting data from {}".format(i))
+                    self.logger().debug(f"Extracting data from {i}")
                     self.extract_from_cspan(os.path.join(searches_path, i), of)
         return []
 
@@ -139,7 +139,7 @@ class Gmail(base.job.BaseModule):
                         if aux:
                             fecha = aux.group(1)
                         if fecha != "" or emails != "" or subject != "" or body != "":
-                            of.write("{}|{}|{}|{}|{}\n".format(fecha, emails, subject, body, attachments))
+                            of.write(f"{fecha}|{emails}|{subject}|{body}|{attachments}\n")
 
                     file.readline()
                     file.readline()
@@ -171,7 +171,7 @@ class Gmail(base.job.BaseModule):
                         aux = re.search('\\\\u0026nbsp;","([^"]*)","([^"]*)",0,"","([^"]*)","[^"]*","([^"]*)', texto[td:td_end])
 
                         if aux:
-                            of.write("{}|{}|{}|{}|{}\n".format(aux.group(4), emails, sanitize_text(aux.group(1)), sanitize_text(aux.group(2)), sanitize_text(aux.group(3))))
+                            of.write(f"{aux.group(4)}|{emails}|{sanitize_text(aux.group(1))}|{sanitize_text(aux.group(2))}|{sanitize_text(aux.group(3))}\n")
 
                     file.readline()
                     file.readline()

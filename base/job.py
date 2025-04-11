@@ -28,7 +28,7 @@ import shlex
 import collections
 import time
 import datetime
-import json
+import ujson as json
 from base.config import parse_conf_array, default_config
 import base.utils
 
@@ -102,9 +102,9 @@ def parse_modules_chain(job_name, myparams, config):
     try:
         modules_chain = modules_chain.format(**params)
     except KeyError as exc:
-        raise RVTCritical('KeyError {}: are you sure this option is defined in default_params of job={}?'.format(exc, job_name)) from None
+        raise RVTCritical(f'KeyError {exc}: are you sure this option is defined in default_params of job={job_name}?') from None
     except ValueError:
-        raise RVTCritical('ValueError: are you sure all the params are correctly written for job={}?'.format(job_name)) from None
+        raise RVTCritical(f'ValueError: are you sure all the params are correctly written for job={job_name}?') from None
 
     # convert modules_chain into an array of module names
     modules = list()
@@ -134,7 +134,7 @@ def get_path_array(job_name, myparams, extra_config, default_path, config):
         path = parse_conf_array(config.get(job_name, 'path', default=None))
     if not path:
         path = [None]
-    if type(path) == str:
+    if isinstance(path, str):
         path = [path]
     return path
 
@@ -179,8 +179,7 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     # Register the start of the execution
     jobstarted = datetime.datetime.now(datetime.timezone.utc)
     (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'start')
-    (nested_logs > 0) and logging.info('STARTED job={} client={} casename={} source={}'.format(
-        job_name, config.get('DEFAULT', 'client'), config.get('DEFAULT', 'casename'), config.get('DEFAULT', 'source')))
+    (nested_logs > 0) and logging.info(f"STARTED job={job_name} client={config.get('DEFAULT', 'client')} casename={config.get('DEFAULT', 'casename')} source={config.get('DEFAULT', 'source')}")
 
     # Single job case (only modules)
     if jobs is None:
@@ -247,11 +246,11 @@ def run_job(config, job_name_with_params, path=None, extra_config=None, from_mod
     else:
         (nested_registers > 0) and registerExecution(jobid, config, job_name, myparams, path, 'end', (datetime.datetime.now(datetime.timezone.utc) - jobstarted))
 
-    (nested_logs > 0) and logging.info('FINISHED job={} client={} casename={} source={}'.format(
-        job_name, config.get('DEFAULT', 'client'), config.get('DEFAULT', 'casename'), config.get('DEFAULT', 'source')))
+    (nested_logs > 0) and logging.info(f"FINISHED job={job_name} client={config.get('DEFAULT', 'client')} casename={config.get('DEFAULT', 'casename')} source={config.get('DEFAULT', 'source')}")
     if job_error and not main_job and recursive_error:
         raise RVTErrorResumeExecution
     return list()
+
 
 def run_single_job(config, job_name_with_params, default_path=None, extra_config=None, from_module=None, log_execution=False):
     """
@@ -270,8 +269,9 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
     Returns:
         A generator that yields each of the results of the execution.
     """
+
     job_name, myparams = parse_modules_name(job_name_with_params)
-    logging.debug('Loading modules for job={} myparams="{}" extra_config="{}"'.format(job_name, myparams, extra_config))
+    logging.debug(f'Loading modules for job={job_name} myparams="{myparams}" extra_config="{extra_config}"')
 
     config.job_name = job_name
     # Get the paths the job will run on
@@ -291,18 +291,17 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
         # Since the modules array was reversed, mymodule points to the FIRST module
         # in the modules configuration parameter
     except Exception as exc:
-        logging.error('EXCEPTION job={} client={} casename={} source={}. {}. {}'.format(
-            job_name, config.get('DEFAULT', 'client'), config.get('DEFAULT', 'casename'), config.get('DEFAULT', 'source'), exc, traceback.format_exc()))
+        logging.error(f"EXCEPTION job={job_name} client={config.get('DEFAULT', 'client')} casename={config.get('DEFAULT', 'casename')} source={config.get('DEFAULT', 'source')}. {exc}. {traceback.format_exc()}")
         raise
 
     if mymodule is None:
-        logging.critical('Critical error: No module loaded for job=%s', job_name)
-        raise RVTCritical('No module loaded for job={}'.format(job_name))
+        logging.critical(f'Critical error: No module loaded for job={job_name}')
+        raise RVTCritical(f'No module loaded for job={job_name}')
 
     for each_path in path:
         abspath = os.path.abspath(each_path) if each_path is not None else None
         if log_execution:
-            logging.info('STARTED job={} on path="{}". client={} casename={} source={}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source')))
+            logging.info(f'STARTED job={job_name} on path="{abspath}". client={mymodule.myconfig("client")} casename={mymodule.myconfig("casename")} source={mymodule.myconfig("source")}')
         try:
             # notice we manage exceptions, and then we cannot return the generator: it must be run by us
             results = mymodule.run(abspath)
@@ -311,23 +310,23 @@ def run_single_job(config, job_name_with_params, default_path=None, extra_config
             for data in results:
                 yield data
         except KeyboardInterrupt:
-            logging.warn('INTERRUPTED job={} on path="{}". client={} casename={} source={}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source')))
+            logging.warn(f'INTERRUPTED job={job_name} on path="{abspath}". client={mymodule.myconfig("client")} casename={mymodule.myconfig("casename")} source={mymodule.myconfig("source")}')
             raise
         except RVTCritical as exc:
-            logging.critical('CRITICAL job={} on path="{}". client={} casename={} source={}. {}. {}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc()))
+            logging.critical(f'CRITICAL job=job={job_name} on path="{abspath}". client={mymodule.myconfig("client")} casename={mymodule.myconfig("casename")} source={mymodule.myconfig("source")}. {exc}. {traceback.format_exc()}')
             raise
         except Exception as exc:
             # This except block includes RVTError
             if config.get(job_name, 'stop_on_error', 'False')[0] in 'tT1':
-                logging.critical('EXCEPTION job={} on path="{}". client={} casename={} source={}. {}. {}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc()))
+                logging.critical(f'EXCEPTION job={job_name} on path="{abspath}". client={mymodule.myconfig("client")} casename={mymodule.myconfig("casename")} source={mymodule.myconfig("source")}. {exc}. {traceback.format_exc()}')
                 raise RVTCritical from exc
             else:
-                logging.error('EXCEPTION job={} on path="{}". client={} casename={} source={}. {}. {}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source'), exc, traceback.format_exc()))
+                logging.error(f'EXCEPTION job={job_name} on path="{abspath}". client={mymodule.myconfig("client")} casename={mymodule.myconfig("casename")} source={mymodule.myconfig("source")}. {exc}. {traceback.format_exc()}')
                 raise RVTErrorResumeExecution from exc
         finally:
             mymodule.shutdown()
             if log_execution:
-                logging.info('FINISHED job={} on path="{}". client={} casename={} source={}'.format(job_name, abspath, mymodule.myconfig('client'), mymodule.myconfig('casename'), mymodule.myconfig('source')))
+                logging.info(f'FINISHED job={job_name} on path="{abspath}". client={mymodule.myconfig("client")} casename={mymodule.myconfig("casename")} source={mymodule.myconfig("source")}')
 
 
 def load_module(config, confsection, from_module=None, extra_config=None):
@@ -346,7 +345,7 @@ def load_module(config, confsection, from_module=None, extra_config=None):
     # get the name of the parse in the section
     section, local_config = parse_modules_name(confsection)
     if not section:
-        raise RVTCritical('No section provided: {}'.format(confsection))
+        raise RVTCritical(f'No section provided: {confsection}')
     if extra_config is not None:
         if local_config is None:
             local_config = dict()
@@ -360,18 +359,18 @@ def load_module(config, confsection, from_module=None, extra_config=None):
     classname = components[-1]
     package = '.'.join(components[:-1])
     if not package:
-        raise RVTCritical('No package defined for module: ' + name)
-    logging.debug('Loading section=[{}] module={} from package {}'.format(section, classname, package))
+        raise RVTCritical(f'No package defined for module: {name}')
+    logging.debug(f'Loading section=[{section}] module={classname} from package {package}')
     try:
         mod = __import__(package, globals(), locals(), [classname])
         parsercls = getattr(mod, classname)
         return parsercls(config, section=section, local_config=local_config, from_module=from_module)
     except AttributeError as exc:
-        raise RVTCritical('Cannot load class {}.{} from section [{}]: classname not found: {}'.format(package, classname, section, exc)) from None
+        raise RVTCritical(f'Cannot load class {package}.{classname} from section [{section}]: classname not found: {exc}') from None
     except TypeError as exc:
-        raise RVTCritical('Cannot load class {}.{} from section [{}]: TypeError: {}'.format(package, classname, section, exc)) from exc
+        raise RVTCritical(f'Cannot load class {package}.{classname} from section [{section}]: TypeError: {exc}') from exc
     except ImportError as exc:
-        raise RVTCritical('Cannot load class {}.{} from section [{}]: ImportError: {}'.format(package, classname, section, exc)) from exc
+        raise RVTCritical(f'Cannot load class {package}.{classname} from section [{section}]: ImportError: {exc}') from exc
 
 
 def wait_for_job(config, job, step=30, timeout=600, job_name=None, exclude_present_job=True):
@@ -394,7 +393,7 @@ def wait_for_job(config, job, step=30, timeout=600, job_name=None, exclude_prese
 
     while elapsed_time < timeout:
         if job.get_job_status(job_name=job_name, exclude_present_job=exclude_present_job) == 'start':
-            job.logger().debug('There is already an instance of the same job name "{}" running. Waiting to complete. elapsed_time={}'.format(job_name, str(elapsed_time)))
+            job.logger().debug(f'There is already an instance of the same job name "{job_name}" running. Waiting to complete. elapsed_time={str(elapsed_time)}')
             time.sleep(step)
             elapsed_time = datetime.datetime.now(datetime.timezone.utc) - now
         else:
@@ -404,7 +403,7 @@ def wait_for_job(config, job, step=30, timeout=600, job_name=None, exclude_prese
     if available:
         return
     else:
-        raise RVTError('Timeout of {}s exhausted. Job {} will be cancelled'.format(timeout, str(job)))
+        raise RVTError(f'Timeout of {timeout}s exhausted. Job {str(job)} will be cancelled')
 
 
 def registerExecution(jobid, config, job, params, paths, status, elapsed=None):
@@ -437,8 +436,8 @@ def registerExecution(jobid, config, job, params, paths, status, elapsed=None):
         date=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         job=job,
         status=status,
-        #cwd=os.getcwd(),
-        #rvthome=config.get('DEFAULT', 'rvthome'),
+        # cwd=os.getcwd(),
+        # rvthome=config.get('DEFAULT', 'rvthome'),
         client=client,
         casename=casename,
         source=source,
@@ -456,7 +455,7 @@ def registerExecution(jobid, config, job, params, paths, status, elapsed=None):
             # errors are ignored
             try:
                 with open(filename, 'a') as f:
-                    f.write(json.dumps(data))
+                    f.write(json.dumps(data, escape_forward_slashes=False))
                     f.write('\n')
             except Exception:
                 logging.error(f'Unable to register job execution in "{filename}". Check the folder permissions or this may cause errors later.')
@@ -494,7 +493,7 @@ class BaseModule(object):
             self.local_config = local_config
         self.from_module = from_module
         self.read_config()
-        self.logger().debug('Initializing {} from section {}: {}'.format(self.__class__.__name__, section, local_config))
+        self.logger().debug(f'Initializing {self.__class__.__name__} from section {section}: {local_config}')
 
     def logger(self):
         """ Get the logger for this parser.
@@ -597,7 +596,7 @@ class BaseModule(object):
                 raise RVTErrorNonePath('path is not provided')
             if check_path_exists:
                 if not os.path.exists(path):
-                    raise RVTErrorNotExistingPath('path {} does not exist'.format(path))
+                    raise RVTErrorNotExistingPath(f'path {path} does not exist')
 
     def run(self, path=None):
         """ Run the job on a path

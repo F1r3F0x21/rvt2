@@ -34,6 +34,7 @@ class AdvWhatsapps(plugins.ios.IOSModule):
     """
     Class responsible for conducting the coherence analysis on WhatsApps
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('extract_path', os.path.join(self.myconfig('sourcedir'), 'mnt', 'p01'))
@@ -119,13 +120,13 @@ class AdvWhatsapps(plugins.ios.IOSModule):
         for key in items_storage.keys():
             if key in items_search.keys() and items_search[key] != items_storage[key][1]:
                 i = i + 1
-                out.write("{}: Messages with id {} and messageid {}, are differents from BBDD ChatStorage.sqlite and ChatSearchV3.sqlite.\n\t In ChatSearchV3.sqlite appears:{}\n\t In ChatStorage.sqlite appears:{}\n".format(str(i), str(key), str(items_storage[key][0]), str(items_search[key]), str(items_storage[key][1])))
+                out.write(f"{str(i)}: Messages with id {str(key)} and messageid {str(items_storage[key][0])}, are differents from BBDD ChatStorage.sqlite and ChatSearchV3.sqlite.\n\t In ChatSearchV3.sqlite appears:{str(items_search[key])}\n\t In ChatStorage.sqlite appears:{str(items_storage[key][1])}\n")
 
         if i == 0:
             out.write("All text messages MATCHES in TEXT and ID from both BBDD: ChatStorage.sqlite y ChatSearchV3.sqlite")
             out.write("\n=====================================\n")
         else:
-            out.write("All text menssages, except %s, MATCHES in TEXT and ID from both BBDD: ChatStorage.sqlite y ChatSearchV3.sqlite" % str(i))
+            out.write(f"All text menssages, except {str(i)}, MATCHES in TEXT and ID from both BBDD: ChatStorage.sqlite y ChatSearchV3.sqlite")
             out.write("\n=====================================\n")
 
     def compare_date(self, items_search, items_storage, out):
@@ -137,13 +138,13 @@ class AdvWhatsapps(plugins.ios.IOSModule):
         for key in items_storage.keys():
             if key in items_search.keys() and (math.fabs(items_search[key] - items_storage[key][1]) > 10):
                 i = i + 1
-                out.write("{}: Message dates with docid {} and messageid {}, are different from BBDD ChatStorage.sqlite and ChatSearchV3.sqlite.\n\t In ChatSearchV3.sqlite appears: {}\n\t In ChatStorage.sqlite appears: {}\n".format(str(i), str(key), str(items_storage[key][0]), str(datetime.datetime.fromtimestamp(items_search[key]).strftime('%Y-%m-%d %H:%M:%S')), str(datetime.datetime.fromtimestamp(items_storage[key][1]).strftime('%Y-%m-%d %H:%M:%S'))))
+                out.write(f"{str(i)}: Message dates with docid {str(key)} and messageid {str(items_storage[key][0])}, are different from BBDD ChatStorage.sqlite and ChatSearchV3.sqlite.\n\t In ChatSearchV3.sqlite appears: {str(datetime.datetime.fromtimestamp(items_search[key]).strftime('%Y-%m-%d %H:%M:%S'))}\n\t In ChatStorage.sqlite appears: {str(datetime.datetime.fromtimestamp(items_storage[key][1]).strftime('%Y-%m-%d %H:%M:%S'))}\n")
 
         if i == 0:
             out.write("All message dates MATCHES in DATE and ID in both: ChatStorage.sqlite and ChatSearchV3.sqlite")
             out.write("\n=====================================\n")
         else:
-            out.write("All message dates, except %s, MATCHES in DATE and ID in both BBDD: ChatStorage.sqlite and ChatSearchV3.sqlite" % str(i))
+            out.write(f"All message dates, except {str(i)}, MATCHES in DATE and ID in both BBDD: ChatStorage.sqlite and ChatSearchV3.sqlite")
             out.write("\n=====================================\n")
 
     def blacklist(self, con_storage, out):
@@ -164,7 +165,7 @@ class AdvWhatsapps(plugins.ios.IOSModule):
         out.write("\n=====================================\n")
         out.write("Blocked contacts:\n\n")
         for key, value in block.items():
-            out.write('{} : {}\n'.format(key, value))
+            out.write(f'{key} : {value}\n')
         out.write("=====================================\n")
 
     def last_backup(self, out):
@@ -174,9 +175,9 @@ class AdvWhatsapps(plugins.ios.IOSModule):
             pl = biplist.readPlist(os.path.join(self.myconfig('extract_path'), 'Info.plist'))
             item = pl.get("Last Backup Date", '')
         except Exception as exc:
-            self.logger().warning('Unable to parse Info.plist. Err: {}'.format(exc))
-        out.write("\n{}\n".format('=' * 60))
-        out.write("Last Backup Date: \t\t{}\n{}\n".format(str(item), '=' * 60))
+            self.logger().warning(f'Unable to parse Info.plist. Err: {exc}')
+        out.write(f"\n{'=' * 60}\n")
+        out.write(f"Last Backup Date: \t\t{str(item)}\n{'=' * 60}\n")
 
         item = ''
         try:
@@ -184,9 +185,9 @@ class AdvWhatsapps(plugins.ios.IOSModule):
             item = pl2.get("AutoBackupCustom", '')
             item2 = pl2.get('lastAutoBackupDate', '')
         except Exception as exc:
-            self.logger().warning('Unable to parse WhatsApp.shared.plist. Err: {}'.format(exc))
-        out.write("Last Whatsapp CustomBakup Date: {}\n{}\n".format(str(item), '=' * 60))
-        out.write("Last Whatsapp AutoBakup Date: \t{}\n{}\n".format(str(item2), '=' * 60))
+            self.logger().warning(f'Unable to parse WhatsApp.shared.plist. Err: {exc}')
+        out.write(f"Last Whatsapp CustomBakup Date: {str(item)}\n{'=' * 60}\n")
+        out.write(f"Last Whatsapp AutoBakup Date: \t{str(item2)}\n{'=' * 60}\n")
 
     def compare_count(self, items_storage, out):
         # TODO: document why a difference of 1 is allowed
@@ -196,7 +197,7 @@ class AdvWhatsapps(plugins.ios.IOSModule):
 
         for item in items_storage:
             if item[2] - item[1] > 2 and item[3].find("status") == -1:
-                out.write("%s\n" % str(item))
+                out.write(f"{str(item)}\n")
 
         out.write("=====================================\n")
 
@@ -244,7 +245,7 @@ class AdvWhatsapps(plugins.ios.IOSModule):
         out.close()
         con_storage.close()
         con_search.close()
-        logging.debug('WhatsApp\'s coherence analysis exported at %s', outfilename)
+        logging.debug(f'WhatsApp\'s coherence analysis exported at {outfilename}')
 
     def run(self, path):
         self.adv_whatsapp()

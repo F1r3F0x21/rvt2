@@ -82,28 +82,28 @@ class Unback(plugins.ios.IOSModule):
                 with zipfile.ZipFile(path, 'r') as myzip:
                     bkid = myzip.namelist()[0]
 
-                    self.logger().debug('Extracting file %s to %s', path, unzip_path)
+                    self.logger().debug(f'Extracting file {path} to {unzip_path}')
                     if not base.utils.check_directory(os.path.join(unzip_path, bkid)):
                         for zn in tqdm(myzip.namelist(), desc='Unzip backup', disable=self.myflag('progress.disable')):
                             myzip.extract(zn, unzip_path)
                     else:
                         # if the directory already exist, skip
-                        self.logger().warning('The unzip directory already exists: %s. Won\'t unzip', os.path.join(unzip_path, bkid))
+                        self.logger().warning(f'The unzip directory already exists: {os.path.join(unzip_path, bkid)}. Won\'t unzip')
 
                 if base.utils.check_file(os.path.join(unzip_path, bkid, 'Info.plist')):
                     return os.path.abspath(os.path.join(unzip_path, bkid))
 
                 # notice this line is not reached if Info.plist exists
                 shutil.rmtree(unzip_path)
-                raise base.job.RVTError('The zip file {} doesn\'t seem a compressed iOS backup'.format(unzip_path))
+                raise base.job.RVTError(f'The zip file {unzip_path} doesn\'t seem a compressed iOS backup')
             except Exception as exc:
-                self.logger().warning('Cannot read zip file: %s', exc)
-        
+                self.logger().warning(f'Cannot read zip file: {exc}')
+
         elif base.utils.check_directory(path) and base.utils.check_file(os.path.join(path, 'Info.plist')):
             # if the path is a directory and it includes Info.plist, assume it is a backup directory
             return os.path.abspath(path)
 
-        raise base.job.RVTError('The path {} doesn\'t seem to contain an iOS backup'.format(path))
+        raise base.job.RVTError(f'The path {path} doesn\'t seem to contain an iOS backup')
 
     def run(self, path):
         """ Unpacks a directory
@@ -118,30 +118,30 @@ class Unback(plugins.ios.IOSModule):
             base.job.RVTError if the file can't be unbacked, for whatever reason
         """
         self.check_params(path, check_path=True, check_path_exists=True)
-        self.logger().debug('Unback: %s', path)
+        self.logger().debug(f'Unback: {path}')
         # check unzip path
         if base.utils.check_directory(self.myconfig('unzip_path')):
             try:
                 shutil.rmtree(self.myconfig('unzip_path'))
             except PermissionError:
-                self.logger().warning('Can\'t remove: {}. I will try to continue'.format(self.myconfig('unzip_path')))
+                self.logger().warning(f'Can\'t remove: {self.myconfig("unzip_path")}. I will try to continue')
             except OSError:
                 # for example: directory is busy
-                self.logger().warning('Can\'t remove: {}. I will try to continue'.format(self.myconfig('unzip_path')))
+                self.logger().warning(f'Can\'t remove: {self.myconfig("unzip_path")}. I will try to continue')
         extract_path = self.myconfig('extract_path')
 
         # create the extract_path directory, if it does not exist
         base.utils.check_directory(extract_path, create=True, delete_exists=True)
-        self.logger().debug('Extracting to: %s', extract_path)
+        self.logger().debug(f'Extracting to: {extract_path}')
         # get the path where the uncompressed backup is
         bk_path = self._get_backup_directory(path)
-        self.logger().debug('Backup directory: %s', bk_path)
+        self.logger().debug(f'Backup directory: {bk_path}')
 
         unback_cmd = self.myconfig('unback_command')
         if unback_cmd:
             # if an unback command is provided and the extract_path does not exist, use it
             unback_cmd = unback_cmd.format(bk_path=bk_path, extract_path=extract_path)
-            self.logger().debug('Running %s', unback_cmd)
+            self.logger().debug(f'Running {unback_cmd}')
             subprocess.call(unback_cmd, shell=True)
             # finally, copy some important files
             shutil.copy2(os.path.join(bk_path, 'Info.plist'), os.path.join(extract_path, 'Info.plist'))
@@ -149,7 +149,7 @@ class Unback(plugins.ios.IOSModule):
         elif os.path.exists(os.path.join(bk_path, 'Manifest.db')) and open(os.path.join(bk_path, 'Manifest.db'), 'rb').read(4) == b'SQLi':
             # try to do our own unback by querying the database
             database = self.database(bk_path)
-            with sqlite3.connect('file://{}/{}?mode=ro'.format(bk_path, database), uri=True) as conn:
+            with sqlite3.connect(f'file://{bk_path}/{database}?mode=ro', uri=True) as conn:
                 c = conn.cursor()
                 total_iterations = c.execute('SELECT count(*) FROM Files').fetchone()[0]
                 for row in tqdm(c.execute('SELECT * FROM Files ORDER BY flags DESC'), total=total_iterations, desc='Unbacking', disable=self.myflag('progress.disable')):
@@ -171,9 +171,9 @@ class Unback(plugins.ios.IOSModule):
             try:
                 shutil.rmtree(self.myconfig('unzip_path'))
             except PermissionError:
-                self.logger().warning('Can\'t remove: {}'.format(self.myconfig('unzip_path')))
+                self.logger().warning(f'Can\'t remove: {self.myconfig("unzip_path")}')
             except OSError:
                 # for example: directory is busy
-                self.logger().warning('Can\'t remove: {}'.format(self.myconfig('unzip_path')))
+                self.logger().warning(f'Can\'t remove: {self.myconfig("unzip_path")}')
 
         return []

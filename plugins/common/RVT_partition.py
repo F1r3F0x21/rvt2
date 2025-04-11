@@ -21,7 +21,7 @@ import re
 import time
 import getpass
 import grp
-import json
+import ujson as json
 import datetime
 from collections import defaultdict
 from base.utils import check_folder, check_file, check_directory, relative_path
@@ -121,7 +121,7 @@ class Partition(object):
         DEVNULL.close()
         self._parse_vshadowinfo_output(output)
 
-        self.logger.debug("Partition {} has {} vss".format(self.partition, len(self.vss)))
+        self.logger.debug(f"Partition {self.partition} has {len(self.vss)} vss")
 
     def _parse_vshadowinfo_output(self, output):
         """ Save VSS information from standard vshadowinfo report.
@@ -152,7 +152,7 @@ class Partition(object):
                 aux = re.search(r"Number of stores:\s*(\d+)", str(line))
                 if aux:
                     number_of_stores = aux.group(1)
-                    self.logger.debug("Partition {} has {} mounting points".format(self.partition, number_of_stores))
+                    self.logger.debug(f"Partition {self.partition} has {number_of_stores} mounting points")
             if line.startswith('Store'):
                 current_store = re.search(r"Store: (\d+)", str(line)).group(1)
             elif line.lstrip().startswith('Identifier'):
@@ -172,13 +172,13 @@ class Partition(object):
     def mount(self):
         """ Main mounting method for partitions. Calls specific function depending on Filesystem type """
 
-        self.logger.debug('Mounting partition={} of type={} from imagefile={}'.format(self.partition, self.filesystem, self.imagefile))
+        self.logger.debug(f'Mounting partition={self.partition} of type={self.filesystem} from imagefile={self.imagefile}')
         vss = self.myflag('vss')
 
         self.refreshMountedImages()
 
         if self.loop != "" and not self.vss:
-            self.logger.debug("Partition partition={} is already mounted".format(self.partition))
+            self.logger.debug(f"Partition partition={self.partition} is already mounted")
             return 0
 
         try:
@@ -200,7 +200,7 @@ class Partition(object):
                 if vss and len(self.vss) > 0:
                     self.vss_mount()
         except Exception as exc:
-            self.logger.error("Error mounting partition: {}. imagefile={} partition=p{}".format(exc, self.imagefile, self.partition))
+            self.logger.error(f"Error mounting partition: {exc}. imagefile={self.imagefile} partition=p{self.partition}")
         self.refreshMountedImages()
 
     def mount_NTFS(self, imagefile=None, mountpath=None, offset=True):
@@ -220,7 +220,7 @@ class Partition(object):
             args = "%s,offset=%s,sizelimit=%s" % (args, self.obytes, self.size)
         mount = self.myconfig('mount', '/bin/mount')
         if not mountpath:
-            mountpath = os.path.join(self.mountdir, "p%s" % self.partition)
+            mountpath = os.path.join(self.mountdir, f"p{self.partition}")
         if not imagefile:
             imagefile = self.imagefile
         check_folder(mountpath)
@@ -232,24 +232,24 @@ class Partition(object):
             return
         rec_key = self.myconfig('recovery_keys')
         dislocker = self.myconfig('dislocker', '/usr/bin/dislocker')
-        mountauxpath = os.path.join(self.mountaux, "p%s" % self.partition)
+        mountauxpath = os.path.join(self.mountaux, f"p{self.partition}")
         check_folder(mountauxpath)
         import time
 
         if rec_key == "":
-            self.logger.warning("Recovery key not available on partition p%s. Trying without key" % self.partition)
+            self.logger.warning(f"Recovery key not available on partition p{self.partition}. Trying without key")
             try:
-                cmd = "sudo {} -c -O {} -V {} -r {}".format(dislocker, self.obytes, self.imagefile, mountauxpath)
+                cmd = f"sudo {dislocker} -c -O {self.obytes} -V {self.imagefile} -r {montauxpath}"
                 run_command(cmd, logger=self.logger)
                 time.sleep(4)
                 self.refreshMountedImages()
                 self.mount_NTFS(os.path.join(mountauxpath, "dislocker-file"), offset=False)
             except Exception as exc:
-                self.logger.error("Problems mounting bitlocker partition p%s: %s", self.partition, str(exc))
+                self.logger.error(f"Problems mounting bitlocker partition p{self.partition}: {str(exc}")
                 return -1
         else:
             self.logger.debug("Trying to mount with recovery keys at {}".format(self.mountaux))
-            mountauxpath = os.path.join(self.mountaux, "p%s" % self.partition)
+            mountauxpath = os.path.join(self.mountaux, f"p{self.partition}")
             for rk in rec_key.split(','):  # loop wih different recovery keys, comma separated
                 try:
                     cmd = "sudo {} -p{} -O {} -V {} -r {}".format(dislocker, rk, self.obytes, self.imagefile, mountauxpath)
@@ -308,7 +308,7 @@ class Partition(object):
 
     def mount_APFS(self):
         apfsmount = self.myconfig('apfsmount', '/usr/local/bin/apfs-fuse')
-        mountpath = os.path.join(self.mountaux, "p%s" % self.partition)
+        mountpath = os.path.join(self.mountaux, f"p{self.partition}")
         check_folder(mountpath)
         run_command(["sudo", apfsmount, "-s", str(self.obytes), "-v", str(self.voln), self.imagefile, mountpath], logger=self.logger)
         self.bindfs_mount()
@@ -317,7 +317,7 @@ class Partition(object):
         user = getpass.getuser()
         group = grp.getgrgid(os.getegid())[0]
 
-        mountaux = os.path.join(self.mountaux, "p%s" % self.partition)
+        mountaux = os.path.join(self.mountaux, f"p{self.partition}")
         check_folder(self.mountpath)
         bindfs = self.myconfig('bindfs', '/usr/bin/bindfs')
         run_command(["sudo", bindfs, "-p", "550", "-u", user, "-g", group, mountaux, self.mountpath], logger=self.logger)
@@ -326,21 +326,22 @@ class Partition(object):
         self.logger.debug('Obtaining encrypted partition')
         fvdemount = self.myconfig('fvdemount', '/usr/local/bin/fvdemount')
         password = self.myconfig('password')
-        mountpoint = os.path.join(self.mountaux, "vp%s" % self.partition)
+        mountpoint = os.path.join(self.mountaux, f"vp{self.partition}")
         check_folder(mountpoint)
         # TODO: get 'EncryptedRoot.plist.wipekey' from recovery partition: https://github.com/libyal/libfvde/wiki/Mounting
         encryptedfile = os.path.join(self.myconfig('sourcedir'), 'EncryptedRoot.plist.wipekey')
         run_command(['sudo', fvdemount, "-e", encryptedfile, "-p", password, "-X", "allow_root", "-o", str(self.obytes), self.imagefile, mountpoint], logger=self.logger)
         time.sleep(2)  # let it do his work
-        self.mount_HFS(imagefile=os.path.join(mountpoint, 'fvde1'), mountpath=os.path.join(self.mountaux, "p%s" % self.partition), offset=False)
+        self.mount_HFS(imagefile=os.path.join(mountpoint, 'fvde1'), mountpath=os.path.join(self.mountaux, f"p{self.partition}"), offset=False)
 
     def vss_mount(self):
         vshadowmount = self.myconfig('vshadowmount', '/usr/local/bin/vshadowmount')
 
         # Create auxiliar fuse mount point
-        vp = os.path.join(self.mountaux, "vp%s" % self.partition)
+        vp = os.path.join(self.mountaux, f"vp{self.partition}")
+
         if len(self.fuse) == 0 or "fuse" not in self.fuse.keys():
-            self.logger.debug('Mounting auxiliary vss point: {}'.format(vp))
+            self.logger.debug(f'Mounting auxiliary vss point: {vp}')
             check_directory(vp, create=True)
             if self.encrypted:
                 run_command(["sudo", vshadowmount, "-X", "allow_root", self.loop, vp], logger=self.logger)
@@ -356,7 +357,7 @@ class Partition(object):
                     skip_mounting = True
                     break
             if skip_mounting:
-                self.logger.debug("VSS partition {} is already mounted".format(p))
+                self.logger.debug(f"VSS partition {p} is already mounted")
                 continue
             # New source name format: 'source_vXpY_timestamp'
             vss_source_name = '_'.join([self.myconfig('source'), p,
@@ -399,7 +400,7 @@ class Partition(object):
         try:
             run_command(["sudo", umount, '-l', path], logger=self.logger)
         except Exception:
-            self.logger.error("Error unmounting {}".format(path))
+            self.logger.error(f"Error unmounting {path}")
         # Remove partition info file if 'remove_info' is True:
         self.load_partition()
 
@@ -490,8 +491,9 @@ class Partition(object):
 
     def save_partition(self):
         """ Write partition variables in a JSON file """
+
         check_folder(self.myconfig('auxdir'))
-        outfile = os.path.join(self.myconfig('auxdir'), 'p{}_info.json'.format(self.partition))
+        outfile = os.path.join(self.myconfig('auxdir'), f'p{self.partition}_info.json')
         skipped_vars = ['logger', 'myconfig']
         with open(outfile, 'w') as out:
             try:
@@ -503,30 +505,30 @@ class Partition(object):
     def load_partition(self):
         """ Load partition variables from JSON file. Avoids running mmls every time """
 
-        infile = os.path.join(self.myconfig('auxdir'), 'p{}_info.json'.format(self.partition))
+        infile = os.path.join(self.myconfig('auxdir'), f'p{self.partition}_info.json')
         if self.myflag('remove_info') and check_file(infile):
             try:
                 os.remove(infile)
             except Exception:
-                self.logger.error("Error while deleting file: {}".format(infile))
+                self.logger.error(f"Error while deleting file: {infile}")
             return False
 
-        self.logger.debug('Loading partition {} information'.format(self.partition))
+        self.logger.debug(f'Loading partition {self.partition} information')
         if check_file(infile) and os.path.getsize(infile) != 0:
             with open(infile) as inputfile:
                 try:
                     return json.load(inputfile)
                 except Exception:
-                    self.logger.warning('JSON file {} malformed'.format(infile))
+                    self.logger.warning(f'JSON file {infile} malformed')
                     return False
         return False
 
     def __str__(self):
-        return("""
-            Image file = {}
-            Partition path = {}
-            Partition filesystem = {}
-            Partition offset = {}
-            Partition size = {}
-            Partition clusters size = {}
-            """.format(self.imagefile, self.mountpath, self.filesystem, self.obytes, self.size, self.clustersize))
+        return(f"""
+            Image file = {self.imagefile}
+            Partition path = {self.mountpath}
+            Partition filesystem = {self.filesystem}
+            Partition offset = {self.obytes}
+            Partition size = {self.size}
+            Partition clusters size = {self.clustersize}
+            """)

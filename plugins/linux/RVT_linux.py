@@ -96,7 +96,7 @@ class Characterize(base.job.BaseModule):
         check_directory(os.path.dirname(self.outfile), create=True)
 
         for p in self.disk.partitions:
-            part_path = os.path.join(self.myconfig('mountdir'), "p%s" % p.partition)
+            part_path = os.path.join(self.myconfig('mountdir'), f"p{p.partition}")
             if not os.path.isdir(os.path.join(part_path, "etc")):
                 continue
             releas_f = ""
@@ -135,18 +135,18 @@ class Characterize(base.job.BaseModule):
 
                 install_date = ""
 
-                if os.path.isdir(os.path.join(self.myconfig('mountdir'), "p%s" % p.partition, "root")):
-                    item = os.path.join(self.myconfig('source'), 'mnt', "p%s" % p.partition, "root")
+                if os.path.isdir(os.path.join(self.myconfig('mountdir'), f"p{p.partition}", "root")):
+                    item = os.path.join(self.myconfig('source'), 'mnt', f"p{p.partition}", "root")
                     install_date = self.filesystem.get_macb([item])[item][3]
 
                 for f in ["root/install.log", "var/log/installer/syslog", "root/anaconda-ks.cfg"]:
-                    if os.path.isfile(os.path.join(self.myconfig('mountdir'), "p%s" % p.partition, f)):
-                        item = os.path.join(self.myconfig('source'), 'mnt', "p%s" % p.partition, f)
+                    if os.path.isfile(os.path.join(self.myconfig('mountdir'), f"p{p.partition}", f)):
+                        item = os.path.join(self.myconfig('source'), 'mnt', f"p{p.partition}", f)
                         install_date = self.filesystem.get_macb([item])[item][3]
                         break
 
                 if install_date != "":
-                    out_f.write("Install date:\t{}\n\n".format(install_date))
+                    out_f.write(f"Install date:\t{install_date}\n\n")
 
             # usuarios
             self.get_linux_lastlog(p.partition)
@@ -207,21 +207,21 @@ class Characterize(base.job.BaseModule):
         # function to extract last logins table
         # TO DO extract UUID of loopdevices with blkid and compare with UUID of /home from /etc/fstab
         try:
-            llfile = open(os.path.join(self.myconfig('mountdir'), "p%s" % partition, "var/log/lastlog"), 'rb')
+            llfile = open(os.path.join(self.myconfig('mountdir'), f"p{partition}", "var/log/lastlog"), 'rb')
         except Exception as exc:
-            self.logger().error("Unable to open %s" % os.path.join(self.myconfig('mountdir'), "p%s" % partition, "var/log/lastlog"))
+            self.logger().error(f'Unable to open {os.path.join(self.myconfig("mountdir"), f"p{partition}", "var/log/lastlog")}')
             raise exc
 
         user = dict()
 
-        f_shadow = open(os.path.join(self.myconfig('mountdir'), "p%s" % partition, "etc/shadow"), "r")
+        f_shadow = open(os.path.join(self.myconfig('mountdir'), f"p{partition}", "etc/shadow"), "r")
         for linea in f_shadow:
             linea = linea.split(":")
             if len(linea[1]) > 1:  # user with password
                 user[linea[0]] = []
         f_shadow.close()
 
-        f_passwd = open(os.path.join(self.myconfig('mountdir'), "p%s" % partition, "etc/passwd"), "r")
+        f_passwd = open(os.path.join(self.myconfig('mountdir'), f"p{partition}", "etc/passwd"), "r")
         for linea in f_passwd:
             linea = linea.split(":")
             if linea[0] in user.keys():
@@ -230,7 +230,7 @@ class Characterize(base.job.BaseModule):
 
         lista = []
         for k in user.keys():
-            lista.append(os.path.join(self.myconfig('source'), 'mnt', "p%s" % partition, "home", k))
+            lista.append(os.path.join(self.myconfig('source'), 'mnt', f"p{partition}", "home", k))
 
         user2 = self.filesystem.get_macb(lista)
         with open(self.outfile, 'a') as out_f:

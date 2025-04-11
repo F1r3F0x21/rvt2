@@ -20,7 +20,6 @@ from sshpubkeys import SSHKey
 
 
 class SshAuthorizedKeys(base.job.BaseModule):
-    
     """ Extract the ssh authorized_keys
 
     Module description:
@@ -54,11 +53,10 @@ class SshAuthorizedKeys(base.job.BaseModule):
                     }
                     yield sshkeys_entry_dict
                 else:
-                    self.logger().warning("Regex pattern failed with some ssh_authorized_keys " + line)
+                    self.logger().warning(f"Regex pattern failed with some ssh_authorized_keys {line}")
 
 
 class SshKnownHosts(base.job.BaseModule):
-    
     """ Extract the ssh known_hosts
 
     Module description:
@@ -78,7 +76,7 @@ class SshKnownHosts(base.job.BaseModule):
         for line in self.from_module.run(path):
             match = prog.match(line)
             if match:
-                hostname,key_algorithm,key_data= match.groups()
+                hostname, key_algorithm, key_data = match.groups()
                 sshkeys_entry_dict = {
                     "user.name": username,
                     "hostname": hostname,
@@ -87,11 +85,10 @@ class SshKnownHosts(base.job.BaseModule):
                 }
                 yield sshkeys_entry_dict
             else:
-                self.logger().warning("Regex pattern failed with some ssh_authorized_keys " + line)
+                self.logger().warning(f"Regex pattern failed with some ssh_authorized_keys {line}")
 
-       
+
 class SshConfig(base.job.BaseModule):
-    
     """ Extract the ssh config file
 
     Module description:
@@ -101,7 +98,6 @@ class SshConfig(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-
 
     def run(self, path=None):
         self.check_params(path, check_path=True, check_path_exists=True)
@@ -120,18 +116,18 @@ class SshConfig(base.job.BaseModule):
                     if data[0] == "Host":
                         if len(aux_dict_host) != 0:
                             if include_param:
-                                aux_dict_host[include_data[0]]=include_data[1]
+                                aux_dict_host[include_data[0]] = include_data[1]
                             aux_dict_host["user.name"] = username
                             yield aux_dict_host
                         aux_dict_host = {}
-                        aux_dict_host[data[0]]=data[1]
+                        aux_dict_host[data[0]] = data[1]
                     else:
                         if len(data) == 2:
-                            aux_dict_host[data[0]]=data[1]
+                            aux_dict_host[data[0]] = data[1]
                         else:
-                            aux_dict_host[data[0]]=data[0]
+                            aux_dict_host[data[0]] = data[0]
         if len(aux_dict_host) != 0:
             if include_param:
-                aux_dict_host[include_data[0]]=include_data[1]
+                aux_dict_host[include_data[0]] = include_data[1]
             aux_dict_host["user.name"] = username
             yield aux_dict_host

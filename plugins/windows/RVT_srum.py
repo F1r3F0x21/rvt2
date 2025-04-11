@@ -42,7 +42,7 @@ class Srum(base.job.BaseModule):
         try:
             self.check_params(path, check_path=True, check_path_exists=True)
         except Exception:
-            self.logger().warning('Provided path {} does not exist. Please provide file SRUDB.dat'.format(path))
+            self.logger().warning(f'Provided path {path} does not exist. Please provide file SRUDB.dat')
             return []
         partition_path = re.search(r'.*/(p\d+).*', path)
         if partition_path:
@@ -51,10 +51,10 @@ class Srum(base.job.BaseModule):
             partition = 'p01'
 
         # Obtain SOFTWARE hive for the same partition
-        software_glob = r'{}'.format(self.myconfig('software_hive'))
+        software_glob = rf"{self.myconfig('software_hive')}"
         software = sorted(glob.iglob(software_glob))
         if not software:
-            self.logger().warning('SOFTWARE hive not found matching {}. SRUM parsing requires this hive'.format(software_glob))
+            self.logger().warning(f'SOFTWARE hive not found matching {software_glob}. SRUM parsing requires this hive')
             return []
         elif len(software) > 1:
             if not partition_path:
@@ -74,10 +74,10 @@ class Srum(base.job.BaseModule):
         python3 = os.path.join(self.myconfig('rvthome'), ".venv/bin/python3")
         out_folder = self.myconfig('outdir')
         check_directory(out_folder, create=True)
-        out_file = os.path.join(out_folder, 'srum_{}.xlsx'.format(partition))
+        out_file = os.path.join(out_folder, f'srum_{partition}.xlsx')
 
         # Use srum_dump to parse SRUM
-        self.logger().debug('Parsing SRUM file {}'.format(path))
+        self.logger().debug(f'Parsing SRUM file {path}')
         run_command([python3, srum, "-i", path, "-t", SRUM_TEMPLATE,
                      "-r", software_hive, "-o", out_file], logger=self.logger())
 
@@ -91,10 +91,10 @@ class Srum(base.job.BaseModule):
         """ Convert xlsx sheets to multiple csv's. """
         if not sheets:
             sheet_names = ['Network Data Usage', 'Network Connectivity Usage', 'Application Resource Usage', 'Windows Push Notifications']
-        xslx = openpyxl.load_workbook(os.path.join(folder, 'srum_{}.xlsx'.format(partition)))
+        xslx = openpyxl.load_workbook(os.path.join(folder, f'srum_{partition}.xlsx'))
         for s in sheet_names:
             sh = xslx.get_sheet_by_name(s)
-            with open(os.path.join(folder, '{}_{}.csv'.format(s.replace(" ", ""), partition)), 'w') as out:
+            with open(os.path.join(folder, f'{s.replace(" ", "")}_{partition}.csv'), 'w') as out:
                 c = csv.writer(out, delimiter=';')
                 for r in sh.values:
                     c.writerow(r)

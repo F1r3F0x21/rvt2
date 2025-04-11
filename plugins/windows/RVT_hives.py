@@ -25,7 +25,6 @@ from Registry import Registry
 from Registry.RegistryParse import parse_windows_timestamp as _parse_windows_timestamp
 from tqdm import tqdm
 
-from plugins.external import jobparser
 import base.job
 from base.utils import check_directory, check_file, save_csv, save_json, relative_path, windows_format_path, date_to_iso, get_partition
 from base.commands import run_command, yield_command
@@ -335,9 +334,9 @@ class AllKeys(base.job.BaseModule):
         return []
 
     def _save_and_log(self, path, hive_name=None):
-        self.logger().debug("Parsing all keys from hive {}".format(path))
+        self.logger().debug(f"Parsing all keys from hive {path}")
         save_json(self._parse_all_keys(path, hive_name), outfile=self.outfile, file_exists='APPEND', quoting=0)
-        self.logger().debug("Finished extraction from hive {}".format(path))
+        self.logger().debug(f"Finished extraction from hive {path}")
 
     def _parse_all_keys(self, path, hive_name=None):
         try:
@@ -347,9 +346,9 @@ class AllKeys(base.job.BaseModule):
                 hive_name = reg.hive_name()
             yield from registry_key_to_json(volumekey, depth=100, hive=hive_name)
         except KeyError:
-            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+            self.logger().warning(f"Expected subkeys not found in hive file: {self.amcache_path}")
         except Exception as exc:
-            self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
+            self.logger().warning(f"Problems parsing: {path}. Error: {exc}")
 
 
 class AmCache(BaseRegistry):
@@ -371,16 +370,16 @@ class AmCache(BaseRegistry):
         self.alienvault = alienvault(api_key=self.config.get('IP_API_keys', 'alienvault_key', None))
         self.days = int(self.myconfig('max_days'))
 
-        self.logger().debug("Parsing {}".format(self.amcache_path))
+        self.logger().debug(f"Parsing {self.amcache_path}")
 
         try:
             reg = Registry.Registry(self.amcache_path)
             entries = self.parse_amcache_entries(reg)
             save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
         except KeyError:
-            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+            self.logger().warning(f"Expected subkeys not found in hive file: {self.amcache_path}")
         except Exception as exc:
-            self.logger().warning("Problems parsing: {}. Error: {}".format(self.amcache_path, exc))
+            self.logger().warning(f"Problems parsing: {self.amcache_path}. Error: {exc}")
 
         self.logger().debug("Amcache.hve parsing finished")
         return []
@@ -458,27 +457,27 @@ class AmCache(BaseRegistry):
 
         os_version = CharacterizeWindows(config=self.config).get_windows_version(partition=self.partition)
         if os_version['Name']:
-            self.logger().debug('Processing OS version {} {} {}'.format(os_version['Name'], os_version['SubVersion'], os_version['BuildNumber']))
+            self.logger().debug(f"Processing OS version {os_version['Name']} {os_version['SubVersion']} {os_version['BuildNumber']}")
         version_to_search = entries_by_version.get(os_version['Name'], {'default': ['InventoryApplication', 'InventoryApplicationFile', 'Programs', 'File']})
         if os_version['SubVersion'] in version_to_search:
             keys_to_search = version_to_search[os_version['SubVersion']]
         else:
             keys_to_search = version_to_search['default']
         if not keys_to_search:
-            self.logger().info('Version {} has no known amcache keys'.format(os_version['Name']))
+            self.logger().info(f'Version {os_version["Name"]} has no known amcache keys')
             raise KeyError
 
         # Parse every relevant key
         found_key = None
         for key in keys_to_search:
             try:
-                volumes = registry.open("Root\\{}".format(key))
+                volumes = registry.open(f"Root\\{key}")
                 found_key = key
-                self.logger().debug('Parsing entries in key: Root\\{}'.format(key))
+                self.logger().debug(f'Parsing entries in key: Root\\{key}')
                 for app in structures[key](volumes):
                     yield app
             except Registry.RegistryKeyNotFoundException:
-                self.logger().debug('Key "Root\\{}" not found'.format(key))
+                self.logger().debug(f'Key "Root\\{key}" not found')
             except Exception as exc:
                 self.logger().warning(exc)
 
@@ -651,7 +650,7 @@ class ShimCache(BaseRegistry):
         self.partition = get_partition(path, self.myconfig('mountdir'))
         self.get_outfile('shimcache', extension='csv', volume_id=self.partition)
 
-        self.logger().debug("Parsing shimcache on {}".format(self.shimcache_path))
+        self.logger().debug(f"Parsing shimcache on {self.shimcache_path}")
         save_csv(self.parse_ShimCache_hive(self.shimcache_path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
         self.logger().debug("Finished extraction from ShimCache")
 
@@ -709,7 +708,7 @@ class SysCache(BaseRegistry):
         self.get_outfile('syscache', extension='csv', volume_id=self.partition)
 
         self.days = int(self.myconfig('max_days'))
-        self.logger().debug("Parsing SysCache hive: {}".format(path))
+        self.logger().debug(f"Parsing SysCache hive: {path}")
         save_csv(self.parse_SysCache_hive(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
         self.logger().debug("Finished extraction from SysCache")
 
@@ -738,8 +737,8 @@ class SysCache(BaseRegistry):
             inode = line[1].split('/')[0]
 
             if len(line) == 2:  # Hash not included
-                results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                    ("Name", ""), ("Sha1", ""), ("Malware", ""), ("FileID", fileID), ("Inode", inode), ("FilenameFromHash", "")]))
+                results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")), ("Name", ""), ("Sha1", "")
+                                            ("Malware", ""), ("FileID", fileID), ("Inode", inode), ("FilenameFromHash", "")]))
                 continue
 
             ismalware = ''
@@ -756,8 +755,8 @@ class SysCache(BaseRegistry):
                 except Exception:
                     ismalware = False
                     hash_dict[sha1] = False
-            results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")),
-                ("Name", ""), ("Sha1", sha1), ("Malware", ismalware), ("FileID", fileID), ("Inode", inode), ("FilenameFromHash", original_filename)]))
+            results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")), ("Name", ""), ("Sha1", sha1),
+                                        ("Malware", ismalware), ("FileID", fileID), ("Inode", inode), ("FilenameFromHash", original_filename)]))
 
         # Get filename from inode if timeline is present
         filenames = {}
@@ -778,12 +777,12 @@ class SysCache(BaseRegistry):
 
 class AppCompat(BaseRegistry):
     """ Get application executed. The timestamp recorded by Windows is the $SI Modification Time, not the execution time
-    
+
     Configuration section:
         - **cmd**: external command to parse shellbags. It is a Python string template accepting variables "windows_tool", "executable", "hives_dir" and "outdir". Variable "hives_dir" is deduced by the job from "path". The rest are the same ones specified in parameters
         - **executable**: path to executable app to parse appcompat. By default is using AppCompatCacheParser. See (https://ericzimmerman.github.io/#!index.md)
         - **windows_tool**: in a non Windows environment, path to the tool needed to run the executable, such as `wine` or `dotnet`
-        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`  
+        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`
      """
     # appcompatcache regripper plugin doesn't seems to show executed flag. AppCompatCacheParser.exe does
 
@@ -791,7 +790,7 @@ class AppCompat(BaseRegistry):
         super().read_config()
         self.set_default_config('path', '')
         self.set_default_config('cmd', '')
-        #self.set_default_config('cmd', '{windows_tool} {executable} -f {path} --csv {outdir} --csvf {filename} --nl')
+        # self.set_default_config('cmd', '{windows_tool} {executable} -f {path} --csv {outdir} --csvf {filename} --nl')
         self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'AppCompatCacheParser.exe'))
         self.set_default_config('windows_tool', os.path.join(self.config.config['plugins.windows']['dotnet_dir'], 'dotnet'))
         self.set_default_config('convert_paths', False)
@@ -807,7 +806,7 @@ class AppCompat(BaseRegistry):
         tmp_file = os.path.join(os.path.dirname(self.outfile), 'temp_' + os.path.basename(self.outfile))
 
         cmd = self.myconfig('cmd', None)
-        self.logger().debug("Parsing appcompatcache on registry hive {}".format(path))
+        self.logger().debug(f"Parsing appcompatcache on registry hive {path}")
         if not cmd:
             # Use regripper appcompatcache plugin to parse
             save_csv(self.parse_appcompatcache(path), outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
@@ -825,7 +824,7 @@ class AppCompat(BaseRegistry):
 
             # Assuming AppCompatCacheParser is used, rearrange the default output and skip entries with Duplicate=True
             run_command("rg -v ',True,' {} | awk -F, '{{ print $4\";\"$3\";\"$2\";\"$5 }}' > {}".format(tmp_file, self.outfile))
-            #run_command('mv {} {}'.format(tmp_file, self.outfile))
+            # run_command('mv {} {}'.format(tmp_file, self.outfile))
 
         self.logger().debug("Finished extraction from AppCompatCache")
 
@@ -837,7 +836,6 @@ class AppCompat(BaseRegistry):
         date_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
         line_number = 0
         start = 1000
-        result = {}
         for line in yield_command([ripcmd, "-r", path, "-p", "appcompatcache"], logger=self.logger()):
             line_number += 1
             if line_number < 5:
@@ -871,12 +869,12 @@ name" are automatically set by the job. The rest are the same ones specified in 
         - **executable**: path to executable app to parse UserAssist. By default is using RECmd.exe. See (https://ericzimmerman.github.io/#!index.md)
         - **batch_file**: configuration file that settles the registry keys to be parsed. Relative to `windows_tools_dir`
         - **windows_tool**: in a non Windows environment, path to the tool needed to run the executable, such as `wine` or `dotnet`
-        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`         
+        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`
     """
 
     def read_config(self):
         super().read_config()
-        #self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
+        # self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
         self.set_default_config('cmd', '{windows_tool} {executable} --bn {batch_file} -f {hive} --csv {outdir} --csvf {filename} --nl')
         self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RECmd/RECmd.exe'))
         self.set_default_config('batch_file', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'RECmd/BatchExamples/BatchExampleUserAssist.reb'))
@@ -936,8 +934,8 @@ class UserAssistAnalysis(base.job.BaseModule):
         outfile = self.myconfig('outfile')
         check_directory(os.path.dirname(os.path.abspath(outfile)), create=True)
 
-        #save_csv(self.report_userassist(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
-        #save_csv(self.report_userassist_v1(path), config=self.config, outfile=outfile[:-4] + '1.csv', file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+        # save_csv(self.report_userassist(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
+        # save_csv(self.report_userassist_v1(path), config=self.config, outfile=outfile[:-4] + '1.csv', file_exists='OVERWRITE', quoting=0, encoding='utf-8')
         save_csv(self.report_userassist_v2(path), config=self.config, outfile=outfile, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
 
         return []
@@ -984,7 +982,6 @@ class UserAssistAnalysis(base.job.BaseModule):
                     res.update({'User': user, 'Partition': partition})
                     yield res
 
-
     def report_userassist_v2(self, path):
         """ Create a unique userassist csv for all users. Based on raw output of RECmd v2.0.0.0 """
 
@@ -1006,7 +1003,7 @@ class UserAssistAnalysis(base.job.BaseModule):
                     res['LastExecuted'] = res.pop("ValueData2")[15:].split('.')[0]  # Value in the format "Last executed: 2022-08-19 08:24:43.4370000"
                     res['ProgramName'] = res.pop("ValueData")
                     if not res['ProgramName']:
-                        continue                    
+                        continue
                     res['RunCount'] = res.pop("ValueData3")[11:]  # Value in the format "Run count: 32"
                     res["Deleted"] = res.pop("Deleted")
                     res.update({'User': user, 'Partition': partition})
@@ -1020,7 +1017,7 @@ class Shellbags(BaseRegistry):
         - **cmd**: external command to parse shellbags. It is a Python string template accepting variables "windows_tool", "executable", "hives_dir" and "outdir". Variable "hives_dir" is deduced by the job from "path". The rest are the same ones specified in parameters
         - **executable**: path to executable app to parse shellbags. By default is using SBECmd.exe. See (https://ericzimmerman.github.io/#!index.md)
         - **windows_tool**: in a non Windows environment, path to the tool needed to run the executable, such as `wine` or `dotnet`
-        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`  
+        - **convert_paths**: Convert paths to Windows format ("\\"). Necessary when using native Windows tools like `wine`
     """
 
     def read_config(self):
@@ -1056,8 +1053,8 @@ class Shellbags(BaseRegistry):
 
             convert_paths = self.myflag('convert_paths')
             cmd_vars = {'windows_tool': self.myconfig('windows_tool'),
-                        'executable': windows_format_path(self.myconfig('executable'), enclosed=True)  if convert_paths else self.myconfig('executable'),
-                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True)  if convert_paths else self.myconfig('outdir'),
+                        'executable': windows_format_path(self.myconfig('executable'), enclosed=True) if convert_paths else self.myconfig('executable'),
+                        'outdir': windows_format_path(self.myconfig('outdir'), enclosed=True) if convert_paths else self.myconfig('outdir'),
                         'hives_dir': windows_format_path(hives_dir, enclosed=True) if convert_paths else hives_dir}
             cmd_args = shlex.split(cmd.format(**cmd_vars))
 
@@ -1118,7 +1115,7 @@ class RunKeys(BaseRegistry):
         self.check_params(path, check_path=True, check_path_exists=True)
         self.partition = get_partition(path, self.myconfig('mountdir'))
         self.get_outfile('run_keys', extension='csv', volume_id=self.partition)
-        self.logger().debug("Parsing {}".format(path))
+        self.logger().debug(f"Parsing {path}")
 
         regfiles = get_hives(path)
         if 'ntuser' not in regfiles and 'software' not in regfiles:
@@ -1137,7 +1134,7 @@ class RunKeys(BaseRegistry):
         # Parse NTUSER.DAT Run Keys
         for user in tqdm(regfiles['ntuser'], total=len(regfiles['ntuser']), desc=self.section):
             hive = regfiles['ntuser'][user]
-            self.logger().debug("Parsing {}".format(hive))
+            self.logger().debug(f"Parsing {hive}")
             entries = self.parse_run_keys(hive, user=user)
             save_csv(entries, outfile=self.outfile, file_exists='APPEND', quoting=0)
 
@@ -1160,7 +1157,7 @@ class RunKeys(BaseRegistry):
         try:
             registry = Registry.Registry(path)
         except Exception as exc:
-            self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
+            self.logger().warning(f"Problems parsing: {path}. Error: {exc}")
         for regkey in run_keys:
             if user:
                 # Desired keys in NTUSER.DAT start with SOFTWARE
@@ -1175,7 +1172,7 @@ class RunKeys(BaseRegistry):
             except Registry.RegistryKeyNotFoundException:
                 self.logger().debug(f'Key {regkey} not found')
             except KeyError:
-                self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+                self.logger().warning(f"Expected subkeys not found in hive file: {self.amcache_path}")
 
         self.logger().debug("RunKeys parsing finished")
         return []
@@ -1188,7 +1185,7 @@ class Services(BaseRegistry):
         self.check_params(path, check_path=True, check_path_exists=True)
         self.partition = get_partition(path, self.myconfig('mountdir'))
         self.get_outfile('services', extension='json', volume_id=self.partition)
-        self.logger().debug("Parsing {}".format(path))
+        self.logger().debug(f"Parsing {path}")
 
         entries = self.parse_services_keys(path)
         # save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
@@ -1199,7 +1196,7 @@ class Services(BaseRegistry):
         try:
             registry = Registry.Registry(path)
         except Exception as exc:
-            self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
+            self.logger().warning(f"Problems parsing: {path}. Error: {exc}")
 
         # Get current control set number
         select = registry.open("Select")
@@ -1213,7 +1210,7 @@ class Services(BaseRegistry):
         except Registry.RegistryKeyNotFoundException:
             self.logger().debug(f'Key {regkey} not found')
         except KeyError:
-            self.logger().warning("Expected subkeys not found in hive file: {}".format(self.amcache_path))
+            self.logger().warning(f"Expected subkeys not found in hive file: {self.amcache_path}")
 
         self.logger().debug("Services Keys parsing finished")
         return []
@@ -1226,7 +1223,7 @@ class Tasks(BaseRegistry):
         self.check_params(path, check_path=True, check_path_exists=True)
         self.partition = get_partition(path, self.myconfig('mountdir'))
         self.get_outfile('tasks', extension='csv', volume_id=self.partition)
-        self.logger().debug("Parsing {}".format(path))
+        self.logger().debug(f"Parsing {path}")
 
         entries = self.parse_tasks_keys(path)
         save_csv(entries, outfile=self.outfile, file_exists='OVERWRITE', quoting=0)
@@ -1236,7 +1233,7 @@ class Tasks(BaseRegistry):
         try:
             registry = Registry.Registry(path)
         except Exception as exc:
-            self.logger().warning("Problems parsing: {}. Error: {}".format(path, exc))
+            self.logger().warning(f"Problems parsing: {path}. Error: {exc}")
 
         regkey = 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tasks'
         # Key 'Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tree' won't be parsed since the information is not relevant
@@ -1251,17 +1248,17 @@ class Tasks(BaseRegistry):
                 if subkey.get('registry.data.Date'):
                     task_edited = date_to_iso(subkey.get('registry.data.Date'), hide_tz=True, sep=' ', timespec='seconds')
                 yield OrderedDict([("@timestamp", subkey['@timestamp']),
-                                  ('Task', subkey.get('registry.data.Path', "")),
-                                  ('Created', task_created),
-                                  ('LastExecuted', last_executed),
-                                  ('LastCompleted', last_completed),
-                                  ('Updated', task_edited),
-                                  ('Author', subkey.get('registry.data.Author', "")),
-                                  ('Description', subkey.get('registry.data.Description', ""))])
+                                   ('Task', subkey.get('registry.data.Path', "")),
+                                   ('Created', task_created),
+                                   ('LastExecuted', last_executed),
+                                   ('LastCompleted', last_completed),
+                                   ('Updated', task_edited),
+                                   ('Author', subkey.get('registry.data.Author', "")),
+                                   ('Description', subkey.get('registry.data.Description', ""))])
         except Registry.RegistryKeyNotFoundException:
             self.logger().debug(f'Key {regkey} not found')
         except KeyError:
-            self.logger().warning("Expected subkeys not found in hive file: {}".format(regkey))
+            self.logger().warning(f"Expected subkeys not found in hive file: {regkey}")
 
         self.logger().debug("TaskCache Keys parsing finished")
         return []
@@ -1286,7 +1283,7 @@ class InstalledSoftware(base.job.BaseModule):
             'msis': ('base.input.CSVReader', 'lastwrite', 'ProductName'),
             'powershellcore': ('base.input.JSONReader', 'lastwrite', ''),
             'pslogging': ('base.input.JSONReader', 'lastwrite', ''),
-            #'shc': ('base.input.CSVReader', 'lastwrite', 'program'),
+            # 'shc': ('base.input.CSVReader', 'lastwrite', 'program'),
             'uninstall': ('base.input.CSVReader', 'lastwrite', 'DisplayName', 'Name')
         }
 
@@ -1310,7 +1307,7 @@ class InstalledSoftware(base.job.BaseModule):
                     yield result
             else:
                 for line in base.job.run_job(self.config, 'base.input.JSONReader', path=os.path.join(path, file)):
-                    program = next(iter(line)) # Every line should only have one entry
+                    program = next(iter(line))  # Every line should only have one entry
                     result = {
                         'LastWrite': line[program][plugins_fields[short_name][1]],
                         'Program': program,

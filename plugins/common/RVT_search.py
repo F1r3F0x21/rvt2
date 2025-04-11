@@ -17,7 +17,7 @@ import os
 import re
 import shutil
 import tempfile
-import json
+import ujson as json
 import logging
 from collections import Counter, OrderedDict, defaultdict
 from tqdm import tqdm
@@ -107,7 +107,7 @@ class StringSearch(base.job.BaseModule):
         self.disk = getSourceImage(self.myconfig)
 
         keyfile = path
-        self.logger().debug('Testing existance of {}'.format(keyfile))
+        self.logger().debug(f'Testing existance of {keyfile}')
         if not keyfile:
             keyfile = self.myconfig('keyfile')
         check_file(keyfile, error_missing=True)
@@ -140,31 +140,31 @@ class StringSearch(base.job.BaseModule):
 
     def get_blocks(self, kw, regex):
         """ Updates variable self.blocks, that stores set of blocks for kw and partition, creating new 'block' and 'hits' files """
-        self.blocks_file_path = os.path.join(self.search_path, "blocks_{}".format(kw))
-        hits_file = os.path.join(self.search_path, "hits_%s" % kw)
+        self.blocks_file_path = os.path.join(self.search_path, f"blocks_{kw}")
+        hits_file = os.path.join(self.search_path, f"hits_{kw}")
 
         # Create hits file if not found
         if not check_file(hits_file) or os.path.getsize(hits_file) == 0:
-            self.logger().debug('Creating {} file'.format("hits_%s" % kw))
+            self.logger().debug(f'Creating hits_{kw} file')
             extra_args = {'write_header': True, 'file_exists': 'OVERWRITE'}
             save_csv(self.search_strings(kw, regex), config=self.config, outfile=hits_file, **extra_args)
 
         # Create or load blocks file if not found
         if not check_file(self.blocks_file_path) or os.path.getsize(self.blocks_file_path) == 0:
             self.blocks[kw] = defaultdict(list)
-            cmd = "sed -n '1!p' {} | cut -d ';' -f1,3 | sort | uniq".format(hits_file)
+            cmd = f"sed -n '1!p' {hits_file} | cut -d ';' -f1,3 | sort | uniq"
             for line in yield_command(cmd, logger=self.logger()):
                 part, blk = line.split(';')
                 part = part.strip('"')
                 self.blocks[kw][part].append(int(blk.strip('"').rstrip('\n')))
             self.save_blocks_file(self.blocks[kw], kw)
         else:
-            self.logger().debug('Loading {} file'.format("blocks_%s" % kw))
+            self.logger().debug(f'Loading blocks_{kw} file')
             try:
                 with open(self.blocks_file_path, "r") as block_file:
                     self.blocks[kw] = json.load(block_file)
             except Exception as exc:
-                self.logger().error('Cannot load {}'.format(self.blocks_file_path))
+                self.logger().error(f'Cannot load {self.blocks_file_path}')
                 raise exc
 
     def search_strings(self, kw, regex):
@@ -177,7 +177,7 @@ class StringSearch(base.job.BaseModule):
         Yields:
             Dictionaries containing partition, block, offset and string match
         """
-        self.logger().debug('Searching keyword {} with regex {}'.format(kw, regex))
+        self.logger().debug(f'Searching keyword {kw} with regex {regex}')
 
         partitions = {p.partition: [p.loop if p.loop != "" else "", p.clustersize] for p in self.disk.partitions}
         blocks = {}
@@ -188,7 +188,7 @@ class StringSearch(base.job.BaseModule):
         grep = self.myconfig('grep', '/bin/grep')
         args = "-H" if kw == regex else "-HP"
         regex_search = [regex] if regex else [kw]
-        search_command = '{} {} '.format(grep, args) + '"{regex}" "{path}"'
+        search_command = f'{grep} {args} "{regex}" "{path}"'
         module = base.job.load_module(self.config, 'base.commands.RegexFilter',
                                       extra_config=dict(cmd=search_command, keyword_list=regex_search, from_dir=self.string_path))
 
@@ -210,7 +210,7 @@ class StringSearch(base.job.BaseModule):
                         self.block_status[pt][blk] = self.fs_object.cluster_allocation_status(pname, str(blk))
                     status = self.block_status[pt].get(blk)
                 except Exception as exc:
-                    self.logger().error('Error searching {} in line {}'.format(srch, line))
+                    self.logger().error(f'Error searching {srch} in line {line}')
                     raise exc
 
                 if blk not in blocks[pname]:  # new block
@@ -223,9 +223,9 @@ class StringSearch(base.job.BaseModule):
             self.save_blocks_file(blocks, kw)
 
     def save_blocks_file(self, blocks, kw):
-        self.logger().debug('Creating {} file'.format("blocks_%s" % kw))
+        self.logger().debug(f'Creating blocks_{kw} file')
         blocks = {p: list(b) for p, b in blocks.items()}  # json does not accept set structure
-        outfile = os.path.join(self.search_path, "blocks_%s" % kw)
+        outfile = os.path.join(self.search_path, f"blocks_{kw}")
         save_json((lambda: (yield blocks))(), config=self.config, outfile=outfile, file_exists='OVERWRITE')
 
     def get_cluster(self):
@@ -246,13 +246,13 @@ class StringSearch(base.job.BaseModule):
             for p in self.disk.partitions:
                 if not p.isMountable or p.filesystem == "NoName":
                     continue
-                self.inode_from_block['p{}'.format(p.partition)] = self.fs_object.load_inode_from_block(partition='p{}'.format(p.partition))
+                self.inode_from_block[f'p{p.partition}'] = self.fs_object.load_inode_from_block(partition=f'p{p.partition}')
 
         # Get the necessary files relating inodes with paths and status
         for p in self.disk.partitions:
             if not p.isMountable or p.filesystem == "NoName":
                 continue
-            part_name = 'p{}'.format(p.partition)
+            part_name = f'p{p.partition}'
             self.inode_status[part_name] = self.fs_object.load_inode_status(partition=part_name)
             self.path_from_inode[part_name] = self.fs_object.load_path_from_inode(partition=part_name)
             self.path_from_inode_del[part_name] = self.fs_object.load_path_from_inode(partition=part_name, deleted=True)
@@ -261,9 +261,9 @@ class StringSearch(base.job.BaseModule):
         self.block_inodes = defaultdict(dict)
 
         for kw in self.blocks:
-            all_file = os.path.join(self.search_path, "all_{}".format(kw))
+            all_file = os.path.join(self.search_path, f"all_{kw}")
             if check_file(all_file) and os.path.getsize(all_file) != 0:
-                self.logger().debug('File {} already generated'.format(all_file))
+                self.logger().debug(f'File {all_file} already generated')
                 continue
             with open(all_file, "wb") as all_stream:
                 for entry in self.all_info(self.blocks[kw], kw):
@@ -279,7 +279,7 @@ class StringSearch(base.job.BaseModule):
 
         for p_name, blks in kw_blocks.items():
             # p_name = ''.join(['p', pt])
-            for blk in tqdm(blks, total=len(blks), desc='Dumping searches for {} in partition {}'.format(kw, p_name)):
+            for blk in tqdm(blks, total=len(blks), desc=f'Dumping searches for {kw} in partition {p_name}'):
                 self.used_blocks[p_name].add(blk)
 
                 if blk not in self.block_inodes[p_name]:
@@ -300,7 +300,7 @@ class StringSearch(base.job.BaseModule):
 
                     for name in paths:
                         alloc = 'Allocated' if status == 'a' else 'Not Allocated'
-                        yield "Pt: {}; Blk: {}; Inode: {} {}; File: {}\n".format(p_name, blk, inode, alloc, name).encode()
+                        yield f"Pt: {p_name}; Blk: {blk}; Inode: {inode} {alloc}; File: {name}\n".encode()
 
                 yield b"\n"
                 yield self.fs_object.cluster_extract(p_name, str(blk))
@@ -317,6 +317,7 @@ class ReportSearch(base.job.BaseModule):
         - **search_dir**: output directory for StringSearch generated files
 
     """
+
     def run(self, path=""):
         keyfile = path
         if not keyfile:
@@ -353,9 +354,9 @@ class ReportSearch(base.job.BaseModule):
         line_width = 68  # number of characters per line in tex file
 
         for file in os.listdir(search_path):
-            if not file.startswith("all_{}".format(keyword)):
+            if not file.startswith(f"all_{keyword}"):
                 continue
-            self.logger().debug('Creating file {}'.format(file + '.pdf'))
+            self.logger().debug(f'Creating file {file}.pdf')
 
             with open(os.path.join(report_path, file + ".tex"), "w") as foutput:
 
@@ -399,8 +400,8 @@ class ReportSearch(base.job.BaseModule):
                             if back_slash_end_line:
                                 chunk_line = '\\' + chunk_line
                             back_slash_end_line = chunk_line[-1] == '\\'
-                            chunk_line = re.sub('({})'.format(regex), r"\\colorbox{green}{" + r'\1' + r"}", chunk_line, flags=re.I | re.M)
-                            chunk_line = re.sub('({})'.format(kw_utf8), r"\\colorbox{green}{" + r'\1' + r"}", chunk_line, flags=re.I | re.M)
+                            chunk_line = re.sub(f'({regex})', r"\\colorbox{green}{" + r'\1' + r"}", chunk_line, flags=re.I | re.M)
+                            chunk_line = re.sub(f'({kw_utf8})', r"\\colorbox{green}{" + r'\1' + r"}", chunk_line, flags=re.I | re.M)
                             foutput.write(chunk_line + "\n")
 
                 foutput.write("\n\\end{Verbatim}\n")
@@ -410,7 +411,7 @@ class ReportSearch(base.job.BaseModule):
             break
 
         else:
-            self.logger().warning('No file: all_{}. Perhaps there is no match for the keyword'.format(keyword))
+            self.logger().warning(f'No file: all_{keyword}. Perhaps there is no match for the keyword')
 
         for file in os.listdir(report_path):
             if file.endswith(".log") or file.endswith(".tex") or file.endswith(".aux") or file.endswith(".toc") or file.endswith(".out") or file.endswith(".synctex.gz"):
@@ -431,7 +432,7 @@ class SearchEmailAddresses(base.job.BaseModule):
 
         with open(os.path.join(self.myconfig('outdir'), "count_emails.txt"), "w") as f:
             for e, n in counts.most_common():
-                f.write("{}\t{}\n".format(n, e))
+                f.write(f"{n}\t{e}\n")
         self.logger().debug("SearchEmailAddresses done")
         return []
 
@@ -464,14 +465,14 @@ class SearchAccounts(base.job.BaseModule):
             for e, n in counts.most_common():
                 if not e:
                     continue
-                f.write("{}\t{}\n".format(n, e))
+                f.write(f"{n}\t{e}\n")
                 v = self.validate(e, banks)
                 if v != "":
                     valids[v] += n
 
         with open(os.path.join(self.myconfig('outdir'), "valid_count_accounts.txt"), "w") as f:
             for e, n in valids.most_common():
-                f.write("{}\t{}\n".format(n, e))
+                f.write(f"{n}\t{e}\n")
         self.logger().debug("SearchAccounts done")
         return []
 
@@ -502,7 +503,7 @@ class SearchAccounts(base.job.BaseModule):
             d2 = 1
         elif d2 == 11:
             d2 = 0
-        return "{}{}".format(d1, d2)
+        return f"{d1}{d2}"
 
     def validate(self, account, banks):
         """ Returns an account in a normalized format
@@ -521,7 +522,7 @@ class SearchAccounts(base.job.BaseModule):
             return ""
 
         if int(self.control_digits(aux)) != int(aux[8:10]):
-            self.logger().warning("{} is not a valid account".format(aux))
+            self.logger().warning(f"{aux} is not a valid account")
             return ""
         entity = int(aux[0:4])
         control_IBAN = 98 - int(aux + "142800") % 97
@@ -529,9 +530,9 @@ class SearchAccounts(base.job.BaseModule):
             control_IBAN = "0" + str(control_IBAN)
 
         if entity in banks:
-            return("ES{} {} {} {} {} {}; {}".format(control_IBAN, aux[0:4], aux[4:8], aux[8:12], aux[12:16], aux[16:20], banks[entity]))
+            return(f"ES{control_IBAN} {aux[0:4]} {aux[4:8]} {aux[8:12]} {aux[12:16]} {aux[16:20]}; {banks[entity]}")
         else:
-            return("ES{} {} {} {} {} {}".format(control_IBAN, aux[0:4], aux[4:8], aux[8:12], aux[12:16], aux[16:20]))
+            return(f"ES{control_IBAN} {aux[0:4]} {aux[4:8]} {aux[8:12]} {aux[12:16]} {aux[16:20]}")
 
 
 class OutSearch(base.job.BaseModule):
@@ -549,7 +550,7 @@ class OutSearch(base.job.BaseModule):
 
         skip_folders = ("strings", "parser", "searches")
 
-        self.logger().debug("Getting key list from {}".format(keyfile))
+        self.logger().debug(f"Getting key list from {keyfile}")
         keywords = getSearchItems(keyfile)
 
         temp_dir = tempfile.mkdtemp('outsearch')
@@ -557,9 +558,9 @@ class OutSearch(base.job.BaseModule):
         check_directory(outdir, create=True)
 
         for kw, srch in keywords.items():
-            output_file = os.path.join(temp_dir, "outsearch_{}.txt".format(kw))
+            output_file = os.path.join(temp_dir, f"outsearch_{kw}.txt")
             with open(output_file, "w") as f:
-                f.write("\nKeyword: {}\n-----------------------------\n\n".format(srch))
+                f.write(f"\nKeyword: {srch}\n-----------------------------\n\n")
                 f.flush()
 
                 for item in os.listdir(self.myconfig('outputdir')):

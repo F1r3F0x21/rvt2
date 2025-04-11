@@ -28,7 +28,7 @@ from base.commands import run_command
 import base.job
 import zipfile
 import tarfile
-import json
+import ujson as json
 from tqdm import tqdm
 import shutil
 
@@ -197,7 +197,7 @@ class BaseImage(object):
                     elif p.startswith('v'):
                         parts.append(vss_by_name[p])
             except KeyError:
-                raise base.job.RVTError('Partition name {} not found'.format(p))
+                raise base.job.RVTError(f'Partition name {p} not found')
         if len(parts) < 1:
             raise base.job.RVTError('No partition set to be mounted')
 
@@ -214,7 +214,7 @@ class BaseImage(object):
     def _getRawImagefile(self):
         """ Get the raw image file.
 
-        Some images (enfue, aff4...) must be mounted in order to have a raw image.
+        Some images (encase, aff4...) must be mounted in order to have a raw image.
         Use this method to mount and get the path of these auxiliary mounts.
         Remember to umount these auxiliary images in umount()
         """
@@ -223,8 +223,9 @@ class BaseImage(object):
 
     def mmls(self):
         """ Read partitions from the image """
+
         imagefile = self._getRawImagefile()
-        self.logger.debug('Listing partitions. source=%s imagefile=%s type=%s', self.params('source'), imagefile, self.imagetype)
+        self.logger.debug(f"Listing partitions. source={self.params('source')} imagefile={imagefile} type={self.imagetype}")
 
         img = pytsk3.Img_Info(imagefile)
         try:
@@ -234,7 +235,7 @@ class BaseImage(object):
             volume = None
 
         if not volume:
-            self.logger.info("File imagefile=%s has not a partition table or is malformed. Trying to manage as a single partition" % self.imagefile)
+            self.logger.info(f"File imagefile={self.imagefile} has not a partition table or is malformed. Trying to manage as a single partition")
             try:
                 fs = pytsk3.FS_Info(img)
                 filesystem = self.fs_descr[fs.info.ftype]
@@ -243,7 +244,7 @@ class BaseImage(object):
                 self.partitions.append(Partition(imagefile, int(os.stat(self.imagefile).st_size) / int(self.sectorsize), filesystem, "0", "0", self.sectorsize, self.params))
                 return
             except Exception:
-                self.logger.error("Error getting image partition info from imagefile=%s" % self.imagefile)
+                self.logger.error(f"Error getting image partition info from imagefile={self.imagefile}")
                 return
 
         for part in volume:
@@ -282,7 +283,7 @@ class BaseImage(object):
                             self.partitions.append(Partition(imagefile, size, filesystem, osects, partition, self.sectorsize, self.params, aux.group(1), n))
                             n += 1
                         except Exception:
-                            self.logger.error("Problems getting information about APFS partition %s with block Number %s" % (partition, aux.group(1)))
+                            self.logger.error(f"Problems getting information about APFS partition {partition} with block Number {aux.group(1)}")
             else:
                 try:
                     self.partitions.append(Partition(imagefile, size, filesystem, osects, partition, self.sectorsize, self.params))
@@ -355,7 +356,7 @@ class ZipImage(BaseImage):
                     else:
                         self.logger.warning('The unzip directory already exists: %s. Won\'t unzip', os.path.join(unzip_path, bkid))
             except Exception as exc:
-                self.logger.warning('Cannot read zip file: %s', exc)
+                self.logger.warning(f'Cannot read zip file: {exc}')
 
     def umount(self, unzip_path=None):
         self.mmls()
@@ -400,7 +401,7 @@ class AFFImage(BaseImage):
 
     def _getRawImagefile(self):
         fuse_path = os.path.join(self.params('mountauxdir'), "aff")
-        imagefile = os.path.join(fuse_path, "%s.raw" % os.path.basename(self.imagefile))
+        imagefile = os.path.join(fuse_path, f"{os.path.basename(self.imagefile)}.raw")
         self.auxdirectories.append(fuse_path)
         if not os.path.exists(imagefile):
             affuse = self.params('affuse', '/usr/bin/affuse')
@@ -408,10 +409,10 @@ class AFFImage(BaseImage):
             try:
                 run_command(["sudo", affuse, self.imagefile, fuse_path])
                 fuse_path = os.path.join(self.params('mountauxdir'), "aff")
-                imagefile = os.path.join(fuse_path, "%s.raw" % os.path.basename(self.imagefile))
+                imagefile = os.path.join(fuse_path, f"{os.path.basename(self.imagefile)}.raw")
             except Exception:
-                self.logger.error("Cannot mount AFF imagefile=%s", self.imagefile)
-                raise base.job.RVTError("Cannot mount AFF imagefile={}".format(self.imagefile))
+                self.logger.error(f"Cannot mount AFF imagefile={self.imagefile}")
+                raise base.job.RVTError(f"Cannot mount AFF imagefile={self.imagefile}")
         return imagefile
 
     def umount(self, unzip_path=None):

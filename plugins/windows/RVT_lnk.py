@@ -105,18 +105,18 @@ class Lnk(object):
             lnk.open(self.archive)
             lnk.set_ascii_codepage(self.encoding)
         except Exception as exc:
-            self.logger.debug("pylnk can't open filename=%s error=%s", self.archive, exc)
+            self.logger.debug(f"pylnk can't open filename={self.archive} error={exc}")
             return -1
 
         try:
             drive = self.drive_type[str(lnk.get_drive_type())]
         except Exception as exc:
-            self.logger.debug("pylnk can't determine drive type for filename=%s error=%s", self.archive, exc)
+            self.logger.debug(f"pylnk can't determine drive type for filename={self.archive} error={exc}")
             drive = ""
         try:
             machine_id = lnk.get_machine_identifier().rstrip('\x00')
         except Exception as exc:
-            self.logger.debug("pylnk can't get machine identifier for filename=%s error=%s", self.archive, exc)
+            self.logger.debug(f"pylnk can't get machine identifier for filename={self.archive} error={exc}")
             machine_id = ""
 
         path = lnk.get_local_path()
@@ -140,12 +140,12 @@ class Lnk(object):
         try:
             network_path = lnk.get_network_path()
         except Exception as exc:
-            self.logger.debug("pylnk can't get network path. error={}".format(exc))
+            self.logger.debug(f"pylnk can't get network path. error={exc}")
             network_path = ""
         try:
             file_size = lnk.get_file_size()
         except Exception as exc:
-            self.logger.debug("pylnk can't get file size. error={}".format(exc))
+            self.logger.debug(f"pylnk can't get file size. error={exc}")
             file_size = -1
 
         try:
@@ -160,7 +160,7 @@ class Lnk(object):
             fileBirthDroidDate = datetime.datetime.fromtimestamp((fileBirthDroid.time - 0x01b21dd213814000) * 100 / 1e9)
             fileBirthDroidMAC = ":".join(re.findall("..", "%012x" % fileBirthDroid.node))
         except Exception as exc:
-            self.logger.debug("pylnk can't get file identifier. error={}".format(exc))
+            self.logger.debug(f"pylnk can't get file identifier. error={exc}")
             file_objectID, b_file_objectID, vol_objectID, b_vol_objectID, fileDroidDate, fileDroidMAC, fileBirthDroidDate, fileBirthDroidMAC = ['', '', '', '', '', '', '', '']
 
         file_times = [lnk.get_file_modification_time(), lnk.get_file_access_time(), lnk.get_file_creation_time()]
@@ -175,7 +175,7 @@ class Lnk(object):
             data = [drive, sn, machine_id, path, network_path, file_size, self.convertAttributes(lnk.get_file_attribute_flags()), lnk.get_description(),
                     lnk.get_command_line_arguments(), fileDroidDate, fileBirthDroidDate, fileDroidMAC, fileBirthDroidMAC, file_objectID, b_file_objectID, vol_objectID, b_vol_objectID, *file_times]
         except Exception as exc:
-            self.logger.debug("Lnk Error. error=%s", exc)
+            self.logger.debug(f"Lnk Error. error={exc}")
             return -1
         lnk.close()
         return data
@@ -204,20 +204,19 @@ class LnkParser(base.job.BaseModule):
         files = {'lnk': [], 'autodest': [], 'customdest': []}
 
         if not os.path.isdir(path):
-            raise base.job.RVTError('Provided path {} is not a directory'.format(path))
+            raise base.job.RVTError(f'Provided path {path} is not a directory')
 
         for artifact, properties in artifacts.items():
             for file in os.listdir(path):
                 if file.lower().endswith(properties['ending']):
                     files[artifact].append(os.path.abspath(os.path.join(path, file)))
-            out_file = os.path.join(self.myconfig('outdir'), "{}_{}_{}.csv".format(
-                self.volume_id, self.username, artifact))
+            out_file = os.path.join(self.myconfig('outdir'), f"{self.volume_id}_{self.username}_{artifact}.csv")
             if len(files[artifact]) > 0:
-                self.logger().info("Founded {} {} files".format(len(files[artifact]), artifact))
+                self.logger().info(f"Founded {len(files[artifact])} {artifact} files")
                 save_csv(properties['function'](files[artifact]), config=self.config, outfile=out_file, quoting=0, file_exists='APPEND')
-                self.logger().info("{} extraction done".format(artifact))
+                self.logger().info(f"{artifact} extraction done")
             else:
-                self.logger().debug('No {} files found'.format(artifact))
+                self.logger().debug(f'No {artifact} files found')
 
         return []
 
@@ -235,7 +234,7 @@ class LnkParser(base.job.BaseModule):
         if files_list[0].startswith(self.myconfig('casedir')):  # Path inside casedir
             relative_files_list = [relative_path(file, self.myconfig('casedir')) for file in files_list]
 
-        body_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), '{}_BODY.csv'.format(self.config.config['DEFAULT']['source']))
+        body_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), f"{self.config.config['DEFAULT']['source']}_BODY.csv")
         data = {}
         if not (os.path.exists(body_file) and os.path.getsize(body_file) > 0):
             data = {file: ['1601-01-01T00:00:00Z'] * 4 for file in relative_files_list}
@@ -247,7 +246,7 @@ class LnkParser(base.job.BaseModule):
             lnk = lnk.get_lnk_info()
 
             if lnk == -1:
-                self.logger().debug("Problems with file {}".format(abs_file))
+                self.logger().debug(f"Problems with file {abs_file}")
                 yield OrderedDict(zip(headers, data[rel_file] + [""] * 20 + [rel_file]))
             else:
                 yield OrderedDict(zip(headers, data[rel_file] + lnk + [rel_file]))
@@ -273,13 +272,13 @@ class LnkParser(base.job.BaseModule):
             try:
                 ole = olefile.OleFileIO(jl)
             except Exception as exc:
-                self.logger().debug("Problems creating OleFileIO with file {}\n{}".format(jl, exc))
+                self.logger().debug(f"Problems creating OleFileIO with file {jl}\n{exc}")
                 continue
             try:
                 data = ole.openstream('DestList').read()
                 header_version, = struct.unpack('<L', data[0:4])
                 version = 'w10' if header_version >= 3 else 'w7'
-                self.logger().debug("Windows version of Jumplists: {}".format(version))
+                self.logger().debug(f"Windows version of Jumplists: {version}")
                 break
             except Exception:
                 continue
@@ -300,38 +299,38 @@ class LnkParser(base.job.BaseModule):
 
         # Main loop
         for abs_jl, jl in zip(files_list, relative_files_list):
-            self.logger().debug("Processing Jump list : {}".format(os.path.basename(jl)))
+            self.logger().debug(f"Processing Jump list : {os.path.basename(jl)}")
             try:
                 ole = olefile.OleFileIO(abs_jl)
             except Exception as exc:
-                self.logger().debug("Problems creating OleFileIO with filename={} error={}".format(abs_jl, exc))
+                self.logger().debug(f"Problems creating OleFileIO with filename={abs_jl} error={exc}")
                 continue
 
             if not ole.exists('DestList'):
-                self.logger().debug("File {} does not have a DestList entry and can't be parsed".format(abs_jl))
+                self.logger().debug(f"File {abs_jl} does not have a DestList entry and can't be parsed")
                 ole.close()
                 continue
             else:
                 if not (len(ole.listdir()) - 1):
 
-                    self.logger().debug("Olefile has detected 0 entries in filename={}. File will be skipped".format(abs_jl))
+                    self.logger().debug(f"Olefile has detected 0 entries in filename={abs_jl}. File will be skipped")
                     ole.close()
                     continue
 
                 dest = ole.openstream('DestList')
                 data = dest.read()
                 if len(data) == 0:
-                    self.logger().debug("No DestList data in filename={}. File will be skipped".format(abs_jl))
+                    self.logger().debug(f"No DestList data in filename={abs_jl}. File will be skipped")
                     ole.close()
                     continue
-                self.logger().debug("DestList lenght: {}".format(ole.get_size("DestList")))
+                self.logger().debug(f'DestList lenght: {ole.get_size("DestList")}')
 
                 try:
                     # Double check number of entries
                     current_entries, pinned_entries = struct.unpack("<LL", data[4:12])
-                    self.logger().debug("Current entries: {}".format(current_entries))
+                    self.logger().debug(f"Current entries: {current_entries}")
                 except Exception as exc:
-                    self.logger().debug("Problems unpacking header Destlist with filename={} error={}".format(abs_jl, exc))
+                    self.logger().debug(f"Problems unpacking header Destlist with filename={abs_jl} error={exc}")
                     # continue
 
                 ofs = 32  # Header offset
@@ -347,7 +346,7 @@ class LnkParser(base.job.BaseModule):
                             name = stream[72:88].decode("cp1252")
                         except Exception as exc:
                             self.logger().debug("cp1252 decoding failed")
-                            self.logger().debug("Problems decoding name with filename={} error={}".format(abs_jl, exc))
+                            self.logger().debug(f"Problems decoding name with filename={abs_jl} error={exc}")
 
                     name = name.replace("\00", "")
 
@@ -355,7 +354,7 @@ class LnkParser(base.job.BaseModule):
                     try:
                         id_entry, = struct.unpack(id_entry_ofs[version][0], stream[id_entry_ofs[version][1]:id_entry_ofs[version][2]])
                     except Exception as exc:
-                        self.logger().debug("Problems unpacking id_entry with filename={} error={}".format(abs_jl, exc))
+                        self.logger().debug(f"Problems unpacking id_entry with filename={abs_jl} error={exc}")
                         # self.logger().debug(stream[id_entry_ofs[version][1]:id_entry_ofs[version][2]])
                         break
                     id_entry = format(id_entry, '0x')
@@ -373,16 +372,16 @@ class LnkParser(base.job.BaseModule):
                     try:
                         time0, time1 = struct.unpack("II", stream[100:108])
                     except Exception as exc:
-                        self.logger().debug("Problems unpacking MSFILETIME with filename={} error={}".format(abs_jl, exc))
+                        self.logger().debug(f"Problems unpacking MSFILETIME with filename={abs_jl} error={exc}")
                         break
                     timestamp = getFileTime(time0, time1)
 
                     # sz: Length of Unicodestring data
                     try:
                         sz, = struct.unpack("h", stream[sz_ofs[version][0]:sz_ofs[version][1]])
-                        # self.logger().debug("sz: {}".format(sz))
+                        # self.logger().debug(f"sz: {sz}")
                     except Exception as exc:
-                        self.logger().debug("Problems unpaking unicode string size with filename={} error={}".format(abs_jl, exc))
+                        self.logger().debug(f"Problems unpaking unicode string size with filename={abs_jl} error={exc}")
                         # self.logger().debug(stream[sz_ofs[version][0]:sz_ofs[version][1]])
                         break
 
@@ -391,7 +390,7 @@ class LnkParser(base.job.BaseModule):
                         try:
                             interaction_count, = struct.unpack("I", stream[116:120])
                         except Exception as exc:
-                            self.logger().debug("Problems unpaking interaction_count with filename={} error={}".format(abs_jl, exc))
+                            self.logger().debug(f"Problems unpaking interaction_count with filename={abs_jl} error={exc}")
                             interaction_count = ''
 
                     ofs += entry_ofs[version]
@@ -405,7 +404,7 @@ class LnkParser(base.job.BaseModule):
                         try:
                             path = data[ofs:ofs + sz2].decode("iso8859-15")
                         except Exception as exc:
-                            self.logger().debug("Problems decoding path with filename=%s error=%s", abs_jl, exc)
+                            self.logger().debug(f"Problems decoding path with filename={abs_jl} error={exc}")
                     path = path.replace("\00", "")
 
                     # Extract lnk data
@@ -413,7 +412,7 @@ class LnkParser(base.job.BaseModule):
                     try:
                         aux = ole.openstream(id_entry)
                     except Exception as exc:
-                        self.logger().debug("Problems with file filename=%s error=%s", abs_jl, exc)
+                        self.logger().debug(f"Problems with file filename={abs_jl} error={exc}")
                         self.logger().debug("ole.openstream failed")
                         temp.close()
                         break
@@ -511,11 +510,11 @@ class LnkExtract(base.job.BaseModule):
 
         for sort_values, files in all_recentfiles.items():
             partition, user, artifact = sort_values
-            self.logger().debug("Founded {} {} files for user {} at {}".format(len(files), artifact, user, partition))
-            out_file = os.path.join(lnk_path, "{}_{}_{}.csv".format(partition, user, artifact))
+            self.logger().debug(f"Founded {len(files)} {artifact} files for user {user} at {partition}")
+            out_file = os.path.join(lnk_path, f"{partition}_{user}_{artifact}.csv")
             if len(files) > 0:
                 save_csv(artifacts_funcs[artifact](files), config=self.config, outfile=out_file, quoting=0, file_exists='OVERWRITE')
-                self.logger().info("{} extraction done for user {} at {}".format(artifact, user, partition))
+                self.logger().info(f"{artifact} extraction done for user {user} at {partition}")
 
         self.logger().info("RecentFiles extraction done")
         return []
@@ -605,7 +604,7 @@ class LnkExtractFolder(base.job.BaseModule):
             path (string): path with lnk files
         """
         if not os.path.isdir(path):
-            self.logger().debug("%s folder not exists", path)
+            self.logger().debug(f"{path} folder not exists")
             return
 
         print("drive_type|drive_sn|machine_id|path|network_path|size|atributes|description|command line arguments|f_mtime|f_atime|f_ctime|file")
@@ -617,7 +616,7 @@ class LnkExtractFolder(base.job.BaseModule):
 
             lnk = lnk.get_lnk_info()
             if lnk == -1:
-                self.logger().debug("Problems with file {}".format(f))
+                self.logger().debug(f"Problems with file {f}")
                 print("|".join(["", "", "", "", "", "", "", "", "", "", "", "", f]))
                 print("|".join(["", "", "", "", "", ""]))
             else:
@@ -659,7 +658,7 @@ def get_user_list(mount_path):
             if os.path.isdir(user_path):
                 for u in sorted(os.listdir(user_path)):
                     if os.path.isdir(os.path.join(user_path, u)):
-                        users.add(os.path.join(user_path, u).split("%s/" % mount_path)[-1])
+                        users.add(os.path.join(user_path, u).split(f"{mount_path}/")[-1])
     return users
 
 

@@ -53,7 +53,7 @@ class Edge(base.job.BaseModule):
     def run(self, path):
         self.info = self.myconfig('information', 'history')
         if self.info not in ['history', 'cookies', 'downloads']:
-            raise ValueError('Invalid information kind {} to extract for edge artifacts'.format(self.info))
+            raise ValueError(f'Invalid information kind {self.info} to extract for edge artifacts')
 
         esedbexport = self.config.config['plugins.common'].get('esedbexport', 'esedbexport')
 
@@ -170,7 +170,7 @@ class Safari(base.job.BaseModule):
     def run(self, path):
         self.info = self.myconfig('information')
         if self.info not in ['history', 'cookies', 'downloads']:
-            raise ValueError('Invalid information kind {} to extract for safari artifacts'.format(self.info))
+            raise ValueError(f'Invalid information kind {self.info} to extract for safari artifacts')
 
         parser_functions = {'history': self.history_plist,
                             'downloads': self.downloads,
@@ -249,7 +249,7 @@ class Safari(base.job.BaseModule):
             file_header = binary_file.read(4)  # File Magic String:cook
 
             if file_header != b'cook':
-                raise ValueError("{} not recognized as Cookies.binarycookie file".format(path))
+                raise ValueError(f"{path} not recognized as Cookies.binarycookie file")
 
             num_pages = unpack('>i', binary_file.read(4))[0]  # Number of pages in the binary file: 4 bytes
 

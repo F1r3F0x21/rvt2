@@ -42,10 +42,10 @@ class ScheduledTasks(base.job.BaseModule):
 
         self.outfolder = self.myconfig('outdir')
         check_directory(self.outfolder, create=True)
-        outfile_jobs = os.path.join(self.outfolder, "jobs_files_{}.csv".format(self.volume_id))
-        outfile_sched = os.path.join(self.outfolder, 'schedlgu_{}.csv'.format(self.volume_id))
-        outfile_tasks_json = os.path.join(self.outfolder, 'tasks_{}.json'.format(self.volume_id))
-        outfile_tasks_csv = os.path.join(self.outfolder, 'tasks_{}.csv'.format(self.volume_id))
+        outfile_jobs = os.path.join(self.outfolder, f'jobs_files_{self.volume_id}.csv')
+        outfile_sched = os.path.join(self.outfolder, f'schedlgu_{self.volume_id}.csv')
+        outfile_tasks_json = os.path.join(self.outfolder, f'tasks_{self.volume_id}.json')
+        outfile_tasks_csv = os.path.join(self.outfolder, f'tasks_{self.volume_id}.csv')
 
         self.logger().debug("Parsing artifacts from scheduled tasks files (.job)")
         save_csv(self.parse_Task(path), outfile=outfile_jobs, file_exists='APPEND', quoting=0)
@@ -105,7 +105,7 @@ class ScheduledTasks(base.job.BaseModule):
                         continue
                     for state, words in {'start': ['Started', 'Iniciado'], 'end': ['Finished', 'Finalizado']}.items():
                         for word in words:
-                            if line.startswith('\t{}'.format(word)):
+                            if line.startswith(f'\t{word}'):
                                 try:
                                     dates[state] = dateutil.parser.parse(line[re.search(r'\d', line).span()[0]:].rstrip('\n')).strftime("%Y-%m-%d %H:%M:%S")
                                     parsed_entry = True
@@ -128,7 +128,7 @@ class ScheduledTasks(base.job.BaseModule):
             try:  # Not all files may be in XML format
                 st = etree.parse(file)
             except Exception as exc:
-                self.logger().debug('File {} may not be a valid XML: {}'.format(file, exc))
+                self.logger().debug(f'File {file} may not be a valid XML: {exc}')
                 continue
 
             # Get the namespace. All tags are preceded by this namespace
@@ -154,7 +154,7 @@ class ScheduledTasks(base.job.BaseModule):
         for t in xml_tasks:
             has_start = False
             try:
-                user_id = t.get('Principals', {}).get('Principal', {}).get('UserId','') if isinstance(t.get('Principals', {}), dict) else ''
+                user_id = t.get('Principals', {}).get('Principal', {}).get('UserId', '') if isinstance(t.get('Principals', {}), dict) else ''
                 user = os_info.get_user_name_from_sid(user_id, partition=self.volume_id, sid_default=True)
                 taskname = t.get('RegistrationInfo', {}).get('URI', '').lstrip('\\') if isinstance(t.get('RegistrationInfo', {}), dict) else ''
                 if not taskname:
@@ -164,20 +164,20 @@ class ScheduledTasks(base.job.BaseModule):
                     # Dates in Scheduled Tasks files are in local time. Convert to UTC
                     registration_date = date_to_iso(t.get('RegistrationInfo', {}).get('Date', ''), input_timezone=local_timezone, sep=' ', timespec='seconds', hide_tz=True)
                 res = {'StartBoundary': '',
-                    'RegistrationDate': registration_date,
-                    'FileCreation': '',
-                    'FileModification': '',
-                    'TaskName': taskname,
-                    'User': user,
-                    'UserId': user_id,
-                    'Command': '',
-                    'Arguments': '',
-                    'Enabled': t.get('Settings', {}).get('Enabled', '') if isinstance(t.get('Settings', {}), dict) else '',
-                    'RunLevel': t.get('Principals', {}).get('Principal', {}).get('RunLevel', '') if isinstance(t.get('Principals', {}), dict) else '',
-                    'Hidden': t.get('Settings', {}).get('Hidden', '') if isinstance(t.get('Settings', {}), dict) else '',
-                    'Description': t.get('RegistrationInfo', {}).get('Description', '') if isinstance(t.get('RegistrationInfo', {}), dict) else '',
-                    'FileName' : t.get('FileName', '')
-                    }
+                       'RegistrationDate': registration_date,
+                       'FileCreation': '',
+                       'FileModification': '',
+                       'TaskName': taskname,
+                       'User': user,
+                       'UserId': user_id,
+                       'Command': '',
+                       'Arguments': '',
+                       'Enabled': t.get('Settings', {}).get('Enabled', '') if isinstance(t.get('Settings', {}), dict) else '',
+                       'RunLevel': t.get('Principals', {}).get('Principal', {}).get('RunLevel', '') if isinstance(t.get('Principals', {}), dict) else '',
+                       'Hidden': t.get('Settings', {}).get('Hidden', '') if isinstance(t.get('Settings', {}), dict) else '',
+                       'Description': t.get('RegistrationInfo', {}).get('Description', '') if isinstance(t.get('RegistrationInfo', {}), dict) else '',
+                       'FileName': t.get('FileName', '')
+                       }
 
                 if 'Exec' in t.get('Actions', {}):
                     if isinstance(t['Actions']['Exec'], list):
@@ -210,8 +210,6 @@ class ScheduledTasks(base.job.BaseModule):
             if not has_start:
                 yield res
 
-
-
     def _xml_element_to_dict(self, element, ns=''):
         """ Convert XML Element to a compated dictionary, ignoring attributes"""
         # If the element has no children, return its text directly
@@ -226,7 +224,7 @@ class ScheduledTasks(base.job.BaseModule):
 
             # Handle repeated tags by grouping them in a list
             # Tags are in the format "{ns}tag_name". Keep only the tag_name
-            tag = child.tag if not ns else child.tag[ns_length+2:]
+            tag = child.tag if not ns else child.tag[ns_length + 2:]
             if tag in child_dict:
                 if not isinstance(child_dict[tag], list):
                     child_dict[tag] = [child_dict[tag]]

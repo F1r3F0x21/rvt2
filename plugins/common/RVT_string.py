@@ -60,31 +60,29 @@ class StringGenerate(base.job.BaseModule):
 
             srch_params = {"ASCII": "-a -t d", "UNICODE": "-a -t d -e l"}
 
-            self.logger().debug("Generating ASCII and UNICODE for {}, partition p{}".format(self.disk.disknumber, p.partition))
+            self.logger().debug(f"Generating ASCII and UNICODE for {self.disk.disknumber}, partition p{p.partition}")
             if p.isMountable:
-                output_file_name = os.path.join(self.string_path, "p{}_strings".format(p.partition))
+                output_file_name = os.path.join(self.string_path, f"p{p.partition}_strings")
             else:
-                output_file_name = os.path.join(self.string_path, "p{}_strings_unalloc".format(p.partition))
+                output_file_name = os.path.join(self.string_path, f"p{p.partition}_strings_unalloc")
 
             sectorsize = 512
             if self.disk.sectorsize:
                 sectorsize = self.disk.sectorsize
 
             if "/dev/dislocker" in p.fuse.keys():
-                cmd = "{} if={} bs={} 2>/dev/null | {} {} | {} /A-Z/ /a-z/".format(dd, p.fuse["/dev/dislocker"], sectorsize, srch_strings, srch_params['ASCII'], tr)
-                cmd2 = "{} if={} bs={} 2>/dev/null | {} {} | {} /A-Z/ /a-z/".format(dd, p.fuse["/dev/dislocker"], sectorsize, srch_strings, srch_params['UNICODE'], tr)
+                cmd = f"{dd} if={p.fuse['/dev/dislocker']} bs={sectorsize} 2>/dev/null | {srch_strings} {srch_params['ASCII']} | {tr} /A-Z/ /a-z/"
+                cmd2 = f"{dd} if={p.fuse['/dev/dislocker']} bs={sectorsize} 2>/dev/null | {srch_strings} {srch_params['UNICODE']} | {tr} /A-Z/ /a-z/"
             elif self.disk.imagetype in ("aff", "aff4", "encase"):
-                cmd = "{} {} {} 2>/dev/null | {} {} | {} /A-Z/ /a-z/".format(mmcat, self.disk.imagefile, p.partition, srch_strings, srch_params['ASCII'], tr)
-                cmd2 = "{} {} {} 2>/dev/null | {} {} | {} /A-Z/ /a-z/".format(mmcat, self.disk.imagefile, p.partition, srch_strings, srch_params['UNICODE'], tr)
+                cmd = f"{mmcat} {self.disk.imagefile} {p.partition} 2>/dev/null | {srch_strings} {srch_params['ASCII']} | {tr} /A-Z/ /a-z/"
+                cmd2 = f"{mmcat} {self.disk.imagefile} {p.partition} 2>/dev/null | {srch_strings} {srch_params['UNICODE']} | {tr} /A-Z/ /a-z/"
             else:
-                cmd = "{} if={} skip={} count={} bs={} 2>/dev/null | {} {} | {} /A-Z/ /a-z/".format(dd, self.disk.imagefile, p.osects, int(
-                    int(p.size) / int(sectorsize)), sectorsize, srch_strings, srch_params['ASCII'], tr)
-                cmd2 = "{} if={} skip={} count={} bs={} 2>/dev/null | {} {} | {} /A-Z/ /a-z/".format(dd, self.disk.imagefile, p.osects, int(
-                    int(p.size) / int(sectorsize)), sectorsize, srch_strings, srch_params['UNICODE'], tr)
+                cmd = f"{dd} if={self.disk.imagefile} skip={p.osects} count={int(int(p.size) / int(sectorsize))} bs={sectorsize} 2>/dev/null | {srch_strings} {srch_params['ASCII']} | {tr} /A-Z/ /a-z/"
+                cmd2 = f"{dd} if={self.disk.imagefile} skip={p.osects} count={int(int(p.size) / int(sectorsize))} bs={sectorsize} 2>/dev/null | {srch_strings} {srch_params['UNICODE']} | {tr} /A-Z/ /a-z/"
 
-            with open('{}.asc'.format(output_file_name), 'w') as f:
+            with open(f'{output_file_name}.asc', 'w') as f:
                 self._save_command(cmd, f, p)
-            with open('{}.uni'.format(output_file_name), 'w') as f:
+            with open(f'{output_file_name}.uni', 'w') as f:
                 self._save_command(cmd2, f, p, encoding='UNICODE')
 
         self.logger().debug("Strings generated")
@@ -97,11 +95,11 @@ class StringGenerate(base.job.BaseModule):
             outfile (file object): Stream where stdout goes to
             partition (obj): partition object
         """
-        self.logger().debug('Generating {} strings for partition {}'.format(encoding, 'p{}'.format(partition.partition)))
+        self.logger().debug(f'Generating {encoding} strings for partition p{partition.partition}')
         # sectorsize = self.disk.sectorsize if self.disk.sectorsize else 512
         old_offset = offset = 0
 
-        with tqdm(total=int(partition.size), desc='{} strings generation {}'.format(encoding, 'p{}'.format(partition.partition))) as pbar:
+        with tqdm(total=int(partition.size), desc=f'{encoding} strings generation p{partition.partition}') as pbar:
             for line in yield_command(cmd, logger=self.logger()):
                 outfile.write(line)
                 offset = int(line[:10])

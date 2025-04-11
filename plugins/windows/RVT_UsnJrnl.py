@@ -19,7 +19,7 @@ import os
 import re
 import shlex
 import csv
-import json
+import ujson as json
 import sqlite3
 
 import base.job
@@ -82,7 +82,7 @@ class UsnJrnl(base.job.BaseModule):
         cmd2_args = shlex.split(cmd2.format(**cmd2_vars))
         cmd2_args = shlex.split(cmd2_args[0])
 
-        self.logger().debug('Running command: {}'.format(str(cmd2_args)))
+        self.logger().debug(f'Running command: {str(cmd2_args)}')
         run_command(cmd2_args)
         return True
 
@@ -97,7 +97,7 @@ class UsnJrnl(base.job.BaseModule):
         cmd_args = shlex.split(cmd.format(**cmd_vars))
         cmd_args = shlex.split(cmd_args[0])
 
-        self.logger().debug('Running command: {}'.format(str(cmd_args)))
+        self.logger().debug(f'Running command: {str(cmd_args)}')
         run_command(cmd_args)
         return True
 
@@ -108,7 +108,7 @@ class UsnJrnl(base.job.BaseModule):
         usnjrnl_rewind = self.myconfig('usnjrnl_rewind')
 
         cmd = ['python3', usnjrnl_rewind, '-m', mft_csv, '-u', usnjrnl_csv, self.tmp_outdir]
-        self.logger().debug('Running command: {}'.format(str(cmd)))
+        self.logger().debug(f'Running command: {str(cmd)}')
         run_command(cmd)
         usn_db = os.path.join(self.tmp_outdir, 'NTFS.sqlite')
         self.fill_mft_orphan(usn_db, mft_csv)

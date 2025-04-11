@@ -15,11 +15,9 @@
 
 import os
 import base.job
-from base.utils import check_folder
 
 
 class AnalysisServicesList(base.job.BaseModule):
-    
     """ Extract the diferent Services from the list.
 
     Module description:
@@ -39,7 +37,7 @@ class AnalysisServicesList(base.job.BaseModule):
             relative_path = splitted_line[0][len(mount_dir):]
             root_name = os.path.splitext(splitted_line[1])[0]
             data_to_yield = {
-                'directory' : relative_path,
-                'filename' : root_name
-            } 
+                'directory': relative_path,
+                'filename': root_name
+            }
             yield data_to_yield

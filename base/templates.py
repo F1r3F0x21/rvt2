@@ -27,7 +27,7 @@ import os
 
 DEFAULT_TEMPLATE = """\
 % for row in data:
-- ${' '.join(map(lambda k: '{}:{}'.format(k, row[k]), row))}
+- ${' '.join(map(lambda k: f'{k}:{row[k]}', row))}
 % endfor\
 """
 
@@ -42,6 +42,7 @@ class TemplateSink(base.output.BaseSink):
         - **template**: The template as a string. This option is ignored if a template_file is provided.
         - **skip_on_empty_data**: If from_module doesn't return anything and this is True, do not output anything
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('template_dirs', ' '.join([os.getcwd(), self.myconfig('rvthome')]))
@@ -69,7 +70,7 @@ class TemplateSink(base.output.BaseSink):
                 with self._outputfile() as f:
                     f.write(self._template().render(data=data))
         except Exception:
-            self.logger().error('Error in the template: error="%s"', mako.exceptions.text_error_template().render())
+            self.logger().error(f'Error in the template: error="{mako.exceptions.text_error_template().render()}"')
             if self.myflag('stop_on_error'):
                 raise
         return iter(data)

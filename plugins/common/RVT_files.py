@@ -36,7 +36,7 @@ class Files(base.job.BaseModule):
 
         mountdir = self.myconfig('mountdir')
         if not base.utils.check_directory(mountdir):
-            self.logger().warning('Disk not mounted at {}'.format(mountdir))
+            self.logger().warning(f'Disk not mounted at {mountdir}')
             return []
 
         outfile = os.path.join(self.config.get(self.section, 'outdir'), 'alloc_files.txt')
@@ -103,6 +103,7 @@ class FilterAllocFiles(base.job.BaseModule):
         - **sorted**: If True, return the matching files in alphabetical order
         - **reverse**: if True, yield the paths in reverse alphabetic order
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('regex', r'.*')
@@ -113,14 +114,14 @@ class FilterAllocFiles(base.job.BaseModule):
         if file_category:
             # if a file_category is present, use it to filter extensions
             extension_list = base.config.parse_conf_array(self.config.get(file_category, 'extension', ''))
-            new_regex = r'\.({})$$'.format('|'.join(extension_list))
+            new_regex = rf"\.({'|'.join(extension_list)})$$"
             self.local_config['regex'] = new_regex
 
     def run(self, path=None):
         """ The path is ignored """
         self.check_params(path, check_from_module=True)
         getfiles = GetFiles(self.config)
-        self.logger().debug('Searching file with pattern: {}'.format(self.myconfig('regex')))
+        self.logger().debug(f'Searching file with pattern: {self.myconfig("regex")}')
         matching_files = getfiles.search(self.myconfig('regex'))
         if self.myflag('sorted') or self.myflag('reverse'):
             matching_files = natsorted(matching_files, reverse=self.myflag('reverse'))
@@ -135,6 +136,7 @@ class SendAllocFiles(base.job.BaseModule):
     """
     The module sends to *from_module* the path to all files inside alloc_files.
     """
+
     def run(self, path=None):
         """ The path is ignored """
         self.check_params(path, check_from_module=True)
@@ -161,10 +163,10 @@ class GetTimeline(base.job.BaseModule):
         """
         super().__init__(*args, **kwargs)
         if not timeline_body_file:
-            timeline_body_file = os.path.join(self.config.config['plugins.windows']['timelinesdir'], '{}_BODY.csv'.format(self.myconfig('source')))
+            timeline_body_file = os.path.join(self.config.config['plugins.windows']['timelinesdir'], f'{self.myconfig("source")}_BODY.csv')
 
         if not (os.path.exists(timeline_body_file) and os.path.getsize(timeline_body_file) > 0):
-            self.logger().warning('Timeline file not found: {}'.format(timeline_body_file))
+            self.logger().warning(f'Timeline file not found: {timeline_body_file}')
             raise IOError
 
         self.timeline_body_file = timeline_body_file
@@ -230,7 +232,7 @@ class GetTimeline(base.job.BaseModule):
         for line in base.job.run_job(self.config,
                                      'base.input.CSVReader',
                                      path=self.timeline_body_file,
-                                     extra_config={'delimiter': '|', 'fieldnames':'["md5","path","inode","mode","uid","gid","size","a","m","c","b"]'}):
+                                     extra_config={'delimiter': '|', 'fieldnames': '["md5","path","inode","mode","uid","gid","size","a","m","c","b"]'}):
             if line["path"].endswith(' ($FILE_NAME)'):  # Skip all FILE_NAME
                 continue
             for inode in set(inode_list):

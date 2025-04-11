@@ -21,7 +21,7 @@
 
 import os
 import re
-import json
+import ujson as json
 from ntfs_sds_parser import PySDSParser
 
 import base.job
@@ -35,13 +35,12 @@ class SDS(base.job.BaseModule):
         self.outdir = self.myconfig('outdir')
         check_folder(self.outdir)
 
-
         part_aux = re.search("/mnt/(p\d+)/", path)
 
         if part_aux:
             self.partition = part_aux.group(1)
         else:
-            raise base.job.RVTError('$Secure:$SDS file {} does not exist'.format(path))
+            raise base.job.RVTError(f'$Secure:$SDS file {path} does not exist')
         bodyfile = f"{os.path.join(self.outdir, os.path.basename(self.source_path))}_BODY_{self.partition}.csv"
         if not os.path.exists(bodyfile):
             bodyfile = f"{os.path.join(self.outdir, os.path.basename(self.source_path))}_BODY.csv"

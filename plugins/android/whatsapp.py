@@ -31,7 +31,7 @@ def get_contacts(wa_db):
     """ Associate phone numbers to names and groups to ids """
     query = "SELECT jid, display_name FROM wa_contacts"
     contacts = {}
-    with sqlite3.connect('file://{}'.format(wa_db), uri=True) as conn:
+    with sqlite3.connect(f'file://{wa_db}', uri=True) as conn:
         with closing(conn.cursor()) as cursor:
             for line in cursor.execute(query):
                 if line[1] is not None:
@@ -97,7 +97,7 @@ class WhatsAppAndroid(base.job.BaseModule):
 
         db_file = os.path.join(os.path.join(path, 'msgstore.db'))
         if not base.utils.check_file(db_file):
-            self.logger().warning("The file %s do not exists", db_file)
+            self.logger().warning(f"The file {db_file} do not exists")
             return []
 
         contacts_db = os.path.join(os.path.join(path, 'wa.db'))
@@ -108,8 +108,8 @@ class WhatsAppAndroid(base.job.BaseModule):
         base.utils.check_folder(self.media_outdir)
 
         # Execute query and parse messages
-        self.logger().debug('Parsing: %s', db_file)
-        with sqlite3.connect('file://{}?mode=ro'.format(db_file), uri=True) as conn:
+        self.logger().debug(f'Parsing: {db_file}')
+        with sqlite3.connect(f'file://{db_file}?mode=ro', uri=True) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor = self.execute_query(db_file, cursor)
                 for line in cursor:
@@ -171,7 +171,7 @@ class WhatsAppAndroid(base.job.BaseModule):
                 try:
                     dates[limit_date] = dateutil.parser.parse(self.myconfig(limit_date)).strftime('%Y-%m-%d %H:%M')
                 except Exception:
-                    raise base.job.RVTError('Parameter start_date {} not recognized as correct date. Try something like 2019-08-25'.format(self.myconfig(limit_date)))
+                    raise base.job.RVTError(f'Parameter start_date {self.myconfig(limit_date)} not recognized as correct date. Try something like 2019-08-25')
         start_date_filter = 'date_sent > "{}"'.format(dates['start_date']) if dates['start_date'] else ''
         end_date_filter = 'date_sent < "{}"'.format(dates['end_date']) if dates['end_date'] else ''
 
@@ -182,11 +182,11 @@ class WhatsAppAndroid(base.job.BaseModule):
         activated_filters = list(filter(None, [group_filter, start_date_filter, end_date_filter]))
         num_filters = len(activated_filters)
         if num_filters >= 1:
-            query += ' WHERE {}'.format(activated_filters[0])
+            query += f' WHERE {activated_filters[0]}'
         if num_filters >= 2:
-            query += ' AND {}'.format(activated_filters[1])
+            query += f' AND {activated_filters[1]}'
         if num_filters == 3:
-            query += ' AND {}'.format(activated_filters[2])
+            query += f' AND {activated_filters[2]}'
 
         return query
 
@@ -227,7 +227,7 @@ class WhatsAppAndroid(base.job.BaseModule):
         # phone_number = "" if line[4] is None else line[4].split("@")[0]
 
         # Message and status types
-        readable_type = self.type_switcher.get(int(line[7]), "Unknown: {}".format(line[7]))
+        readable_type = self.type_switcher.get(int(line[7]), f"Unknown: {line[7]}")
         mime_type = line[8] if line[8] else ''
         status = self.status_switcher.get(line[9], line[9])
 
@@ -237,7 +237,7 @@ class WhatsAppAndroid(base.job.BaseModule):
             if readable_type != "Contact":
                 message = line[4].replace("\n", " ")
             else:
-                message = "[Contact]: {}".format(line[11])
+                message = f"[Contact]: {line[11]}"
         else:
             message = ''
 
@@ -285,7 +285,7 @@ class WhatsAppAndroid(base.job.BaseModule):
             if media_filename:
                 return media_filename
             else:  # Warn for media files not found when expected
-                return '[System message: {}]'.format(media_name)
+                return f'[System message: {media_name}]'
 
         media_location = media_name if media_name else hashes[media_hash]
         media_filename = os.path.basename(media_location)
@@ -336,12 +336,12 @@ class ListChatSessions(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
         msgdb_file = os.path.join(os.path.join(path, 'msgstore.db'))
         if not base.utils.check_file(msgdb_file):
-            logger.warning('The database file does not exists: filename: "%s"', msgdb_file)
+            logger.warning(f'The database file does not exists: filename: "{msgdb_file}"')
             return []
-        logger.debug('The database file exists: filename="%s"', msgdb_file)
+        logger.debug(f'The database file exists: filename="{msgdb_file}"')
 
         # This line fails if the directory is not writable, as will happen nearly always
-        conn = sqlite3.connect('file://{}'.format(msgdb_file), uri=True)
+        conn = sqlite3.connect(f'file://{msgdb_file}', uri=True)
 
         c = conn.cursor()
         for line in c.execute('SELECT DISTINCT key_remote_jid FROM messages WHERE received_timestamp != "-1"'):
@@ -351,6 +351,7 @@ class ListChatSessions(base.job.BaseModule):
 
 class AllChatsToCsv(base.job.BaseModule):
     """ Convert all chats in a WA database, using android.whatsapp.csv """
+
     def run(self, path=None):
         from tqdm import tqdm
         from collections import deque
@@ -364,6 +365,7 @@ class AllChatsToCsv(base.job.BaseModule):
 
 class AllChatsToHtml(base.job.BaseModule):
     """ Convert all chats in a WA database, using android.whatsapp.html """
+
     def run(self, path=None):
         from tqdm import tqdm
         from collections import deque

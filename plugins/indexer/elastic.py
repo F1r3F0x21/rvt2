@@ -17,7 +17,7 @@
 
 """ Modules to index documents parsed by other modules into ElasticSearch. """
 
-import json
+import ujson as json
 import os
 import logging
 import shutil

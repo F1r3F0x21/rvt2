@@ -29,9 +29,10 @@ import base.job
 
 class Skype(base.job.BaseModule):
     """ Parse Skype databases leveldb """
+
     def run(self, path=''):
         if not (path.endswith('leveldb') or path.endswith('main.db')):
-            raise base.job.RVTError('Expected a db file or leveldb folder. Path: {}'.format(path))
+            raise base.job.RVTError(f'Expected a db file or leveldb folder. Path: {path}')
         temp_dir = tempfile.mkdtemp('skype')
         temp_path = os.path.join(temp_dir, 'Default')
         try:
@@ -47,9 +48,10 @@ class Skype(base.job.BaseModule):
 
 class Teams(base.job.BaseModule):
     """ Parse Teams databases leveldb """
+
     def run(self, path=''):
         if not (path.endswith('leveldb') or path.endswith('main.db')):
-            raise base.job.RVTError('Expected a db file or leveldb folder. Path: {}'.format(path))
+            raise base.job.RVTError(f'Expected a db file or leveldb folder. Path: {path}')
         temp_dir = tempfile.mkdtemp('teams')
         temp_path = os.path.join(temp_dir, 'Default')
         try:
@@ -65,9 +67,10 @@ class Teams(base.job.BaseModule):
 
 class GenericLevelDB(base.job.BaseModule):
     """ Parse any leveldb. Since it is general, all specific fields are not parsed """
+
     def run(self, path=''):
         if not os.path.isdir(path):
-            raise base.job.RVTError('Expected a directory as path. {}'.format(path))
+            raise base.job.RVTError(f'Expected a directory as path. {path}')
         temp_dir = tempfile.mkdtemp('leveldb')
         temp_path = os.path.join(temp_dir, 'Default')
         try:
@@ -98,7 +101,7 @@ class ParseLevelDB():
         self.get_types_table()
         for typ in self.table:
             # self.table[typ]['out_file'] = '{}{}.csv'.format(self.user + '_' if self.user else '', typ)
-            self.table[typ]['out_file'] = '{}.csv'.format(typ)
+            self.table[typ]['out_file'] = f'{typ}.csv'
             self.table[typ]['data'] = []
 
     def run(self):

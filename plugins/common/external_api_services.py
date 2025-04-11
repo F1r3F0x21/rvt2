@@ -4,7 +4,7 @@ import requests
 import gzip
 import os
 import time
-import json
+import ujson as json
 import datetime
 import dateutil.parser
 from OTXv2 import OTXv2
@@ -21,7 +21,7 @@ def check_file_date(fdate, days):
     if fdate is None or fdate == '-':
         return False
 
-    if type(fdate) == datetime.datetime:
+    if isinstance(fdate, datetime.datetime):
         fdate = fdate.replace(tzinfo=None)
     else:
         fdate = dateutil.parser.parse(fdate).replace(tzinfo=None)
@@ -50,16 +50,16 @@ def check_private_ip(ip):
 def getValue(results, keys):
     # Get a nested key from a dict, without having to do loads of ifs
     # Get from https://github.com/AlienVault-OTX/OTX-Python-SDK/tree/master/examples/is_malicious
-    if type(keys) is list and len(keys) > 0:
+    if isinstance(keys, list) and len(keys) > 0:
 
-        if type(results) is dict:
+        if isinstance(results, dict):
             key = keys.pop(0)
             if key in results:
                 return getValue(results[key], keys)
             else:
                 return None
         else:
-            if type(results) is list and len(results) > 0:
+            if isinstance(results, list) and len(results) > 0:
                 return getValue(results[0], keys)
             else:
                 return results
@@ -303,7 +303,7 @@ class alienvault(object):
                 n_av += 1
                 if getValue(result, ['analysis', 'analysis', 'plugins', 'cuckoo', 'result', 'virustotal', 'scans', av, 'result']):
                     pos_av += 1
-            alerts.append({'vt': 'Detected in %s of %s engines' % (pos_av, n_av)})
+            alerts.append({'vt': f'Detected in {pos_av} of {n_av} engines'})
 
         avg = getValue(result, ['analysis', 'analysis', 'plugins', 'avg', 'results', 'detection'])
         if avg:
@@ -393,7 +393,7 @@ class IP_info(base.job.BaseModule):
             res.update(ab.get_ip_data(ip_item))
             res.update(av.ip(ip_item))
             for k, v in res.items():
-                if type(v) == list:
+                if isinstance(v, list):
                     res[k] = ';'.join(v)
                 else:
                     res[k] = str(v)

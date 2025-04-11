@@ -31,7 +31,7 @@ class CharacterizeDisk(base.job.BaseModule):
         """ The output dictionaries with disk information are expected to be sent to a mako template """
         disk = getSourceImage(self.myconfig)
         if disk.imagetype == 'dummy':  # imagefile not found
-            raise base.job.RVTError('No imagefile found. Make sure image file in directory {} is one of the following: raw, 001, dd, aff, E01, vhdx, zip'.format(self.myconfig('imagedir')))
+            raise base.job.RVTError(f"No imagefile found. Make sure image file in directory {self.myconfig('imagedir')} is one of the following: raw, 001, dd, aff, E01, vhdx, zip")
 
         disk_info = self.get_image_information(disk)
         self.logger().debug('Disk characterization finished')
@@ -47,7 +47,7 @@ class CharacterizeDisk(base.job.BaseModule):
         disk_info["Size"] = human_readable_size(os.stat(disk.imagefile).st_size)
         disk_info["npart"] = disk.getPartitionNumber()
 
-        logfile = "{}.LOG".format(disk.imagefile[:-3])
+        logfile = f"{disk.imagefile[:-3]}.LOG"
 
         if os.path.isfile(logfile):
             with open(logfile, "r") as f1:

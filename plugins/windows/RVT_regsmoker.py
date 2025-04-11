@@ -17,7 +17,7 @@ import os
 import sys
 import csv
 import yaml
-import json
+import ujson as json
 from tqdm import tqdm
 
 from base.utils import check_directory
@@ -104,8 +104,8 @@ class Regsmoker(base.job.BaseModule):
                         output_filename = os.path.join(output_path, values['filename'])
                         check_directory(os.path.dirname(output_filename), create=True)
                         with open(output_filename, 'w') as f_out:
-                            self.logger().debug('Launching plugin {} over {}'.format(plugin, hivefile))
-                            self.logger().debug("writting file {}".format(output_filename))
+                            self.logger().debug(f'Launching plugin {plugin} over {hivefile}')
+                            self.logger().debug(f"writting file {output_filename}")
                             # Initialize CSV object if the output must be a CSV
                             if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
                                 write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
@@ -125,7 +125,7 @@ class Regsmoker(base.job.BaseModule):
                 for username, file in hivefile.items():
                     for plugin, values in tqdm(self.hivedict[hive].items()):
                         try:
-                            output_filename = os.path.join(output_path, f"{values['filename'].replace('_user', '_%s' % username)}")
+                            output_filename = os.path.join(output_path, f"{values['filename'].replace('_user', f'_{username}')}")
                             check_directory(os.path.dirname(output_filename), create=True)
                             if output_filename not in to_remove.keys():
                                 if os.path.exists(output_filename):
@@ -133,8 +133,8 @@ class Regsmoker(base.job.BaseModule):
                                 else:
                                     to_remove[output_filename] = True
                             with open(output_filename, 'w') as f_out:
-                                self.logger().debug('Launching plugin {} over {}'.format(plugin, file))
-                                self.logger().debug("writting file {}".format(output_filename))
+                                self.logger().debug(f'Launching plugin {plugin} over {file}')
+                                self.logger().debug(f'writting file {output_filename}')
                                 if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
                                     write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
                                 if "output" in values.keys() and values["output"] == "json_to_csv":
@@ -149,7 +149,7 @@ class Regsmoker(base.job.BaseModule):
                                             nlines = False
                                         write.writerow(item)
                                     else:
-                                        f_out.write(json.dumps(item))
+                                        f_out.write(json.dumps(item, escape_forward_slashes=False))
                                 if nlines:
                                     to_remove[output_filename] = False
                         except Exception as exc:
@@ -163,7 +163,7 @@ class Regsmoker(base.job.BaseModule):
                     for plugin, values in tqdm(self.hivedict[hive].items()):
                         for file in files:
                             try:
-                                output_filename = os.path.join(output_path, f"{values['filename'].replace('_user', '_%s' % username)}")
+                                output_filename = os.path.join(output_path, f"{values['filename'].replace('_user', f'_{username}')}")
                                 check_directory(os.path.dirname(output_filename), create=True)
                                 if output_filename not in to_remove.keys():
                                     if os.path.exists(output_filename):
@@ -171,8 +171,8 @@ class Regsmoker(base.job.BaseModule):
                                     else:
                                         to_remove[output_filename] = True
                                 with open(output_filename, 'a') as f_out:
-                                    self.logger().debug('Launching plugin {} against {}'.format(plugin, file))
-                                    self.logger().debug("writting file {}".format(output_filename))
+                                    self.logger().debug(f'Launching plugin {plugin} against {file}')
+                                    self.logger().debug(f'writting file {output_filename}')
                                     if "output" in values.keys() and values["output"] in ('json_to_csv', 'csv'):
                                         write = csv.writer(f_out, quoting=2, delimiter=';', quotechar='"', escapechar='\\')
                                     if "output" in values.keys() and values["output"] == "json_to_csv":
@@ -193,7 +193,7 @@ class Regsmoker(base.job.BaseModule):
                                                 continue
                                             write.writerow(item)
                                         else:
-                                            f_out.write(json.dumps(item))
+                                            f_out.write(json.dumps(item, escape_forward_slashes=False))
                                     if nlines:
                                         to_remove[output_filename] = False
                             except Exception as exc:
@@ -232,13 +232,13 @@ class Regsmoker(base.job.BaseModule):
                                 results = None
                                 if sigma.check_conditions():
                                     results = sigma.get_result()
-                                    f_out.write(f"{json.dumps(results)}\n")
+                                    f_out.write(f"{json.dumps(results, escape_forward_slashes=False)}\n")
                                 if tlog1 is not None:
                                     sigma2 = self.reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname), tlog1, tlog2)
                                     if sigma.check_conditions():
                                         results2 = sigma2.get_result()
                                         if results != results2:
-                                            f_out.write(f"{json.dumps(results2)}\n")
+                                            f_out.write(f"{json.dumps(results2, escape_forward_slashes=False)}\n")
                             except Exception as exc:
                                 self.logger().warning(f"Problems applying rule {fname} against file {hivefile}. {exc}")
                 elif hive in ('ntuser', 'usrclass'):
@@ -251,13 +251,13 @@ class Regsmoker(base.job.BaseModule):
                                     results = None
                                     if sigma.check_conditions():
                                         results = sigma.get_result()
-                                        f_out.write(f"{json.dumps(results)}\n")
+                                        f_out.write(f"{json.dumps(results, escape_forward_slashes=False)}\n")
                                     if tlog1 is not None:
                                         sigma2 = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname), tlog1, tlog2)
                                         if sigma.check_conditions():
                                             results2 = sigma2.get_result()
                                             if results != results2:
-                                                f_out.write(f"{json.dumps(results2)}\n")
+                                                f_out.write(f"{json.dumps(results2, escape_forward_slashes=False)}\n")
                                 except Exception as exc:
                                     self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
                 elif hive in ('user', 'userclass'):
@@ -275,13 +275,13 @@ class Regsmoker(base.job.BaseModule):
                                         results = None
                                         if sigma.check_conditions():
                                             results = sigma.get_result()
-                                            f_out.write(f"{json.dumps(results)}\n")
+                                            f_out.write(f"{json.dumps(results, escape_forward_slashes=False)}\n")
                                         if tlog1 is not None:
                                             sigma2 = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname), tlog1, tlog2)
                                             if sigma.check_conditions():
                                                 results2 = sigma2.get_result()
                                                 if results != results2:
-                                                    f_out.write(f"{json.dumps(results2)}\n")
+                                                    f_out.write(f"{json.dumps(results2, escape_forward_slashes=False)}\n")
                                     except Exception as exc:
                                         self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
         return []
@@ -331,10 +331,10 @@ class Regsmoker(base.job.BaseModule):
                         new_res = res
                         yield new_res.pop('lastwrite')
             else:
-                yield json.dumps(res)
+                yield json.dumps(res, escape_forward_slashes=False)
 
         tlog1, tlog2 = self._get_transaction(filename)
-        if tlog1 != None:  # There are transaction logs
+        if tlog1 is not None:  # There are transaction logs
             plugin2 = self.reg_plugin.Plugin(filename, os.path.join(self.regsmoker_path, os.path.join('plugins', f"{plugin_name}.yaml")), tlog1=tlog1, tlog2=tlog2)
             plugin2.get_data()
 
@@ -352,7 +352,7 @@ class Regsmoker(base.job.BaseModule):
                             new_res = res
                             yield new_res.pop('lastwrite')
                 else:
-                    yield json.dumps(res)
+                    yield json.dumps(res, escape_forward_slashes=False)
 
     def json_to_csv(self, item, swap_fields=False):
 

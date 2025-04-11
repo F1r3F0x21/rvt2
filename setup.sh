@@ -234,6 +234,13 @@ build_install_libfvde() {
     # sed -i "s/.user_allow_other/user_allow_other/" /etc/fuser.conf
 }
 
+build_install_libbde() {
+    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libbde/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
+    | sed -rn "s/.*([0-9]{8}).*/\1/p")
+
+    _build_install_libyal libbde alpha "${VERSION}"
+}
+
 build_install_libevt() {
     local VERSION=$(curl -s "https://api.github.com/repos/libyal/libevt/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
     | sed -rn "s/.*([0-9]{8}).*/\1/p")
@@ -477,6 +484,7 @@ setup_debian_full() {
     build_install_liblnk
     build_install_libmsiecf
     build_install_libscca
+    build_install_libbde
     build_install_libevt
     build_install_regripper
     # build_install_ntfs3g_system_compression

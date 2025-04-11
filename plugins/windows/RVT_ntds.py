@@ -16,7 +16,7 @@
 
 import os
 import subprocess
-import json
+import ujson as json
 import re
 import base.job
 from base.utils import check_directory
@@ -70,4 +70,4 @@ class Parse(base.job.BaseModule):
                 aux = regex.match(data.get(dte, ''))
                 if aux:
                     data[dte] = f"{aux.group(3)}-{aux.group(2)}-{aux.group(1)} {aux.group(4)}Z"
-        return json.dumps(data)
+        return json.dumps(data, escape_forward_slashes=False)

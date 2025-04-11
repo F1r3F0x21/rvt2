@@ -17,7 +17,7 @@ import os
 import xmltodict
 
 import base.job
-from base.utils import check_directory, check_file, get_filehash, relative_path
+from base.utils import check_directory
 
 
 class PowerEffiencyDiagnostic(base.job.BaseModule):

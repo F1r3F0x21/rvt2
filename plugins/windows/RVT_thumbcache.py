@@ -54,4 +54,4 @@ class Thumbcache(base.job.BaseModule):
                             output.write(entry.data)
                         yield {'type': kind, 'user': user, 'hash': entry.hash, 'data_checksum': entry.data_checksum.hex(), 'header_checksum': entry.header_checksum.hex(), 'identifier': entry.identifier}
                 except Exception:
-                    self.logger().error("Problems parsing %s", os.path.join(path, fname))
+                    self.logger().error(f"Problems parsing {os.path.join(path, fname)}")

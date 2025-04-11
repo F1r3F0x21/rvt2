@@ -63,23 +63,24 @@ class Recycle(base.job.BaseModule):
             else:
                 self.filesystem = FileSystem(self.config, disk=self.disk)
         except Exception as exc:
-            raise base.job.RVTError('A source image is needed. {}'.format(exc))
+            raise base.job.RVTError(f'A source image is needed. {exc}')
 
         # Associate a partition name with a partition object or a loop device
         if self.filesystem:
             self.partitions = {''.join(['p', p.partition]): p for p in self.disk.partitions if p.isMountable}
+
             if not self.partitions:
-                raise base.job.RVTError('No partitions found in image {}'.format(self.disk.imagefile))
+                raise base.job.RVTError(f'No partitions found in image {self.disk.imagefile}')
             self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss_mounted.items() if dev}
             self.logger().debug('Partitions: {}'.format(self.partitions))
             self.logger().debug('VSS Partitions: {}'.format(self.vss_partitions))
 
         # Assert timeline has already been generated
-        self.timeline_file = os.path.join(self.myconfig('timelinesdir'), '{}_BODY.csv'.format(self.myconfig('source')))
+        self.timeline_file = os.path.join(self.myconfig('timelinesdir'), f"{self.myconfig('source')}_BODY.csv")
         try:
             check_file(self.timeline_file, error_missing=True)
         except base.job.RVTError:
-            raise base.job.RVTError('Timeline not found at {}. Please, generate the timeline with fs_timeline or mft_timeline before running the present job for parsing recycle bin'.format(self.timeline_file))
+            raise base.job.RVTError(f'Timeline not found at {self.timeline_file}. Please, generate the timeline with fs_timeline or mft_timeline before running the present job for parsing recycle bin')
 
     def read_config(self):
         super().read_config()
@@ -141,7 +142,7 @@ class Recycle(base.job.BaseModule):
         self.i_files = {}
         self.r_files = []
 
-        self.logger().debug('Timeline file: {}'.format(self.timeline_file))
+        self.logger().debug(f'Timeline file: {self.timeline_file}')
 
         search_command = 'grep -P "{regex}" "{path}"'
 
@@ -153,8 +154,8 @@ class Recycle(base.job.BaseModule):
         module = base.job.load_module(self.config, 'base.commands.RegexFilter', extra_config=dict(cmd=search_command, keyword_list=regex))
 
         if not os.path.exists(self.timeline_file) or os.path.getsize(self.timeline_file) == 0:
-            self.logger().error('Timeline BODY file not found or empty for partition {}. Run fs_timeline job before executing winRecycle'.format(partition))
-            raise base.job.RVTError('Timeline BODY file not found or empty for partition {}. Run fs_timeline job before executing winRecycle'.format(partition))
+            self.logger().error(f'Timeline BODY file not found or empty for partition {partition}. Run fs_timeline job before executing winRecycle')
+            raise base.job.RVTError(f'Timeline BODY file not found or empty for partition {partition}. Run fs_timeline job before executing winRecycle')
 
         for line in module.run(self.timeline_file):
             self._process_I_file(line['match'], partition)
@@ -194,7 +195,7 @@ class Recycle(base.job.BaseModule):
             try:  # Find partition object associated to selected partition number
                 partition = self.partitions[partition]
             except KeyError:
-                self.logger().warning('Partition number {} obtained from timeline does not match any partition'.format(partition))
+                self.logger().warning(f'Partition number {partition} obtained from timeline does not match any partition')
                 return
 
         size = int(size)
@@ -211,7 +212,7 @@ class Recycle(base.job.BaseModule):
         p_name = p_name or partition  # In VSS, p_name is different from partition
 
         if size == 0 or size > 4096:  # Standard size of $I file is 544 bytes. Avoid empty or corrupted files.
-            self.logger().debug('Wrong $I file size ({}). Not parsing {}'.format(size, filename))
+            self.logger().debug(f'Wrong $I file size ({size}). Not parsing {filename}')
             return
 
         # For allocated files, search the file in mounted disk. In case of deleted, recover from inode
@@ -241,7 +242,7 @@ class Recycle(base.job.BaseModule):
             return
 
         bin_code = self.get_bin_name(filename, I_file=False)
-        char_pos = filename.find('$R{}'.format(bin_code))  # First match of '#R' will be with '#Recycle', that's why '$Rcode' is looked for.
+        char_pos = filename.find(f'$R{bin_code}')  # First match of '#R' will be with '#Recycle', that's why '$Rcode' is looked for.
         # When a directory and its contents are sent to the Recycle Bin, only the dir has an associated $Icode file. Subfiles inside are stored as $Rcode{ending}/somesubfolder/somefile
         # Detect if $R file belongs to a directory sent to Bin
         try:
@@ -326,7 +327,7 @@ class Recycle(base.job.BaseModule):
             data = f.read()
             header = struct.unpack_from('B', data)[0]
         except Exception:
-            self.logger().warning('Unrecognized $I header for file: {}'.format(filepath))
+            self.logger().warning(f'Unrecognized $I header for file: {filepath}')
             return {}
         try:
             if header == 2:  # windows 10
@@ -335,20 +336,20 @@ class Recycle(base.job.BaseModule):
             elif header == 1:
                 file_name = data[24:24 + 520].decode('utf-16').rstrip('\x00').replace('\\', '/')
             else:
-                self.logger().warning('Unrecognized $I header for file: {}'.format(filepath))
+                self.logger().warning(f'Unrecognized $I header for file: {filepath}')
                 return {}
         except Exception:
-            self.logger().warning('Problems getting filename for file: {}'.format(filepath))
+            self.logger().warning(f'Problems getting filename for file: {filepath}')
             file_name = ''
         try:
             size = struct.unpack_from('<q', data, 8)[0]
         except Exception:
-            self.logger().warning('Problems getting file size for file: {}'.format(filepath))
+            self.logger().warning(f'Problems getting file size for file: {filepath}')
             size = 0
         try:
             deleted_time = parse_microsoft_timestamp(struct.unpack_from('<q', data, 16)[0]).strftime("%Y-%m-%d %H:%M:%S")
         except Exception as exc:
-            self.logger().warning('Problems getting deleted timestamp for file: {}. Err: {}'.format(filepath, exc))
+            self.logger().warning(f'Problems getting deleted timestamp for file: {filepath}. Err: {exc}')
             deleted_time = datetime.datetime(1970, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
 
         try:
@@ -357,7 +358,7 @@ class Recycle(base.job.BaseModule):
                                 ('File', filepath),
                                 ('OriginalName', file_name)])
         except Exception:
-            self.logger().debug('Wrong $I format or missing field: {}'.format(filepath))
+            self.logger().debug(f'Wrong $I format or missing field: {filepath}')
             return {}
 
     def save_recycle_files(self, output_file, partition=None, sorting=True):
@@ -380,7 +381,7 @@ class Recycle(base.job.BaseModule):
         try:
             software = self.locate_hives(partition)['software']
         except (KeyError, TypeError):
-            self.logger().debug('No Software registry file found for partition {}'.format(partition))
+            self.logger().debug(f'No Software registry file found for partition {partition}')
             return {}
 
         output_profilelist = subprocess.check_output([rip, "-r", software, "-p", 'profilelist']).decode()
@@ -413,7 +414,7 @@ class Recycle(base.job.BaseModule):
         try:
             return self.sid_user[partition][SID]
         except (TypeError, KeyError):
-            self.logger().debug('SID {} does not have an associated user in partition {}'.format(SID, partition))
+            self.logger().debug(f'SID {SID} does not have an associated user in partition {partition}')
             return SID
         # Warning: it's assuming only one partition has vss
         for p in self.vss_partitions:
@@ -437,7 +438,7 @@ class Recycle(base.job.BaseModule):
             if os.path.exists(config_dir):
                 break
         else:   # Config folder not found
-            self.logger().debug('No config directory found for partition {}'.format(partition))
+            self.logger().debug(f'No config directory found for partition {partition}')
             return
 
         hives = {}

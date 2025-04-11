@@ -26,7 +26,6 @@ from plugins.linux.RVT_os_info import CharacterizeLinux
 
 
 class LinuxDpkgLog(base.job.BaseModule):
-    
     """ Extract the Dpkg
 
     Module description:
@@ -44,7 +43,7 @@ class LinuxDpkgLog(base.job.BaseModule):
         tz = os_info.get_timezone(partition)
         prog = re.compile(pattern)
         filename = os.path.basename(path)
-        
+
         for line in self.from_module.run(path):
             match = prog.match(line)
             if match:
@@ -55,18 +54,17 @@ class LinuxDpkgLog(base.job.BaseModule):
                     "filename": filename
                 }
                 actual_date = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                 # Parse the timestamp and convert it to ISO format
+                # Parse the timestamp and convert it to ISO format
                 output_string_utc = date_to_iso(actual_date, input_timezone=tz, output_timezone="UTC", logger=self.logger())
                 log_entry_dict['@timestamp'] = output_string_utc
 
                 yield log_entry_dict
 
             else:
-                self.logger().warning("Regex pattern failed with some logline input " + line)
+                self.logger().warning(f"Regex pattern failed with some logline input {line}")
 
 
 class LinuxAptHistoryLog(base.job.BaseModule):
-    
     """ Extract the Dpkg
 
     Module description:
@@ -92,24 +90,23 @@ class LinuxAptHistoryLog(base.job.BaseModule):
                     isodate = date_to_iso(localdate, input_timezone=tz_local, logger=self.logger())
                     aux_dict["@timestamp"] = isodate
                 elif linesplited[0] == "End-Date":
-                        timestamp = linesplited[1].strip()
-                        localdate = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                        isodate = date_to_iso(localdate, input_timezone=tz_local, logger=self.logger())
-                        aux_dict[linesplited[0]] = isodate
-                        yield aux_dict
+                    timestamp = linesplited[1].strip()
+                    localdate = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+                    isodate = date_to_iso(localdate, input_timezone=tz_local, logger=self.logger())
+                    aux_dict[linesplited[0]] = isodate
+                    yield aux_dict
                 elif linesplited[0] == "Commandline":
                     aux_dict[linesplited[0]] = linesplited[1]
                 else:
                     if "action" in aux_dict:
-                        aux_list =  list(aux_dict["action"])
-                        aux_list.append({linesplited[0]:linesplited[1]})
+                        aux_list = list(aux_dict["action"])
+                        aux_list.append({linesplited[0]: linesplited[1]})
                         aux_dict["action"] = aux_list
                     else:
                         aux_dict["action"] = [{linesplited[0]:linesplited[1]}]
 
 
 class LinuxDpkgStatus(base.job.BaseModule):
-    
     """ Extract the Dpkg Status
 
     Module description:
@@ -124,18 +121,18 @@ class LinuxDpkgStatus(base.job.BaseModule):
         pattern = r'^(?!.*::)([\w-]*):\s?(.*)$'
         prog = re.compile(pattern)
         package_dict = {}
-        
+
         for line in self.from_module.run(path):
             if line == "":
                 data_dict = {
-                    'package.name' : package_dict.get("Package", "Unknown!"),
-                    'status' :  package_dict.get("Status", "Unknown!"),
-                    'priority' : package_dict.get("Priority", ""),
-                    'package.size' : package_dict.get("Installed-Size", ""),
-                    'package.architecture' : package_dict.get("Architecture", ""),
-                    'package.version' : package_dict.get("Version", ""),
-                    'package.description' : package_dict.get("Description", "").replace('\n',''),
-                    'maintainer' : package_dict.get("Maintainer", "")
+                    'package.name': package_dict.get("Package", "Unknown!"),
+                    'status': package_dict.get("Status", "Unknown!"),
+                    'priority': package_dict.get("Priority", ""),
+                    'package.size': package_dict.get("Installed-Size", ""),
+                    'package.architecture': package_dict.get("Architecture", ""),
+                    'package.version': package_dict.get("Version", ""),
+                    'package.description': package_dict.get("Description", "").replace('\n', ''),
+                    'maintainer': package_dict.get("Maintainer", "")
                 }
                 package_dict.clear()
                 yield data_dict
@@ -146,11 +143,10 @@ class LinuxDpkgStatus(base.job.BaseModule):
                     package_dict[key] = value
                 else:
                     prevValue = package_dict[key]
-                    package_dict[key] = prevValue + "\n" + line
+                    package_dict[key] = f'{prevValue}\n{line}'
 
 
 class SpecificFolders(base.job.BaseModule):
-    
     """ Extract the software stored in /opt and /usr/local
 
     """
@@ -161,18 +157,18 @@ class SpecificFolders(base.job.BaseModule):
     def run(self, path=None):
         check_directory(self.myconfig('analysisdir'), create=True)
         output_file = os.path.join(self.myconfig('analysisdir'), "other_programs.txt")
-        
+
         path_to_opt = os.path.join(self.myconfig('mountdir'), "**", "opt")
-        path_to_local = os.path.join(self.myconfig('mountdir'), "**", "usr", "local" )
+        path_to_local = os.path.join(self.myconfig('mountdir'), "**", "usr", "local")
 
         list_of_paths = [path_to_opt, path_to_local]
 
         for path in list_of_paths:
             list_files = glob.glob(path)
             if len(list_files) == 1:
-                command = "tree -L 2 " + list_files[0]
+                command = f"tree -L 2 {list_files[0]}"
                 args = shlex.split(command)
-                process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 output = process.stdout.read().split("\n")
                 if output:
                     save_dummy(output, outfile=output_file)
@@ -185,13 +181,14 @@ class SpecificFolders(base.job.BaseModule):
             output = process.stdout.split("\n")
             if output:
                 save_dummy(output, outfile=output_file)
-            
+
             command_red = f"find {list_files_sbin[0]}/ -exec rpm -qf {{}} \\; | grep 'is not'"
             process_red = subprocess.run(command_red, shell=True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             output_red = process_red.stdout.split("\n")
             if output_red:
                 save_dummy(output_red, outfile=output_file)
-        '''    
+        '''
+
 
 class AnalysisLinuxAptHistoryLog(base.job.BaseModule):
     """ Analysis the Apt History log
@@ -200,16 +197,17 @@ class AnalysisLinuxAptHistoryLog(base.job.BaseModule):
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
     """
+
     def read_config(self):
         super().read_config()
-    
+
     def run(self, path=None):
         pkg_pattern = r'([\w\.-]+):(.+)\s\(([\d\~\w\.-]*).*\)'
         pkg_prog = re.compile(pkg_pattern)
         all_list = []
 
         for line in self.from_module.run(path):
-            user_responsible = '' 
+            user_responsible = ''
             action_list = ast.literal_eval(line["action"])
             if any("Requested-By" in x for x in action_list):
                 user_responsible = [x["Requested-By"] for x in action_list if "Requested-By" in x]
@@ -227,18 +225,18 @@ class AnalysisLinuxAptHistoryLog(base.job.BaseModule):
                             package_name, package_architecture, package_version = match_pkg.groups()
                             data_dict = {
                                 '@timestamp': line['@timestamp'],
-                                'package.name' : package_name,
-                                'package.architecture' : package_architecture,
-                                'package.version' : package_version,
-                                'username' : user_responsible,
-                                'action' : package_action
+                                'package.name': package_name,
+                                'package.architecture': package_architecture,
+                                'package.version': package_version,
+                                'username': user_responsible,
+                                'action': package_action
                             }
 
                             if package_action == "Install":
                                 yield data_dict
                             all_list.append(data_dict)
                         else:
-                            self.logger().warning("Regex pattern failed with some package name: " + package_name)
+                            self.logger().warning(f"Regex pattern failed with some package name: {package_name}")
 
         analysisdir = self.myconfig('analysisdir')
         check_directory(analysisdir, create=True)
@@ -255,9 +253,10 @@ class AnalysisLinuxDpkgLog(base.job.BaseModule):
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
     """
+
     def read_config(self):
         super().read_config()
-    
+
     def run(self, path=None):
         pkg_installed = r'status\sinstalled\s(.*):(\w+)+\s(.*)'
         pkg_prog = re.compile(pkg_installed)
@@ -268,9 +267,9 @@ class AnalysisLinuxDpkgLog(base.job.BaseModule):
                 package_name, package_architecture, package_version = match_pkg_installed.groups()
                 data_dict = {
                     '@timestamp': line['@timestamp'],
-                    'package.name' : package_name,
-                    'package.architecture' : package_architecture,
-                    'package.version' : package_version
+                    'package.name': package_name,
+                    'package.architecture': package_architecture,
+                    'package.version': package_version
                 }
                 yield data_dict
 
@@ -282,15 +281,16 @@ class AnalysisLinuxDpkgStatus(base.job.BaseModule):
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
     """
+
     def read_config(self):
         super().read_config()
-    
+
     def run(self, path=None):
         for line in self.from_module.run(path):
             if line["status"] == 'install ok installed':
                 data_dict = {
-                    'package.name' : line["package.name"],
-                    'package.architecture' : line["package.architecture"],
-                    'package.version' : line["package.version"]
+                    'package.name': line["package.name"],
+                    'package.architecture': line["package.architecture"],
+                    'package.version': line["package.version"]
                 }
                 yield data_dict

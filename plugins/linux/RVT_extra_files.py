@@ -24,11 +24,10 @@ class CopyFilesWithUsername(base.job.BaseModule):
 
     def run(self, path=None):
         outdir = self.myconfig('outdir')
-        username = get_username(path, mount_dir=self.myconfig('mountdir'),subfolder=self.myconfig('subfolder'))
+        username = get_username(path, mount_dir=self.myconfig('mountdir'), subfolder=self.myconfig('subfolder'))
         extra_config = {
-            'outdir': outdir, 
+            'outdir': outdir,
             'outfile': f"{username}_{{path}}.txt"
         }
         results = list(base.job.run_job(self.config, 'base.directory.CopyFile', path=path, extra_config=extra_config))
-
 

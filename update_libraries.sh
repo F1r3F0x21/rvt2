@@ -60,7 +60,7 @@ update_libyal() (
 
         tar xzf ${NAME}-${STAGE}-${VER}.tar.gz
         cd ${NAME}-${VER}/
-	./configure --enable-python3
+	./configure --enable-python
         make && sudo make install
 	retVal=$?
         if [ $retVal -ne 0 ]; then
@@ -207,6 +207,7 @@ update_hayabusa(){
 update_sleuthkit
 update_libyal libesedb
 update_libyal liblnk
+update_libyal libbde
 update_libyal libmsiecf
 update_libyal libscca
 update_libyal libpff

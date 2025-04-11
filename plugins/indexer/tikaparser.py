@@ -90,6 +90,7 @@ class TikaParser(base.job.BaseModule):
         - **tika_encoding** (str): The encoding of the answers from Tika
         - **only_root** (bool): If True, return only the root item
     """
+
     def __init__(self, *attrs, **kwattrs):
         super().__init__(*attrs, **kwattrs)
 
@@ -281,7 +282,7 @@ class TikaParser(base.job.BaseModule):
                 doc[0]['containerid'] = containerid
 
             files.extend(doc)
-            
+
             if self.myflag('only_root'):
                 break
         return files
@@ -331,7 +332,7 @@ class TikaParser(base.job.BaseModule):
                 # sometimes, Tika returns no response with a broken file
                 return dict(status=int(self.myconfig('error_status')))
             if resp.status_code != 200:
-                self.logger().warning('%s: status=%s', filepath, resp.status_code)
+                self.logger().warning(f'{filepath}: status={resp.status_code}')
 
             parsed = dict(status=resp.status_code)
             if resp.content:

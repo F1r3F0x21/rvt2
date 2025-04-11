@@ -19,22 +19,13 @@ import re
 import datetime
 from tempfile import TemporaryDirectory
 import struct
-import json
+import ujson as json
 
 import base.job
 from plugins.common.RVT_files import GetFiles
 from base.utils import check_directory, relative_path
 from base.commands import run_command
 from plugins.windows.RVT_lnk import getFileTime, get_macb_from_body
-
-
-# def getFileTime(data0, data1):
-#     if (data0 == 0 and data1 == 0):
-#         return 0
-#     else:
-#         data0 -= 0xd53e8000
-#         data1 -= 0x019db1de
-#         return int(data1 * 429.4967296 + data0 / 1e7)
 
 
 class Quarantine(base.job.BaseModule):
@@ -47,7 +38,7 @@ class Quarantine(base.job.BaseModule):
 
         self.logger().info("Starting extraction of quarantine files")
 
-        self.Files = GetFiles(self.config, vss=self.myflag("vss"))
+        self.Files = GetFiles(self.config)
         self.mountdir = self.myconfig('mountdir')
 
         base_path = self.myconfig('outdir')
@@ -69,11 +60,11 @@ class Quarantine(base.job.BaseModule):
         self.dexray = os.path.join(self.myconfig('rvthome'), "plugins/external/DeXRAY.pl")
         self.dexray = '/usr/local/ncd-scripts/DeXRAY.pl'
 
-        self.logger().info('Found {} eset quarantine files, {} defender quarantine files, {} symantec quarantine files, {} McAfee quarantine files, {} Kaspersky quarantine files, {} Bitdefender quarantine files'.format(len(eset_list), len(defender_list), len(symantec_list), len(mcafee_list), len(kaspersky_list), len(bitdefener_list)))
+        self.logger().info(f'Found {len(eset_list)} eset quarantine files, {len(defender_list)} defender quarantine files, {len(symantec_list)} symantec quarantine files, {len(mcafee_list)} McAfee quarantine files, {len(kaspersky_list)} Kaspersky quarantine files, {len(bitdefener_list)} Bitdefender quarantine files')
         outdir = os.path.join(base_path)
         check_directory(outdir, create=True)
 
-        body_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), '{}_BODY.csv'.format(self.config.config['DEFAULT']['source']))
+        body_file = os.path.join(self.config.get('plugins.common', 'timelinesdir'), f"{self.config.config['DEFAULT']['source']}_BODY.csv")
         data = {}
         files_list = defender_list + eset_list + symantec_list + mcafee_list + kaspersky_list + bitdefener_list + malwarebytes_list
         relative_files_list = files_list
@@ -85,7 +76,7 @@ class Quarantine(base.job.BaseModule):
         else:
             data = get_macb_from_body(body_file, relative_files_list)
         with open(os.path.join(base_path, 'quarantine_macb_times.json'), 'w') as f_out:
-            f_out.write(json.dumps(data))
+            f_out.write(json.dumps(data, escape_forward_slashes=False))
             print(data)
 
         with open(os.path.join(base_path, 'quarantine_metadata.json'), 'w') as f_out:
@@ -104,15 +95,15 @@ class Quarantine(base.job.BaseModule):
             for symantec_file in symantec_list:
                 # TODO write metadata to the file
                 self.decrypt(symantec_file, 'Symantec')
-            
+
             for mcafee_file in mcafee_list:
                 # TODO write metadata to the file
                 self.decrypt(mcafee_file, 'McAfee')
-                
+
             for kaspersky_file in kaspersky_list:
                 # TODO write metadata to the file
                 self.decrypt(kaspersky_file, 'Kaspersky')
-            
+
             for bitdefener_file in bitdefener_list:
                 # TODO write metadata to the file
                 self.decrypt(bitdefener_file, 'Bitdefender')
@@ -150,7 +141,7 @@ class Quarantine(base.job.BaseModule):
             try:
                 results['filepath'] = content[indx + 8:].decode('utf-16le')
             except Exception:
-                self.logger().warning("Unable to decode filepath for file in path {}".format(path))
+                self.logger().warning(f"Unable to decode filepath for file in path {path}")
                 results['filepath'] = str(content[indx + 8:])
 
             indx = content.find(sep, 17)
@@ -158,9 +149,9 @@ class Quarantine(base.job.BaseModule):
             try:
                 results['Malware type'] = content[indx + 12:indx2 + 1].decode('utf-16le')
             except Exception:
-                self.logger().warning("Unable to decode malware type for file in path {}".format(path))
+                self.logger().warning(f"Unable to decode malware type for file in path {path}")
                 results['Malware type'] = str(content[indx + 12:indx2 + 1])
-            return json.dumps(results)
+            return json.dumps(results, escape_forward_slashes=False)
 
     def parse_defender(self, path):
         """ Extracts metadata of Windows defender's quarantine file """
@@ -169,7 +160,7 @@ class Quarantine(base.job.BaseModule):
             shutil.copy2(path, temp_dir)
             filepath = os.path.join(temp_dir, os.path.basename(path))
             run_command([self.dexray, filepath])
-            decrypted_file = '%s.00000000_defender.out' % os.path.join(temp_dir, os.path.basename(path))
+            decrypted_file = f'{os.path.join(temp_dir, os.path.basename(path))}.00000000_defender.out'
             results = {}
 
             results['path'] = path
@@ -178,9 +169,9 @@ class Quarantine(base.job.BaseModule):
             try:
                 with open(decrypted_file, 'rb') as fin:
                     content = fin.read()
-            except:
-                self.logger().warning("Decrypted file {} not found. Skipping metadata parsing".format(decrypted_file))
-                return json.dumps(results)
+            except Exception:
+                self.logger().warning(f"Decrypted file {decrypted_file} not found. Skipping metadata parsing")
+                return json.dumps(results, escape_forward_slashes=False)
 
             lw = int.from_bytes(content[96:100], byteorder='little')
             hg = int.from_bytes(content[100:104], byteorder='little')
@@ -221,9 +212,9 @@ class Quarantine(base.job.BaseModule):
             #     content = fin.read()
 
             # ba = bytearray(content[-16:]).hex()
-            # print("{}-{}-{}-{}-{}".format(ba[6:8] + ba[4:6] + ba[2:4] + ba[:2], ba[8:12], ba[12:16], ba[16:20], ba[20:]))
+            # print(f"{ba[6:8] + ba[4:6] + ba[2:4] + ba[:2]}-{ba[8:12]}-{ba[12:16]}-{ba[16:20]}-{ba[20:]}")
 
-            return json.dumps(results)
+            return json.dumps(results, escape_forward_slashes=False)
 
     def decrypt(self, filename, antivir):
         """ decrypt files and moves to case quarantine folder """

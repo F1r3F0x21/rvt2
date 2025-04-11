@@ -19,7 +19,8 @@ import os
 import struct
 import base.job
 import copy
-import subprocess, shlex
+import subprocess
+import shlex
 import pandas as pd
 from tqdm import tqdm
 from datetime import datetime, timedelta
@@ -29,7 +30,6 @@ from functools import partial
 
 
 class Passwd(base.job.BaseModule):
-    
     """ Extract the essential information about user accounts in passwd file.
 
     Module description:
@@ -49,11 +49,12 @@ class Passwd(base.job.BaseModule):
                     "password": data[1],
                     "user.id": data[2],
                     "group.id": data[3],
-                    "user_information" : data[4],
-                    "home_directory" : data[5],
+                    "user_information": data[4],
+                    "home_directory": data[5],
                     "login_shell": data[6]
                 }
                 yield user_account_entry_dict
+
 
 class Group(base.job.BaseModule):
     """ Extract the essential information about group file.
@@ -74,9 +75,10 @@ class Group(base.job.BaseModule):
                     "group_name": data[0],
                     "password": data[1],
                     "group.id": data[2],
-                    "user_list" : data[3]
+                    "user_list": data[3]
                 }
                 yield group_entry_dict
+
 
 class Gshadow(base.job.BaseModule):
     """ Extract the essential information about gshadow file.
@@ -97,9 +99,10 @@ class Gshadow(base.job.BaseModule):
                     "group_name": data[0],
                     "password": data[1],
                     "administrators": data[2],
-                    "members" : data[3]
+                    "members": data[3]
                 }
                 yield group_entry_dict
+
 
 class LastLog(base.job.BaseModule):
     """ Extract the essential information about lastLog file.
@@ -116,24 +119,25 @@ class LastLog(base.job.BaseModule):
         partition = get_partition(path, self.myconfig('mountdir'))
         os_info = CharacterizeLinux(config=self.config)
         local_tz = os_info.get_timezone(partition)
-        structure_block=struct.Struct("I32s256s")
+        structure_block = struct.Struct("I32s256s")
         with open(path, "rb") as lastlog_file:
             for uid, block_bytes in enumerate(iter(partial(lastlog_file.read, structure_block.size), b"")):
                 if any(block_bytes):
                     timestamp, line, host = structure_block.unpack(block_bytes)
                     dict_output = {
-                        "user.id" : uid,
-                        "ut_line" : line.rstrip(b"\x00").decode("utf8"),
-                        "ut_host" : host.rstrip(b"\x00").decode("utf8"),
-                        "datetime" : datetime.fromtimestamp(timestamp)
+                        "user.id": uid,
+                        "ut_line": line.rstrip(b"\x00").decode("utf8"),
+                        "ut_host": host.rstrip(b"\x00").decode("utf8"),
+                        "datetime": datetime.fromtimestamp(timestamp)
                     }
                     # Localtime to UTC
-                    dict_output["datetime"] = date_to_iso(dict_output["datetime"], input_timezone=local_tz, logger=self.logger())
+                    dict_output["datetime"] = date_to_iso(
+                        dict_output["datetime"], input_timezone=local_tz, logger=self.logger())
 
                     yield dict_output
 
+
 class Shadow(base.job.BaseModule):
-    
     """ Extract the essential information secure user account information in shadow file.
 
     Module description:
@@ -169,24 +173,24 @@ class Shadow(base.job.BaseModule):
                         minimum_pwd_age = f"{data[3]} days"
                     else:
                         minimum_pwd_age = data[3]
-                
+
                 # maximum password age conversion
                 if data[4] != "":
                     maximum_pwd_age = f"{data[4]} days"
                 else:
                     maximum_pwd_age = ""
-                
+
                 # password warning period
                 if data[5] != "":
                     warning_period = f"{data[5]} days"
                 else:
                     warning_period = ""
-                
+
                 # password inactivity period
                 if data[6] != "":
                     inactivity_period = f"{data[6]} days"
                 else:
-                    inactivity_period = ""            
+                    inactivity_period = ""
 
                 # account expiration date conversion
                 date_exp = str(data[7])
@@ -208,8 +212,8 @@ class Shadow(base.job.BaseModule):
                 }
                 yield user_password_entry_dict
 
+
 class Access(base.job.BaseModule):
-    
     """ Extract the essential information about user accounts in access.conf file.
 
     Module description:
@@ -223,13 +227,14 @@ class Access(base.job.BaseModule):
     def run(self, path=None):
         for line in self.from_module.run(path):
             if not line.startswith('#') and line != '':
-                data = line.split(":",2)
+                data = line.split(":", 2)
                 user_account_entry_dict = {
                     "permission": data[0],
                     "users": data[1],
                     "origins ": data[2]
                 }
                 yield user_account_entry_dict
+
 
 class Utmpdump2(base.job.BaseModule):
     """ Extract the essential information of logins and additional information about system reboots in btmp and wtmp file.
@@ -238,6 +243,7 @@ class Utmpdump2(base.job.BaseModule):
         - **from_module**: Data dict.
         - **yields**: The updated dict data.
     """
+
     def read_config(self):
         super().read_config()
 
@@ -246,15 +252,15 @@ class Utmpdump2(base.job.BaseModule):
         partition = get_partition(path, self.myconfig('mountdir'))
         os_info = CharacterizeLinux(config=self.config)
         tz = os_info.get_timezone(partition)
-        env = {'TZ':tz}
+        env = {'TZ': tz}
         args = shlex.split(command)
         process = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         output_string = process.stdout.read().split('\n')
         for line in output_string:
             yield line
 
+
 class Utmpdump(base.job.BaseModule):
-    
     """ Extract the essential information of logins and additional information about system reboots in btmp and wtmp file.
 
     Module description:
@@ -281,17 +287,17 @@ class Utmpdump(base.job.BaseModule):
     def run(self, path=None):
         pattern_authorized_keys = r'\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]\s+\[(.*)\]'
         prog = re.compile(pattern_authorized_keys)
-        command = "utmpdump " + path
+        command = f"utmpdump {path}"
         args = shlex.split(command)
-        process = subprocess.Popen(args,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         aux_dict = {}
 
         output_string = process.stdout.read()
         total_iterations = output_string.count('\n') + 1
 
         for line in tqdm(output_string.split('\n'), total=total_iterations,
-                            desc='Reading {}'.format(os.path.basename(path)),
-                            disable=self.myflag('progress.disable')):
+                         desc=f'Reading {os.path.basename(path)}',
+                         disable=self.myflag('progress.disable')):
             line = line.strip()
             if line != "":
                 match = prog.match(line)
@@ -317,29 +323,29 @@ class Utmpdump(base.job.BaseModule):
                     if data_to_yield:
                         yield data_to_yield
                 else:
-                    self.logger().warning("Regex pattern failed with some utmp line: " + line)
-            
+                    self.logger().warning(f"Regex pattern failed with some utmp line: {line}")
+
         connections_to_yield = self.utmpdump_other_connections(aux_dict)
         for conection in connections_to_yield:
             yield conection
 
         process.wait()
-    
+
     def utmpdump_connections_started_and_ended(self, input_dict, aux_dict):
         connection_dict = False
 
-        dict_pid = aux_dict.get(input_dict["ut_pid"],"Empty")
+        dict_pid = aux_dict.get(input_dict["ut_pid"], "Empty")
         if dict_pid == "Empty":
             aux_dict[input_dict["ut_pid"]] = {input_dict["ut_type"]: [(input_dict)]}
         else:
             if input_dict["ut_type"] in aux_dict[input_dict["ut_pid"]]:
                 aux_list = aux_dict[input_dict["ut_pid"]][input_dict["ut_type"]]
                 aux_list.append(input_dict)
-                aux_dict[input_dict["ut_pid"]].update({input_dict["ut_type"]:aux_list})
+                aux_dict[input_dict["ut_pid"]].update({input_dict["ut_type"]: aux_list})
             else:
-                aux_dict[input_dict["ut_pid"]].update({input_dict["ut_type"]:[(input_dict)]})
+                aux_dict[input_dict["ut_pid"]].update({input_dict["ut_type"]: [(input_dict)]})
 
-        if input_dict["ut_type"] == self.ut_type["USER_PROCESS"] or input_dict["ut_type"] == self.ut_type["DEAD_PROCESS"]: 
+        if input_dict["ut_type"] == self.ut_type["USER_PROCESS"] or input_dict["ut_type"] == self.ut_type["DEAD_PROCESS"]:
             if self.ut_type["USER_PROCESS"] in aux_dict[input_dict["ut_pid"]].keys() and self.ut_type["DEAD_PROCESS"] in aux_dict[input_dict["ut_pid"]].keys():
                 pid_dict = aux_dict.get(input_dict["ut_pid"])
                 # with the same pid only a will have one "USER_PROCESS" and one "DEAD_PROCESS"
@@ -365,7 +371,7 @@ class Utmpdump(base.job.BaseModule):
                 time_difference = datetime_to - datetime_from
                 if str(time_difference).startswith("-"):
                     time_difference = datetime_from - datetime_to
-                    negative="-"
+                    negative = "-"
                 total_seconds = int(time_difference.total_seconds())
                 hours, remainder = divmod(abs(total_seconds), 3600)
                 minutes, seconds = divmod(remainder, 60)
@@ -374,7 +380,7 @@ class Utmpdump(base.job.BaseModule):
                 connection_dict = {
                     "@timestamp": str(datetime_from_iso),
                     "ut_type": "USER_PROCESS",
-                    "ut_id" : pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_id"],
+                    "ut_id": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_id"],
                     "ut_line": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_line"],
                     "ut_pid": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_pid"],
                     "user.name": pid_dict[self.ut_type["USER_PROCESS"]][0]["ut_user"],
@@ -391,11 +397,11 @@ class Utmpdump(base.job.BaseModule):
                     for aux_dict_key in aux_dict[aux_dict_pid]:
                         if aux_dict_key == self.ut_type["USER_PROCESS"]:
                             aux_dict_connection = aux_dict[aux_dict_pid][aux_dict_key][0]
-                            
+
                             copy_aux_dict.get(aux_dict_pid).pop(aux_dict_key)
                             if len(aux_dict.get(aux_dict_pid)) == 0:
                                 copy_aux_dict.pop(aux_dict_pid)
-                            
+
                             # time conversion
                             time_format = "%Y-%m-%dT%H:%M:%S,%f%z"
                             time_from = aux_dict_connection["ut_time"]
@@ -410,7 +416,7 @@ class Utmpdump(base.job.BaseModule):
                             time_difference = datetime_to - datetime_from
                             if str(time_difference).startswith("-"):
                                 time_difference = datetime_from - datetime_to
-                                negative="-"
+                                negative = "-"
                             total_seconds = int(time_difference.total_seconds())
                             hours, remainder = divmod(abs(total_seconds), 3600)
                             minutes, seconds = divmod(remainder, 60)
@@ -419,7 +425,7 @@ class Utmpdump(base.job.BaseModule):
                             connection_dict = {
                                 "@timestamp": str(datetime_from_iso),
                                 "ut_type": "USER_PROCESS",
-                                "ut_id" : aux_dict_connection["ut_id"],
+                                "ut_id": aux_dict_connection["ut_id"],
                                 "ut_line": aux_dict_connection["ut_line"],
                                 "ut_pid": aux_dict_connection["ut_pid"],
                                 "user.name": aux_dict_connection["ut_user"],
@@ -429,9 +435,9 @@ class Utmpdump(base.job.BaseModule):
                                 "ut_time_total": formatted_result
                             }
             aux_dict = copy_aux_dict
-                            
+
         return aux_dict, connection_dict
-    
+
     def utmpdump_other_connections(self, aux_dict):
         list_data = []
         ut_type_T = {
@@ -463,13 +469,13 @@ class Utmpdump(base.job.BaseModule):
                     connection_dict = {
                         "@timestamp": time_from,
                         "ut_type": ut_type_2,
-                        "ut_id" : utmp_entry["ut_id"],
+                        "ut_id": utmp_entry["ut_id"],
                         "ut_line": utmp_entry["ut_line"],
                         "ut_pid": utmp_entry["ut_pid"],
                         "user.name": utmp_entry["ut_user"],
                         "ut_host": utmp_entry["ut_host"],
                         "ut_addr_v6": utmp_entry["ut_addr_v6"],
-                        "ut_time_to": ut_time_to ,
+                        "ut_time_to": ut_time_to,
                         "ut_time_total": ut_time_total
                     }
                     list_data.append(connection_dict)
@@ -499,7 +505,7 @@ class Analysis(base.job.BaseModule):
                     data_passwd.append(row)
             df_result = pd.DataFrame(data_passwd)
             df_result.columns = df_result.columns.str.strip()
-            
+
             # Lastlog information
             df_result = self.lastlog(df_result)
 
@@ -508,11 +514,11 @@ class Analysis(base.job.BaseModule):
 
             # Group information
             df_result = self.group(df_result)
-            
-            desired_columns = ['user.name', 'user.id', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'encrypted_password', 'group']
+
+            desired_columns = ['user.name', 'user.id', 'user_information', 'lastlog_ut_host','lastlog_datetime', 'last_password_change', 'encrypted_password', 'group']
             existing_columns = [col for col in desired_columns if col in df_result.columns]
             df_result_filtered = df_result[existing_columns]
-            
+
             # Saving table
             txt_out = os.path.join(self.myconfig('analysisdir'), 'users_summary.md')
             data = df_result_filtered.to_markdown()
@@ -521,7 +527,7 @@ class Analysis(base.job.BaseModule):
             df_result_filtered.to_csv(os.path.join(self.myconfig('analysisdir'), 'users_summary.csv'), index=False)
         else:
             self.logger().warning("To make the users table etc/passwd needed, and not found.")
-        
+
         # Login information
         url_wtmp = os.path.join(self.login_dir, "wtmp.csv")
         if os.path.isfile(url_wtmp) and os.stat(url_wtmp).st_size != 0:
@@ -541,21 +547,21 @@ class Analysis(base.job.BaseModule):
             if os.path.getsize(url_lastlog) != 0:
                 df_lastlog = pd.read_csv(url_lastlog, sep=';', quotechar='"')
                 df_result = pd.merge(df_result, df_lastlog, on='user.id', how='outer')
-                df_result.rename(columns={'ut_line': 'lastlog_ut_line', 'ut_host': 'lastlog_ut_host', 'datetime': 'lastlog_datetime' }, inplace=True)
-                columns_to_fill = ["lastlog_ut_host","lastlog_datetime"]
+                df_result.rename(columns={'ut_line': 'lastlog_ut_line', 'ut_host': 'lastlog_ut_host', 'datetime': 'lastlog_datetime'}, inplace=True)
+                columns_to_fill = ["lastlog_ut_host", "lastlog_datetime"]
                 df_result[columns_to_fill] = df_result[columns_to_fill].fillna("Unknown")
             return df_result
         return df_result
-        
+
     def shadow(self, df_result):
         url_shadow = os.path.join(self.login_dir, "shadow.csv")
         if os.path.isfile(url_shadow):
             if os.path.getsize(url_shadow) != 0:
                 df_shadow = pd.read_csv(url_shadow, sep=';', quotechar='"')
-                df_result = pd.merge(df_result, df_shadow[['user.name', 'last_password_change','encrypted_password']], on='user.name', how='left')
+                df_result = pd.merge(df_result, df_shadow[['user.name', 'last_password_change', 'encrypted_password']], on='user.name', how='left')
             return df_result
         return df_result
-        
+
     def group(self, df_result):
         url_group_secure = os.path.join(self.login_dir, "group_secure.csv")
         if os.path.isfile(url_group_secure):
@@ -567,13 +573,13 @@ class Analysis(base.job.BaseModule):
                         for user in str(row["members"]).split(","):
                             list_group = df_result.loc[df_result['user.name'] == user]
                             if not list_group.empty:
-                                if list_group['group'].values != None:
+                                if list_group['group'].values is not None:
                                     list_group = list_group['group'].values[0]
                                     list_group = ast.literal_eval(str(list_group))
                                     list_group.append(row["group_name"])
                                 else:
                                     list_group = [row["group_name"]]
-                                df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)         
+                                df_result.loc[df_result['user.name']== user, 'group'] = str(list_group)
         else:
             url_group = os.path.join(self.login_dir, "group.csv")
             if os.path.isfile(url_group):
@@ -585,7 +591,7 @@ class Analysis(base.job.BaseModule):
                             for user in str(row["user_list"]).split(","):
                                 list_group = df_result.loc[df_result['user.name'] == user]
                                 if not list_group.empty:
-                                    if list_group['group'].values != None:
+                                    if list_group['group'].values is not None:
                                         list_group = list_group['group'].values[0]
                                         list_group = ast.literal_eval(str(list_group))
                                         list_group.append(row["group_name"])
@@ -593,8 +599,4 @@ class Analysis(base.job.BaseModule):
                                         list_group = [row["group_name"]]
                                     df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)
         return df_result
-
-
-
-
 

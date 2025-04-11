@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import json
+import ujson as json
 import os
 import re
 import shlex
@@ -23,6 +23,7 @@ import zoneinfo
 from collections import defaultdict
 from datetime import datetime, timezone
 from base.utils import check_directory, date_to_iso, get_filehash
+
 
 class CharacterizeLinux(base.job.BaseModule):
     """ Extract the essential information about Unix OS from several artifacts:
@@ -61,7 +62,7 @@ class CharacterizeLinux(base.job.BaseModule):
         self.os_info = defaultdict(dict)
         for part in self.partitions:
             self.os_information(part, oneOS)
-        
+
         # Save information in auxiliar file to be later accessed by other modules
         self.aux_file = self.myconfig('aux_file')
         aux_json_file_raw = '.'.join(self.aux_file.split('.')[:-1]) + '_raw.json'
@@ -77,7 +78,7 @@ class CharacterizeLinux(base.job.BaseModule):
     def os_information(self, part, oneOS):
         """ Linux OS Information """
         partition = "p01" if oneOS else part
-        part_path = os.path.join(self.myconfig('mountdir'), "%s" % part)
+        part_path = os.path.join(self.myconfig('mountdir'), part)
 
         # etc/release
         release_dict = {
@@ -193,7 +194,7 @@ class CharacterizeLinux(base.job.BaseModule):
             command = f"last -x shutdown -f {os.path.join(part_path, 'var/log/wtmp')} --time-format iso"
             args = shlex.split(command)
             tz = self.os_info[partition].get("TimeZone", "UTC")
-            env = {'TZ':tz}
+            env = {'TZ': tz}
             process = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             output_string = process.stdout.read().split('\n')
 
@@ -212,12 +213,12 @@ class CharacterizeLinux(base.job.BaseModule):
     def get_information(self, item, partition='p01'):
         """ Get selected OS or user information by reading a previously defined json file where information is stored """
 
-        self.logger().debug('Getting {} information about partition {}'.format(item, partition))
+        self.logger().debug(f'Getting {item} information about partition {partition}')
         os_info_keys = ["productname", "currentversion", "distributioncodename", "computername", "timezone", "linuxkernelversion", "installdate", "shutdowntime", "basedistribution"]
         if item.lower() in os_info_keys:
             default_output = ''
         else:
-            raise base.job.RVTError('Selected item <{}> is not a recognized OS attribute'.format(item))
+            raise base.job.RVTError(f'Selected item <{item}> is not a recognized OS attribute')
 
         # Parse the minimal information from hives if not done before
         if not os.path.exists(self.aux_file):
@@ -242,6 +243,7 @@ class CharacterizeLinux(base.job.BaseModule):
                 return json.load(infile)
         return {}
 
+
 class Fstab(base.job.BaseModule):
     """ Extract the essential information about fstab file. """
 
@@ -257,20 +259,20 @@ class Fstab(base.job.BaseModule):
                     "device": data[0],
                     "mount_point": data[1],
                     "type": data[2],
-                    "options" : data[3],
-                    "backup" : data[4],
-                    "pass" : data[5]
+                    "options": data[3],
+                    "backup": data[4],
+                    "pass": data[5]
                 }
                 partitions_dict[group_entry_dict["device"]] = group_entry_dict
-        
+
         # Save information in auxiliar file to be used by other modules
         aux_json_file = self.myconfig('aux_file')
         aux_json_file_raw = '.'.join(aux_json_file.split('.')[:-1]) + '_raw.json'
         check_directory(os.path.dirname(aux_json_file), create=True)
-        
+
         with open(aux_json_file, 'w') as outfile:
             json.dump(partitions_dict, outfile, indent=4)
         with open(aux_json_file_raw, 'w') as outfile:
             json.dump(partitions_dict, outfile)
-                
+
         return [dict(partitions=partitions_dict, source=self.myconfig('source'))]

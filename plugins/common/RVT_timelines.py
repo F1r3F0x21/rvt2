@@ -14,8 +14,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import glob
-import fileinput
 import shlex
 import re
 from plugins.common.RVT_disk import getSourceImage
@@ -36,13 +34,13 @@ class BaseTimeline(base.job.BaseModule):
 
     def timeline_from_body(self, tl_dir, body_filename, summary=True, time_range='hour'):
         """ Generate timeline and summary of files by time_range """
-        self.logger().debug("Creating timeline for {}".format(self.myconfig('source')))
-        fcsv = os.path.join(tl_dir, "%s_TL.csv" % self.myconfig('source'))
+        self.logger().debug(f"Creating timeline for {self.myconfig('source')}")
+        fcsv = os.path.join(tl_dir, f"{self.myconfig('source')}_TL.csv")
         cmd = [self.myconfig('mactime'), "-b", os.path.join(tl_dir, body_filename), "-m", "-y", "-d"]
         if time_range not in ('hour', 'day'):
-            raise base.job.RVTError('Selected time range for summary is not allowed: {}. Only "day" and "hour" supported'.format(time_range))
+            raise base.job.RVTError(f'Selected time range for summary is not allowed: {time_range}. Only "day" and "hour" supported')
         if summary:
-            summary_file = os.path.join(tl_dir, "{}_{}_sum.csv".format(self.myconfig('source'), time_range))
+            summary_file = os.path.join(tl_dir, f"{self.myconfig('source')}_{time_range}_sum.csv")
             cmd = [self.myconfig('mactime'), "-b", os.path.join(tl_dir, body_filename), "-y", "-d", "-i", time_range, summary_file]
         with open(fcsv, "wb") as f:
             run_command(cmd, stdout=f, logger=self.logger())
@@ -91,8 +89,8 @@ class Timelines(BaseTimeline):
         """ Generate BODY file, taking into account the kind of partition """
         disk = getSourceImage(self.myconfig, imagefile=path)
 
-        self.logger().debug("Generating BODY file for %s", disk.disknumber)
-        body = os.path.join(self.tl_path, "{}_BODY.csv".format(disk.disknumber))
+        self.logger().debug(f"Generating BODY file for {disk.source}")
+        body = os.path.join(self.tl_path, f"{disk.source}_BODY.csv")
 
         # create the body file
         with open(body, "wb") as f:
@@ -118,7 +116,7 @@ class Timelines(BaseTimeline):
                     else:
                         run_command([self.fls, "-s", "0", "-m", mountpath, "-r", "-o", str(p.osects), "-b", str(disk.sectorsize), disk.imagefile], stdout=f, logger=self.logger())
 
-        return "{}_BODY.csv".format(disk.disknumber)
+        return f"{disk.source}_BODY.csv"
 
     def generate_body_vss(self):
         """ Generate a timeline for VSS using mounted device as source """
@@ -161,7 +159,7 @@ class MFTTimeline(BaseTimeline):
     def read_config(self):
         super().read_config()
         self.set_default_config('volume_id', 'p01')
-        #self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -f {path} --body {outdir} --bodyf {filename} --bdl c --nl')
+        # self.set_default_config('cmd', 'env WINEDEBUG=fixme-all wine {executable} -f {path} --body {outdir} --bodyf {filename} --bdl c --nl')
         self.set_default_config('cmd', '')
         self.set_default_config('executable', os.path.join(self.config.config['plugins.windows']['windows_tools_dir'], 'MFTECmd', 'MFTECmd.dll'))
         self.set_default_config('windows_tool', os.path.join(self.config.config['plugins.windows']['dotnet_dir'], 'dotnet'))
@@ -173,15 +171,18 @@ class MFTTimeline(BaseTimeline):
         # Check if there's another mft_timeline job running
         base.job.wait_for_job(self.config, self)
 
-        self.check_params(path, check_from_module=False, check_path=True, check_path_exists=True)
+        if not os.path.exists(path):
+            self.logger().warning(f'{path} not exists')
+            return []
+        # self.check_params(path, check_from_module=False, check_path=True, check_path_exists=True)
         self.path = path
         tl_dir = self.myconfig('outdir')
         check_directory(tl_dir, create=True)
 
         # Create a volume specific body file to avoid overriding other partitions
-        main_body_filename = "{}_BODY.csv".format(self.myconfig('source'))
-        body_filename = "{}_BODY_{}.csv".format(self.myconfig('source'), self.myconfig('volume_id'))
-        body_filename_pattern = '{}_BODY_*.csv'.format(self.myconfig('source'))
+        main_body_filename = f"{self.myconfig('source')}_BODY.csv"
+        body_filename = f"{self.myconfig('source')}_BODY_{self.myconfig('volume_id')}.csv"
+        body_filename_pattern = f"{self.myconfig('source')}_BODY_*.csv"
 
         # WARNING: Use cmd with caution. Anything can be executed
         cmd = self.myconfig('cmd')
@@ -194,7 +195,7 @@ class MFTTimeline(BaseTimeline):
         cmd_args = shlex.split(cmd.format(**cmd_vars))
         substitution = self.myconfig('drive_letter')
 
-        self.logger().debug('Running command: {}'.format(str(cmd_args)))
+        self.logger().debug(f'Running command: {str(cmd_args)}')
         self.generate_body(cmd_args)
         self.preceding_path(tl_dir, body_filename, substitution)
         self.merge_timelines(tl_dir, body_filename_pattern, main_body_filename)
@@ -203,17 +204,17 @@ class MFTTimeline(BaseTimeline):
 
     def generate_body(self, cmd_args):
         """ Generate body file """
-        self.logger().debug("Generating BODY file for {}".format(self.path))
+        self.logger().debug(f"Generating BODY file for {self.path}")
         run_command(cmd_args)
 
     def preceding_path(self, tl_dir, body_filename, substitution='c:'):
         """ Modify preceding path """
         volume_id = self.myconfig('volume_id')
         if substitution:
-            cmd = r"sed -i 's@\(\d*|\){}\(.*\)@\1{}/mnt/{}\2@g' {}".format(substitution, self.myconfig('source'), volume_id, os.path.join(tl_dir, body_filename))
+            cmd = rf"sed -i 's@\(\d*|\){substitution}\(.*\)@\1{self.myconfig('source')}/mnt/{volume_id}\2@g' {os.path.join(tl_dir, body_filename)}"
         else:
             # For every entry, assume the path will start by "[a-zA-Z]:"
-            cmd = r"sed -i 's@\(\d*|\)[a-zA-Z]:\(.*\)@\1{}/mnt/{}\2@g' {}".format(self.myconfig('source'), volume_id, os.path.join(tl_dir, body_filename))
+            cmd = rf"sed -i 's@\(\d*|\)[a-zA-Z]:\(.*\)@\1{self.myconfig('source')}/mnt/{volume_id}\2@g' {os.path.join(tl_dir, body_filename)}"
         run_command(cmd)
 
     def merge_timelines(self, tl_dir, body_pattern, main_body_filename):
@@ -224,7 +225,6 @@ class MFTTimeline(BaseTimeline):
         regardless how they are created, follow the same pattern.
         """
         main_body = os.path.join(tl_dir, main_body_filename)
-        cmd = r"cat {} > {}".format(os.path.join(tl_dir, body_pattern), main_body)
+        cmd = rf"cat {os.path.join(tl_dir, body_pattern)} > {main_body}"
         run_command(cmd)
-
 

@@ -48,6 +48,7 @@ def _func2module(decorated_func):
     """ Converts a function into a BaseModule """
     class InnerModuleClass(BaseModule):
         """ A dummy base module, helper to a simplejob """
+
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.__doc__ = getattr(decorated_func, '__doc__', None)

@@ -17,7 +17,7 @@ import os
 import sys
 
 import base.job
-from base.utils import check_directory, check_file, get_filehash, relative_path
+from base.utils import check_directory, get_filehash, relative_path
 
 
 class CrypnetUrlCache(base.job.BaseModule):
@@ -39,7 +39,7 @@ class CrypnetUrlCache(base.job.BaseModule):
             if dirn.lower() == 'metadata':
                 metadata_path = os.path.join(path, dirn)
             elif dirn.lower() == 'content':
-                content_path =  os.path.join(path, dirn)
+                content_path = os.path.join(path, dirn)
 
         for filename in os.listdir(metadata_path):
             res = crypnetUrlCache.CertutilCacheParser(os.path.join(metadata_path, filename)).Parse(useContent=False)
@@ -47,6 +47,6 @@ class CrypnetUrlCache(base.job.BaseModule):
                 fname = os.path.join(content_path, filename)
                 if os.path.isfile(fname):
                     res['SHA256'] = get_filehash(fname)
-                fname = base.utils.relative_path(res['FullPath'], self.myconfig('casedir'))
+                fname = relative_path(res['FullPath'], self.myconfig('casedir'))
                 res['path'] = fname
                 yield res

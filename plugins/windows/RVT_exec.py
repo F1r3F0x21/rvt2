@@ -100,7 +100,7 @@ def parse_prefetch_file(pf_file):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    # logger.debug("Parsing {}".format(pf_file))
+    # logger.debug(f"Parsing {pf_file}")
     item = {}
 
     try:
@@ -135,10 +135,10 @@ def parse_prefetch_file(pf_file):
 
         return item
     except IOError as e:
-        logger.error("I/O Error: {}".format(e))
+        logger.error(f"I/O Error: {e}")
         return -1
     except SystemError as e:
-        logger.error("Bad signature for pf file: {}".format(e))
+        logger.error(f"Bad signature for pf file: {e}")
         return -1
     except Exception:
         logger.error("Unexpected error")
@@ -158,18 +158,18 @@ class Prefetch(base.job.BaseModule):
             self.volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
 
         if not os.path.isdir(path):
-            raise base.job.RVTError('Provided path {} is not a directory'.format(path))
+            raise base.job.RVTError(f'Provided path {path} is not a directory')
 
         # Get Prefetch files (.pf) list
         try:
             self.file_list = [os.path.join(path, file) for file in os.listdir(path) if file.endswith(".pf")]
             rel_path_list = [relative_path(os.path.join(path, file), self.myconfig('casedir')) for file in os.listdir(path) if file.endswith(".pf")]
         except IOError:
-            raise base.job.RVTError('Unable to list files in directory {}'.format(path))
+            raise base.job.RVTError(f'Unable to list files in directory {path}')
         except Exception as exc:
             raise base.job.RVTError(exc)
         if len(self.file_list) == 0:
-            self.logger().warning('No prefetch files found in {}'.format(path))
+            self.logger().warning(f'No prefetch files found in {path}')
             return []
 
         # Obtain timeline object to retrieve macb times
@@ -181,13 +181,13 @@ class Prefetch(base.job.BaseModule):
         # Define output files
         base_path = self.myconfig('outdir')
         check_directory(base_path, create=True)
-        out_file_id = '' if not self.volume_id else '_{}'.format(self.volume_id)
-        detailed_csv = os.path.join(base_path, "prefetch_executions{}.csv".format(out_file_id))
-        self.single_entry_csv = os.path.join(base_path, "prefetch{}.csv".format(out_file_id))
-        self.dump_file = os.path.join(base_path, "prefetch_dump{}.txt".format(out_file_id))
-        self.logger().debug('Saving Prefetch information dump to {}'.format(self.dump_file))
-        self.logger().debug('Saving Prefetch entries to {}'.format(self.single_entry_csv))
-        self.logger().debug('Saving all Prefetch executions to {}'.format(detailed_csv))
+        out_file_id = '' if not self.volume_id else f'_{self.volume_id}'
+        detailed_csv = os.path.join(base_path, f"prefetch_executions{out_file_id}.csv")
+        self.single_entry_csv = os.path.join(base_path, f"prefetch{out_file_id}.csv")
+        self.dump_file = os.path.join(base_path, f"prefetch_dump{out_file_id}.txt")
+        self.logger().debug(f'Saving Prefetch information dump to {self.dump_file}')
+        self.logger().debug(f'Saving Prefetch entries to {self.single_entry_csv}')
+        self.logger().debug(f'Saving all Prefetch executions to {detailed_csv}')
 
         save_csv(self.parse_Prefetch(path), config=self.config, outfile=detailed_csv, file_exists='OVERWRITE', quoting=0, encoding='utf-8')
         self.parse_Prefetch(path)
@@ -216,29 +216,27 @@ class Prefetch(base.job.BaseModule):
                     item = parse_prefetch_file(prefetch_file)
 
                     if item == -1:
-                        self.logger().warn("Problems parsing {}".format(prefetch_file))
-                        pf_output1.write("Filename:\t\t{}\nBirth date:\t\t{}\nPrefetch Hash:\t\t\nExecutable Filename:\t\nRun count:\t\t\n".format(
-                            filename, birth_date))
+                        self.logger().warn(f"Problems parsing {prefetch_file}")
+                        pf_output1.write(f"Filename:\t\t{filename}\nBirth date:\t\t{birth_date}\nPrefetch Hash:\t\t\nExecutable Filename:\t\nRun count:\t\t\n")
                         pf_output1.write("\n################################################\n")
                         writer.writerow([filename, "", "", birth_date, mod_date] + [""] * 7)
                         continue
 
                     if header_flag:
-                        headers = ["Filename", "Executable", "Run count", "Birth time"] + ["Run time {}".format(str(i)) for i in range(len(item["last run times"]))]
+                        headers = ["Filename", "Executable", "Run count", "Birth time"] + [f"Run time {str(i)}" for i in range(len(item["last run times"]))]
                         writer.writerow(headers)
                         header_flag = False
 
                     # Write information in dump file
-                    pf_output1.write("Filename:\t\t{}\nBirth date:\t\t{}\nPrefetch Hash:\t\t{}\nExecutable Filename:\t{}\nRun count:\t\t{}\n".format(
-                        filename, birth_date, item["prefetch hash"], item["filename"], item["run count"]))
+                    pf_output1.write(f'Filename:\t\t{filename}\nBirth date:\t\t{birth_date}\nPrefetch Hash:\t\t{item["prefetch hash"]}\nExecutable Filename:\t{item["filename"]}\nRun count:\t\t{item["run count"]}\n')
                     for i, run_date in enumerate(item["last run times"]):
-                        pf_output1.write("\tRun time {}:\t\t{}\n".format(str(i), run_date))
-                    pf_output1.write("\nResources\nResources Loaded:\t{}\n".format(str(len(item["resources loaded"]))))
+                        pf_output1.write(f"\tRun time {str(i)}:\t\t{run_date}\n")
+                    pf_output1.write(f"\nResources\nResources Loaded:\t{str(len(item['resources loaded']))}\n")
                     for i in item["resources loaded"]:
-                        pf_output1.write("\t{}\n".format(i))
-                    pf_output1.write("\nVolumes\nNumber of Volumes:\t{}\n".format(str(len(item["Volumes"]))))
+                        pf_output1.write(f"\t{i}\n")
+                    pf_output1.write(f"\nVolumes\nNumber of Volumes:\t{str(len(item['Volumes']))}\n")
                     for v in item["Volumes"]:
-                        pf_output1.write("\tDevice path:\t{}\n\tCreation time:\t{}\n\tSerial Number:\t{}\n\n".format(v[0], v[1], v[2]))
+                        pf_output1.write(f"\tDevice path:\t{v[0]}\n\tCreation time:\t{v[1]}\n\tSerial Number:\t{v[2]}\n\n")
                     pf_output1.write("################################################\n")
 
                     # Write a single entry for each item in csv
@@ -259,7 +257,7 @@ class Prefetch(base.job.BaseModule):
                         data['RunCount'] = i + 1
                         yield data
 
-        self.logger().debug("Prefetch parsing for {} finished".format(path))
+        self.logger().debug(f"Prefetch parsing for {path} finished")
 
 
 class RFC(base.job.BaseModule):
@@ -276,14 +274,14 @@ class RFC(base.job.BaseModule):
         if volume_id is None:
             volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
 
-        self.logger().debug("Parsing {}".format(path))
-        out_file_id = '' if not volume_id else '_{}'.format(volume_id)
-        outfile = os.path.join(base_path, "rfc{}.csv".format(out_file_id))
+        self.logger().debug(f"Parsing {path}")
+        out_file_id = '' if not volume_id else f'_{volume_id}'
+        outfile = os.path.join(base_path, f"rfc{out_file_id}.csv")
         try:
             rfc = ({'Application': i} for i in parse_RFC_file(path))
             save_csv(rfc, config=self.config, outfile=outfile, quoting=0, file_exists='OVERWRITE')
         except Exception:
-            self.logger().warning("Problems parsing {}".format(path))
+            self.logger().warning(f"Problems parsing {path}")
 
         self.logger().debug("Parsing RecentFileCache.bcf finished")
 
@@ -310,14 +308,14 @@ class CCM(base.job.BaseModule):
         volume_id = self.myconfig('volume_id')
         if volume_id is None:
             volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
-        out_file_id = '' if not volume_id else '_{}'.format(volume_id)
-        csv_out = os.path.join(self.myconfig('outdir'), 'CCM{}.csv'.format(out_file_id))
+        out_file_id = '' if not volume_id else f'_{volume_id}'
+        csv_out = os.path.join(self.myconfig('outdir'), f'CCM{out_file_id}.csv')
 
         # Write output files
         if not results:
-            self.logger().info('No results obtained while parsing {}'.format(path))
+            self.logger().info(f'No results obtained while parsing {path}')
             return []
-        self.logger().debug('Saving output to file {}'.format(csv_out))
+        self.logger().debug(f'Saving output to file {csv_out}')
         save_csv(results, config=self.config, outfile=csv_out, quoting=0, file_exists='OVERWRITE')
 
     def show_CCM_RecentlyUsedApps(self, path):
@@ -339,12 +337,11 @@ class CCM(base.job.BaseModule):
                         try:
                             if Value == "LastUsedTime":
                                 Time = str(RUA.properties[Value].value)
-                                ExcelTime = "{}-{}-{} {}:{}:{}".format(Time[0:4], Time[4:6], Time[6:8], Time[8:10],
-                                                                       Time[10:12], Time[12:14])
+                                ExcelTime = f"{Time[0:4]}-{Time[4:6]}-{Time[6:8]} {Time[8:10]}:{Time[10:12]}:{Time[12:14]}"
                                 RUAValues[Value] = ExcelTime
                             elif Value == "TimeZoneOffset":
                                 Time = str(RUA.properties[Value].value)
-                                TimeOffset = '="{}"'.format(Time[-4:])
+                                TimeOffset = f'="{Time[-4:]}"'
                                 RUAValues[Value] = TimeOffset
                             else:
                                 RUAValues[Value] = str(RUA.properties[Value].value).replace('\\', '/')

@@ -24,7 +24,7 @@ import os
 import csv
 import subprocess
 import shlex
-import json
+import ujson as json
 import logging
 from datetime import datetime, timedelta, timezone
 from collections import OrderedDict
@@ -153,8 +153,6 @@ class INDXRipper_velociraptor(base.job.BaseModule):
         return result
 
 
-
-
 ####### Content from this line onwards may be deleted
 # TODO: improve efficiency of INDX_ROOT records extraction
 # TODO: Filenames with short_filename format are excluded even if the name is defined this way. skip_short_filenames may be redefined to call complete_name() before skipping, but for deleted entries is not possible to distinguish them.
@@ -217,7 +215,7 @@ class ParseINDX(base.job.BaseModule):
             part_name = ''.join(['p', p.partition])
             try:
                 self.inode_fls = FileSystem(self.config).load_path_from_inode(partition=part_name)
-                self.logger().debug('Correctly loaded inode-name relation file for partiton {}'.format(part_name))
+                self.logger().debug(f'Correctly loaded inode-name relation file for partiton {part_name}')
             except Exception as e:
                 self.logger().error(e)
                 continue
@@ -226,8 +224,8 @@ class ParseINDX(base.job.BaseModule):
             outfile = os.path.join(outdir, '{}{}_INDX_timeline.csv'.format(part_name, '_slack' if self.only_slack else ''))
             self.lastParsedBlk = 0
             if self.myflag('use_localstore'):
-                self.lastParsedBlk = int(self.config.store_get('last_{}_block_parsed'.format(part_name), 0))
-            self.logger().debug('lastParsedBlk: {}'.format(self.lastParsedBlk))
+                self.lastParsedBlk = int(self.config.store_get(f'last_{part_name}_block_parsed', 0))
+            self.logger().debug(f'lastParsedBlk: {self.lastParsedBlk}')
 
             csv_args = {'file_exists': 'APPEND', 'write_header': True}
             if self.lastParsedBlk:
@@ -237,7 +235,7 @@ class ParseINDX(base.job.BaseModule):
                     csv_args['write_header'] = False
             else:
                 if os.path.exists(outfile):
-                    self.logger().warning('Overwriting file {}'.format(outfile))
+                    self.logger().warning(f'Overwriting file {outfile}')
                     csv_args['file_exists'] = 'OVERWRITE'
 
             # Write the parsed entries to a csv file for each partition.
@@ -251,11 +249,11 @@ class ParseINDX(base.job.BaseModule):
         # Yield INDX_ROOT records (with at least one INDX entry) for all directories in a partition.
         rootRecordsFound = 0
         if self.parseINDX_ROOTFiles:
-            self.logger().debug('Processing INDX_ROOT records of partition {}'.format(partition.partition))
+            self.logger().debug(f'Processing INDX_ROOT records of partition {partition.partition}')
             for rec in self.parse_INDX_ROOT_records(partition):
                 rootRecordsFound += 1
                 yield rec
-            self.logger().debug('Done with INDX_ROOT records of partition {}'.format(partition.partition))
+            self.logger().debug(f'Done with INDX_ROOT records of partition {partition.partition}')
 
         # Yield INDX_ALLOC records at INDEX_NODE_BLOCK_SIZE (default is 4096) offset from the start of a partition
         self.allocRecordsFound = 0
@@ -263,7 +261,7 @@ class ParseINDX(base.job.BaseModule):
         for rec in self.parse_INDX_ALLOC_records(partition):
             yield rec
 
-        self.logger().debug('Root records found: {}\nAlloc records found: {}\nAlloc slack records found: {}'.format(rootRecordsFound, self.allocRecordsFound, self.slackRecordsFound))
+        self.logger().debug(f'Root records found: {rootRecordsFound}\nAlloc records found: {self.allocRecordsFound}\nAlloc slack records found: {self.slackRecordsFound}')
 
     def parse_INDX_ROOT_records(self, partition=None):
         """ Yield dicts of parsed INDX_ROOT entries for a partition. """
@@ -303,9 +301,9 @@ class ParseINDX(base.job.BaseModule):
                     large_inode, path = fields[1].rstrip(':'), ' '.join(fields[2:])
                 inode = int(large_inode.split('-')[0])
 
-                cmd_icat = 'icat -o {} {} {}'.format(int(partition.osects), imagefile, large_inode)
+                cmd_icat = f'icat -o {int(partition.osects)} {imagefile} {large_inode}'
                 try:
-                    # self.logger().debug(': Processing INDX_ROOT of inode {}'.format(large_inode))
+                    # self.logger().debug(f': Processing INDX_ROOT of inode {large_inode}')
                     rootData = subprocess.check_output(shlex.split(cmd_icat))
                 except Exception as e:
                     self.logger().error(e)
@@ -315,7 +313,7 @@ class ParseINDX(base.job.BaseModule):
                     yield rootArray, inode, path
 
         # Get INDX_ROOT record for inode 5 (root directory). It is not listed by fls
-        cmd_icat = 'icat -o {} {} {}'.format(int(partition.osects), imagefile, '5-144')
+        cmd_icat = f'icat -o {int(partition.osects)} {imagefile} 5-144'
         try:
             rootData = subprocess.check_output(shlex.split(cmd_icat))
         except Exception as e:
@@ -329,7 +327,7 @@ class ParseINDX(base.job.BaseModule):
     def parse_INDX_ALLOC_records(self, partition=None):
         """ Yield dicts of parsed INDX_ALLOC entries for a partition. """
         for b, blk_offset in self.get_INDX_ALLOC_files(partition):
-            # self.logger().debug('Processing INDX_ALLOC record at sector offset: {}'.format(blk_offset))
+            # self.logger().debug(f'Processing INDX_ALLOC record at sector offset: {blk_offset}')
             h = NTATTR_STANDARD_INDEX_HEADER(b, 0, False, inode_fls=self.inode_fls, blk_offset=blk_offset)
 
             methods = [h.slack_entries] if self.only_slack else [h.entries, h.slack_entries]
@@ -366,13 +364,13 @@ class ParseINDX(base.job.BaseModule):
         part_name = ''.join(['p', partition.partition])
 
         # Use a progress bar, showing the number of blocks processed in the partition
-        with tqdm(total=total_blocks - self.lastParsedBlk, desc='Parse_I30 {}'.format(part_name)) as pbar:
+        with tqdm(total=total_blocks - self.lastParsedBlk, desc=f'Parse_I30 {part_name}') as pbar:
             with open(imagefile, 'rb') as image:
                 # Start at the beginnig of partition or at next to the last parsed block.
                 # Caution: Output entries may be repeated in lastParsedBlk + 1 if execution was stopped at half parsing of that block.
                 offset += (self.lastParsedBlk + 1) * INDEX_NODE_BLOCK_SIZE
                 if offset >= partition_end_offset:
-                    self.logger().warning('Starting block offset exceeding partition {} limits. No blocks left to parse'.format(part_name))
+                    self.logger().warning(f'Starting block offset exceeding partition {part_name} limits. No blocks left to parse')
                     return []
                 blkOffset = self.lastParsedBlk + 1
 
@@ -388,7 +386,7 @@ class ParseINDX(base.job.BaseModule):
 
                         # save the last parsed block
                         if self.myflag('use_localstore'):
-                            self.config.store_set('last_{}_block_parsed'.format(part_name), str(blkOffset))
+                            self.config.store_set(f'last_{part_name}_block_parsed', str(blkOffset))
 
                     offset = offset + INDEX_NODE_BLOCK_SIZE
                     blkOffset += 1
@@ -396,7 +394,7 @@ class ParseINDX(base.job.BaseModule):
 
                 # if the end is reached, clean last_block_parsed: next time will be a full carving again
                 if self.myflag('use_localstore'):
-                    self.config.store_set('last_{}_block_parsed'.format(part_name), '0')
+                    self.config.store_set(f'last_{part_name}_block_parsed', '0')
 
 
 class OverrunBufferException(Exception):
@@ -409,6 +407,7 @@ class OverrunBufferException(Exception):
 
 class Block(object):
     """ Base class for structure blocks in the NTFS INDX format. A block is associated with an offset into a byte-string. """
+
     def __init__(self, buf, offset, parent=False, inode_fls=None, dir_inode=None, **kwargs):
         """
         Arguments:
@@ -448,7 +447,7 @@ class Block(object):
 
         o = self._offset + offset
         try:
-            return struct.unpack_from("<{}s".format(length), self._buf, o)[0]
+            return struct.unpack_from(f"<{length}s", self._buf, o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -514,11 +513,11 @@ class NTATTR_INDEX_ROOT_HEADER(Block):
         # Consistency checks of size and type:
         self.type_of_attribute = self.unpack_integer(*self.root_header_attr['TypeOfAttributeInIndex'])
         if self.type_of_attribute != 48:  # 48 is $FILE_NAME
-            self.logger.warning('Type of attribute {} found. Should be 48'.format(self.type_of_attribute))
+            self.logger.warning(f'Type of attribute {self.type_of_attribute} found. Should be 48')
         # assert(self.type_of_attribute == 48)
         self.index_record_size = self.unpack_integer(*self.root_header_attr['IndexRecordSizeInBytes'])
         if self.index_record_size != INDEX_NODE_BLOCK_SIZE:
-            self.logger.warning('Index record size: ({}) not {}'.format(self.index_record_size, INDEX_NODE_BLOCK_SIZE))
+            self.logger.warning(f'Index record size: ({self.index_record_size}) not {INDEX_NODE_BLOCK_SIZE}')
         # assert(self.index_record_size == INDEX_NODE_BLOCK_SIZE)
 
         self._blk_offset = self._directory_inode  # In ROOT files, show inode for reference instead of block offset
@@ -541,7 +540,7 @@ class NTATTR_INDEX_ROOT_HEADER(Block):
         e = NTATTR_DIRECTORY_INDEX_ENTRY(self._buf, 0x10 + self.entry_offset(), self, blk_offset=self.blk_offset())
 
         if not e.is_valid():
-            self.logger.debug('First ROOT allocated entry not valid at inode {}'.format(self._blk_offset))
+            self.logger.debug(f'First ROOT allocated entry not valid at inode {self._blk_offset}')
             return
 
         yield e
@@ -606,7 +605,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             fixup_offset = 512 * (i + 1) - 2
             check_value = self.unpack_integer(fixup_offset, '<H')
             if check_value != self.fixup_value:
-                self.logger.debug('Bad fixup at {}'.format(self.offset() + fixup_offset))
+                self.logger.debug(f'Bad fixup at {self.offset() + fixup_offset}')
                 continue
             new_value = self.unpack_integer(self._fixup_array_offset + 2 * i, '<H')
             self.pack_integer(fixup_offset, new_value)  # Bytes substitution in the buffer
@@ -636,7 +635,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         if not self._valid_fixups:
             return self.offset() + INDEX_NODE_BLOCK_SIZE
         else:
-            return min(self.offset() + self.entries_allocated_size(),self.offset() + INDEX_NODE_BLOCK_SIZE)
+            return min(self.offset() + self.entries_allocated_size(), self.offset() + INDEX_NODE_BLOCK_SIZE)
 
     def set_directory_inode(self, first_entry=None):
         """ Return the inode of the directory associated with this block.
@@ -649,11 +648,11 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         inode = first_entry.get_inode('refParentDirectory')
         if not inode:
-            self.logger.debug('Directory inode is 0 at block {}'.format(self.blk_offset()))
+            self.logger.debug(f'Directory inode is 0 at block {self.blk_offset()}')
             self._directory_inode = 0
             return
         if str(inode) not in self._inode_fls:
-            self.logger.debug('Directory inode is invalid at block {}'.format(self.blk_offset()))
+            self.logger.debug(f'Directory inode is invalid at block {self.blk_offset()}')
             self._directory_inode = 0
             return
 
@@ -665,14 +664,14 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         try:
             entry_class = self.index_type[indext]
         except KeyError:
-            raise Exception("Unsupported index type: {}.".format(indext))
+            raise Exception(f"Unsupported index type: {indext}.")
 
         if self.entry_offset() - self.offset() >= self.entries_size():
-            self.logger.debug(": No allocated entries in this INDX_ALLOC block. {} > {}".format(self.entry_offset() - self.offset(), self.entries_size()))
+            self.logger.debug(f": No allocated entries in this INDX_ALLOC block. {self.entry_offset() - self.offset()} > {self.entries_size()}")
             return
 
         if not self._valid_fixups:
-            self.logger.debug(": No fixups, so assuming no valid regular entries in the block {}.".format(self.blk_offset()))
+            self.logger.debug(f": No fixups, so assuming no valid regular entries in the block {self.blk_offset()}.")
             return
 
         # It appears in some cases, the .entry_offset field is relative from the NTATTR_STANDARD_INDEX_HEADER ("INDX(...")
@@ -686,7 +685,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         # It seems that next regular entries are also invalid if the first is not valid
         if not e.is_valid():
-            self.logger.debug('First allocated entry not valid at block offset {}'.format(self._blk_offset))
+            self.logger.debug(f'First allocated entry not valid at block offset {self._blk_offset}')
             self._valid_fixups = False  # That's not exact but it's used in slack_entries method
             return
 
@@ -694,7 +693,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
     def entries(self, indext='dir'):
         """ A generator that returns each INDX entry associated with this header. """
-        # self.logger.debug('Processing allocated entries for block {}'.format(self._blk_offset))
+        # self.logger.debug(f'Processing allocated entries for block {self._blk_offset}')
         if not self._first_entry:
             return
 
@@ -704,7 +703,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         while e.has_next():   # TODO: assuming all but the first are valid. Not necessarily True
             # # sizeOfEntries may be wrong in some blocks, so even entries not marked as slack must be checked
             # if not e.is_valid():
-            #     self.logger.warning('Invalid entry: inode: {} | filename: {} | block: {}'.format(elf._directory_inode, e.filename(), self._blk_offset)))
+            #     self.logger.warning(f'Invalid entry: inode: {self._directory_inode} | filename: {e.filename()} | block: {self._blk_offset}'))
             #     e = e.next()
             #     continue
             e = e.next()
@@ -714,12 +713,12 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         """ A generator that yields INDX entries found in the slack space associated with this header. """
         # Treat all block as slack if first allocated entry is invalid
         off = self.offset() + self.entries_size() if self._first_entry else self.offset() + 0x28
-        # self.logger.debug('Deleted entries offset is {} at block {}'.format(off, self.blk_offset()))
+        # self.logger.debug(f'Deleted entries offset is {off} at block self.blk_offset()}')
 
         # NTATTR_STANDARD_INDEX_ENTRY is at least 0x52 bytes long, so don't overrun, but if we do, then we're done
         try:
             while off < self.block_end_offset() - 0x52:
-                # self.logger.debug("Trying to find slack entry at {}.".format(off))
+                # self.logger.debug(f"Trying to find slack entry at {off}.")
                 e = NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(self._buf, off, self, blk_offset=self.blk_offset())
                 if e.is_empty():
                     off += 40
@@ -736,7 +735,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         except struct.error:
             self.logger.warning('Slack entry parsing overran buffer.')
             return
-        # self.logger.debug('Done with slack entries at block {}'.format(self.blk_offset()))
+        # self.logger.debug(f'Done with slack entries at block {self.blk_offset()}')
 
 
 class NTATTR_STANDARD_INDEX_ENTRY(Block):
@@ -777,7 +776,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
     def has_next(self):
         """ True if the end offset of the entry does not overrun the total entries size. """
         entry_end = self.end_offset() - self.parent().offset()
-        # self.logger.debug('Entry end: {} | Parent end offset: {}'.format(entry_end, self.parent().entries_size()))
+        # self.logger.debug(f'Entry end: {entry_end} | Parent end offset: {self.parent().entries_size()}')
         # Althougth parent.entrysize should be at least 0x10 smaller than last entries_length, substract 0x8 to catcth slack entries with 0X1C missing info
         return entry_end < self.parent().entries_size() - 0x8  # substract 0x8 just to be safe
 
@@ -899,20 +898,18 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         if inode and inode == self._parent._directory_inode:  # standard scenario
             return self._inode_fls[str(inode)]
         if inode == 5 and not self._parent._directory_inode:  # root directory (inode 5) is treated apart. Sometimes is confused with inode 0
-            # self.logger.debug('Parent root directory for filename: {}'.format(self.filename()))
+            # self.logger.debug(f'Parent root directory for filename: {self.filename()}')
             return self._inode_fls[str(inode)]
         if inode and str(inode) in self._inode_fls:
             # Take refParentDirectory of the present entry as its parent inode but mark it as not reliable
-            self.logger.debug('Inode from individual entry ({}) does not match general inode from block ({}), and may refer to a deleted directory'.format(
-                inode, self._parent._directory_inode))
+            self.logger.debug(f'Inode from individual entry ({inode}) does not match general inode from block ({self._parent._directory_inode}), and may refer to a deleted directory')
             self.reliable_inode = False
             return self._inode_fls[str(inode)]
 
         # Invalid refParentDirectory scenarios:
         if self._parent._directory_inode:
             # Take self._parent._directory_inode as parent inode but mark it as not reliable
-            self.logger.debug('Inode from individual entry ({}) invalid. Taking general inode from block ({}) as reference'.format(
-                inode, self._parent._directory_inode))
+            self.logger.debug(f'Inode from individual entry ({inode}) invalid. Taking general inode from block ({self._parent._directory_inode}) as reference')
             self.reliable_inode = False
             self._parent_inode = self._parent._directory_inode  # TODO: take this or the inode from refParent not in fls?
             return self._inode_fls[str(self._parent._directory_inode)]
@@ -940,13 +937,12 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
                 if p == 'PARENT DIRECTORY NOT FOUND':
                     # Check if at least MFTReference is coherent with filename
                     if name.split('/')[-1] == self.fn:
-                        # self.logger.debug('Parent missing but MFTReference ({}) is coherent with filename ({}). Entry at block offset {}'.format(
-                        #     name, self.fn, self.blk_offset()))
+                        # self.logger.debug(f'Parent missing but MFTReference ({name}) is coherent with filename ({self.fn}). Entry at block offset {self.blk_offset()}')
                         self._annotation = 'parent missing'
                         return name
                 elif name == 'NO FILENAME ASSOCIATED WITH INODE' or name == "$MFT":
                     self._annotation = 'invalid Inode Reference'
-                    # self.logger.debug('Wrong MFTReference for entry at block offset {}'.format(self.blk_offset()))
+                    # self.logger.debug(f'Wrong MFTReference for entry at block offset {self.blk_offset()}')
                     return os.path.join(p, self.fn)
                     # TODO: Assuming first name associated with an inode is the correct. Same problem when obtaining parent in entry_as_dict(). Explore other options
 
@@ -955,31 +951,31 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         if self.short_filename:
             self._annotation = 'short filename'
             return ''  # SHORT FILENAME FORMAT
-        # self.logger.debug('Complete name not obtained: parent {} | child: {} | filename: {}'.format(self.parent_directory(), self.mft_name(), self.filename()))
+        # self.logger.debug(f'Complete name not obtained: parent {self.parent_directory()} | child: {self.mft_name()} | filename: {self.filename()}')
         return ''  # NOT OBTAINED
 
     def is_valid(self):
         """ Check whether entry got the minimum significant info right. """
         # Skip entries with 0 length filename (no significant name could be extracted)
         if self.unpack_integer(*self.attributes['filenameLength']) == 0:
-            # self.logger.debug('0 size filenameLength, skipping entry at offset {} of block {}'.format(self.offset(), self.blk_offset()))
+            # self.logger.debug(f'0 size filenameLength, skipping entry at offset {self.offset()} of block {self.blk_offset()}')
             return False
 
         # TODO: Let some timestamps be invalid ?
         # Skip entries with invalid timestamps
         for timetype in ['creationTime', 'lastModifiedTime', 'MFTRecordChangeTime', 'lastAccessTime']:
             if not _ts_1971 < self.unpack_integer(*self.attributes[timetype]) < _ts_future:
-                # self.logger.debug('Timestamp out of range. Skipping entry at offset {} of block {}'.format(self.offset(), self.blk_offset()))
+                # self.logger.debug(f'Timestamp out of range. Skipping entry at offset {self.offset()} of block {self.blk_offset()}')
                 return False
 
         # Skip entries with filename not decodable or exceeding buffer
         fn = self.filename()
         if fn == "ERROR DECODING FILENAME":
-            self.logger.error('Wrong filename. Skipping entry at offset {} of block {}'.format(self.offset(), self.blk_offset()))
+            self.logger.error(f'Wrong filename. Skipping entry at offset {self.offset()} of block {self.blk_offset()}')
             # self.fn = self.unpack_bytestring(self._filename_offset, 2 * self.unpack_integer(*self.attributes['filenameLength'])).decode("ascii", "replace")
             return False
         elif fn == "FILENAME EXCEDING BUFFER LENGTH":
-            # self.logger.debug('Filename exceeding buffer. Skipping entry at offset {} of block {}'.format(self.offset(), self.blk_offset()))
+            # self.logger.debug(f'Filename exceeding buffer. Skipping entry at offset {self.offset()} of block {self.blk_offset()}')
             return False
 
         return True
@@ -994,16 +990,16 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
             return parse_windows_timestamp(timestamp)
         try:
             if timestamp < 1e17:
-                self.logger.debug('timestamp too small: {}. Using Epoch timestamp'.format(timestamp))
+                self.logger.debug(f'timestamp too small: {timestamp}. Using Epoch timestamp')
                 return datetime(1970, 1, 1, 0, 0, 0)
             elif timestamp > 1e18:
-                self.logger.debug('timestamp too big: {}. Using Epoch timestamp'.format(timestamp))
+                self.logger.debug(f'timestamp too big: {timestamp}. Using Epoch timestamp')
                 return datetime(1970, 1, 1, 0, 0, 0)
             else:
                 # Standard WIndows timestamp value
                 return parse_windows_timestamp(timestamp)
         except ValueError:
-            self.logger.warning("{}: Invalid timestamp, using Epoch timestamp.".format(self.absolute_offset(self.offset())))
+            self.logger.warning(f"{self.absolute_offset(self.offset())}: Invalid timestamp, using Epoch timestamp.")
             return datetime(1970, 1, 1, 0, 0, 0)
 
     def created_time(self, safe=True):
@@ -1069,15 +1065,15 @@ def entry_as_dict(entry, filename=False):
     entry.parent_directory()  # must be executed before getting entry.complete_name()
 
     return OrderedDict([('Filename', fn),
-                       ('Path', entry.complete_name()),
-                       ('Modify Date', entry.modified_time()),
-                       ('Access Date', entry.accessed_time()),
-                       ('Metadata Change Date', entry.changed_time()),
-                       ('Birth Date', entry.created_time()),
-                       ('Physical Size', entry.physical_size()),
-                       ('Logical Size', entry.logical_size()),
-                       ('Inode File', entry.entry_inode()),
-                       ('Inode Parent', entry.parent_inode()),
-                       ('Block Offset', entry.blk_offset()),
-                       ('In Slack Space', bool(slack)),
-                       ('Annotation', entry.annotation())])
+                        ('Path', entry.complete_name()),
+                        ('Modify Date', entry.modified_time()),
+                        ('Access Date', entry.accessed_time()),
+                        ('Metadata Change Date', entry.changed_time()),
+                        ('Birth Date', entry.created_time()),
+                        ('Physical Size', entry.physical_size()),
+                        ('Logical Size', entry.logical_size()),
+                        ('Inode File', entry.entry_inode()),
+                        ('Inode Parent', entry.parent_inode()),
+                        ('Block Offset', entry.blk_offset()),
+                        ('In Slack Space', bool(slack)),
+                        ('Annotation', entry.annotation())])

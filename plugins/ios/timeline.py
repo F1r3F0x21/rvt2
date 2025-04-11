@@ -53,7 +53,7 @@ def _mode_number2string(isdir, mode):
     group_mode = strmodes[int((mode & 0o070) / 8)]
     others_mode = strmodes[(mode & 0o007)]
     dirmark = 'd/d' if isdir else 'r/r'
-    return '{}{}{}{}'.format(dirmark, user_mode, group_mode, others_mode)
+    return f'{dirmark}{user_mode}{group_mode}{others_mode}'
 
 
 class Timeline(plugins.ios.IOSModule):
@@ -74,7 +74,7 @@ class Timeline(plugins.ios.IOSModule):
         Yields:
             An *OrderedDict* with the fields in TSK3 BODY file.
         """
-        self.logger().debug('Parsing: %s', path)
+        self.logger().debug(f'Parsing: {path}')
         self.check_params(path, check_path=True, check_path_exists=True)
 
         database = self.database(path)
@@ -82,7 +82,7 @@ class Timeline(plugins.ios.IOSModule):
         if database is None:
             return []
 
-        with sqlite3.connect('file://{}/{}?mode=ro'.format(path, database), uri=True) as conn:
+        with sqlite3.connect(f'file://{path}/{database}?mode=ro', uri=True) as conn:
             c = conn.cursor()
             for row in c.execute('SELECT * FROM Files'):
                 name = os.path.join(row[1], row[2])

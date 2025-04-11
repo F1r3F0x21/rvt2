@@ -43,18 +43,18 @@ class QuickLook(base.job.BaseModule):
         """
 
         if not os.path.isdir(self.myconfig('mountdir')):
-            raise base.job.RVTError("Folder {} not exists".format(self.myconfig('mountdir')))
+            raise base.job.RVTError(f"Folder {self.myconfig('mountdir')} not exists")
 
         ql_path = self.myconfig("outdir")
 
         check_folder(ql_path)
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
 
         ql_list = search.search("QuickLook.thumbnailcache$")
 
         for i in ql_list:
-            self.logger().info("Extracting quicklook data from {}".format(i))
+            self.logger().info(f"Extracting quicklook data from {i}")
             out_path = os.path.join(ql_path, i.split("/")[-3])
             if not os.path.isdir(out_path):
                 os.mkdir(out_path)
@@ -67,11 +67,11 @@ class ASL(base.job.BaseModule):
 
     def run(self, path=""):
         if not os.path.isdir(self.myconfig('mountdir')):
-            raise base.job.RVTError("Folder {} not exists".format(self.myconfig('mountdir')))
+            raise base.job.RVTError(f"Folder {self.myconfig('mountdir')} not exists")
 
         info_path = self.myconfig('outdir')
         check_folder(info_path)
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         asl_files = list(search.search(r"var/log/asl/.*\.asl$"))
 
         # asl dump
@@ -80,17 +80,17 @@ class ASL(base.job.BaseModule):
             headers = ["Timestamp", "Host", "Sender", "PID", "Reference Process", "Reference PID", "Facility", "Level", "Message", "Other details"]
             writer.writerow(headers)
             for file in asl_files:
-                self.logger().info("Processing: {}".format(file))
+                self.logger().info(f"Processing: {file}")
                 try:
                     f = open(os.path.join(self.myconfig('casedir'), file), "rb")
                 except IOError as e:
-                    self.logger().error("Could not open file '{}' ({}): Skipping this file".format(file, e))
+                    self.logger().error(f"Could not open file '{file}' ({e}): Skipping this file")
                     continue
 
                 try:
                     db = ccl_asldb.AslDb(f)
                 except ccl_asldb.AslDbError as e:
-                    self.logger().error("Could not read file as ASL DB '{}' ({}): Skipping this file".format(file, e))
+                    self.logger().error(f"Could not read file as ASL DB '{file}' ({e}): Skipping this file")
                     f.close()
                     continue
 
@@ -102,7 +102,7 @@ class ASL(base.job.BaseModule):
         asl_path = list(set(os.path.dirname(asl) for asl in asl_files))
 
         for path in asl_path:
-            self.logger().info("Processing files from folder: {}".format(path))
+            self.logger().info(f"Processing files from folder: {path}")
             OSX_asl_login_timeline.__dowork__((os.path.join(self.myconfig('casedir'), path),), (os.path.join(self.myconfig('outdir'), "login_power.md"),))
         self.logger().info("Done ASL")
         return []
@@ -112,9 +112,9 @@ class FSEvents(base.job.BaseModule):
 
     def run(self, path=""):
         if not os.path.isdir(self.myconfig('mountdir')):
-            raise base.job.RVTError("Folder {} not exists".format(self.myconfig('mountdir')))
+            raise base.job.RVTError(f"Folder {self.myconfig('mountdir')} not exists")
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         parser = os.path.join(self.myconfig('rvthome'), "plugins/external/FSEventsParser/FSEParser_V4.0.py")
         fsevents = search.search(r"\.fseventsd$")
 
@@ -125,8 +125,8 @@ class FSEvents(base.job.BaseModule):
 
         n = 1
         for f in fsevents:
-            self.logger().info("Processing file {}".format(f))
-            run_command([python, parser, "-c", "Report_{}".format(f.split('/')[-2]),
+            self.logger().info(f"Processing file {f}")
+            run_command([python, parser, "-c", f"Report_{f.split('/')[-2]}",
                          "-s", os.path.join(self.myconfig('casedir'), f), "-t", "folder", "-o", fsevents_path,
                          "-q", os.path.join(self.myconfig('rvthome'), "plugins/external/FSEventsParser/report_queries.json")])
             n += 1
@@ -138,9 +138,9 @@ class Spotlight(base.job.BaseModule):
 
     def run(self, path=""):
         if not os.path.isdir(self.myconfig('mountdir')):
-            raise base.job.RVTError("Folder {} not exists".format(self.myconfig('mountdir')))
+            raise base.job.RVTError(f"Folder {self.myconfig('mountdir')} not exists")
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         parser = os.path.join(self.myconfig('rvthome'), "plugins/external/spotlight_parser/spotlight_parser.py")
         spotlight = search.search(r"/\.spotlight.*/store.db$")
 
@@ -151,11 +151,11 @@ class Spotlight(base.job.BaseModule):
         python = self.myconfig('python', '/usr/bin/python')
 
         n = 1
-        errorlog = os.path.join(self.myconfig('sourcedir'), "{}_aux.log".format(self.myconfig('source')))
+        errorlog = os.path.join(self.myconfig('sourcedir'), f"{self.myconfig('source')}_aux.log")
         with open(errorlog, 'a') as logfile:
             for f in spotlight:
-                self.logger().info("Processing file {}".format(f))
-                run_command([python, parser, os.path.join(self.myconfig('casedir'), f), spotlight_path, "-p", "spot-%s" % str(n)], stdout=logfile, stderr=logfile)
+                self.logger().info(f"Processing file {f}")
+                run_command([python, parser, os.path.join(self.myconfig('casedir'), f), spotlight_path, "-p", f"spot-{str(n)}"], stdout=logfile, stderr=logfile)
                 n += 1
         self.logger().info("Spotlight done")
         return []
@@ -167,31 +167,31 @@ class KnowledgeC(base.job.BaseModule):
 
     def run(self, path=""):
         if not os.path.isdir(self.myconfig('mountdir')):
-            raise base.job.RVTError("Folder {} not exists".format(self.myconfig('mountdir')))
+            raise base.job.RVTError(f"Folder {self.myconfig('mountdir')} not exists")
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         knowledgec = search.search("/knowledgec.db$")
 
         knowledgec_path = self.myconfig('outdir')
         check_folder(knowledgec_path)
 
         for k in knowledgec:
-            self.logger().info("Processing file {}".format(k))
+            self.logger().info(f"Processing file {k}")
             if k.find('/Users/') < 0:
                 output = os.path.join(knowledgec_path, "private.txt")
             else:
                 aux = re.search("/Users/([^/]+)", k)
-                output = os.path.join(knowledgec_path, "{}.txt".format(aux.group(1)))
+                output = os.path.join(knowledgec_path, f"{aux.group(1)}.txt")
 
             with open(output, "w") as out:
-                with sqlite3.connect('file://{}?mode=ro'.format(os.path.join(self.myconfig('casedir'), k)), uri=True) as conn:
+                with sqlite3.connect(f'file://{os.path.join(self.myconfig("casedir"), k)}?mode=ro', uri=True) as conn:
                     conn.text_factory = str
 
                     c = conn.cursor()
                     c.execute('SELECT DISTINCT ZOBJECT.ZSTREAMNAME FROM ZOBJECT ORDER BY ZSTREAMNAME;')
 
                     for i in c.fetchall():
-                        out.write("{}\n".format(i[0]))
+                        out.write(f"{i[0]}\n")
 
                     c.execute('''SELECT datetime(ZOBJECT.ZCREATIONDATE+978307200,'UNIXEPOCH', 'LOCALTIME') as "ENTRY CREATION", CASE ZOBJECT.ZSTARTDAYOFWEEK
     WHEN "1" THEN "Sunday"
@@ -207,7 +207,7 @@ ZOBJECT.ZSTREAMNAME,ZOBJECT.ZVALUESTRING FROM ZOBJECT WHERE ZSTREAMNAME IS "/app
 
                     out.write("\n\nENTRY CREATION|DAY OF WEEK|GMT OFFSET|START|END|USAGE IN SECONDS|ZSTREAMNAME|ZVALUESTRING\n")
                     for i in c.fetchall():
-                        out.write("{}|{}|{}|{}|{}|{}|{}|{}\n".format(i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7]))
+                        out.write(f"{i[0]}|{i[1]}|{i[2]}|{i[3]}|{i[4]}|{i[5]}|{i[6]}|{i[7]}\n")
 
                     c.execute('''SELECT
 datetime(ZOBJECT.ZCREATIONDATE+978307200,'UNIXEPOCH', 'LOCALTIME') as "ENTRY CREATION", ZOBJECT.ZSECONDSFROMGMT/3600 AS "GMT OFFSET",
@@ -229,7 +229,7 @@ ORDER BY "START";''')
 
                     out.write("\n\nENTRY CREATION|GMT OFFSET|DAY OF WEEK|START|END|USAGE IN SECONDS|ZSTREAMNAME|ZVALUESTRING|ACTIVITY TYPE|TITLE|ACTIVITY STRING|EXPIRATION DATE\n")
                     for i in c.fetchall():
-                        out.write("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11]))
+                        out.write(f"{i[0]}|{i[1]}|{i[2]}|{i[3]}|{i[4]}|{i[5]}|{i[6]}|{i[7]}|{i[8]}|{i[9]}|{i[10]}|{i[11]}\n")
 
                     c.execute('''SELECT
 datetime(ZOBJECT.ZCREATIONDATE+978307200,'UNIXEPOCH', 'LOCALTIME') as "ENTRY CREATION", CASE ZOBJECT.ZSTARTDAYOFWEEK
@@ -251,7 +251,7 @@ WHERE ZSTREAMNAME is "/app/activity" or ZSTREAMNAME is "/app/inFocus" or ZSTREAM
 
                     out.write("\n\nENTRY CREATION|DAY OF WEEK|START|END|TITLE|ACTIVITY STRING|EXPIRATION DATE|INTENT CLASS|INTENT VERB|SERIALIZED INTERACTION|ZBUNDLEID\n")
                     for i in c.fetchall():
-                        out.write("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10], i[11]))
+                        out.write(f"{i[0]}|{i[1]}|{i[2]}|{i[3]}|{i[4]}|{i[5]}|{i[6]}|{i[7]}|{i[8]}|{i[9]}|{i[10]}|{i[11]}\n")
 
         self.logger().info("Done parsing KnowledgeC")
         return []
@@ -261,9 +261,9 @@ class ParseDSStore(base.job.BaseModule):
 
     def run(self, path=""):
         if not os.path.isdir(self.myconfig('mountdir')):
-            raise base.job.RVTError("Folder {} not exists".format(self.myconfig('mountdir')))
+            raise base.job.RVTError(f"Folder {self.myconfig('mountdir')} not exists")
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         dsstore_files = search.search(r"/\.ds_store$")
 
         output1 = os.path.join(self.myconfig('outdir'), "dsstore_dump.txt")
@@ -273,24 +273,24 @@ class ParseDSStore(base.job.BaseModule):
             filelist = set()
             n_stores = 0
             for dstores in dsstore_files:
-                out1.write("{}\n-------------------------------\n".format(dstores))
+                out1.write(f"{dstores}\n-------------------------------\n")
                 with open(os.path.join(self.myconfig('casedir'), dstores), "rb") as ds:
                     try:
                         d = dsstore.DS_Store(ds.read(), debug=False)
                         files = d.traverse_root()
                         for f in files:
                             filelist.add(os.path.join(os.path.dirname(dstores), f))
-                            out1.write("%s\n" % f)
+                            out1.write(f"{f}\n")
                     except Exception as exc:
-                        self.logger().warning("Problems parsing file {}. Error: {}".format(dstores, exc))
+                        self.logger().warning(f"Problems parsing file {dstores}. Error: {exc}")
                 n_stores += 1
                 out1.write("\n")
 
-        self.logger().info("Founded {} .DS_Store files".format(n_stores))
+        self.logger().info(f"Founded {n_stores} .DS_Store files")
 
         with open(output2, "w") as out:
             for f in sorted(filelist):
-                out.write("%s\n" % f)
+                out.write(f"{f}\n")
         self.logger().info("ParseDSStore Done")
         return []
 
@@ -299,56 +299,56 @@ class ParsePlist(base.job.BaseModule):
 
     def run(self, path=""):
         if not os.path.isdir(self.myconfig('mountdir')):
-            raise base.job.RVTError("Folder {} not exists".format(self.myconfig('mountdir')))
+            raise base.job.RVTError(f"Folder {self.myconfig('mountdir')} not exists")
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         plist_files = search.search(r"\.plist$")
 
         plist_num = 0
         with open(os.path.join(self.myconfig('outdir'), "plist_dump.txt"), 'wb') as output:
             for pl in plist_files:
                 plist_num += 1
-                output.write("{}\n-------------------------------\n".format(pl).encode())
+                output.write(f"{pl}\n-------------------------------\n".encode())
                 # try:
                 #     text = subprocess.check_output(["plistutil", "-i", os.path.join(self.myconfig('mountdir'), pl)])
                 #     output.write(text)
                 #     output.write(b"\n\n")
                 # except:
-                #     self.logger().warning("Problems with file %s" % pl)
+                #     self.logger().warning(f"Problems with file {pl}")
                 #     output.write(b"\n\n")
 
                 try:
                     plist = biplist.readPlist(os.path.join(self.myconfig('casedir'), pl))
                     output.write(self.pprint(plist) + b"\n\n")
                 except (biplist.InvalidPlistException, biplist.NotBinaryPlistException):
-                    self.logger().info("%s not a plist file or is corrupted" % pl)
+                    self.logger().info(f"{pl} not a plist file or is corrupted")
                     output.write(b"\n\n")
                 except Exception:
-                    self.logger().info("Problems with file %s" % pl)
+                    self.logger().info(f"Problems with file {pl}")
 
-        self.logger().info("Founded {} plist files".format(plist_num))
+        self.logger().info(f"Founded {plist_num} plist files")
         self.logger().info("Done parsing Plist")
         return []
 
     def pprint(self, data, indent=0):
-        if type(data) == dict:
+        if isinstance(data, dict):
             text = b"    " * indent + b"{\n"
             for k in sorted(data.keys()):
-                if type(data[k]) == dict or type(data[k]) == list:
+                if isinstance(data[k], dict) or isinstance(data[k], list):
                     text += b"    " * (indent + 1) + k.encode() + b": " + self.pprint(data[k], indent + 1) + b"\n"
                 else:
                     text += b"    " * (indent + 1) + k.encode() + b": " + self.pprint(data[k], 0) + b"\n"
             text += b"    " * indent + b"}"
             return text
-        elif type(data) == list:
+        elif isinstance(data, list):
             text = b"[\n"
             for k in data:
                 text += self.pprint(k, indent + 1) + b"\n"
             text += b"    " * indent + b"]"
             return text
-        elif type(data) == bytes:
+        elif isinstance(data, bytes):
             return b"    " * indent + data
-        elif type(data) == str:
+        elif isinstance(data, str):
             return b"    " * indent + data.encode()
         else:
             return b"    " * indent + str(data).encode()
@@ -358,7 +358,7 @@ class MacMRU(base.job.BaseModule):
 
     def run(self, path=""):
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         users = search.search(r"p\d+(/root)?/Users/[^/]+$")
         mru_path = self.myconfig('outdir')
         check_folder(mru_path)
@@ -367,14 +367,14 @@ class MacMRU(base.job.BaseModule):
         python3 = os.path.join(self.myconfig('rvthome'), '.venv/bin/python3')
 
         for user in users:
-            self.logger().info("Extracting MRU info from user {}".format(os.path.basename(user)))
-            with open(os.path.join(mru_path, '%s.txt' % os.path.basename(user)), 'w') as f:
-                self.logger().debug("Generating file {}".format(os.path.join(mru_path, '%s.txt' % os.path.basename(user))))
+            self.logger().info(f"Extracting MRU info from user {os.path.basename(user)}")
+            with open(os.path.join(mru_path, f'{os.path.basename(user)}.txt'), 'w') as f:
+                self.logger().debug(f"Generating file {os.path.join(mru_path, f'{os.path.basename(user)}.txt')}")
                 run_command([python3, parser, os.path.join(self.myconfig('casedir'), user)], stdout=f)
 
         self.logger().info("Done parsing MacMRU")
         return []
-    #         fout = open(os.path.join(mru_path, '%s.txt' % os.path.basename(user)), 'w')
+    #         fout = open(os.path.join(mru_path, f'{os.path.basename(user)}.txt'), 'w')
     #         sys.stdout = fout
     #         for root, dirs, filenames in os.walk(os.path.join(self.myconfig('mountdir'), user)):
     #             for f in filenames:
@@ -403,7 +403,7 @@ class MacMRU(base.job.BaseModule):
 
     # def parseFile(self, parser, file):
     #     print("==============================================================================")
-    #     print("Parsing: %s" % file)
+    #     print(f"Parsing: {file}")
     #     parser(file)
     #     print("==============================================================================")
 
@@ -428,20 +428,20 @@ class BasicInfo(base.job.BaseModule):
                 if not os.path.isfile(sysver):
                     continue
 
-                out.write("# Information of partition {}\n".format(p))
+                out.write(f"# Information of partition {p}\n")
                 plist = biplist.readPlist(sysver)
-                out.write("Product Name:\t\t{}\nProduct Build Version:\t{}\nProduct Version:\t{}\n".format(plist["ProductName"], plist["ProductBuildVersion"], plist["ProductVersion"]))
+                out.write(f'Product Name:\t\t{plist["ProductName"]}\nProduct Build Version:\t{plist["ProductBuildVersion"]}\nProduct Version:\t{plist["ProductVersion"]}\n')
 
                 # Install date
                 try:
-                    out.write("Install date:\t%s\n\n" % datetime.datetime.fromtimestamp(os.path.getmtime(os.path.join(base_path, "var/db/.AppleSetupDone")), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+                    out.write(f'Install date:\t{datetime.datetime.fromtimestamp(os.path.getmtime(os.path.join(base_path, "var/db/.AppleSetupDone")), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}\n\n')
                 except Exception:
                     pass
 
                 lastlog_file = os.path.join(base_path, "Library/Preferences/com.apple.loginwindow.plist")
                 if os.path.isfile(lastlog_file):
                     plist = biplist.readPlist(lastlog_file)
-                    out.write("Last User:\t{}\nLast User Name:\t{}\n\n".format(plist["lastUser"], plist["lastUserName"]))
+                    out.write(f'Last User:\t{plist["lastUser"]}\nLast User Name:\t{plist["lastUserName"]}\n\n')
 
                 aux_path = os.path.join(base_path, "var/db/dslocal/nodes/Default/users")
                 if os.path.isdir(aux_path):
@@ -459,9 +459,9 @@ class BasicInfo(base.job.BaseModule):
                             except Exception:
                                 pass
                             if table_data[1] != "" or table_data[2] != "":
-                                out.write('{}|{}|{}\n'.format(table_data[0], table_data[1], table_data[2]))
+                                out.write(f'{table_data[0]}|{table_data[1]}|{table_data[2]}\n')
                             else:
-                                self.logger().warning("Problems extracting userinfo from file %s" % file)
+                                self.logger().warning(f"Problems extracting userinfo from file {file}")
                 out.write('\n')
 
         self.logger().info("MacOS Basic Info done")
@@ -471,18 +471,18 @@ class BasicInfo(base.job.BaseModule):
 class NetworkUsage(base.job.BaseModule):
 
     def run(self, path=""):
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         nusage = search.search("/netusage.sqlite$")
         output = os.path.join(self.myconfig('outdir'), "network_usage.txt")
 
         with open(output, "w") as out:
             for k in nusage:
-                self.logger().info("Extracting information of file {}".format(k))
-                with sqlite3.connect('file://{}?mode=ro'.format(os.path.join(self.myconfig('casedir'), k)), uri=True) as conn:
+                self.logger().info(f"Extracting information of file {k}")
+                with sqlite3.connect(f"file://{os.path.join(self.myconfig('casedir'), k)}?mode=ro", uri=True) as conn:
                     conn.text_factory = str
                     c = conn.cursor()
 
-                    out.write("{}\n------------------------------------------\n".format(k))
+                    out.write(f"{k}\n------------------------------------------\n")
                     query = '''SELECT pk.z_name as item_type, na.zidentifier as item_name, na.zfirsttimestamp as first_seen_date, na.ztimestamp as last_seen_date,
 rp.ztimestamp as rp_date, rp.zbytesin, rp.zbytesout FROM znetworkattachment as na LEFT JOIN z_primarykey pk ON na.z_ent = pk.z_ent
 LEFT JOIN zliverouteperf rp ON rp.zhasnetworkattachment = na.z_pk ORDER BY pk.z_name, zidentifier, rp_date desc;'''.replace('\n', ' ').upper()
@@ -490,7 +490,7 @@ LEFT JOIN zliverouteperf rp ON rp.zhasnetworkattachment = na.z_pk ORDER BY pk.z_
 
                     out.write("\n\nitem_type|item_name|first_seen_date|last_seen_date|rp_date|ZBYTESIN|ZBYTESOUT\n--|--|--|--|--|--|--\n")
                     for i in c.fetchall():
-                        out.write("{}|{}|{}|{}|{}|{}|{}\n".format(i[0], i[1], i[2], i[3], i[4], i[5], i[6]))
+                        out.write(f"{i[0]}|{i[1]}|{i[2]}|{i[3]}|{i[4]}|{i[5]}|{i[6]}\n")
 
                     query = '''SELECT pk.z_name as item_type ,p.zprocname as process_name, p.zfirsttimestamp as first_seen_date, p.ztimestamp as last_seen_date,
 lu.ztimestamp as usage_since, lu.zwifiin, lu.zwifiout, lu.zwiredin, lu.zwiredout, lu.zwwanin, lu.zwwanout FROM zliveusage lu
@@ -499,7 +499,7 @@ LEFT JOIN zprocess p ON p.z_pk = lu.zhasprocess LEFT JOIN z_primarykey pk ON p.z
 
                     out.write("\n\nitem_type|process_name|first_seen_date|last_seen_date|usage_since|ZWIFIIN|ZWIFIOUT|ZWIREDIN|ZWIREDOUT|ZWWANIN|ZWANOUT\n--|--|--|--|--|--|--|--|--|--|--\n")
                     for i in c.fetchall():
-                        out.write("{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10]))
+                        out.write(f"{i[0]}|{i[1]}|{i[2]}|{i[3]}|{i[4]}|{i[5]}|{i[6]}|{i[7]}|{i[8]}|{i[9]}|{i[10]}\n")
                     out.write("\n")
                     c.close()
 
@@ -510,19 +510,19 @@ LEFT JOIN zprocess p ON p.z_pk = lu.zhasprocess LEFT JOIN z_primarykey pk ON p.z
 class Quarantine(base.job.BaseModule):
 
     def run(self, path=""):
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         quarantine = search.search("/com.apple.LaunchServices.QuarantineEventsV2$")
 
         output = os.path.join(self.myconfig('outdir'), "quarantine.txt")
 
         with open(output, "w") as out:
             for k in quarantine:
-                self.logger().info("Extracting information of file {}".format(k))
-                with sqlite3.connect('file://{}?mode=ro'.format(os.path.join(self.myconfig('casedir'), k)), uri=True) as conn:
+                self.logger().info(f"Extracting information of file {k}")
+                with sqlite3.connect(f"file://{os.path.join(self.myconfig('casedir'), k)}?mode=ro", uri=True) as conn:
                     conn.text_factory = str
                     c = conn.cursor()
 
-                    out.write("{}\n------------------------------------------\n".format(k))
+                    out.write(f"{k}\n------------------------------------------\n")
                     query = '''SELECT LSQuarantineEventIdentifier as id, LSQuarantineTimeStamp as ts, LSQuarantineAgentBundleIdentifier as bundle,
 LSQuarantineAgentName as agent_name, LSQuarantineDataURLString as data_url,
 LSQuarantineSenderName as sender_name, LSQuarantineSenderAddress as sender_add, LSQuarantineTypeNumber as type_num,
@@ -532,7 +532,7 @@ FROM LSQuarantineEvent  ORDER BY ts;'''.replace('\n', ' ')
 
                     out.write("\n\nid|ts|bundle|agent_name|data_url|sender_name|sender_add|type_num|o_title|o_url|o_alias\n--|--|--|--|--|--|--|--|--|--|--\n")
                     for i in c.fetchall():
-                        out.write("{}|{}|{}|{}|{}|{}|{}\n".format(i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8], i[9], i[10]))
+                        out.write(f"{i[0]}|{i[1]}|{i[2]}|{i[3]}|{i[4]}|{i[5]}|{i[6]}|{i[7]}|{i[8]}|{i[9]}|{i[10]}\n")
                     out.write("\n")
                     c.close()
 
@@ -553,7 +553,7 @@ class Network(base.job.BaseModule):
         '''Read interface info from NetworkInterfaces.plist
         modified from networking plugin from https://github.com/ydkhatri/mac_apt'''
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         network = search.search("/Library/Preferences/SystemConfiguration/NetworkInterfaces.plist$")
         classes = ['Active', 'BSD Name', 'IOBuiltin', 'IOInterfaceNamePrefix', 'IOInterfaceType', 'IOInterfaceUnit', 'IOPathMatch', 'SCNetworkInterfaceType']
 
@@ -564,17 +564,17 @@ class Network(base.job.BaseModule):
         writer.writerow(headers)
 
         for net in network:
-            self.logger().debug("Trying to read {}".format(net))
+            self.logger().debug(f"Trying to read {net}")
             # try:
             plist = biplist.readPlist(os.path.join(self.myconfig('casedir'), net))
             try:
-                self.logger().info("Model = %s" % plist['Model'])
+                self.logger().info(f"Model = {plist['Model']}")
             except Exception:
                 pass
             for category, cat_array in plist.items():  # value is another array in this dict
                 if not category.startswith('Interface'):
                     if category != 'Model':
-                        self.logger().debug('Skipping %s' % category)
+                        self.logger().debug(f'Skipping {category}')
                     continue
                 for interface in cat_array:
                     interface_info = {'Category': category, 'Source': net}
@@ -602,7 +602,7 @@ class Network(base.job.BaseModule):
 
         Based on mac_apt plugin from https://github.com/ydkhatri/mac_apt
         '''
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         network = search.search("/Library/Preferences/SystemConfiguration/preferences.plist$")
 
         with open(os.path.join(self.myconfig('outdir'), 'Network_Details.csv'), 'w') as out:
@@ -645,7 +645,7 @@ class Network(base.job.BaseModule):
 
            Based on mac_apt plugin from https://github.com/ydkhatri/mac_apt
         '''
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         interfaces_path = search.search("/private/var/db/dhcpclient/leases$")
 
         out = open(os.path.join(self.myconfig('outdir'), 'Network_DHCP.csv'), 'w')
@@ -659,9 +659,9 @@ class Network(base.job.BaseModule):
                     # Process plist
                     name_no_ext = os.path.splitext(name)[0]  # not needed as there is no .plist extension on these files
                     if_name, mac_address = name_no_ext.split(",")
-                    self.logger().info("Found mac address = {} on interface {}".format(mac_address, if_name))
+                    self.logger().info(f"Found mac address = {mac_address} on interface {if_name}")
 
-                    self.logger().debug("Trying to read {}".format(name))
+                    self.logger().debug(f"Trying to read {name}")
 
                     plist = biplist.readPlist(os.path.join(self.myconfig('casedir'), interface, name))
                     interface_info = {}
@@ -684,7 +684,7 @@ class Network(base.job.BaseModule):
                             self.logger().info("Found unknown item in plist: ITEM=" + item + " VALUE=" + str(value))
                     writer.writerow([interface_info[c] for c in headers])
                 else:
-                    self.logger().info("Found unexpected file, not processing /private/var/db/dhcpclient/leases/{} size={}".format(name, str(interface['size'])))
+                    self.logger().info(f"Found unexpected file, not processing /private/var/db/dhcpclient/leases/{name} size={str(interface['size'])}")
             # Done processing interfaces!
         out.close()
 
@@ -694,7 +694,7 @@ class Network(base.job.BaseModule):
 
         Based on mac_apt plugin from https://github.com/ydkhatri/mac_apt
         '''
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         network_paths = search.search("/Library/Preferences/OpenDirectory/Configurations/Active Directory$")
 
         out = open(os.path.join(self.myconfig('outdir'), 'Domain_ActiveDirectory.csv'), 'w')
@@ -715,7 +715,7 @@ class Network(base.job.BaseModule):
                         if item in ['allow multi-domain', 'cache last user logon', 'domain', 'forest', 'trust domain']:
                             active_directory[item] = value
                 except Exception:
-                    self.logger().error('Error reading plist %s' % os.path.join(plist_path, archive))
+                    self.logger().error(f'Error reading plist {os.path.join(plist_path, archive)}')
                 writer.writerow([active_directory[d] for d in headers])
         out.close()
         return[]
@@ -725,9 +725,9 @@ class ParseUnifiedLogReader(base.job.BaseModule):
 
     def run(self, path=""):
         if not os.path.isdir(self.myconfig('mountdir')):
-            raise base.job.RVTError("Folder {} not exists".format(self.myconfig('mountdir')))
+            raise base.job.RVTError(f"Folder {self.myconfig('mountdir')} not exists")
 
-        search = GetFiles(self.config, vss=self.myflag("vss"))
+        search = GetFiles(self.config)
         parser = os.path.join(self.myconfig('rvthome'), "plugins/external/UnifiedLogReader/scripts/UnifiedLogReader.py")
         uuidtext = search.search("/var/db/uuidtext$")
         timesync = search.search("/var/db/diagnostics/timesync$")
@@ -744,6 +744,6 @@ class ParseUnifiedLogReader(base.job.BaseModule):
         try:
             run_command([python3, parser, os.path.join(self.myconfig('casedir'), uuidtext[0]), os.path.join(self.myconfig('casedir'), timesync[0]), os.path.join(self.myconfig('casedir'), diagnostics[0]), ulr_path, "-l", "WARNING"])
         except Exception as exc:
-            self.logger().error('Problems with UnifiedLogReader.py. Error:'.format(exc))
+            self.logger().error(f'Problems with UnifiedLogReader.py. Error: {exc}')
         self.logger().info("Done parsing UnifiedLogReader")
         return []

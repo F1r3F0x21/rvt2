@@ -1,6 +1,7 @@
 from easyjobs import simplejob
 from base.job import BaseModule
 
+
 @simplejob(params_help=dict(
     count='Number of times the message must be returned',
     name='The name of the user'

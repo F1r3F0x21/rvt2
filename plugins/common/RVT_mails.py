@@ -49,11 +49,11 @@ class CharacterizeMails(base.job.BaseModule):
         self.n = int(self.myconfig('n'))
         assert self.n > 0
 
-        self.logger().debug("Creating mail counts for source {}".format(self.myconfig('source')))
+        self.logger().debug(f"Creating mail counts for source {self.myconfig('source')}")
         for r in self.process_mails(path):
             yield r
 
-        self.logger().debug("Creating summary mail report for source {}".format(self.myconfig('source')))
+        self.logger().debug(f"Creating summary mail report for source {self.myconfig('source')}")
         self.summary(out_summary, self.n)
 
     def process_mails(self, infile):
@@ -163,21 +163,19 @@ class CharacterizeMails(base.job.BaseModule):
         n = int(self.myconfig('n', n))
         # Write in summary_file
         with open(out_summary, 'w') as outf:
-            outf.write('# Mails Summary {}\n\n'.format(self.myconfig('source')))
-            outf.write("{} {}\n".format('Total mail directions found:', len(self.mails)))
+            outf.write(f'# Mails Summary {self.myconfig("source")}\n\n')
+            outf.write(f"Total mail directions found: {len(self.mails)}\n")
             # Get dates global range
-            outf.write("\n## {}\n\n".format('Global time ranges'))
+            outf.write("\n## Global time ranges\n\n")
             time_names = ["Client Submit", "Delivery", "Creation", "Modification"]
             for i, times in enumerate(['Client submit time', 'Delivery time', 'Creation time', 'Modification time']):
-                outf.write("{} times between {} and {}\n".format(time_names[i],
-                           self.global_time_range[times][0].strftime("%Y-%m-%d"),
-                           self.global_time_range[times][1].strftime("%Y-%m-%d")))
+                outf.write(f'{time_names[i]} times between {self.global_time_range[times][0].strftime("%Y-%m-%d")} and {self.global_time_range[times][1].strftime("%Y-%m-%d")}\n')
 
             # Write most common mails
             for name, count in zip(['TOTAL', 'FROM', 'TO', 'CC', 'Public FROM', 'Public TO', 'Public CC', 'FROM TO'],
                                    [self.total_counter, self.from_counter, self.to_counter, self.cc_counter,
                                     self.public_counter_from, self.public_counter_to, self.public_counter_cc, self.from_to_counter]):
-                outf.write("\n## {}\n\n".format(name))
+                outf.write(f"\n## {name}\n\n")
                 [outf.write('{} : {}\n'.format(*m)) for m in count.most_common(n)]
 
     def _init_counters(self):

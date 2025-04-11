@@ -47,12 +47,12 @@ class ActivitiesCache(base.job.BaseModule):
 
         # Query db and create csv
         rel_path = relative_path(os.path.abspath(path), self.myconfig('casedir'))
-        self.logger().debug("Parsing Activities Cache file {}".format(rel_path))
+        self.logger().debug(f"Parsing Activities Cache file {rel_path}")
         module = base.job.load_module(self.config, 'base.input.SQLiteReader', extra_config=dict(query=query))
         if self.myconfig('volume_id'):
-            outfile = os.path.join(base_path, 'activitycache_{}.csv'.format(self.myconfig('volume_id')))
+            outfile = os.path.join(base_path, f'activitycache_{self.myconfig("volume_id")}.csv')
         else:
-            outfile = os.path.join(base_path, 'activitycache_{}_{}.csv'.format(rel_path.split('/')[-2], rel_path.split('/')[2]))
+            outfile = os.path.join(base_path, f'activitycache_{rel_path.split("/")[-2]}_{rel_path.split("/")[2]}.csv')
         save_csv(module.run(path), outfile=outfile, file_exists='OVERWRITE', quoting=1)
 
         return []

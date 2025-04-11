@@ -17,7 +17,7 @@
 import os
 import struct
 import zlib
-import json
+import ujson as json
 import ast
 import re
 

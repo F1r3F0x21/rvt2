@@ -28,9 +28,9 @@ class Bits(base.job.BaseModule):
         base_path = self.myconfig('outdir')
         check_directory(base_path, create=True)
         self.check_params(path, check_path=False, check_path_exists=False)
-        self.logger().debug("Parsing Bits database: {}".format(path))
+        self.logger().debug(f"Parsing Bits database: {path}")
         volume_id = relative_path(path, self.myconfig('casedir')).split("/")[2]
-        outfile = os.path.join(base_path, "bitsdb_{}.csv".format(volume_id))
+        outfile = os.path.join(base_path, f"bitsdb_{volume_id}.csv")
         self.parse_BITS(path, outfile)
         return []
 

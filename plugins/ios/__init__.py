@@ -34,8 +34,9 @@ import base.job
 
 class IOSModule(base.job.BaseModule):
     """ A base class for the modules for iOS. """
+
     def database(self, path):
-        self.logger().debug('Searching for an iOS database in %s', path)
+        self.logger().debug(f'Searching for an iOS database in {path}')
         database_file = None
         for filename in ['Manifest.mbdb-decrypted', 'Manifest.db-decrypted', 'Manifest.mbdb', 'Manifest.db']:
             if os.path.isfile(os.path.join(path, filename)):
