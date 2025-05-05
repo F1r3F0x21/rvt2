@@ -50,5 +50,5 @@ class BlindSearches(base.job.BaseModule):
             matched_file = matched_line.get('keyword_file', '')
             if matched_file is None:
                 matched_file = ''
-            match[self.myconfig('keyword_tag_field')] = '{}:{}'.format(os.path.basename(matched_file), matched_line['tag'])
+            match[self.myconfig('keyword_tag_field')] = f'{os.path.basename(matched_file)}:{matched_line["tag"]}'
             yield match

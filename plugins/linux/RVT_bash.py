@@ -44,7 +44,7 @@ class BashFilesCp(base.job.BaseModule):
 
             if executed_for_all_users:
                 basename = os.path.basename(path)
-                file_out = os.path.join(bash_dir, "all_users", basename + '.txt')
+                file_out = os.path.join(bash_dir, "all_users", f'{basename}.txt')
                 folder_out = os.path.join(bash_dir, "all_users")
             else:
                 sub_folder = os.path.basename(path)
@@ -52,14 +52,14 @@ class BashFilesCp(base.job.BaseModule):
                     prefix_file = sub_folder[1:]
                 else:
                     prefix_file = "ERROR"
-                prefix_file_ = prefix_file + "_"
+                prefix_file_ = f"{prefix_file}_"
                 username = get_username(path, mount_dir=self.myconfig('mountdir'), subfolder=sub_folder)
                 file_out = os.path.join(bash_dir, prefix_file, f'{prefix_file_}{username}.txt')
                 folder_out = os.path.join(bash_dir, prefix_file)
 
             check_folder(folder_out)
 
-            command = "cp -r " + path + " " + file_out
+            command = f"cp -r {path} {file_out}"
             args = shlex.split(command)
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
@@ -78,10 +78,10 @@ class BashHistory(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('outdir', None)
+        self.set_default_config('bashdir', None)
 
     def run(self, path=None):
-        base_path = self.myconfig('outdir')
+        base_path = self.config.config['plugins.linux']['bashdir']
         username = get_username(path, mount_dir=self.myconfig('mountdir'), subfolder=".bash_history")
 
         list_commands = []

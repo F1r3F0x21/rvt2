@@ -39,7 +39,7 @@ TODO:
 
 import os
 import os.path
-import json
+import ujson as json
 import configparser
 import requests
 import subprocess
@@ -99,7 +99,7 @@ class TikaParser(base.job.BaseModule):
             tika_server = self.myconfig('tika_server')
             if not base.config.check_server(tika_server):
                 self.logger().error('Tika server is not reacheable: tika_server="%s"', tika_server)
-                raise base.job.RVTError('Tika server is not reacheable: tika_server="{}"'.format(tika_server))
+                raise base.job.RVTError(f'Tika server is not reacheable: tika_server="{tika_server}"')
 
     def read_config(self):
         super().read_config()
@@ -195,7 +195,7 @@ class TikaParser(base.job.BaseModule):
 
                 # NOTE: some corrupt file may break totally Tika<1.19 (status == 500). It seems it is a bug fixed in Tika>=1.20
                 if status >= 500:
-                    raise base.job.RVTError('Tika returned status {} parsing: "{}". Check you are using Tika >= 1.20'.format(status, path))
+                    raise base.job.RVTError(f'Tika returned status {status} parsing: "{path}". Check you are using Tika >= 1.20')
 
                 if isinstance(filemetadata, list):
                     return self._post_parse_file_composite(path, filemetadata, status)
@@ -306,7 +306,7 @@ class TikaParser(base.job.BaseModule):
         """ Guess the content type of a metadata """
         try:
             parsed_content_type = mimeparse.parse_mime_type(filemetadata.get('Content-Type', 'application/octet-stream'))
-            return '{}/{}'.format(parsed_content_type[0], parsed_content_type[1])
+            return f'{parsed_content_type[0]}/{parsed_content_type[1]}'
         except Exception:
             return 'application/octet-stream'
 

@@ -162,11 +162,11 @@ class ExportPstEml(base.job.BaseModule):
         if content == "":
             email = self.msg.as_string()
         else:
-            email = "{}\r\n--{}\r\n{}\r\n--{}--".format(content, boundary, self.msg.as_string(), boundary)
+            email = f"{content}\r\n--{boundary}\r\n{self.msg.as_string()}\r\n--{boundary}--"
         if write:
             export_dir = os.path.dirname(item)
             base.utils.check_folder(export_dir)
-            output_filename = "{}.eml".format(os.path.join(export_dir, os.path.basename(item)))
+            output_filename = f"{os.path.join(export_dir, os.path.basename(item))}.eml"
             with open(output_filename, 'w') as of:
                 of.write(email)
         else:
@@ -197,7 +197,7 @@ class ExportPstEml(base.job.BaseModule):
                             self.msg.add_attachment(fp2.read(),
                                                     maintype='application',
                                                     subtype='rfc822',
-                                                    filename="%s.eml" % os.path.basename(fname))
+                                                    filename=f"{os.path.basename(fname)}.eml")
             else:
                 ctype, encoding = mimetypes.guess_type(fname)
                 if ctype is None or encoding is not None:
@@ -237,7 +237,7 @@ class ExportPstEml(base.job.BaseModule):
         d = self._getDataFromFile(os.path.join(item, "OutlookHeaders.txt"), ['Client submit time', 'Subject', 'Sender name', 'Sender email address'])
         self.msg.add_header('Date', d['Client submit time'][:21])
         self.msg.add_header('Subject', d['Subject'])
-        self.msg.add_header('From', "{} <{}>".format(d['Sender name'], d['Sender email address']))
+        self.msg.add_header('From', f"{d['Sender name']} <{d['Sender email address']}>")
 
         messageID = self._getGUID(item)
         self.msg.add_header('MessageID', messageID)
@@ -254,8 +254,8 @@ class ExportPstEml(base.job.BaseModule):
             temp = {}
             for line in f:
                 if line == "\n":
-                    rec[temp['Recipient type']].append("{} <{}>".format(temp['Display name'], temp['Email address']))  # Solves problems with multiples To, CC and BCC fields
-                    # self.msg.add_header(temp['Recipient type'], "{} <{}>".format(temp['Display name'], temp['Email address']))
+                    rec[temp['Recipient type']].append(f"{temp['Display name']} <{temp['Email address']}>")  # Solves problems with multiples To, CC and BCC fields
+                    # self.msg.add_header(temp['Recipient type'], f"{temp['Display name']} <{temp['Email address']}>")
                     temp = {}
                 else:
                     aux = line.split(":")
@@ -281,7 +281,7 @@ class ExportPstEml(base.job.BaseModule):
         if not os.path.isfile(filename):
             return res
 
-        regex = r'({}):\s+(.*)'.format("|".join(items))
+        regex = rf'({"|".join(items)}):\s+(.*)'
         with open(filename, 'r') as f:
             for line in f:
                 item = re.search(regex, line)
@@ -405,12 +405,12 @@ class CreatePstHtml(base.job.BaseModule):
 
         else:
             for tp in ["Contact", "Appointment", "Meeting", "Task", "Note", "Activity"]:
-                fich = os.path.join(base_path, "{}.txt".format(tp))
+                fich = os.path.join(base_path, f"{tp}.txt")
                 if os.path.isfile(fich):
                     temp = get_text(fich)
-                    temp = temp.split("{}:".format(tp))
-                    out_headers = ["{}.txt".format(tp), temp[0][:-1]]
-                    R_out_head = ["Rest of {}.txt (if any):".format(tp), "{}:{}".format(tp, temp[1])]
+                    temp = temp.split(f"{tp}:")
+                    out_headers = [f"{tp}.txt", temp[0][:-1]]
+                    R_out_head = [f"Rest of {tp}.txt (if any):", f"{tp}:{temp[1]}"]
                     pretable = "{}:{}".format(tp, temp[1].replace("\n", "\n<br>"))
                     break
 
@@ -464,8 +464,8 @@ class CreatePstHtml(base.job.BaseModule):
                     attach.append([r, os.stat(fichero).st_size])
                     regex = f.split("_")[1].replace("(", "\\(").replace(")", "\\)")
                     try:
-                        body = re.sub(r'"cid:{}@[^"]*'.format(regex), '"%s' % r, body)
-                        body = re.sub(r'cid:%s@.{17}' % regex, r'<img src="{}">'.format(r), body)
+                        body = re.sub(rf'"cid:{regex}@[^"]*', f'"{r}', body)
+                        body = re.sub(r'cid:%s@.{17}' % regex, rf'<img src="{r}">', body)
                     except re.error:
                         # Ignore bad scape sequences
                         pass
@@ -495,7 +495,7 @@ class CreatePstHtml(base.job.BaseModule):
         ccs = ""
         if 'email_recipients' in item.keys():
             for it in item['email_recipients']:
-                aux = "{} ({});".format(it['display_name'], it['email_address'])
+                aux = f"{it['display_name']} ({it['email_address']});"
                 if it['recipient_type'] == 'to':
                     tos += aux
                 else:

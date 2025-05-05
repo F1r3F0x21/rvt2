@@ -34,7 +34,7 @@ class Cron(base.job.BaseModule):
         self.set_default_config('mountdir', None)
 
     def run(self, path=None):
-        base_path = self.myconfig('outdir')
+        base_path = self.config.config['plugins.linux']['crondir']
         mount_dir = self.myconfig('mountdir')
         pattern_cron = r'^\s*([\d*,\-/]+)\s+([\d*,\-/]+)\s+([\d*,\-/]+)\s+([\d*,\-/]+)\s+([\d*,\-/]+)\s+([\S]+)\s+(.+)$'
         prog = re.compile(pattern_cron)
@@ -83,29 +83,29 @@ class AnacronTab(base.job.BaseModule):
         super().read_config()
 
     def run(self, path=None):
-        base_path = self.myconfig('outdir')
+        base_path = self.config.config['plugins.linux']['crondir']
         mount_dir = self.myconfig('mountdir')
         pattern_cron = r'^(\S*)\s+(\S*)\s+(\S*)\s+(.*)$'
         prog = re.compile(pattern_cron)
 
         script_data = []
         file_path = path[len(mount_dir):]
+        keys = ["Period(days)", "Delay(minutes)", "job-identifier", "command", "file.path"]
 
-        for line in self.from_module.run(path):
-            match = prog.match(line)
-            if line and not line.startswith('#'):
-                if match:
-                    keys = ["Period(days)", "Delay(minutes)", "job-identifier", "command", "file.path"]
-                    values = list(match.groups())
-                    values.append(str(file_path))
-                    crontab_dict = {key: value for key, value in zip(keys, values)}
-                    yield crontab_dict
-                else:
-                    script_data.append(line)
-
+        with open(path, 'r') as f_in:
+            for line in f_in:
+                match = prog.match(line)
+                if line and not line.startswith('#'):
+                    if match:
+                        values = list(match.groups())
+                        values.append(str(file_path))
+                        crontab_dict = {key: value for key, value in zip(keys, values)}
+                        yield crontab_dict
+                    else:
+                        script_data.append(line)
         extra_data = []
         for line in script_data:
-            if line and not line.startswith('#'):
+            if not line.startswith('#'):
                 extra_data.append({'line': line, 'file.path': file_path})
         csv_out = os.path.join(base_path, 'cronReferences.csv')
         save_csv(extra_data, outfile=csv_out, file_exists='APPEND')

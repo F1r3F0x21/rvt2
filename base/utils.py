@@ -464,10 +464,10 @@ def to_localized_date(source, tz_name='UTC', dayfirst=False, on_fail='NULL', log
         return _on_fail_dates(on_fail_condition=on_fail.upper(), output_type='DATETIME')
     try:
         # Timestamp input
-        if isinstance(type(source), int) or (isinstance(source, str) and source.isdigit()):
+        if isinstance(source, int) or (isinstance(source, str) and source.isdigit()):
             dt = datetime.datetime.fromtimestamp(int(source), datetime.timezone.utc)
         # Datetime input
-        elif isinstance(type(source), datetime.datetime):
+        elif isinstance(source, datetime.datetime):
             dt = source
         # String input
         else:

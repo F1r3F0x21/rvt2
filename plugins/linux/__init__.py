@@ -16,7 +16,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import os
-import logging
+
 
 def get_username(path, mount_dir, subfolder=".ssh"):
     """ Get the home username of the file path """
@@ -25,8 +25,8 @@ def get_username(path, mount_dir, subfolder=".ssh"):
     path_components = file_path.split(os.path.sep)
     if "home" in path_components:
         indexof_subfolder = path_components.index(subfolder)
-        username = path_components[indexof_subfolder -1]
-    if "root" in path_components:    
+        username = path_components[indexof_subfolder - 1]
+    if "root" in path_components:
         username = "root"
     else:
         username = path_components[-2]

@@ -29,81 +29,6 @@ from plugins.linux.RVT_os_info import CharacterizeLinux
 from functools import partial
 
 
-class Passwd(base.job.BaseModule):
-    """ Extract the essential information about user accounts in passwd file.
-
-    Module description:
-        - **from_module**: Data dict.
-        - **yields**: The updated dict data.
-    """
-
-    def read_config(self):
-        super().read_config()
-
-    def run(self, path=None):
-        for line in self.from_module.run(path):
-            if not line.strip().startswith('#'):
-                data = line.split(":")
-                user_account_entry_dict = {
-                    "user.name": data[0],
-                    "password": data[1],
-                    "user.id": data[2],
-                    "group.id": data[3],
-                    "user_information": data[4],
-                    "home_directory": data[5],
-                    "login_shell": data[6]
-                }
-                yield user_account_entry_dict
-
-
-class Group(base.job.BaseModule):
-    """ Extract the essential information about group file.
-
-    Module description:
-        - **from_module**: Data dict.
-        - **yields**: The updated dict data.
-    """
-
-    def read_config(self):
-        super().read_config()
-
-    def run(self, path=None):
-        for line in self.from_module.run(path):
-            if not line.strip().startswith('#'):
-                data = line.split(":")
-                group_entry_dict = {
-                    "group_name": data[0],
-                    "password": data[1],
-                    "group.id": data[2],
-                    "user_list": data[3]
-                }
-                yield group_entry_dict
-
-
-class Gshadow(base.job.BaseModule):
-    """ Extract the essential information about gshadow file.
-
-    Module description:
-        - **from_module**: Data dict.
-        - **yields**: The updated dict data.
-    """
-
-    def read_config(self):
-        super().read_config()
-
-    def run(self, path=None):
-        for line in self.from_module.run(path):
-            if not line.strip().startswith('#'):
-                data = line.split(":")
-                group_entry_dict = {
-                    "group_name": data[0],
-                    "password": data[1],
-                    "administrators": data[2],
-                    "members": data[3]
-                }
-                yield group_entry_dict
-
-
 class LastLog(base.job.BaseModule):
     """ Extract the essential information about lastLog file.
 
@@ -131,8 +56,7 @@ class LastLog(base.job.BaseModule):
                         "datetime": datetime.fromtimestamp(timestamp)
                     }
                     # Localtime to UTC
-                    dict_output["datetime"] = date_to_iso(
-                        dict_output["datetime"], input_timezone=local_tz, logger=self.logger())
+                    dict_output["datetime"] = date_to_iso(dict_output["datetime"], input_timezone=local_tz, logger=self.logger())
 
                     yield dict_output
 
@@ -164,7 +88,7 @@ class Shadow(base.job.BaseModule):
                     else:
                         corresponding_date = start_date + timedelta(days=int(data[2]))
                         formatted_date = corresponding_date.strftime('%Y-%m-%d')
-                
+
                 # minimum password age conversion
                 if str(data[3]) == "0":
                     minimum_pwd_age = "disabled"
@@ -225,15 +149,16 @@ class Access(base.job.BaseModule):
         super().read_config()
 
     def run(self, path=None):
-        for line in self.from_module.run(path):
-            if not line.startswith('#') and line != '':
-                data = line.split(":", 2)
-                user_account_entry_dict = {
-                    "permission": data[0],
-                    "users": data[1],
-                    "origins ": data[2]
-                }
-                yield user_account_entry_dict
+        with open(path) as f_in:
+            for line in f_in:
+                if not line.startswith('#') and line != '':
+                    data = line.split(":", 2)
+                    user_account_entry_dict = {
+                        "permission": data[0],
+                        "users": data[1],
+                        "origins ": data[2]
+                    }
+                    yield user_account_entry_dict
 
 
 class Utmpdump2(base.job.BaseModule):
@@ -490,8 +415,8 @@ class Analysis(base.job.BaseModule):
         super().read_config()
 
     def run(self, path=None):
-        self.login_dir = self.myconfig('logindir')
-        check_directory(self.myconfig('analysisdir'), create=True)
+        self.login_dir = self.config.config['plugins.linux']['logindir']
+        check_directory(self.config.config['plugins.linux']['ausers'], create=True)
 
         df_result = pd.DataFrame()
 
@@ -501,7 +426,7 @@ class Analysis(base.job.BaseModule):
             df_passwd = pd.read_csv(url_passwd, sep=';', quotechar='"')
             data_passwd = []
             for index, row in df_passwd.iterrows():
-                if str(row["home_directory"]).startswith("/home") or (row["login_shell"] != "/usr/sbin/nologin" and row["login_shell"] != "/bin/false"):
+                if str(row["home_directory"]).startswith("/home") or (row["login_shell"] not in ("/usr/sbin/nologin", "/sbin/nologin", "/bin/false")):
                     data_passwd.append(row)
             df_result = pd.DataFrame(data_passwd)
             df_result.columns = df_result.columns.str.strip()
@@ -515,16 +440,16 @@ class Analysis(base.job.BaseModule):
             # Group information
             df_result = self.group(df_result)
 
-            desired_columns = ['user.name', 'user.id', 'user_information', 'lastlog_ut_host','lastlog_datetime', 'last_password_change', 'encrypted_password', 'group']
+            desired_columns = ['user.name', 'user.id', 'user_information', 'lastlog_ut_host', 'lastlog_datetime', 'last_password_change', 'encrypted_password', 'group']
             existing_columns = [col for col in desired_columns if col in df_result.columns]
             df_result_filtered = df_result[existing_columns]
 
             # Saving table
-            txt_out = os.path.join(self.myconfig('analysisdir'), 'users_summary.md')
+            txt_out = os.path.join(self.config.config['plugins.linux']['ausers'], 'users_summary.md')
             data = df_result_filtered.to_markdown()
             with open(txt_out, 'w') as file:
                 file.write(data)
-            df_result_filtered.to_csv(os.path.join(self.myconfig('analysisdir'), 'users_summary.csv'), index=False)
+            df_result_filtered.to_csv(os.path.join(self.config.config['plugins.linux']['ausers'], 'users_summary.csv'), index=False)
         else:
             self.logger().warning("To make the users table etc/passwd needed, and not found.")
 
@@ -535,11 +460,11 @@ class Analysis(base.job.BaseModule):
             df_filtered_wtmp = df_wtmp[df_wtmp['ut_type'] == 'USER_PROCESS']
             df_result_wtmp = df_filtered_wtmp[['user.name', 'ut_host', 'ut_addr_v6', '@timestamp', 'ut_time_to', 'ut_time_total']]
             # Saving table
-            txt_out = os.path.join(self.myconfig('analysisdir'), 'logins_summary.md')
+            txt_out = os.path.join(self.config.config['plugins.linux']['ausers'], 'logins_summary.md')
             data = df_result_wtmp.to_markdown()
             with open(txt_out, 'w') as file:
                 file.write(data)
-            df_result_wtmp.to_csv(os.path.join(self.myconfig('analysisdir'), 'logins_summary.csv'), index=False)
+            df_result_wtmp.to_csv(os.path.join(self.config.config['plugins.linux']['ausers'], 'logins_summary.csv'), index=False)
 
     def lastlog(self, df_result):
         url_lastlog = os.path.join(self.login_dir, "lastlog.csv")
@@ -573,13 +498,13 @@ class Analysis(base.job.BaseModule):
                         for user in str(row["members"]).split(","):
                             list_group = df_result.loc[df_result['user.name'] == user]
                             if not list_group.empty:
-                                if list_group['group'].values is not None:
+                                if list_group['group'].values[0] is not None:
                                     list_group = list_group['group'].values[0]
                                     list_group = ast.literal_eval(str(list_group))
                                     list_group.append(row["group_name"])
                                 else:
                                     list_group = [row["group_name"]]
-                                df_result.loc[df_result['user.name']== user, 'group'] = str(list_group)
+                                df_result.loc[df_result['user.name'] == user, 'group'] = str(list_group)
         else:
             url_group = os.path.join(self.login_dir, "group.csv")
             if os.path.isfile(url_group):

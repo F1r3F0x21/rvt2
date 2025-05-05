@@ -52,7 +52,7 @@ def decodeEmailHeader(header, errors='replace'):
     for h in email.header.decode_header(header):
         if not h[1]:
             # this part of the header has no encoding: assume utf and continue
-            if type(h[0]) == str:
+            if isinstance(h[0], str):
                 # the header has a single part
                 values.append(h[0])
             else:
@@ -125,7 +125,7 @@ def readMessageFile(filename, stop_on_empty_line=True, encoding='utf-8', errors=
                 data[last_key] = value.strip()
             else:
                 if last_key is not None:
-                    data[last_key] = '{}\n{}'.format(data[last_key], line.strip())
+                    data[last_key] = f'{data[last_key]}\n{line.strip()}'
     return data
 
 
@@ -161,15 +161,15 @@ class ExportPst(base.job.BaseModule):
         for pst_file in tqdm(pst_files, desc=self.section, disable=self.myflag('progress.disable')):
             index += 1
             # save metadata
-            yield dict(filename=pst_file, outdir="pff-{}".format(index), index=index)
+            yield dict(filename=pst_file, outdir=f"pff-{index}", index=index)
             try:
                 if not os.path.exists(os.path.join(self.myconfig('casedir'), pst_file)):
                     self.logger().warning('File %s does not exist', pst_file)
                     continue
-                out_path = os.path.join(outdir, "pff-{}".format(index))
+                out_path = os.path.join(outdir, f"pff-{index}")
                 self.logger().debug("Exporting %s to %s", pst_file, out_path)
                 # check if the output directory exist
-                for directory in ['{}.export'.format(out_path), '{}.recovered'.format(out_path)]:
+                for directory in [f'{out_path}.export', f'{out_path}.recovered']:
                     if base.utils.check_directory(directory):
                         if self.myflag('delete_exists'):
                             base.utils.check_directory(directory, delete_exists=True)
@@ -201,6 +201,7 @@ class MailParser(base.job.BaseModule):
     Configuration:
         - **exportdir**: the export main directory.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('exportdir', os.path.join(self.myconfig('outputdir'), 'mail'))
@@ -210,12 +211,12 @@ class MailParser(base.job.BaseModule):
 
         pstfiles = list(self.from_module.run(path))
         for pstfile in tqdm(pstfiles, desc=self.section, disable=self.myflag('progress.disable')):
-            outputpstfile = os.path.join(self.myconfig('exportdir'), '{}.export'.format(pstfile['outdir']))
+            outputpstfile = os.path.join(self.myconfig('exportdir'), f"{pstfile['outdir']}.export")
             if not os.path.isdir(outputpstfile):
                 continue
             parsePffObject = PffExportParseObject(self.config)
-            outputpstfile = os.path.join(self.myconfig('exportdir'), '{}.export'.format(pstfile['outdir']))
-            with tqdm(total=int(sum([len(folder) for r, folder, file in os.walk(outputpstfile)])), desc='indexing {}'.format(pstfile['outdir'])) as pbar:
+            outputpstfile = os.path.join(self.myconfig('exportdir'), f"{pstfile['outdir']}.export")
+            with tqdm(total=int(sum([len(folder) for r, folder, file in os.walk(outputpstfile)])), desc=f'indexing {pstfile["outdir"]}') as pbar:
                 for root, dirs, files in os.walk(outputpstfile):
                     for dirpath in dirs:
                         pbar.update(1)
@@ -251,9 +252,9 @@ class MailboxCSV(base.job.BaseModule):
                     for k in recipients:
                         recipient_type = k['recipient_type']
                         if recipient_type in ('to', 'cc', 'bcc'):
-                            res[recipient_type] = "{};{} <{}>".format(res.get(recipient_type, ''), k['display_name'], k['email_address'])
+                            res[recipient_type] = f"{res.get(recipient_type, '')};{k['display_name']} <{k['email_address']}>"
                         else:
-                            self.logger().warning('Message {} has recipient_type {} with email address {}'.format(res['message'], recipient_type, k['email_address']))
+                            self.logger().warning(f"Message {res['message']} has recipient_type {recipient_type} with email address {k['email_address']}")
                 res['messageid'] = fileinfo.get('email_messageid', '')
                 res['x_originating_ip'] = fileinfo.get('email_x_originating_ip', '')
                 res['email_references'] = fileinfo.get('email_references', '')
@@ -277,6 +278,7 @@ class PffExportParseObject(base.job.BaseModule):
     Yields:
         Information about the object and its attachments.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tika_parser = base.job.load_module(self.config, 'indexer.tikaparser.TikaParser')
@@ -284,7 +286,7 @@ class PffExportParseObject(base.job.BaseModule):
     def run(self, path, containerid=None):
         self.check_params(path, check_path_exists=True)
         if not os.path.isdir(path):
-            raise base.job.RVTError('The path must be a directory: {}'.format(path))
+            raise base.job.RVTError(f'The path must be a directory: {path}')
         filetype_modules = {
             'Message': PffExportParseMessage(self.config),
             'Contact': PffExportParseContact(self.config),
@@ -338,6 +340,7 @@ class PffExportParseObject(base.job.BaseModule):
 
     def _getInternetHeaders(self, filename):
         """ Read internet headers from a filename """
+
         msg = readMessageFile(filename)
         return {
             'email_subject': decodeEmailHeader(msg.get('subject', None)),
@@ -356,6 +359,7 @@ class PffExportParseObject(base.job.BaseModule):
 
     def _getOutlookHeaders(self, filename):
         """ Read outlook headers from a filename """
+
         msg = readMessageFile(filename, stop_on_empty_line=False)
         data = {
             'email_submit_time': decodeEmailDateHeader(msg.get('client submit time', None)),
@@ -370,7 +374,7 @@ class PffExportParseObject(base.job.BaseModule):
         sea = decodeEmailHeader(msg.get('sender email address', None))
         if sn:
             if sea:
-                data['email_from'] = "{} ({})".format(sn, sea)
+                data['email_from'] = f"{sn} ({sea})"
             else:
                 data['email_from'] = sn
 
@@ -382,6 +386,7 @@ class PffExportParseObject(base.job.BaseModule):
 
     def _getRecipients(self, filename, length=5):
         """ Read recipients from a filename """
+
         # TODO: check if this funcion can use readMessageFile()
         recipientsinfo = {}
         if os.path.isfile(filename):
@@ -464,6 +469,7 @@ class PffExportParseContact(PffExportParseObject):
     Yields:
         Information about the Contact but not its attachments.
     """
+
     def run(self, path, containerid=None):
         info = {}
         info["content_type"] = "pst/Contact"
@@ -495,6 +501,7 @@ class PffExportParseAppointment(PffExportParseObject):
     Yields:
         Information about the Appointment but not its attachments.
     """
+
     def run(self, path, containerid=None):
         info = {}
         info["content_type"] = "pst/Appointment"
@@ -525,6 +532,7 @@ class PffExportParseMeeting(PffExportParseObject):
     Yields:
         Information about the Meeting but not its attachments.
     """
+
     def run(self, path, containerid=None):
         info = {}
         # parse the Message.html or rtf file in the directory: this is the content
@@ -560,6 +568,7 @@ class PffExportParseTask(PffExportParseObject):
     Todo:
         We couldn't test this module
     """
+
     def run(self, path, containerid=None):
         info = {}
         # parse the Message.html file in the directory: this is the content
@@ -603,10 +612,10 @@ class MacMailParser(base.job.BaseModule):
 
         mailbox_directory = os.path.abspath(path)
         if not os.path.isdir(mailbox_directory):
-            raise base.job.RVTError('Specified path {} is not a directory'.format(path))
+            raise base.job.RVTError(f'Specified path {path} is not a directory')
 
         parseMacMailbox = ParseMacMailbox(self.config)
-        with tqdm(total=int(sum([len(folder) for r, folder, file in os.walk(mailbox_directory)])), desc='indexing {}'.format(path)) as pbar:
+        with tqdm(total=int(sum([len(folder) for r, folder, file in os.walk(mailbox_directory)])), desc=f'indexing {path}') as pbar:
             for root, dirs, files in os.walk(mailbox_directory):
                 for dirpath in dirs:
                     pbar.update(1)
@@ -624,6 +633,7 @@ class ParseMacMailbox(PffExportParseObject):
     Yields:
         Information about the object and its attachments.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tika_parser = base.job.load_module(self.config, 'indexer.tikaparser.TikaParser')
@@ -631,14 +641,14 @@ class ParseMacMailbox(PffExportParseObject):
     def run(self, path, containerid=None):
         self.check_params(path, check_path_exists=True)
         if not os.path.isdir(path):
-            raise base.job.RVTError('The path must be a directory: {}'.format(path))
+            raise base.job.RVTError(f'The path must be a directory: {path}')
         filetype_modules = {
             'Messages': EmlxParseMessage(self.config)
         }
         if os.path.basename(path) in filetype_modules:
             # parse the main object
             rootid = None
-            self.logger().debug('Parsing mails in path {}'.format(path))
+            self.logger().debug(f'Parsing mails in path {path}')
             for file in os.listdir(path):
                 for m in filetype_modules[os.path.basename(path)].run(os.path.join(path, file), containerid):
                     if not containerid and not rootid:

@@ -295,7 +295,7 @@ class JSONReader(AllLinesInFile):
             try:
                 data = json.loads(line.strip())
                 yield data
-            except json.decoder.JSONDecodeError:
+            except json.JSONDecodeError:
                 if self.myflag('stop_on_error'):
                     raise
 

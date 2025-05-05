@@ -787,7 +787,7 @@ class FilterData(base.job.BaseModule):
     Configuration:
         - **conditions**: list of tuples where the first element is the field name and the second element is the data to compare against. Ex: [("field1","v1"),("field2","v2")]
         - **is_regex**: if True, compare using regex. Otherwise, use and exact match. Default: False
-        - **operator**: operator to apply to every item in 'conditions'. Options: 'and' or 'or'.
+        - **operator**: operator to apply to every item in 'conditions'. Options: 'and', 'or' or 'none'.
     """
 
     def read_config(self):
@@ -811,7 +811,7 @@ class FilterData(base.job.BaseModule):
             return
 
         op = self.myconfig('operator').lower()
-        if op not in ['or', 'and']:
+        if op not in ['or', 'and', "none"]:
             self.logger().warning(f"Accepted values for parameter 'operator' are ('or', 'and'). Provided value {op} not accepted.")
             yield from self.from_module.run(path)
             return
@@ -835,6 +835,14 @@ class FilterData(base.job.BaseModule):
                 discard = False
                 for field, reference in events:
                     if (field not in data.keys()) or (not is_regex and data[field] != reference) or (is_regex and not reference.search(data[field])):
+                        discard = True
+                        break
+                if not discard:
+                    yield data
+            if op == 'none':
+                discard = False
+                for field, reference in events:
+                    if (field not in data.keys()) or (not is_regex and data[field] == reference) or (is_regex and reference.search(data[field])):
                         discard = True
                         break
                 if not discard:

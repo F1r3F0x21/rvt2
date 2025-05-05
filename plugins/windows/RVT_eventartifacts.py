@@ -129,14 +129,14 @@ class IncomingLogon(base.job.BaseModule):
                 ev['Reason'] = event.get('data.Reason', '')
             if 'source.user.name' in event.keys():  # Events 4624, 4625, 4648 (Security)
                 if event['source.user.name'] != '-':
-                    ev['User'] = "{}\\{}".format(event.get('source.domain', ''), event['source.user.name'])
+                    ev['User'] = f"{event.get('source.domain', '')}\\{event['source.user.name']}"
             else:
                 ev['User'] = '-'
             if 'destination.user.name' in event.keys():  # Events 21, 23, 24, 25 (TerminalServices-LocalSessionManager), 1149 (TerminalServices-RemoteConnectionManager), 4624, 4625, 4634, 4647, 4648, 4478, 4776, 4779 (Security)
                 ev['TargetUser'] = '-'
                 if event['destination.user.name'] != '-':
                     if event.get('destination.domain', ''):
-                        ev['TargetUser'] = "{}\\{}".format(event['destination.domain'], event['destination.user.name'])
+                        ev['TargetUser'] = f"{event['destination.domain']}\\{event['destination.user.name']}"
                     else:
                         ev['TargetUser'] = event['destination.user.name']
             else:
@@ -612,15 +612,15 @@ class IncomingLogon(base.job.BaseModule):
         results_sorted = list(sort_module.run())
 
         save_csv(results_sorted, config=None,
-            outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.csv'),
-            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
-            file_exists='OVERWRITE')
+                 outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.csv'),
+                 fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
+                 file_exists='OVERWRITE')
         save_md_table(results_sorted, config=None,
-            outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.md'),
-            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
-            backticks_fields='User',
-            date_fields="['Login (UTC)', 'Logoff (UTC)']",
-            file_exists='OVERWRITE')
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'logons_cleartext.md'),
+                      fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'SourceIP', 'SourcePort', 'LogonType', 'ProcessName', 'AuthenticationPackage']",
+                      backticks_fields='User',
+                      date_fields="['Login (UTC)', 'Logoff (UTC)']",
+                      file_exists='OVERWRITE')
 
         # Generates a table using OpenSSH events
         # There is no identifier to discriminate sessions. 'SourcePort' is the next best thing
@@ -661,15 +661,15 @@ class IncomingLogon(base.job.BaseModule):
         sort_module = base.job.load_module(self.config, 'base.mutations.SortResults', extra_config={'fields': '"Login (UTC)" "Logoff (UTC)"', 'ignore_empty': True}, from_module=results)
         results_sorted = list(sort_module.run())
         save_csv(results_sorted, config=None,
-            outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.csv'),
-            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'IP', 'Port']",
-            file_exists='OVERWRITE')
+                 outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.csv'),
+                 fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'IP', 'Port']",
+                 file_exists='OVERWRITE')
         save_md_table(results_sorted, config=None,
-            outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.md'),
-            fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'IP', 'Port']",
-            backticks_fields='User',
-            date_fields="['Login (UTC)', 'Logoff (UTC)']",
-            file_exists='OVERWRITE')
+                      outfile=os.path.join(os.path.dirname(self.myconfig('outfile')), 'openssh_sessions.md'),
+                      fieldnames="['Login (UTC)', 'Logoff (UTC)', 'Duration', 'User', 'IP', 'Port']",
+                      backticks_fields='User',
+                      date_fields="['Login (UTC)', 'Logoff (UTC)']",
+                      file_exists='OVERWRITE')
 
 
 class RDPIncoming(base.job.BaseModule):
@@ -922,12 +922,12 @@ class OutgoingLogon(base.job.BaseModule):
         sort_module = base.job.load_module(self.config, 'base.mutations.SortResults', extra_config={'fields': '"LoginDate" "LogoffDate"', 'ignore_empty': True}, from_module=results)
         results_sorted = list(sort_module.run())
         save_md_table(results_sorted, config=None,
-            outfile=self.myconfig('outfile_md'),
-            date_fields="['LoginDate', 'LogoffDate']",
-            file_exists='OVERWRITE')
+                      outfile=self.myconfig('outfile_md'),
+                      date_fields="['LoginDate', 'LogoffDate']",
+                      file_exists='OVERWRITE')
         save_csv(results_sorted, config=None,
-            outfile=self.myconfig('outfile_md')[:-2] + 'csv',
-            file_exists='OVERWRITE')
+                 outfile=self.myconfig('outfile_md')[:-2] + 'csv',
+                 file_exists='OVERWRITE')
 
     def b64_hash(self, username, version='v2'):
         """ Calculate the base64 of the HASH of a username/domain
@@ -1130,7 +1130,7 @@ class Poweron(base.job.BaseModule):
         i = 0
         import subprocess
 
-        cmd = "grep -o '\"event.created\": \"20..-..-.....:..:..' %s|sort -u|cut -b 19-" % self.path
+        cmd = f"grep -o '\"event.created\": \"20..-..-.....:..:..' {self.path}|sort -u|cut -b 19-"
         output = subprocess.check_output(cmd, shell=True).decode()
         for line in output.split('\n'):
             if unexpected[i] > line:

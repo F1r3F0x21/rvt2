@@ -30,11 +30,13 @@ from base.utils import sanitize_ip
 
 def to_date(strtimestamp):
     """ Converts a timestamp string in UNIX into a date """
+
     return datetime.datetime.fromtimestamp(int(strtimestamp), datetime.timezone.utc).isoformat()
 
 
 def to_iso_format(timestring):
     """ Converts a date string into iso format date """
+
     if not timestring or timestring == 'Never' or timestring == '-':
         return datetime.datetime.fromtimestamp(0, datetime.timezone.utc).isoformat()
     try:
@@ -55,6 +57,7 @@ def to_geolocation(lon_lat_string):
 
 def permissions_to_octal(tsk_permisssion):
     """ Convert a tsk permission string to octal format """
+
     equivalence = {
         "---": "0",
         "--x": "1",
@@ -154,7 +157,7 @@ class SuperTimeline(base.job.BaseModule):
         try:
             self.check_params(path, check_from_module=True, check_path=True, check_path_exists=True)
         except base.job.RVTErrorNotExistingPath as exc:
-            self.logger().warning('{} events will not be generated: {}'.format(self.__class__.__name__, exc))
+            self.logger().warning(f'{self.__class__.__name__} events will not be generated: {exc}')
             return []
         # raise NotImplementedError
 
@@ -647,7 +650,7 @@ class BrowsersHistory(SuperTimeline):
                         'file.extension': os.path.splitext(file_path)[1].lstrip('.'),
                         'file.name': os.path.basename(file_path),
                         'file.group': self.filegroup(dict({'path': file_path}), self.myflag('classify')) or '',
-                        'url.visit_count': d.get('visit_count','0')
+                        'url.visit_count': d.get('visit_count', '0')
                     })
                 # Entries starting with "Host:" are always followed by another entry with the actual visit. Can be skipped
                 elif d['url'].startswith(':Host:'):
@@ -656,7 +659,7 @@ class BrowsersHistory(SuperTimeline):
                     common.update(url_extended)
                     common.update({
                         'file.mtime': to_iso_format(d['modified']),
-                        'url.visit_count': d.get('visit_count','0')
+                        'url.visit_count': d.get('visit_count', '0')
                     })
                 yield common
 
@@ -823,7 +826,7 @@ class EventLogs(SuperTimeline):
                 'event.provider': d['event.provider']
             })
 
-            common['message'] = d.get('message', "Event Code: {} ({})".format(d['event.code'], d['event.dataset']))
+            common['message'] = d.get('message', f"Event Code: {d['event.code']} ({d['event.dataset']})")
             parsed_fields = set(['event.created', 'event.code', 'event.dataset', 'event.provider', 'message'])
 
             # Optional fields
@@ -890,7 +893,7 @@ class Prefetch(SuperTimeline):
                 'event.dataset': 'prefetch',
                 'event.action': 'application-executed',
                 'event.type': ['start'],
-                'message': "Executed process: {}".format(d['Executable']),
+                'message': f"Executed process: {d['Executable']}",
                 'file.name': d['PrefecthFile'],
                 'file.group': 'plain',
                 'process.executable': d['Executable'],
@@ -993,7 +996,7 @@ class CCM(SuperTimeline):
                 'event.dataset': 'cim',
                 'event.action': 'application-executed',
                 'event.type': ['start'],
-                'message': "Executed process: {}".format(d['ExplorerFileName']),
+                'message': f"Executed process: {d['ExplorerFileName']}",
             })
 
             if not d['LastUsedTime']:
@@ -1036,7 +1039,7 @@ class UserAssist(SuperTimeline):
                 'event.dataset': 'userassist',
                 'event.action': 'application-executed',
                 'event.type': ['start'],
-                'message': "Process last executed: {}".format(d['ProgramName']),
+                'message': f"Process last executed: {d['ProgramName']}",
                 'process.executable': d['ProgramName'],
                 'user.name': d['User']})
 
@@ -1081,14 +1084,14 @@ class Shellbags(SuperTimeline):
                 common.update({
                     '@timestamp': to_iso_format(d['FirstInteracted']),
                     'event.action': 'directory-first-interacted',
-                    'message': 'Directory first interacted: {}'.format(d.get('AbsolutePath', ''))})
+                    'message': f'Directory first interacted: {d.get("AbsolutePath", "")}'})
                 yield common
 
             if d.get('LastInteracted', ''):
                 common.update({
                     '@timestamp': to_iso_format(d['LastInteracted']),
                     'event.action': 'directory-last-interacted',
-                    'message': 'Directory last interacted: {}'.format(d.get('AbsolutePath', ''))})
+                    'message': f'Directory last interacted: {d.get("AbsolutePath", "")}'})
                 yield common
 
 
@@ -1115,21 +1118,21 @@ class RegistryTasks(SuperTimeline):
                 common.update({
                     '@timestamp': to_iso_format(d['LastExecuted']),
                     'event.action': 'task-last-executed',
-                    'message': 'Task last executed: {}'.format(d.get('Task', ''))})
+                    'message': f'Task last executed: {d.get("Task", "")}'})
                 yield common
 
             if d.get('LastCompleted', None):
                 common.update({
                     '@timestamp': to_iso_format(d['LastExecuted']),
                     'event.action': 'task-last-execution-completed',
-                    'message': 'Task last execution completed: {}'.format(d.get('Task', ''))})
+                    'message': f'Task last execution completed: {d.get("Task", "")}'})
                 yield common
 
             if d.get('Created', None):
                 common.update({
                     '@timestamp': to_iso_format(d['Created']),
                     'event.action': 'task-created',
-                    'message': 'Task created: {}'.format(d.get('Task', ''))})
+                    'message': f'Task created: {d.get("Task", "")}'})
                 yield common
 
 
@@ -1163,7 +1166,7 @@ class Tasks(SuperTimeline):
                 if d.get(time_field, None):
                     common.update({'@timestamp': to_iso_format(d.get(time_field, None)),
                                    'message': f'{time_field} for Scheduled Task  {d.get("TaskName", "")}'
-                                })
+                                   })
                     yield common
 
 
@@ -1199,7 +1202,7 @@ class UsnJrnl(SuperTimeline):
                                     'file-renamed-old-name': (['change'], 'File renamed. Old name'),
                                     'file-renamed-new-name': (['change'], 'File renamed. New name')}
             common['event.type'] = event_types_messages.get(common['event.action'], [''])[0]
-            common['message'] = "{}: {}".format(event_types_messages.get(common['event.action'], ['', ''])[1], d['Full Path'])
+            common['message'] = f"{event_types_messages.get(common['event.action'], ['', ''])[1]}: {d['Full Path']}"
 
             yield common
 
@@ -1252,7 +1255,7 @@ class USB(SuperTimeline):
                 '@timestamp': to_iso_format(d['Start']),
                 'event.type': ['installation', 'start'],
                 'event.action': 'driver-installation-started',
-                'message': 'Driver installation start: {}'.format(d['Device'])
+                'message': f'Driver installation start: {d["Device"]}'
             })
             yield common
 
@@ -1260,7 +1263,7 @@ class USB(SuperTimeline):
                 '@timestamp': to_iso_format(d['End']),
                 'package.installed': to_iso_format(d['End']),
                 'event.action': 'driver-installation-ended',
-                'message': 'Driver installation end: {}'.format(d['Device']),
+                'message': f'Driver installation end: {d["Device"]}',
                 'event.type': ['installation', 'end']
             })
             yield common
@@ -1288,8 +1291,7 @@ class NetworkUsage(SuperTimeline):
                 'network.type': d['Interface'],
                 'source.bytes': d['Bytes Sent'],
                 'destination.bytes': d['Bytes Received'],
-                'message': "Application {} uploaded/downloaded {} / {} bytes in last summary period".format(
-                    d['Application'], d['Bytes Sent'], d['Bytes Received'])
+                'message': f"Application {d['Application']} uploaded/downloaded {d['Bytes Sent']} / {d['Bytes Received']} bytes in last summary period"
             })
 
             user = d.get('User SID', '').split(' ')
@@ -1361,8 +1363,8 @@ class Registry(SuperTimeline):
 
             for v in d['values']:
                 for sub_value, data in v.items():
-                    common['registry.{}'.format(sub_value)] = data
-                common['message'] = 'Registry value {} set at subkey {}'.format(v['value'], d['subkey'])
+                    common[f'registry.{sub_value}'] = data
+                common['message'] = f"Registry value {v['value']} set at subkey {d['subkey']}"
                 yield common
 
 
@@ -1399,7 +1401,7 @@ class RecycleBin(SuperTimeline):
                 'file.extension': os.path.splitext(d['OriginalName'])[1].lstrip('.'),
                 'file.name': os.path.basename(d['OriginalName']),
                 'file.group': self.filegroup(dict({'path': d['OriginalName']}), self.myflag('classify')) or '',
-                'message': 'File sent to RecycleBin: {}'.format(d['OriginalName'])
+                'message': f"File sent to RecycleBin: {d['OriginalName']}"
             })
 
             yield common
@@ -1435,7 +1437,7 @@ class WhatsApp(SuperTimeline):
                 'communication.direction': 'sent' if d['is_from_me'] == '1' else 'received',
                 'communication.to_number': d['message_phonenumber'],
                 'communication.created': to_iso_format(d['date_creation']),
-                'message': 'WhatsApp message: {}'.format(d['message'])
+                'message': f'WhatsApp message: {d["message"]}'
             })
 
             if d['lon_lat']:

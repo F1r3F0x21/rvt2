@@ -245,7 +245,7 @@ class Partition(object):
                 self.refreshMountedImages()
                 self.mount_NTFS(os.path.join(mountauxpath, "dislocker-file"), offset=False)
             except Exception as exc:
-                self.logger.error(f"Problems mounting bitlocker partition p{self.partition}: {str(exc}")
+                self.logger.error(f"Problems mounting bitlocker partition p{self.partition}: {str(exc)}")
                 return -1
         else:
             self.logger.debug("Trying to mount with recovery keys at {}".format(self.mountaux))

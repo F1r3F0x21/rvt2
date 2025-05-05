@@ -38,6 +38,7 @@ import uuid
 
 class _CustomSerializer(JSONSerializer):
     """ A custom serializer for types we might find and are not supported by the standard serializer """
+
     def default(self, obj):
         if isinstance(obj, set):
             return list(obj)
@@ -101,7 +102,7 @@ def get_esclient(config, config_section='indexer', logger=logging):
             someone_answered = True
     if not someone_answered:
         logger.error('ElasticSearch hosts are not reacheable: %s', hosts)
-        raise base.job.RVTError('ElasticSearch hosts are not reacheable: {}'.format(hosts))
+        raise base.job.RVTError(f'ElasticSearch hosts are not reacheable: {hosts}')
 
     logger.debug('Connecting to %s', hosts)
     return Elasticsearch(
@@ -136,7 +137,7 @@ def _actions(origin, tag_fields=[], logger=logging):
         if isinstance(data, str):
             data = json.loads(data)
         for tf in tag_fields:
-            new_tag = data.get('_source', {}).pop('{}-new'.format(tf), None)
+            new_tag = data.get('_source', {}).pop(f'{tf}-new', None)
             if new_tag is not None:
                 yield dict(
                     _op_type='tag',
@@ -216,6 +217,7 @@ class ElasticSearchAdapter(base.job.BaseModule):
         Returns:
             An iterator with the adapted JSON.
         """
+
         self.logger().debug('Indexing: %s', path)
         self.check_params(path, check_from_module=True)
 
@@ -258,6 +260,7 @@ class ElasticSearchRegisterSource(base.job.BaseModule):
         - **tabsdb**: A database of tabs to create
         - **tabs**: The name of the tabs in the database to create in analyzer. If empty, do not update tabs.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('name', self.myconfig('source'))
@@ -315,6 +318,7 @@ class ElasticSearchRegisterCase(base.job.BaseModule):
         - **rvtindex**: The name of the index where the run of this module will be registered. The name MUST be in lowcase.
         - **description**: The description of the case. If empty, do not update the description.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('casename', 'casename')
@@ -362,6 +366,7 @@ class ElasticSearchBulkSender(base.job.BaseModule):
         - **cooloff.every**: after sending cooloff.every number of items, wait cooloff.seconds.
         - **cooloff.seconds**: after sending cooloff.every number of items, wait cooloff.seconds.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('name', self.myconfig('source'))
@@ -468,6 +473,7 @@ class ElasticSearchQuery(base.job.BaseModule):
             Set to 0 to disable.
         - **retry_on_timeout**: If True, retry after ES returned a timeour error.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('name', self.myconfig('source'))
@@ -494,7 +500,7 @@ class ElasticSearchQuery(base.job.BaseModule):
         total = esclient.count(index=name, body=query)['count']
         # if there are more affected documents than max_results, stop
         if max_results > 0 and total > max_results:
-            raise base.job.RVTCritical('The affected documents will be more than the configured limit: total={} max_results={}. Stopping. Set max_results=0 to dismiss or change the query.'.format(total, max_results))
+            raise base.job.RVTCritical(f'The affected documents will be more than the configured limit: total={total} max_results={max_results}. Stopping. Set max_results=0 to dismiss or change the query.')
         for result in tqdm(elasticsearch.helpers.scan(
                            esclient,
                            index=name,
@@ -521,6 +527,7 @@ class ElasticSearchQueryRelated(base.job.BaseModule):
         - **source_excludes**: a space separated list of fields NOT to include in the answer.
         - **retry_on_timeout**: If True, retry after ES returned a timeour error.
     """
+
     def read_config(self):
         super().read_config()
         self.set_default_config('name', self.myconfig('source'))
@@ -544,7 +551,7 @@ class ElasticSearchQueryRelated(base.job.BaseModule):
                 for child in elasticsearch.helpers.scan(
                     esclient,
                     index=name,
-                    q='containerid:{}'.format(result['_id']),
+                    q=f'containerid:{result["_id"]}',
                     _source_includes=['NOFIELD'],
                     raise_on_error=self.myflag('stop_on_error')
                 ):
@@ -555,7 +562,7 @@ class ElasticSearchQueryRelated(base.job.BaseModule):
                 for sibling in elasticsearch.helpers.scan(
                     esclient,
                     index=name,
-                    q='containerid:{}'.format(containerid),
+                    q=f'containerid:{containerid}',
                     _source_includes=['containerid'],
                     raise_on_error=self.myflag('stop_on_error')
                 ):
