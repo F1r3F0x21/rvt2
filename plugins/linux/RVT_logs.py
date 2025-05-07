@@ -281,29 +281,41 @@ class JournalLogs(base.job.BaseModule):
         self.logger().info("Extracting Journal logs. It might take some time")
 
         previous_data = {}
-        for line in yield_command(command, logger=self.logger(), env=env):
-            # Expected output format sample:
-            # 2024-04-18T12:12:17+0200 MACHINENAME systemd[2961]: Started Application launched by gnome-shell.
-            # All lines start with either a timestamp, a long space or a message like '-- Boot 451452577fbb4666a278f4b8ba8b9c2a --'
-            output_splitted = line.rstrip().split(" ", maxsplit=3)
-            if output_splitted[0] and not output_splitted[0].startswith('--'):
-                if previous_data:
-                    yield previous_data
-                    previous_data = {}
-                process_match = process_regex.match(output_splitted[2])
-                appname = process_match.groupdict().get('appname') if process_match else output_splitted[2]
-                procid = process_match.groupdict().get('procid') if process_match else ''
-                data = {
-                    '@timestamp': output_splitted[0],
-                    'host.name': output_splitted[1],
-                    'log.syslog.appname': appname,
-                    'log.syslog.procid': procid,
-                    'message': output_splitted[3]
-                }
-                previous_data = data
-            else:
-                previous_data["message"] = f'{previous_data.get("message", "")}\n{output_splitted[3]}'
-
+        try:
+            for line in yield_command(command, logger=self.logger(), env=env):
+                # Expected output format sample:
+                # 2024-04-18T12:12:17+0200 MACHINENAME systemd[2961]: Started Application launched by gnome-shell.
+                # All lines start with either a timestamp, a long space or a message like '-- Boot 451452577fbb4666a278f4b8ba8b9c2a --'
+                output_splitted = line.rstrip().split(" ", maxsplit=3)
+                if output_splitted[0] and not output_splitted[0].startswith('--'):
+                    if previous_data:
+                        yield previous_data
+                        previous_data = {}
+                    process_match = process_regex.match(output_splitted[2])
+                    appname = process_match.groupdict().get('appname') if process_match else output_splitted[2]
+                    procid = process_match.groupdict().get('procid') if process_match else ''
+                    data = {
+                        '@timestamp': output_splitted[0],
+                        'host.name': output_splitted[1],
+                        'log.syslog.appname': appname,
+                        'log.syslog.procid': procid,
+                        'message': output_splitted[3]
+                    }
+                    previous_data = data
+                else:
+                    previous_data["message"] = f'{previous_data.get("message", "")}\n{output_splitted[3]}'
+        except Exception:
+            import json
+            for root, dirs, files in os.walk(path):
+                for fname in files:
+                    if fname.endswith('.journal'):
+                        for line in yield_command(f"go-journalctl cat {os.path.join(root, fname)}", logger=self.logger(), env=env):
+                            data = json.loads(line)
+                            yield {'@timestamp': data['System']['Timestamp'],
+                                   'host.name': data['System']['_HOSTNAME'],
+                                   'log.syslog.appname': data['EventData']['SYSLOG_IDENTIFIER'],
+                                   'log.syslog.procid': str(data['System']['_PID']),
+                                   'message': data['EventData'].get("MESSAGE", "")}
         if len(previous_data) != 0:
             yield previous_data
 
