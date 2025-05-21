@@ -777,7 +777,7 @@ class Application(EventJob):
                 ev.pop('data.#text', "")
                 if data:
                     for e, field in enumerate(fields[ev['event.code']]['fields']):
-                        if len(data) == e:
+                        if e >= len(data):
                             continue
                         if data[e] == '(NULL)' or data[e] == '':
                             continue

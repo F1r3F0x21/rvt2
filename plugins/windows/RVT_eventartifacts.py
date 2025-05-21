@@ -1130,7 +1130,7 @@ class Poweron(base.job.BaseModule):
         i = 0
         import subprocess
 
-        cmd = f"grep -o '\"event.created\": \"20..-..-.....:..:..' {self.path}|sort -u|cut -b 19-"
+        cmd = f"grep -o '\"event.created\":\"20..-..-.....:..:..' {self.path}|sort -u|cut -b 18-"
         output = subprocess.check_output(cmd, shell=True).decode()
         for line in output.split('\n'):
             if unexpected[i] > line:
