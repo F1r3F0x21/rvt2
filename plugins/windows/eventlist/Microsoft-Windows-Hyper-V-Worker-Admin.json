@@ -1,0 +1,178 @@
+{
+  "12148": {
+    "description": "Started VM",
+    "provider": "Microsoft-Windows-Hyper-V-SynthStor",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId", "String", "ErrorCode", "Param1", "Param2"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18500": {
+    "description": "Started VM",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18502": {
+    "description": "Turn Off VM",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18504": {
+    "description": "Shut Down VM (Using The Shutdown Integration Component)",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId", "Force", "Reason"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18508": {
+    "description": "Shut Down VM (Using Guest Operating System)",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId", "Force", "Reason"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18510": {
+    "description": "Saved VM",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18512": {
+    "description": "Reset VM (Using Hyper-V Manager)",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18514": {
+    "description": "Reset VM (Using Guest Operating System)",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18516": {
+    "description": "Pause VM",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18518": {
+    "description": "Resume VM",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18596": {
+    "description": "Restoring VM",
+    "provider": "Microsoft-Windows-Hyper-V-Worker",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  }
+}

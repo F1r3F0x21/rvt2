@@ -1,0 +1,50 @@
+{
+  "13002": {
+    "description": "Created VM (Successfully Created)",
+    "provider": "Microsoft-Windows-Hyper-V-VMMS",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "13003": {
+    "description": "Deleted VM",
+    "provider": "Microsoft-Windows-Hyper-V-VMMS",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  },
+  "18304": {
+    "description": "Created VM (Creation started)",
+    "provider": "Microsoft-Windows-Hyper-V-VMMS",
+    "path": {
+      "UserData/VmlEventLog": {
+        "Name": ["VmName", "VmId"]
+      },
+      "System/Correlation/#attributes":{
+         "Name": ["ActivityID"]
+      },
+      "System/Security/#attributes": {
+         "Name": ["UserID"],
+         "transform": {"UserID": "user.id"}
+      }
+    }
+  }
+}
