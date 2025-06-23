@@ -15,10 +15,9 @@
 
 import os
 import shlex
-import re
 from plugins.common.RVT_disk import getSourceImage
 from base.utils import check_directory, windows_format_path
-from base.commands import run_command, yield_command
+from base.commands import run_command
 import base.job
 
 
@@ -50,10 +49,9 @@ class BaseTimeline(base.job.BaseModule):
 
 class Timelines(BaseTimeline):
     """
-    Generates timeline and body files for a disk and its VSS (if set)
+    Generates timeline and body files for a disk
 
     Configuration:
-        - **vss**: If True, generate timelines and body files for the VSS, not the main disk (only useful on Windows systems)
         - **fls**: Path to the fls app (TSK)
         - **apfs_fls**: Path to a fls app with APFS support (TSK>?)
         - **mactime**: Path to the mactime app (TSK)
@@ -61,11 +59,10 @@ class Timelines(BaseTimeline):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('vss', False)
 
     def run(self, path=None):
         """ The path is the absolute path to the imagefile or device. If not provided, search in imagedir for known extensions """
-        vss = self.myflag('vss')
+
         self.fls = self.myconfig('fls')
         self.apfs_fls = self.myconfig('apfs_fls')
         self.mactime = self.myconfig('mactime')
@@ -75,10 +72,7 @@ class Timelines(BaseTimeline):
         check_directory(self.tl_path, create=True)
 
         # Generate BODY file
-        if vss:
-            body_filename = self.generate_body_vss()
-        else:
-            body_filename = self.generate_body(path=path)
+        body_filename = self.generate_body(path=path)
 
         # create the timeline using mactime
         self.timeline_from_body(self.tl_path, body_filename, self.myflag('summary'), self.myconfig('time_range'))
@@ -94,55 +88,47 @@ class Timelines(BaseTimeline):
 
         # create the body file
         with open(body, "wb") as f:
+            if disk.imagetype == "dummy":
+                run_command(['find', base.utils.relative_path(os.path.join(self.myconfig('sourcedir'), 'mnt'), self.myconfig('casedir')),
+                             "-exec", "stat", "-c", '0|%n|-|%A|0|0|%s|%X|%Y|%Z|%W', '{}', ';'], stdout=f, logger=self.logger())
+                return f"{disk.source}_BODY.csv"
             for p in disk.partitions:
                 mountpath = base.utils.relative_path(p.mountpath, self.myconfig('casedir'))
 
                 if not p.isMountable:
                     continue
-                if not disk.sectorsize:
+                if p.filesystem == "lvm":
+                    for lv in p.lvm_info:
+                        vol = lv["logicalVolume"]
+                        mountpath = base.utils.relative_path(os.path.join(p.mountdir, f'p{p.partition}l{vol}'), self.myconfig('casedir'))
+                        run_command([self.fls, "-s", "0", "-m", mountpath, "-r", os.path.join(p.mountaux, f'lvm{p.partition}', f'lvm{vol}')], stdout=f, logger=self.logger())
+                elif not disk.sectorsize:
                     # unkwown sector size
-                    run_command([self.fls, "-s", "0", "-m", mountpath, "-r", "-o", str(p.osects), "-i", "raw", disk.imagefile], stdout=f, logger=self.logger())
+                    if disk.imagetype == "compressed":
+                        run_command(['find', mountpath, "-exec", "stat", "-c",
+                                     '0|%n|-|%A|0|0|%s|%X|%Y|%Z|%W', '{}', ';'], stdout=f, logger=self.logger())
+                    else:
+                        run_command([self.fls, "-s", "0", "-m", mountpath, "-r", "-o", str(
+                            p.osects), *(("-i", "raw") if disk.imagetype == 'raw' else ()), disk.imagefile], stdout=f, logger=self.logger())
                 elif p.filesystem == "NoName":
                     # APFS filesystems are identified as NoName, according to our experience
                     try:
-                        run_command([self.apfs_fls, "-B", str(p.block_number), "-s", "0", "-m", mountpath, "-r", "-o", str(p.osects), "-b", str(disk.sectorsize), "-i", "raw", disk.imagefile], stdout=f, logger=self.logger())
+                        run_command([self.apfs_fls, "-B", str(p.block_number), "-s", "0", "-m", mountpath, "-r", "-o", str(
+                            p.osects), "-b", str(disk.sectorsize), "-i", "raw", disk.imagefile], stdout=f, logger=self.logger())
                     except Exception:
                         # sometimes, APFS filesystems report a wrong offset. Try again with offset*8
-                        run_command([self.apfs_fls, "-B", str(p.block_number), "-s", "0", "-m", mountpath, "-r", "-o", str(p.osects * 8), "-b", str(disk.sectorsize), "-i", "raw", disk.imagefile], stdout=f, logger=self.logger())
+                        run_command([self.apfs_fls, "-B", str(p.block_number), "-s", "0", "-m", mountpath, "-r", "-o", str(
+                            p.osects * 8), "-b", str(disk.sectorsize), "-i", "raw", disk.imagefile], stdout=f, logger=self.logger())
                 else:
                     # we know the sector size
                     if p.encrypted:
-                        run_command([self.fls, "-s", "0", "-m", mountpath, "-r", "-b", str(disk.sectorsize), p.loop], stdout=f, logger=self.logger())
+                        run_command([self.fls, "-s", "0", "-m", mountpath, "-r", "-b", str(disk.sectorsize),
+                                     os.path.join(p.mountaux, f'bp{p.partition}', 'bde1')], stdout=f, logger=self.logger())
                     else:
-                        run_command([self.fls, "-s", "0", "-m", mountpath, "-r", "-o", str(p.osects), "-b", str(disk.sectorsize), disk.imagefile], stdout=f, logger=self.logger())
+                        run_command([self.fls, "-s", "0", "-m", mountpath, "-r", "-o", str(p.osects),
+                                     "-b", str(disk.sectorsize), disk.imagefile], stdout=f, logger=self.logger())
 
         return f"{disk.source}_BODY.csv"
-
-    def generate_body_vss(self):
-        """ Generate a timeline for VSS using mounted device as source """
-        vss_source = self.myconfig('source')
-
-        device = self._get_mounted_device(vss_source)
-
-        # Create body file
-        self.logger().debug("Generating BODY file for {} at {}".format(vss_source, device))
-        body = os.path.join(self.tl_path, "{}_BODY.csv".format(vss_source))
-
-        partition = re.search(r"(.*)_v\d+(p\d+)_\d{6}_\d{6}", vss_source).group(2)
-        mountpath = os.path.join(vss_source, 'mnt', partition)
-
-        with open(body, "wb") as f:
-            run_command([self.fls, "-s", "0", "-m", "%s" % mountpath, "-r", device], stdout=f, logger=self.logger())
-
-        return "{}_BODY.csv".format(vss_source)
-
-    def _get_mounted_device(self, source_name):
-        """ Obtain the loop device where VSS is mounted, using df command """
-        df = self.myconfig('df', '/bin/df')
-        for line in yield_command([df], logger=self.logger()):
-            aux = re.match(r"(/dev/loop\d+) .*{}/{}.*".format(self.myconfig('casedir'), source_name), line)
-            if aux:
-                return aux.group(1)
 
 
 class MFTTimeline(BaseTimeline):
@@ -171,10 +157,7 @@ class MFTTimeline(BaseTimeline):
         # Check if there's another mft_timeline job running
         base.job.wait_for_job(self.config, self)
 
-        if not os.path.exists(path):
-            self.logger().warning(f'{path} not exists')
-            return []
-        # self.check_params(path, check_from_module=False, check_path=True, check_path_exists=True)
+        self.check_params(path, check_from_module=False, check_path=True, check_path_exists=True)
         self.path = path
         tl_dir = self.myconfig('outdir')
         check_directory(tl_dir, create=True)
@@ -227,4 +210,3 @@ class MFTTimeline(BaseTimeline):
         main_body = os.path.join(tl_dir, main_body_filename)
         cmd = rf"cat {os.path.join(tl_dir, body_pattern)} > {main_body}"
         run_command(cmd)
-

@@ -67,6 +67,8 @@ class Edge(base.job.BaseModule):
 
             for info in self.parse_export():
                 yield info
+        except Exception:
+            self.logger().error(f"Problems parsing {path}")
         finally:
             shutil.rmtree(webcache_dir)
 

@@ -39,7 +39,7 @@ class Mount(base.job.BaseModule):
         If not, search imagedir for available images """
 
         disk = getSourceImage(self.myconfig, imagefile=path)
-        disk.mount(partitions=self.myconfig('partitions'), vss=self.myconfig('vss'), unzip_path=self.myconfig('unzip_path'))
+        disk.mount(partitions=self.myconfig('partitions'), vss=self.myconfig('vss'))
         if self.from_module:
             for data in self.from_module.run(path):
                 yield data

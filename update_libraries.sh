@@ -129,7 +129,7 @@ update_zimmerman_tools() {
       do
         cd $tool
 	VERSION=$(../../dotnet/dotnet $tool.dll --version)
-	NEWVERSION=$(curl https://ericzimmerman.github.io/index.md| sed -n "s|.*\[\([0-9.][0-9.]*\)\].https://f001.backblazeb2.com/file/EricZimmermanTools/net6/$tool.zip.*|\1|p")
+	NEWVERSION=$(curl https://ericzimmerman.github.io/index.md| sed -n "s|.*\[\([0-9.][0-9.]*\)\].https://download.ericzimmermanstools.com/net6/$tool.zip.*|\1|p")
 	if [ $VERSION != $NEWVERSION ]; then
 	    wget https://download.ericzimmermanstools.com/net6/${tool}.zip
             7z x -y $tool.zip
@@ -145,7 +145,7 @@ update_zimmerman_tools() {
       do
 	cd $tool
         VERSION=$(../../dotnet/dotnet $tool.dll --version)
-	NEWVERSION=$(curl https://ericzimmerman.github.io/index.md| sed -n "s|.*\[\([0-9.][0-9.]*\)\].https://f001.backblazeb2.com/file/EricZimmermanTools/net6/$tool.zip.*|\1|p")
+	NEWVERSION=$(curl https://ericzimmerman.github.io/index.md| sed -n "s|.*\[\([0-9.][0-9.]*\)\].https://download.ericzimmermanstools.com/net6/$tool.zip.*|\1|p")
 	if [ $VERSION != $NEWVERSION ]; then
             wget https://download.ericzimmermanstools.com/net6/${tool}.zip
             7z x -y $tool.zip

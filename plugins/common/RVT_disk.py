@@ -21,37 +21,53 @@ import os
 import re
 import subprocess
 import pytsk3
-from plugins.common.RVT_partition import Partition
+import json
+from plugins.common.RVT_partition import Partition, fs_descr
 import logging
 from base.utils import check_folder, check_file
 from base.commands import run_command
 import base.job
-import zipfile
-import tarfile
-import ujson as json
-from tqdm import tqdm
-import shutil
 
 
-def load_imagefile(auxdir):
-    """ Load imagefile path from configuration JSON file. """
+def getSourceImage(myconfig, imagefile=None, vss=False):
+    """ Returns the path to the image file.
 
-    infile = None
+    imagefile is the absolute path to the image file or device.
+    If not provided, search in imagedir for files as "source.ext"
 
-    if os.path.isdir(auxdir):
-        for part_file in os.listdir(auxdir):
-            if part_file.startswith('p') and part_file.endswith('info.json'):
-                infile = os.path.join(auxdir, part_file)
-                # Get information from the first mountable partition. Imagefile should be the same for all
-                break
+    Known images are in the KNOWN_IMAGETYPES directory.
+    """
 
-    if infile and os.path.getsize(infile) != 0:
-        with open(infile) as inputfile:
-            try:
-                a = json.load(inputfile)
-                return a['imagefile']
-            except Exception:
-                return False
+    if imagefile:
+        check_file(imagefile, error_missing=True)
+
+    # Search in imagedir files with known extensions
+    source = myconfig('source')
+    imagedir = myconfig('imagedir')
+
+    for ext in KNOWN_IMAGETYPES.keys():
+        ifile = os.path.join(imagedir, f"{source}.{ext}")
+        if check_file(ifile):
+            if test_magic_image(ifile):
+                return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=ifile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
+            else:
+                logging.warning(f'{imagefile} is not {ext} file. It will be treated as raw file')
+                return KNOWN_IMAGETYPES['raw']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['raw']['type'], params=myconfig)
+    logging.warning(f'Image file not found for source={source} in imagedir={imagedir}')
+    imf = get_mountpoints(myconfig, myconfig('sourcedir'))
+    if imf:  # mounted image
+        return RawImage(imf, 'raw', myconfig)
+    return DummyImage(imagefile=None, imagetype='dummy', params=myconfig)
+
+
+def get_mountpoints(myconfig, sourcedir):
+    mntpath = os.path.join(sourcedir, 'mnt')
+    regex = re.compile(rf"^([^ ]+) .*{mntpath}/(p\d+)")
+    with open('/proc/mounts', 'r') as f_in:
+        for line in f_in:
+            aux = regex.search(line)
+            if aux:
+                return aux.group(1)
     return False
 
 
@@ -75,108 +91,122 @@ def test_magic_image(imagefile):
         return True
 
 
-def getSourceImage(myconfig, imagefile=None, vss=False):
-    """ Returns the path to the image file.
-
-    imagegile is the absolute path to the image file or devide.
-    If not provided, search in imagedir for files as "source.ext"
-
-    Known images are in the KNOWN_IMAGETYPES directory.
-    """
-
-    if imagefile:
-        check_file(imagefile, error_missing=True)
-
-    if not imagefile:
-        # Load imagefile path from previous runs to speed up the guessing process
-        imagefile = load_imagefile(myconfig('auxdir'))
-
-    # check for known extensions
-    if imagefile and check_file(imagefile):
-        if imagefile.startswith('/dev'):  # check for device files
-            return KNOWN_IMAGETYPES['/dev']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['/dev']['type'], params=myconfig)
-        try:
-            ext = os.path.basename(imagefile).split('.')[-1]
-            if test_magic_image(imagefile):
-                return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
-            else:
-                logging.warning('%s is not %s file. It will be treated as raw file' % (imagefile, ext))
-                return KNOWN_IMAGETYPES['raw']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['raw']['type'], params=myconfig)
-        except KeyError:
-            # not a know extension: assume RAW image
-            return BaseImage(imagefile=imagefile, imagetype='raw', params=myconfig)
-
-    # No imagefile is provided or imagefile is an old temporary mount point.
-    # Search in imagedir files with known extensions
-    source = myconfig('source')
-    imagedir = myconfig('imagedir')
-    if vss:  # Deduce original source name from vss source name
-        aux = re.search(r"(.*)_v\d+p\d+_\d{6}_\d{6}", source)
-        if not aux:
-            logging.warning('Original source not found for present source: {}. Please, provide variable `original_image_path`'.format(source))
-            DummyImage(imagefile=None, imagetype='dummy', params=myconfig)
-        else:
-            source = aux.group(1)
-    for ext in KNOWN_IMAGETYPES.keys():
-        ifile = os.path.join(imagedir, "{}.{}".format(source, ext))
-        if check_file(ifile):
-            if test_magic_image(ifile):
-                return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=ifile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
-            else:
-                logging.warning('%s is not %s file. It will be treated as raw file' % (imagefile, ext))
-                return KNOWN_IMAGETYPES['raw']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['raw']['type'], params=myconfig)
-    logging.warning('Image file not found for source=%s in imagedir=%s', source, imagedir)
-    return DummyImage(imagefile=None, imagetype='dummy', params=myconfig)
-
-
 class BaseImage(object):
-    """ A base class for images. Also, manages raw (dd) images """
-
-    fs_descr = {
-        0x00000000: 'TSK_FS_TYPE_DETECT',
-        0x00000001: 'TSK_FS_TYPE_NTFS',
-        0x00000002: 'TSK_FS_TYPE_FAT12',
-        0x00000004: 'TSK_FS_TYPE_FAT16',
-        0x00000008: ' TSK_FS_TYPE_FAT32',
-        0x0000000a: 'TSK_FS_TYPE_EXFAT',
-        0x0000000e: 'TSK_FS_TYPE_FAT_DETECT',
-        0x00000010: 'TSK_FS_TYPE_FFS1',
-        0x00000020: 'TSK_FS_TYPE_FFS1B',
-        0x00000040: 'TSK_FS_TYPE_FFS2',
-        0x00000070: 'TSK_FS_TYPE_FFS_DETECT',
-        0x00000080: 'TSK_FS_TYPE_EXT2',
-        0x00000100: 'TSK_FS_TYPE_EXT3',
-        0x00002180: 'TSK_FS_TYPE_EXT_DETECT',
-        0x00000200: 'TSK_FS_TYPE_SWAP',
-        0x00000400: 'TSK_FS_TYPE_RAW',
-        0x00000800: 'TSK_FS_TYPE_ISO9660',
-        0x00001000: 'TSK_FS_TYPE_HFS',
-        0x00009000: 'TSK_FS_TYPE_HFS_DETECT',
-        0x00002000: 'TSK_FS_TYPE_EXT4',
-        0x00004000: 'TSK_FS_TYPE_YAFFS2',
-        0x00008000: 'TSK_FS_TYPE_HFS_LEGACY',
-        0x00010000: 'TSK_FS_TYPE_APFS',
-        0x00020000: 'TSK_FS_TYPE_LOGICAL',
-        0xffffffff: 'TSK_FS_TYPE_UNSUPP'
-    }
-
-    def __init__(self, imagefile, imagetype, params):
+    def __init__(self, imagefile, imagetype, params, load=True):
         self.logger = logging.getLogger('Disk')
         self.params = params
+        self.load = load
+        if load:
+            vars = self.load_disk()
+            if vars:
+                for var, value in vars.items():
+                    setattr(self, var, value)
+                return
         self.morgue = self.params('morgue')
-        self.disknumber = self.params('source')  # disknumber
+        self.source = self.params('source')  # source
         self.imagefile = imagefile
         self.imagetype = imagetype
         self.sectorsize = None
         self.partitions = []
-        self.auxdirectories = []
+        self.fusedirectory = None
         self.mmls()
+
+    def mount(self, partitions='', vss=False):
+        for p in self.partitions:
+            p.mount()
+        if self.load:
+            self.save_disk()
+
+    def umount(self):
+        """ Unmounts all partitions"""
+
+        # umount data partitions
+
+        for p in self.partitions:
+            p.umount()
+
+    def mmls(self):
+        pass
+
+    def myflag(self, option, default=False):
+        """ A convenience method for self.config.getboolean(self.section, option, False) """
+        value = self.params(option, str(default))
+        return value in ('True', 'true', 'TRUE', 1)
+
+    def save_disk(self):
+        """ Write partition variables in a JSON file """
+
+        check_folder(self.params('auxdir'))
+        outfile = os.path.join(self.params('auxdir'), f'disk_info.json')
+        skipped_vars = ['logger', 'params', 'partitions', 'fuse_imagetype', 'load', 'raw_image']
+
+        with open(outfile, 'w') as out:
+            try:
+                jsondata = json.dumps(
+                    {k: v for k, v in self.__dict__.items() if k not in skipped_vars}, indent=4)
+                out.write(jsondata)
+            except TypeError as exc:
+                raise exc
+
+    def load_disk(self):
+        """ Load disk variables from JSON file. Avoids running mmls every time """
+
+        infile = os.path.join(self.params('auxdir'), f'disk_info.json')
+        if self.myflag('remove_info') and check_file(infile):
+            try:
+                os.remove(infile)
+            except Exception:
+                self.logger.error(f"Error while deleting file: {infile}")
+            return False
+
+        self.logger.debug(f'Loading disk information')
+        if check_file(infile) and os.path.getsize(infile) != 0:
+            with open(infile) as inputfile:
+                try:
+                    return json.load(inputfile)
+                except Exception:
+                    self.logger.warning(f'JSON file {infile} malformed')
+                    return False
+        return False
 
     def exists(self):
         """ Returns True if the disk was found in the morgue. """
         return check_file(self.imagefile)
 
-    def mount(self, partitions=None, vss=False, unzip_path=None):
+    def __str__(self):
+        if self.exists():
+            text = f'Case source={self.source} sectorsize={self.sectorsize}\n\n'
+            for p in self.partitions:
+                text += f"Partition: {p.partition}\n\tOffset in sectors: {p.osects}\n\tCluster Size: {p.clustersize}\n\tFile System: {p.filesystem}\n\tSize: {p.size}"
+                if hasattr(p, 'vss') and len(p.vss) > 0:
+                    text += f"\n\t \tpartition {p.partition} has {len(p.vss)} stores"
+                if p.encrypted:
+                    text += f"\n\t \tpartition {p.partition} is encrypted"
+                text += "\n\n"
+            return text
+        else:
+            return f'Source id={self.source} not found'
+
+
+class DummyImage(BaseImage):
+    def __init__(self, imagefile, imagetype, params):
+        super().__init__(imagefile, imagetype, params)
+        self.imagetype = 'dummy'
+
+    def mount(self, partitions='', vss=False):
+        pass
+
+    def umount(self, unzip_path=None):
+        pass
+
+    def mmls(self):
+        pass
+
+
+class RawImage(BaseImage):
+    """ A class for raw images. """
+
+    def mount(self, partitions=None, vss=False):
         """ Mounts partitions of disk
         Args:
             partitions (str): Comma separated list of partitions to be mounted (mounts all available partitions by default). Ex: 'p02,v1p03,p05'
@@ -204,19 +234,13 @@ class BaseImage(object):
         for p in parts:
             if p.isMountable or p.filesystem in ['HFS', 'ext4']:
                 p.mount()
-
-    def umount(self, unzip_path=None):
-        """ Unmounts all partitions"""
-        # umount data partitions
-        for p in self.partitions:
-            p.umount()
+                p.save_partition()
 
     def _getRawImagefile(self):
         """ Get the raw image file.
 
         Some images (encase, aff4...) must be mounted in order to have a raw image.
         Use this method to mount and get the path of these auxiliary mounts.
-        Remember to umount these auxiliary images in umount()
         """
 
         return self.imagefile
@@ -238,7 +262,7 @@ class BaseImage(object):
             self.logger.info(f"File imagefile={self.imagefile} has not a partition table or is malformed. Trying to manage as a single partition")
             try:
                 fs = pytsk3.FS_Info(img)
-                filesystem = self.fs_descr[fs.info.ftype]
+                filesystem = fs_descr[fs.info.ftype]
                 filesystem = filesystem.split("TSK_FS_TYPE_")[-1]
                 self.sectorsize = 512
                 self.partitions.append(Partition(imagefile, int(os.stat(self.imagefile).st_size) / int(self.sectorsize), filesystem, "0", "0", self.sectorsize, self.params))
@@ -253,16 +277,15 @@ class BaseImage(object):
             size = part.len
             try:
                 fs = pytsk3.FS_Info(img, int(int(osects) * int(self.sectorsize)))
-                filesystem = self.fs_descr[fs.info.ftype]
+                filesystem = fs_descr[fs.info.ftype]
                 filesystem = filesystem.split("TSK_FS_TYPE_")[-1]
             except Exception:
                 filesystem = part.desc.decode()
             if filesystem.startswith('Macintosh HD'):
                 filesystem = "HFS"
-            if filesystem.startswith('Linux'):
+            elif filesystem.startswith('Linux'):
                 filesystem = "ext4"
-
-            if filesystem == "NoName":
+            elif filesystem == "NoName":
                 apfs_pstat = self.params('apfs_pstat', '/usr/local/src/sleuthkit-APFS/tools/pooltools/pstat')
                 mosects = osects
                 if self.sectorsize == 4096:  # sleuthkit-APFS uses 512 blocksize
@@ -284,33 +307,10 @@ class BaseImage(object):
                             n += 1
                         except Exception:
                             self.logger.error(f"Problems getting information about APFS partition {partition} with block Number {aux.group(1)}")
-            else:
-                try:
-                    self.partitions.append(Partition(imagefile, size, filesystem, osects, partition, self.sectorsize, self.params))
-                except Exception as exc:
-                    self.logger.error("Error getting information about partition {}: {}".format(partition, exc))
-
-    def getPartitionNumber(self):
-        """ Return the number of partitions in disk """
-        return len([p for p in self.partitions if p.filesystem != "Unallocated" and not p.filesystem.startswith("Primary Table")])
-
-    def getVSSInfo(self):
-        """ Return information of Volume Shadow Snapshots in every partition """
-        return [p.vss_info for p in self.partitions if p.filesystem != "Unallocated" and not p.filesystem.startswith("Primary Table")]
-
-    def __str__(self):
-        if self.exists():
-            text = 'Case disk={} sectorsize={}\n\n'.format(self.disknumber, self.sectorsize)
-            for p in self.partitions:
-                text += "Partition: {}\n\tOffset in sectors: {}\n\tCluster Size: {}\n\tFile System: {}\n\tSize: {}".format(p.partition, p.osects, p.clustersize, p.filesystem, p.size)
-                if len(p.vss) > 0:
-                    text += "\n\t \tpartition {} has {} stores".format(p.partition, len(p.vss))
-                if p.encrypted:
-                    text += "\n\t \tpartition {} is encrypted".format(p.partition)
-                text += "\n\n"
-            return text
-        else:
-            return 'Disknumber id={} not found'.format(self.disknumber)
+            try:
+                self.partitions.append(Partition(imagefile, size, filesystem, osects, partition, self.sectorsize, self.params))
+            except Exception as exc:
+                self.logger.error(f"Error getting information about partition {partition}: {exc}")
 
     def myflag(self, option, default=False):
         """ A convenience method for self.config.getboolean(self.section, option, False) """
@@ -318,82 +318,60 @@ class BaseImage(object):
         return value in ('True', 'true', 'TRUE', 1)
 
 
-class DummyImage(BaseImage):
-    def mount(self, partitions='', vss=False, unzip_path=None):
-        pass
+class FuseImage(BaseImage):
+    """ Manages different liblyal images
 
-    def umount(self, unzip_path=None):
-        pass
+    It creates a fuse device in mountauxdir that will be used as imagefile to mounting partitions
+    """
 
-    def mmls(self):
-        pass
+    def __init__(self, imagefile, imagetype, params):
+        super().__init__(imagefile, imagetype, params)
+
+        self.fuse_imagetype = {'encase': ['ewfmount', 'ewf1'],
+                               'vmdk': ['vmdkmount', 'vmdk1'],
+                               'vhdi': ['vhdimount', 'vhdi1']}
+        self.fuse_path = os.path.join(self.params('mountauxdir'), self.imagetype)
+        check_folder(self.fuse_path)
+        # fusedevice will be used as imagefile
+        self.fusedirectory = os.path.join(self.fuse_path, self.fuse_imagetype[self.imagetype][1])
+        self.mount_fuse()  # first time has to be mounted to fill disk and partitions info
+        self.raw_image = RawImage(self.fusedirectory, 'raw', self.params, load=False)
+        self.partitions = self.raw_image.partitions
+
+    def mount_fuse(self):
+        # mount fusedevice from imagefile
+        mount_app = self.params(self.fuse_imagetype[self.imagetype][1], f'/usr/bin/{self.fuse_imagetype[self.imagetype][0]}')
+        if not os.path.exists(self.fusedirectory):
+            # mounts fusedevice with command
+            try:
+                run_command([mount_app, self.imagefile, "-X", "allow_root", self.fuse_path])
+            except Exception:
+                self.logger.error(f"Cannot mount {self.imagetype} imagefile={self.imagefile}")
+                raise base.job.RVTError(f"Cannot mount {self.imagetype} imagefile={self.imagefile}")
+
+    def mount(self, partitions=None, vss=False):
+
+        # creates RawImage to mount
+        self.raw_image.mount(partitions, vss)
+        if self.load:
+            self.save_disk()
+
+    def umount(self):
+        raw_image = RawImage(self.fusedirectory, 'raw', self.params, load=False)
+        for p in raw_image.partitions:
+            p.umount()
+        umount = self.params('umount', '/bin/umount')
+
+        run_command(["sudo", umount, '-l', self.fuse_path])
 
 
-class ZipImage(BaseImage):
-    """ Manages a ZIP file: its contents are unzipped into a single partition """
+class CompressedImage(BaseImage):
+    """ Manages a compressed file as an image file mounting with archivemount """
 
     def mmls(self):
         """ There is only one partition, named as configured in partname. Default: p01 """
-        self.partitions = [self.params('partname', 'p01')]
 
-    def mount(self, unzip_path=None, partitions='', vss=False):
-        """ Extracts contents of zip imagefile to unzip_path"""
-        self.mmls()
-        if zipfile.is_zipfile(self.imagefile):
-            try:
-                if unzip_path is None:
-                    partition_name = self.partitions[0]
-                    unzip_path = self.params(os.path.join(self.params('mountdir'), partition_name))
-                base.utils.check_directory(unzip_path, create=True, delete_exists=False)
-
-                with zipfile.ZipFile(self.imagefile, 'r') as myzip:
-                    bkid = myzip.namelist()[0]
-                    self.logger.debug('Extracting file imagefile=%s to mountauxdir=%s', self.imagefile, unzip_path)
-                    # check wether the directory already exists
-                    if not base.utils.check_directory(os.path.join(unzip_path, bkid)):
-                        for zn in tqdm(myzip.namelist(), desc='Unzip image', disable=self.myflag('progress.disable')):
-                            myzip.extract(zn, unzip_path)
-                    else:
-                        self.logger.warning('The unzip directory already exists: %s. Won\'t unzip', os.path.join(unzip_path, bkid))
-            except Exception as exc:
-                self.logger.warning(f'Cannot read zip file: {exc}')
-
-    def umount(self, unzip_path=None):
-        self.mmls()
-        for partition_name in self.partitions:
-            if unzip_path is None:
-                unzip_path = os.path.join(self.params('mountdir'), partition_name)
-            shutil.rmtree(unzip_path)
-
-
-class TarImage(ZipImage):
-    """ Manages a tar image.
-
-    Notice: tar files keep information about the file owners. If the owner of a file is root, it will file.
-    Run as root if the .tar files includes root files.
-
-    Some functions (mmls, umount) are reused from ZipImage.
-    """
-
-    def mount(self, unzip_path=None, partitions='', vss=False):
-        self.mmls()
-        if tarfile.is_tarfile(self.imagefile):
-            if unzip_path is None:
-                partition_name = self.partitions[0]
-                unzip_path = self.params(os.path.join(self.params('mountdir'), partition_name))
-
-            with tarfile.TarFile(self.imagefile, 'r') as mytar:
-                self.logger.debug('Extracting file imagefile=%s to mountauxdir=%s', self.imagefile, unzip_path)
-                # check wether the directory already exists
-                if not base.utils.check_directory(unzip_path):
-                    base.utils.check_directory(unzip_path, create=True, delete_exists=False)
-                    for zn in tqdm(mytar.getmembers(), desc='Untar image', disable=self.myflag('progress.disable')):
-                        try:
-                            mytar.extract(zn, unzip_path)
-                        except Exception as exc:
-                            self.logger.warning('Cannot read tar file: %s', exc)
-                else:
-                    self.logger.warning('The untar directory already exists: %s. Won\'t untar', unzip_path)
+        self.partitions.append(Partition(self.imagefile, 0, 'compressed', 0, '01', 0, self.params))
 
 
 class AFFImage(BaseImage):
@@ -423,32 +401,6 @@ class AFFImage(BaseImage):
             run_command(["sudo", umount, '-l', mp])
 
 
-class EncaseImage(BaseImage):
-    """ Manages an EncaseImage image """
-
-    def _getRawImagefile(self):
-        # convert an Encase image to dd using ewfmount
-        fuse_path = os.path.join(self.params('mountauxdir'), "encase")
-        imagefile = os.path.join(fuse_path, "ewf1")
-        self.auxdirectories.append(fuse_path)
-        if not os.path.exists(imagefile):
-            ewfmount = self.params('ewfmount', '/usr/bin/ewfmount')
-            check_folder(fuse_path)
-            try:
-                run_command([ewfmount, self.imagefile, "-X", "allow_root", fuse_path])
-            except Exception:
-                self.logger.error("Cannot mount Encase imagefile=%s", self.imagefile)
-                raise base.job.RVTError("Cannot mount Encase imagefile={}".format(self.imagefile))
-        return imagefile
-
-    def umount(self, unzip_path=None):
-        super().umount()
-        # unmount auxiliary images (encase and aff4)
-        umount = self.params('umount', '/bin/umount')
-        for mp in self.auxdirectories:
-            run_command(["sudo", umount, '-l', mp])
-
-
 class VHDXImage(BaseImage):
     """ Manages a VHDX image (VmWare)
 
@@ -462,11 +414,11 @@ class VHDXImage(BaseImage):
             # TODO: check if this needs sudo
             run_command(["sudo", qemu_nbd, "-c", device, "-r", self.imagefile])
         except Exception:
-            self.logger.error("Cannot mount VHDX imagefile=%s", self.imagefile)
-            raise base.job.RVTError("Cannot mount VHDX imagefile={}".format(self.imagefile))
+            self.logger.error(f"Cannot mount VHDX imagefile={self.imagefile}")
+            raise base.job.RVTError(f"Cannot mount VHDX imagefile={self.imagefile}")
         return device
 
-    def umount(self, unzip_path=None):
+    def umount(self):
         super().umount()
         device = self.params('ndb-device', '/dev/nbd0')
         qemu_nbd = self.params('qemu_nbd', '/usr/bin/qemu_nbd')
@@ -474,45 +426,22 @@ class VHDXImage(BaseImage):
         run_command(["sudo", qemu_nbd, "-d", device])
 
 
-class VMDKImage(BaseImage):
-    """ Manages an EncaseImage image """
-
-    def _getRawImagefile(self):
-        # convert an Encase image to dd using ewfmount
-        fuse_path = os.path.join(self.params('mountauxdir'), "vmdk")
-        imagefile = os.path.join(fuse_path, "vmdk1")
-        self.auxdirectories.append(fuse_path)
-        if not os.path.exists(imagefile):
-            vmdkmount = self.params('vmdkmount', '/usr/local/bin/vmdkmount')
-            check_folder(fuse_path)
-            try:
-                run_command([vmdkmount, self.imagefile, "-X", "allow_root", fuse_path])
-            except Exception:
-                self.logger.error("Cannot mount Encase imagefile=%s", self.imagefile)
-                raise base.job.RVTError("Cannot mount Vmdk imagefile={}".format(self.imagefile))
-        return imagefile
-
-    def umount(self, unzip_path=None):
-        super().umount()
-        # unmount auxiliary images (encase and aff4)
-        umount = self.params('umount', '/bin/umount')
-        for mp in self.auxdirectories:
-            run_command(["sudo", umount, '-l', mp])
-
-
 # name: type, imageclass
 # The order is important: zip must be the last option (an image maybe already unzipped)
 KNOWN_IMAGETYPES = {
-    "/dev": dict(type='raw', imgclass=BaseImage),
-    "001": dict(type='raw', imgclass=BaseImage),
-    "dd": dict(type='raw', imgclass=BaseImage),
-    "raw": dict(type='raw', imgclass=BaseImage),
+    "/dev": dict(type='raw', imgclass=RawImage),
+    "001": dict(type='raw', imgclass=RawImage),
+    "dd": dict(type='raw', imgclass=RawImage),
+    "raw": dict(type='raw', imgclass=RawImage),
     "aff": dict(type='aff', imgclass=AFFImage),
     "aff4": dict(type='aff4', imgclass=AFFImage),
-    "E01": dict(type='encase', imgclass=EncaseImage),
+    "E01": dict(type='encase', imgclass=FuseImage),
+    "vmdk": dict(type='vmdk', imgclass=FuseImage),
     "vhdx": dict(type='vhdx', imgclass=VHDXImage),
-    "vmdk": dict(type='vmdk', imgclass=VMDKImage),
-    "zip": dict(type='zip', imgclass=ZipImage),
-    "tar": dict(type='tar', imgclass=TarImage)
+    "zip": dict(type='compressed', imgclass=CompressedImage),
+    "tar": dict(type='compressed', imgclass=CompressedImage),
+    "tgz": dict(type='compressed', imgclass=CompressedImage),
+    "rar": dict(type='compressed', imgclass=CompressedImage),
+    "7z": dict(type='compressed', imgclass=CompressedImage)
 }
 # NOT_MOUNTABLE_PARTITIONS = ("Primary Table", "GPT Header", "Safety Table", "Partition Table", "Unallocated")

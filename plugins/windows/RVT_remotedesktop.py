@@ -271,7 +271,7 @@ class GoogleChromeRemoteDesktop(base.job.BaseModule):
                 # event["Channel"] = message_dict[3]
                 event["ConnectionType"] = message_dict[4]
 
-            elif event["event.code"] in ['1', '2', '5']:
+            elif event["event.code"] in ('1', '2', '5'):
                 message_dict = ast.literal_eval(event["data.text"])
                 event["User"], event["SessionID"] = self.user_session_from_client(message_dict[0])
 

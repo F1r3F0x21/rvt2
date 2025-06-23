@@ -51,7 +51,6 @@ class FileSystem(base.job.BaseModule):
         self.disk = disk
         if disk is None:
             self.disk = getSourceImage(self.myconfig)
-        self.vss = self.myflag('vss')
 
         # Associate a partition name with a partition object or a loop device
         self.partitions = {''.join(['p', p.partition]): p for p in self.disk.partitions}
@@ -60,9 +59,7 @@ class FileSystem(base.job.BaseModule):
             self.logger().error(f'No partitions found in image {self.disk.imagefile}')
             raise base.job.RVTError(f'No partitions found in image {self.disk.imagefile}')
 
-        self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss_mounted.items() if dev}
         self.logger().debug(f'Partitions: {self.partitions}')
-        self.logger().debug('Vss Partitions: {}'.format(self.vss_partitions))
 
         self.outdir = self.myconfig('outdir')
         check_directory(self.outdir, create=True)
@@ -79,41 +76,40 @@ class FileSystem(base.job.BaseModule):
 
         return []
 
-    def load_inode_from_path(self, config=None, partition=None, vss=None, deleted=None):
+    def load_inode_from_path(self, config=None, partition=None, deleted=None):
         """ Return dictionary relating each path with an inode"""
-        self.logger().debug(f'config={config} partition={partition}, vss={vss}, deleted={deleted}')
-        return self._load_relation('inode_from_path', config, partition, vss, deleted)
+        self.logger().debug(f'config={config} partition={partition}, deleted={deleted}')
+        return self._load_relation('inode_from_path', config, partition, deleted)
 
-    def load_path_from_inode(self, config=None, partition=None, vss=None, deleted=None):
+    def load_path_from_inode(self, config=None, partition=None, deleted=None):
         """ Return dictionary relating each inode in the partition with filenames. Keys are strings, not integers"""
-        self.logger().debug(f'config={config} partition={partition}, vss={vss}, deleted={deleted}')
-        return self._load_relation('path_from_inode', config, partition, vss, deleted)
+        self.logger().debug(f'config={config} partition={partition}, deleted={deleted}')
+        return self._load_relation('path_from_inode', config, partition, deleted)
 
-    def load_inode_from_block(self, config=None, partition=None, vss=None, deleted=None):
+    def load_inode_from_block(self, config=None, partition=None, deleted=None):
         """ Return dictionary relating each block with a list of inodes"""
-        self.logger().debug(f'config={config} partition={partition}, vss={vss}, deleted={deleted}')
-        return self._load_relation('inode_from_block', config, partition, vss, deleted)
+        self.logger().debug(f'config={config} partition={partition}, deleted={deleted}')
+        return self._load_relation('inode_from_block', config, partition, deleted)
 
-    def load_block_from_inode(self, config=None, partition=None, vss=None, deleted=None):
+    def load_block_from_inode(self, config=None, partition=None, deleted=None):
         """ Return dictionary relating each inode in the partition with its data blocks. Keys are strings, not integers"""
-        self.logger().debug(f'config={config} partition={partition}, vss={vss}, deleted={deleted}')
-        return self._load_relation('block_from_inode', config, partition, vss, deleted)
+        self.logger().debug(f'config={config} partition={partition}, deleted={deleted}')
+        return self._load_relation('block_from_inode', config, partition, deleted)
 
-    def load_inode_status(self, config=None, partition=None, vss=None, deleted=None):
+    def load_inode_status(self, config=None, partition=None, deleted=None):
         """ Return dictionary telling the allocation status for every inode in a partition"""
-        self.logger().debug(f'config={config} partition={partition}, vss={vss}, deleted={deleted}')
-        return self._load_relation('inode_status', config, partition, vss, deleted)
+        self.logger().debug(f'config={config} partition={partition}, deleted={deleted}')
+        return self._load_relation('inode_status', config, partition, deleted)
 
-    def get_inode_from_path(self, filename, partition, vss=False):
+    def get_inode_from_path(self, filename, partition):
         """ Find inode associated to a filename inside a partition filesystem
 
         Arguments:
             :filename (str): filename to search inode
             :partition (str): Partition name where getting inode (examples: p05 or v1p04_201123_050521)
-            :vss (bool): True if it's an vss
         """
         try:
-            fs = self._get_filesystem(partition, vss)
+            fs = self._get_filesystem(partition)
         except Exception as exc:
             self.logger().warning(f'FileSystem object not loaded. Error: {exc}')
             return -1
@@ -122,17 +118,16 @@ class FileSystem(base.job.BaseModule):
             f = fs.open(filename)
             inode = f.info.meta.addr
         except Exception as exc:
-            self.logger().warning('Filename or inode not found in FileSystem. Error: {}'.format(exc))
+            self.logger().warning(f'Filename or inode not found in FileSystem. Error: {exc}')
             return -1
 
         return inode
 
-    def get_macb(self, file_list, vss=False):
+    def get_macb(self, file_list):
         """ Retrieve timestamp information (MACB times) for a list of files
 
         Arguments:
             :file_list (list): list of filenames paths relative to casedir (example: 112233-01-1/mnt/p02/Users/myuser/Documents/mydoc.txt)
-            :vss (bool): If True, look at vss partitions
         Returns:
             :dict: every key (filename) contains a list of four strings representing times
         """
@@ -144,7 +139,7 @@ class FileSystem(base.job.BaseModule):
         for file in file_list:
             try:
                 part = file.split("/")[2]
-                fs = filesystems.get(part, self._get_filesystem(part, vss))
+                fs = filesystems.get(part, self._get_filesystem(part))
             except Exception as exc:
                 self.logger().warning(f'FileSystem object not loaded. Error: {exc}')
             try:
@@ -159,7 +154,7 @@ class FileSystem(base.job.BaseModule):
 
         return dates
 
-    def icat(self, inode, partition, output_filename=None, attribute="", vss=False):
+    def icat(self, inode, partition, output_filename=None, attribute=""):
         """ Write or return inode contents. If output_filename is set the content is written to that file and returns nothing.
             Otherwise the content is returned. Be careful with large files.
         Arguments:
@@ -167,11 +162,10 @@ class FileSystem(base.job.BaseModule):
             :inode (int): inode number
             :output_filename (string): file where inode's content may be written
             :attribute (string): optional inode attribute (related with ADS)
-            :vss (bool): True if it is an volume snapshot
         """
 
         try:
-            fs = self._get_filesystem(partition, vss)
+            fs = self._get_filesystem(partition)
         except Exception as exc:
             self.logger().warning(f'FileSystem object not loaded. Error: {exc}')
             return -1
@@ -218,22 +212,18 @@ class FileSystem(base.job.BaseModule):
             if output_filename:
                 f_o.close()
 
-    def _get_filesystem(self, partition, vss=False):
+    def _get_filesystem(self, partition):
         """ Return a pytsk3 FS_info object associated to partition. """
-        if not vss:
-            p = self.partitions[partition]
-            if not p.isMountable:
-                return -1
-            if p.encrypted:
-                img = pytsk3.Img_Info(p.loop)
-                fs = pytsk3.FS_Info(img)
-            else:
-                img = pytsk3.Img_Info(p.imagefile)
-                fs = pytsk3.FS_Info(img, offset=int(p.obytes))
-        else:
-            dev = self.vss_partitions[partition]
-            img = pytsk3.Img_Info(dev)
+        p = self.partitions[partition]
+        if not p.isMountable:
+            return -1
+        if p.encrypted:
+            img = pytsk3.Img_Info(p.loop)
             fs = pytsk3.FS_Info(img)
+        else:
+            img = pytsk3.Img_Info(p.imagefile)
+            fs = pytsk3.FS_Info(img, offset=int(p.obytes))
+
         return fs
 
     def cluster_extract(self, partition, cluster):
@@ -284,14 +274,13 @@ class FileSystem(base.job.BaseModule):
         except Exception:
             return 'Not Allocated'
 
-    def _load_relation(self, relation, config=None, partition=None, vss=None, deleted=None):
+    def _load_relation(self, relation, config=None, partition=None, deleted=None):
         """ Get or generate files relating inodes and paths or blocks.
 
         Parameters:
             relation (str): 'inode_from_path' or 'path_from_inode'
             config (configparser): RVT configuration.
             partition (str): name identifier for partition (examples: 'p05', 'v1p02')
-            vss (bool): True to retrieve Volume Shadows. Loads the configuration value if not specified.
             deleted (Boolean): If True gets deleted files inodes
 
         Returns:
@@ -305,10 +294,7 @@ class FileSystem(base.job.BaseModule):
                               'block_from_inode': self.inode_block, 'inode_from_block': self.inode_block,
                               'inode_status': self.inode_status}
 
-        vss = self.vss if vss is None else vss
-        partition_names = {True: self.vss_partitions, False: self.partitions}
-        assert partition in partition_names[vss]
-        if not vss and not self.partitions[partition].isMountable:
+        if not self.partitions[partition].isMountable:
             self.logger().debug(f'Partition {partition} is not mountable. Returning empty dictionary')
             return {}
 
@@ -317,7 +303,7 @@ class FileSystem(base.job.BaseModule):
         self.logger().debug(f'Loading {relation} relation file: {inode_relation_file}')
         if not check_file(inode_relation_file):
             self.logger().debug(f'Generating {relation} relation file: {inode_relation_file}')
-            relation_functions[relation](deleted=deleted, vss=vss)
+            relation_functions[relation](deleted=deleted)
         try:
             with open(inode_relation_file, "r") as json_file:
                 return json.load(json_file)
@@ -325,7 +311,7 @@ class FileSystem(base.job.BaseModule):
             self.logger().error(f'{inode_relation_file} file could not be loaded')
             raise exc
 
-    def inode_path(self, deleted=False, vss=None):
+    def inode_path(self, deleted=False):
         """ Relates inodes with paths for every partition using sleuthkit fls command.
         Generates two reciprocal JSON files: inode -> path; path -> inode.
         path_from_inode: Keys are inodes (strings, not integers). Values are a list of paths
@@ -335,22 +321,12 @@ class FileSystem(base.job.BaseModule):
 
         Parameters:
             deleted (bool): If True, show only deleted files
-            vss (str): If True, retrieve Volume Shadows Snapshots inode path relations
         """
-        vss = self.vss if vss is None else vss
         sectorsize = str(self.disk.sectorsize) if self.disk.sectorsize else '512'
 
         for p in self.disk.partitions:
 
             if not p.isMountable or p.filesystem == "NoName":  # APFS contains no I30
-                continue
-
-            if vss:
-                for v, device in p.vss_mounted.items():
-                    if device:
-                        cmd = 'fls -{}pr -b {} {}'.format('d' if deleted else 'u', sectorsize, device)
-                        self.logger().debug('Generating inode-paths association for {} files of device {}'.format('deleted' if deleted else 'allocated', device))
-                        self.save_inode_path_files(*self._process_fls(cmd, deleted=deleted), partition=v, deleted=deleted)
                 continue
 
             p_name = ''.join(['p', p.partition])
@@ -517,12 +493,8 @@ class FileSystem(base.job.BaseModule):
             self.logger().debug(f'Generating inode-paths association for device {device}')
         result = defaultdict(OrderedDict)
 
-        if self.vss:
-            cmd_ils = f'ils -e {device}'
-            cmd_ffind = 'ffind {} {}'.format(device)
-        else:
-            cmd_ils = f'ils -e -o {int(partition.obytes / self.disk.sectorsize)} {self.disk.imagefile}'
-            cmd_ffind = f'ffind -o {int(partition.obytes / self.disk.sectorsize)} {self.disk.imagefile}'
+        cmd_ils = f'ils -e -o {int(partition.obytes / self.disk.sectorsize)} {self.disk.imagefile}'
+        cmd_ffind = f'ffind -o {int(partition.obytes / self.disk.sectorsize)} {self.disk.imagefile}'
         line_number = 1
         with subprocess.Popen(shlex.split(cmd_ils), stdout=subprocess.PIPE) as ils:
             for line in ils.stdout:

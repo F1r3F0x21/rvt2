@@ -56,7 +56,7 @@ class GetFiles(object):
     """ This class provides method to interact with the list of all allocated files in the filesystem (alloc_files.txt) """
 
     # TODO: Files mounted may change over time. Is not enough to ensure allocfiles exists. It may be outdated
-    def __init__(self, config, vss=False):
+    def __init__(self, config):
         self.logger = logging.getLogger('GetFiles')
         self.config = config
 

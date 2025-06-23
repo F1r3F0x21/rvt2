@@ -49,7 +49,6 @@ class Recycle(base.job.BaseModule):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.vss = self.myflag('vss')
         self.mountdir = self.myconfig('mountdir')
         if not os.path.isdir(self.mountdir):
             raise base.job.RVTError(f'Mount directory does not exist. Please, mount the image or save some artifacts inside {self.mountdir}')
@@ -57,7 +56,7 @@ class Recycle(base.job.BaseModule):
         # Check if a source image is provided
         self.filesystem = None
         try:
-            self.disk = getSourceImage(self.myconfig, vss=self.vss)
+            self.disk = getSourceImage(self.myconfig)
             if not self.disk.imagefile:
                 self.logger().info(f'No image found for source {self.myconfig("source")}. Proceeding to find artifacts in {self.mountdir}')
             else:
@@ -71,9 +70,8 @@ class Recycle(base.job.BaseModule):
 
             if not self.partitions:
                 raise base.job.RVTError(f'No partitions found in image {self.disk.imagefile}')
-            self.vss_partitions = {v: dev for p in self.partitions.values() for v, dev in p.vss_mounted.items() if dev}
-            self.logger().debug('Partitions: {}'.format(self.partitions))
-            self.logger().debug('VSS Partitions: {}'.format(self.vss_partitions))
+
+            self.logger().debug(f'Partitions: {self.partitions}')
 
         # Assert timeline has already been generated
         self.timeline_file = os.path.join(self.myconfig('timelinesdir'), f"{self.myconfig('source')}_BODY.csv")
@@ -84,7 +82,6 @@ class Recycle(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('vss', False)
 
     def run(self, path=""):
         """ Main function to extract $Recycle.bin files. """
@@ -92,45 +89,29 @@ class Recycle(base.job.BaseModule):
         output_path = self.myconfig('outdir')
         check_directory(output_path, create=True)
 
-        # Get the users associated with each SID for every partition or mounted vss
+        # Get the users associated with each SID for every partition
         self.sid_user = {}
         if self.filesystem:
-            for p in self.vss_partitions:
+            for p in self.partitions:
                 self.sid_user[p] = self.generate_SID_user(p)
-            if not self.vss:
-                for p in self.partitions:
-                    self.sid_user[p] = self.generate_SID_user(p)
         else:
             # Iterate all pX folders inside mountdir
             for p in [f for f in os.listdir(self.mountdir) if (os.path.isdir(os.path.join(self.mountdir, f)) and f.startswith('p'))]:
                 self.sid_user[p] = self.generate_SID_user(p)
                 self.logger().debug(f'Obtained the following users in partition {p}: {self.sid_user[p]}')
 
-        # RB_codes relates a a six digit recyclebin code with a path for a file. Are updated for each partition or vss?
+        # RB_codes relates a a six digit recyclebin code with a path for a file. Are updated for each partition?
         self.RB_codes = {}
 
         self.logger().debug('Starting to parse RecycleBin')
-        if self.vss:
-            for partition, dev in self.vss_partitions.items():
-                if dev and self.myconfig('source').find(partition) != -1:
-                    self.logger().debug('Processing Recycle Bin in partition {}'.format(partition))
-                    try:
-                        self.parse_RecycleBin(partition)
-                    except Exception as exc:
-                        if self.myflag('stop_on_error'):
-                            raise exc
-                        continue
-                    output_file = os.path.join(output_path, "{}_recycle_bin.csv".format(partition))
-                    self.save_recycle_files(output_file, partition, sorting=True)
-        else:
-            try:
-                self.parse_RecycleBin()
-            except Exception as exc:
-                if self.myflag('stop_on_error'):
-                    raise exc
-                return []
-            output_file = os.path.join(output_path, "recycle_bin.csv")
-            self.save_recycle_files(output_file, sorting=True)
+        try:
+            self.parse_RecycleBin()
+        except Exception as exc:
+            if self.myflag('stop_on_error'):
+                raise exc
+            return []
+        output_file = os.path.join(output_path, "recycle_bin.csv")
+        self.save_recycle_files(output_file, sorting=True)
         self.logger().debug("Done parsing Recycle Bin!")
 
         return []
@@ -186,12 +167,7 @@ class Recycle(base.job.BaseModule):
         filename = self.filter_deleted_ending(filename)
         user = self.get_user_from_SID(SID, partition)
         # Check the obtained partition number is coherent with the filesystem
-        if self.vss:
-            partition, SID = fn_splitted[2], fn_splitted[4]
-            if partition not in self.partitions:
-                self.logger().warning('Partition number {} obtained from timeline does not match any partition'.format(partition))
-                return
-        elif self.filesystem:
+        if self.filesystem:
             try:  # Find partition object associated to selected partition number
                 partition = self.partitions[partition]
             except KeyError:
@@ -219,7 +195,7 @@ class Recycle(base.job.BaseModule):
         if file_status == 'allocated':
             record = os.path.join(self.myconfig('casedir'), filename)
         elif file_status == 'deleted':
-            record = self.filesystem.icat(inode, p_name, vss=self.vss)
+            record = self.filesystem.icat(inode, p_name)
         else:  # realloc. Don't even try to parse
             return
 
@@ -410,19 +386,12 @@ class Recycle(base.job.BaseModule):
 
     def get_user_from_SID(self, SID, partition):
         """ Return the user associated with a SID.
-        Search in other partitions and vss for a user with same SID if not found in current partition. """
+        Search in other partitions for a user with same SID if not found in current partition. """
         try:
             return self.sid_user[partition][SID]
         except (TypeError, KeyError):
             self.logger().debug(f'SID {SID} does not have an associated user in partition {partition}')
             return SID
-        # Warning: it's assuming only one partition has vss
-        for p in self.vss_partitions:
-            if p != partition:
-                try:
-                    return self.sid_user[p][SID]
-                except(TypeError, KeyError):
-                    continue
         return SID
 
     def locate_hives(self, partition):

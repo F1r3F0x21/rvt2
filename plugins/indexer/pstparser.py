@@ -155,7 +155,7 @@ class ExportPst(base.job.BaseModule):
         outdir = self.myconfig('outdir')
         base.utils.check_directory(outdir, create=True)
 
-        pst_files = GetFiles(self.config, vss=self.myflag("vss")).search(r"\.(pst|ost|nst)$")
+        pst_files = GetFiles(self.config).search(r"\.(pst|ost|nst)$")
         index = 0
 
         for pst_file in tqdm(pst_files, desc=self.section, disable=self.myflag('progress.disable')):
@@ -313,7 +313,7 @@ class PffExportParseObject(base.job.BaseModule):
             if os.path.isfile(os.path.join(attachpath, f)):
                 # the path in f is a file and not a directory: parse the file
                 container_name = os.path.basename(message_path)
-                filemetadata = self.tika_parser.run(os.path.join(attachpath, f))[0]
+                filemetadata = {'filename': f} # self.tika_parser.run(os.path.join(attachpath, f))[0]
                 # change the embedded path of these files, to point to the mail container and not the attachment
                 filemetadata['embedded_path'] = os.path.join("Attachments", filemetadata['filename'])
                 filemetadata['dirname'] = base.utils.relative_path(message_path, self.myconfig('casedir'))

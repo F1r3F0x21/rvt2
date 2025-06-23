@@ -1442,7 +1442,7 @@ class USBPlugs2(base.job.BaseModule):
             ev['Description'] = event.get('message', '')
             ev['action'] = event.get('event.action', '')
             ev['VolumeName'] = event.get('data.DeviceVolumeName', '')
-            if device not in devices:  # device to put in list
+            if device not in plugs.keys():  # device to put in list
                 devices.append(device)
                 plugs[device] = []
             else:
