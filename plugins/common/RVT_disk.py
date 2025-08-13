@@ -340,7 +340,9 @@ class FuseImage(BaseImage):
 
     def mount_fuse(self):
         # mount fusedevice from imagefile
-        mount_app = self.params(self.fuse_imagetype[self.imagetype][1], f'/usr/bin/{self.fuse_imagetype[self.imagetype][0]}')
+        mount_app = self.params(self.fuse_imagetype[self.imagetype][1], f'/usr/local/bin/{self.fuse_imagetype[self.imagetype][0]}')
+        if not os.path.exists(mount_app):
+            mount_app = self.params(self.fuse_imagetype[self.imagetype][1], f'/usr/bin/{self.fuse_imagetype[self.imagetype][0]}')
         if not os.path.exists(self.fusedirectory):
             # mounts fusedevice with command
             try:

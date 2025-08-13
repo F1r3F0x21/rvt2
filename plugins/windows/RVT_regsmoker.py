@@ -149,7 +149,7 @@ class Regsmoker(base.job.BaseModule):
                                             nlines = False
                                         write.writerow(item)
                                     else:
-                                        f_out.write(json.dumps(item, escape_forward_slashes=False))
+                                        f_out.write(f"{json.dumps(item, escape_forward_slashes=False)}\n")
                                 if nlines:
                                     to_remove[output_filename] = False
                         except Exception as exc:
@@ -193,7 +193,7 @@ class Regsmoker(base.job.BaseModule):
                                                 continue
                                             write.writerow(item)
                                         else:
-                                            f_out.write(json.dumps(item, escape_forward_slashes=False))
+                                            f_out.write(f"{json.dumps(item, escape_forward_slashes=False)}\n")
                                     if nlines:
                                         to_remove[output_filename] = False
                             except Exception as exc:
