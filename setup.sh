@@ -183,70 +183,13 @@ _build_install_libyal() (
     cd ..
 )
 
-build_install_libesedb() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libesedb/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal libesedb experimental "${VERSION}"
-}
-
-build_install_liblnk() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/liblnk/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal liblnk alpha "${VERSION}"
-}
-
-build_install_libmsiecf() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libmsiecf/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal libmsiecf alpha "${VERSION}"
-}
-
-build_install_libscca() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libscca/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal libscca alpha "${VERSION}"
-}
-
-build_install_libpff() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libpff/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal libpff alpha "${VERSION}"
-}
-
-build_install_libvshadow() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libvshadow/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal libvshadow alpha "${VERSION}"
-    # sed -i "s/.user_allow_other/user_allow_other/" /etc/fuser.conf
-}
-
-build_install_libfvde() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libfvde/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal libfvde experimental "${VERSION}"
-    # sed -i "s/.user_allow_other/user_allow_other/" /etc/fuser.conf
-}
-
-build_install_libbde() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libbde/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal libbde alpha "${VERSION}"
-}
-
-build_install_libevt() {
-    local VERSION=$(curl -s "https://api.github.com/repos/libyal/libevt/releases" | grep -oP '"browser_download_url":\s*"\K(.*)(?=")'| grep "tar.gz$" | head -1 \
-    | sed -rn "s/.*([0-9]{8}).*/\1/p")
-
-    _build_install_libyal libevt alpha "${VERSION}"
-}
+build_install_libyal_latest() (
+    local NAME="$1"
+    local STAGE="$2"
+    local RELEASES_URL="https://api.github.com/repos/libyal/${NAME}/releases"
+    local VERSION=$(curl -s $RELEASES_URL | grep '"browser_download_url":' | grep -o '"[^"]*tar.gz"$' | head -1 | sed -rn "s/.*([0-9]{8}).*/\1/p")
+    _build_install_libyal ${NAME} ${STAGE} "${VERSION}"
+)
 
 build_install_volatility() {
     cd "${SRCDIR}"
@@ -477,23 +420,22 @@ setup_debian_full() {
     # Extra Tools
     build_install_sleuthkit
       # build_install_sleuthkit_APFS
-    build_install_libesedb
-    build_install_libpff
-    build_install_libvshadow
-    build_install_libfvde
-    build_install_liblnk
-    build_install_libmsiecf
-    build_install_libscca
-    build_install_libbde
-    build_install_libevt
+    build_install_libyal_latest libbde alpha
+    build_install_libyal_latest libesedb experimental
+    build_install_libyal_latest libevt alpha
+    build_install_libyal_latest libfvde experimental
+    build_install_libyal_latest liblnk alpha
+    build_install_libyal_latest libmsiecf alpha
+    build_install_libyal_latest libpff alpha
+    build_install_libyal_latest libscca alpha
+    build_install_libyal_latest libvshadow alpha
     build_install_regripper
-    # build_install_ntfs3g_system_compression
+      # build_install_ntfs3g_system_compression
     build_install_apfs_fuse
     build_install_yara
     build_install_volatility
     build_install_ntdsxtract2
     build_install_evtx
-
     install_zimmerman_tools
     install_hayabusa
 
