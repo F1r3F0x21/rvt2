@@ -264,7 +264,7 @@ class ForAllLinesInFile(base.job.BaseModule):
 
 
 class JSONReader(AllLinesInFile):
-    """ Load every line in a file as a JSON dictionary and yields it.
+    """ Load a JSON file and yield a dictionary for each JSON object.
 
     Configuration:
         - **encoding** (String): The encoding to use. Defaults to utf-8
@@ -291,13 +291,37 @@ class JSONReader(AllLinesInFile):
                 self.logger().info(exc)
                 return []
             raise exc
-        for line in super().run(path):
+
+        # Possible JSON input file types:
+        # 1. Single JSON object
+        # 2. Array of JSON objects
+        # 3. NDJSON file (Newline Delimited JSON)
+        is_ndjson = False
+
+        # Try parsing as a whole JSON
+        with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
             try:
-                data = json.loads(line.strip())
-                yield data
-            except json.JSONDecodeError:
-                if self.myflag('stop_on_error'):
-                    raise
+                data = json.load(infile)
+                if isinstance(data, list):
+                    # 2. Array of JSON objects
+                    yield from data
+                else:
+                    # 1. Single JSON object
+                    yield data
+            except json.JSONDecodeError as exc:
+                is_ndjson = True
+
+        # 3. NDJSON (line-delimited JSON)
+        if is_ndjson:
+            for line in super().run(path):
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line.strip())
+                    yield data
+                except json.JSONDecodeError as exc:
+                    if self.myflag('stop_on_error'):
+                        raise
 
 
 class CSVReader(base.job.BaseModule):

@@ -273,6 +273,7 @@ class RenameFields(base.job.BaseModule):
     Configuration:
         - **fields**: List of key names to be renamed
         - **new_fields**: List of new key names
+        - **replace**: If True, overwrite any existing `new_fields` with `fields` values. If False, keep original data.
     """
 
     def read_config(self):
@@ -280,6 +281,7 @@ class RenameFields(base.job.BaseModule):
         self.set_default_config('section', 'DEFAULT')
         self.set_default_config('fields', '')
         self.set_default_config('new_fields', '')
+        self.set_default_config('replace', True)
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
@@ -294,9 +296,15 @@ class RenameFields(base.job.BaseModule):
         if len(fields) != len(new_fields):
             raise base.job.RVTError(f'`fields` and `new_fields` must have the same number of items. Fields: {fields}; New fields: {new_fields}')
 
-        repl = dict(zip(fields, new_fields))
         for data in self.from_module.run(path):
-            yield {repl.get(k, k): data[k] for k in data}
+            result = data.copy()
+            for old, new in zip(fields, new_fields):
+                if old in result:
+                    if replace_fields or new not in result:
+                        result[new] = result[old]
+                    # Remove the old field in both cases
+                    del result[old]
+            yield result
 
 
 class DateFields(base.job.BaseModule):

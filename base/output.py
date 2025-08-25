@@ -257,6 +257,7 @@ class MDTableSink(BaseSink):
         - **path_fields** (str): Sorround selected fields with LaTeX path command to ensure correct MD visualization.
         - **first_line** (str): Write a first line before headers.
         - **skip_headers** (bool): If True, do not print table headers. Default=False.
+        - **force_headers** (bool): If True, always print table headers, even if file already exists. Default=False.
         - **empty_str** (str): String to fill empty fields.
         - **chars_escaped** (str): List of characters to escape.
         - **path_chars_escaped** (str): List of characters to escape only in the 'path_fields', in addition to those set in 'chars_escaped'.
@@ -270,6 +271,7 @@ class MDTableSink(BaseSink):
         self.set_default_config('file_exists', 'APPEND')
         self.set_default_config('first_line', '')
         self.set_default_config('skip_headers', False)
+        self.set_default_config('force_headers', False)
         self.set_default_config('empty_str', '-')
         self.set_default_config('chars_escaped', '|')
         self.set_default_config('path_chars_escaped', '')
@@ -286,23 +288,31 @@ class MDTableSink(BaseSink):
         escaped_table = str.maketrans({c: '\\' + c for c in chars_escaped})
         path_chars_escaped = self.myarray('path_chars_escaped')
         path_escaped_table = str.maketrans({c: '\\' + c for c in path_chars_escaped})
-        skip_headers = self.myflag('skip_headers')
         act = {field: '' for field in fields}
         data_to_compare = act.copy()
 
+        # Output headers
         first_line = self.myconfig('first_line')
-        if first_line:
-            outputfile.write(first_line.replace('\\n', '\n'))
-            outputfile.write("\n")
+        if self.myflag('force_headers'):
+            write_header = True
+        elif self.myflag('skip_headers'):  # force_headers has priority over skip_headers
+            write_header = False
+        else:  # If appending to an existing output file, don't write headers
+            write_header = True
+            outfilename = self._get_outfile()
+            if self.myconfig('file_exists') == 'APPEND' and (outfilename and outfilename != "CONSOLE") and os.path.exists(outfilename) and os.path.getsize(outfilename):
+                write_header = False
 
         # Items
-        write_header = not skip_headers
         for fileinfo in self._source(path):
             if not fields:
                 fields = fileinfo.keys()
                 act = {field: '' for field in fields}
                 data_to_compare = act.copy()
             if write_header:
+                if first_line:
+                    outputfile.write(first_line.replace('\\n', '\n'))
+                    outputfile.write("\n")
                 outputfile.write("|".join(fields))
                 outputfile.write("\n")
                 outputfile.write("|".join(["--"] * len(fields)))
