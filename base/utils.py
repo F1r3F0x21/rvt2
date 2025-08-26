@@ -30,6 +30,7 @@ import base.config
 import datetime
 import pytz
 import dateutil.parser
+import ipaddress
 from functools import lru_cache
 from pathlib import Path, PureWindowsPath
 
@@ -397,11 +398,11 @@ def sanitize_ip(value, logger=logging):
         ipv4 = terms[-1]
         ipv6 = ':'.join(terms[:-1])
         valid_v4 = False
-        if is_valid_ipv4_address(ipv4):
+        if is_valid_ip_address(ipv4, 4):
             valid_v4 = True
         else:
             logger.debug(f'IP value "{value}" is not a valid IPv4')
-        if not is_valid_ipv6_address(ipv6) and not valid_v4:
+        if not is_valid_ip_address(ipv6, 6) and not valid_v4:
             logger.warning(f'IP value "{value}" is not a valid IP')
             return (None, None)
         return (ipv4 if valid_v4 else ipv6, port)
@@ -411,30 +412,63 @@ def sanitize_ip(value, logger=logging):
         match_ipv6 = ipv6_pattern.match(value)
         ip = match_ipv6.group('ip')
         port = check_integer(match_ipv6.group('port'))
-        if not is_valid_ipv6_address(ip):
+        if not is_valid_ip_address(ip, 6):
             logger.warning(f'IP value "{value}" is not a valid IPv6')
             return (None, None)
         return (ip, port)
 
 
-def is_valid_ipv4_address(address):
+def is_valid_ip_address(address, version=None):
+    try:
+        ip_obj = ipaddress.ip_address(address)
+    except Exception:
+        return False
+    if not version:
+        return True
+    assert(int(version) in (4,6))
+    if int(version) == ip_obj.version:
+        return True
+    return False
+
     # Regular expression pattern for a valid IPv4 address
-    pattern = r'^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
-
-    if re.match(pattern, address):
-        return True
-    else:
-        return False
-
-
-def is_valid_ipv6_address(address):
+    # pattern = r'^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
     # Regular expression pattern for a valid IPv6 address
-    pattern = r'^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$'
+    # pattern = r'^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$'
 
-    if re.match(pattern, address):
-        return True
-    else:
+
+def is_candidate_for_abuse_check(ip: str) -> bool:
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+    except Exception:
         return False
+
+    if (
+        ip_obj.is_private
+        or ip_obj.is_loopback
+        or ip_obj.is_link_local
+        or ip_obj.is_multicast
+        or ip_obj.is_unspecified
+        or ip_obj.is_reserved
+        or ip_obj in ipaddress.ip_network("192.0.2.0/24")   # TEST-NET-1
+        or ip_obj in ipaddress.ip_network("198.51.100.0/24") # TEST-NET-2
+        or ip_obj in ipaddress.ip_network("203.0.113.0/24")  # TEST-NET-3
+        or ip_obj in ipaddress.ip_network("2001:db8::/32")   # IPv6 DOC
+    ):
+        return False
+    return True
+
+
+def is_private_ip(ip: str) -> bool:
+    if ip.lower().startswith('l'):
+    # if ip.startswith('L') or ip.startswith('192.168') or ip.startswith("192.0.0") or ip.startswith('10.') or ip.startswith("169.254.") or ip.startswith('127.') or ip.find(':') > 0 or re.search(r'172\.(1[6-9]|2.|3[01])\.', ip):
+        return True
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+    except Exception:
+        return False
+    if ip_obj.is_private:
+        return True
+    return False
 
 
 def check_integer(value):

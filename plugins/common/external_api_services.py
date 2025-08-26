@@ -14,6 +14,7 @@ import logging
 from functools import lru_cache
 
 import base.job
+import base.utils
 
 
 def check_file_date(fdate, days):
@@ -39,16 +40,8 @@ def check_db_date(filepath, hours=24):
     return False
 
 
-def check_private_ip(ip):
-    """ Checks if an IP is internal """
-
-    if ip.startswith('L') or ip.startswith('192.168') or ip.startswith("192.0.0") or ip.startswith('10.') or ip.startswith("169.254.") or ip.startswith('127.') or ip.find(':') > 0 or re.search(r'172\.(1[6-9]|2.|3[01])\.', ip):
-        return True
-    return False
-
-
 def getValue(results, keys):
-    # Get a nested key from a dict, without having to do loads of ifs
+    # Get a nested key from a dict
     # Get from https://github.com/AlienVault-OTX/OTX-Python-SDK/tree/master/examples/is_malicious
     if isinstance(keys, list) and len(keys) > 0:
 
@@ -76,13 +69,13 @@ class phishtank(object):
     def update_db(self):
         if check_db_date(self.db_file):
             return
-        print('Updating database file')
+        logging.getLogger(__name__).debug('Updating PhishTank database file')
         try:
             r = requests.get(self.url)
             with open(self.db_file, 'wb') as db:
                 db.write(r.content)
         except Exception:
-            print('Problems updating database')
+            logging.getLogger(__name__).error('Problems updating PhishTank database')
 
     def check_url(self, url):
         with gzip.open(self.db_file, 'r') as db:
@@ -107,26 +100,26 @@ class tor_node(object):
     def update_db(self):
         if check_db_date(self.db_file):
             return
-        print('Updating tor list file')
+        logging.getLogger(__name__).debug('Updating TOR list file')
         try:
             r = requests.get(self.url)
             with gzip.open(self.db_file, 'wb') as db:
                 db.write(r.content)
         except Exception:
-            print('Problems updating database')
+            logging.getLogger(__name__).error('Problems updating TOR database')
 
     def check_tor_ip(self, ip):
         with gzip.open(self.db_file, 'r') as db:
             for line in db:
                 if ip == line.decode().rstrip():
                     return {'ip': ip,
-                            'tor_exit_node': True}
+                            'torExitNode': True}
         return {'ip': ip,
-                'tor_exit_node': False}
+                'torExitNode': False}
 
 
 class abuseipdb(object):
-    def __init__(self, max_days=60, api_key=None, config=None):
+    def __init__(self, max_days=90, api_key=None, config=None):
         self.apikey = api_key
         if not self.apikey:
             if config:
@@ -139,10 +132,21 @@ class abuseipdb(object):
 
     @lru_cache(maxsize=1000)
     def get_ip_data(self, ip):
-        data = {'CC': '-', 'abuseConfidenceScore': '-', 'isWhitelisted': '-', 'usageType': '-', 'isp': '-'}
+        data = {
+            'isp': '',
+            'domain': '',
+            'hostnames': '',
+            'usageType': '',
+            'countryCode': '',
+            'isWhitelisted': False,
+            'isTor': False,
+            'abuseConfidenceScore': 0,
+            'totalReports': 0,
+            'lastReportedAt': ''
+        }
 
-        # TODO: skip local IP addresses (192., etc)
-        if not ip or ip.lower() in ['local', '-']:
+        # Keep only globally routable public IPs
+        if not base.utils.is_candidate_for_abuse_check(ip):
             return data
 
         querystring = {
@@ -162,11 +166,10 @@ class abuseipdb(object):
         ab = json.loads(response.text)
         if 'errors' in ab:
             return data
-        data = {'CC': ab['data']['countryCode'],
-                'abuseConfidenceScore': ab['data']['abuseConfidenceScore'],
-                'isWhitelisted': ab['data']['isWhitelisted'],
-                'usageType': ab['data']['usageType'],
-                'isp': ab['data']['isp']}
+        for field in data.keys():
+            value = ab['data'].get(field)
+            if value:
+                data[field] = value
         return data
 
     def check_ip(self, ip):
@@ -214,8 +217,15 @@ class alienvault(object):
 
     @lru_cache(maxsize=1000)
     def ip(self, ip):
-        res = {'alerts': [], 'city': '-', 'country_name': '-', 'asn': '-'}
-        if not ip or ip.lower() in ['local', '-']:
+        res = {
+            'alerts': [],
+            'asn': '',
+            'city': '',
+            'countryName': '',
+            'malicious': False
+        }
+        # Keep only globally routable public IPs
+        if not base.utils.is_candidate_for_abuse_check(ip):
             return res
 
         logging.getLogger(__name__).debug(f'Getting AlienVault data for IP {ip}')
@@ -223,18 +233,18 @@ class alienvault(object):
             result = self.otx.get_indicator_details_by_section(IndicatorTypes.IPv4, ip, 'general')
         except Exception:
             return res
-        res['city'] = result.get('city', '')
-        res['country_name'] = result.get('country_name', '')
         res['asn'] = result.get('asn', '')
+        res['city'] = result.get('city', '')
+        res['countryName'] = result.get('country_name', '')
 
-        # Return nothing if it's in the whitelist
         validation = getValue(result, ['validation'])
-        if not validation:
-            pulses = getValue(result, ['pulse_info', 'pulses'])
-            if pulses:
-                for pulse in pulses:
-                    if 'name' in pulse:
-                        res['alerts'].append('In pulse: ' + pulse['name'])
+        if validation:  # ip is whitelisted
+            return res
+        pulses = getValue(result, ['pulse_info', 'pulses'])
+        if pulses:
+            for pulse in pulses:
+                if 'name' in pulse:
+                    res['alerts'].append(pulse['name'].replace('|','/'))
         res['malicious'] = len(res['alerts']) > 0
         return res
 
@@ -336,15 +346,22 @@ class alienvault(object):
         return alerts
 
 
-class IP_info(base.job.BaseModule):
-    """ A module that gets the results from other modules and yields info about IP. When 'ip_field' and 'date_field' are defined, input data is assumed to be a dictionary. Otherwise, input data is treated as a string containg an IP address.
+class IPInfo(base.job.BaseModule):
+    """ A module that gets the results from other modules and yields info about IP.
+        When 'ip_field' and 'date_field' are defined, input data is assumed to be a dictionary.
+        Otherwise, input data is treated as a string containg an IP address.
+        The search services generate the following new fields:
+            - AbuseIPDB: 'isp', 'domain', 'hostnames', 'usageType', 'countryCode', 'abuseConfidenceScore', 'totalReports', 'isWhitelisted', 'isTor', 'lastReportedAt'
+            - AlienVault: 'alerts', 'city', 'countryName', 'asn', 'malicious'
+            - TorProject: 'torExitNode'
 
     Configuration:
-        - **max_days** (String): Maximum number of previous days to get data (api_keys have a limit number of queries per hour, day or month).
-        - **ip_field** (String): key name with ip
-        - **date_field** (String): key name with date
-        - **alienvault_key** (String): API key value for Alienvault
-        - **abuseipdb_key** (String): API key value for abuseipdb
+        - **max_days** (String): Maximum number of past days to include in queries. Useful to limit data retrieval and respect API query rate limits (hourly, daily, or monthly, depending on the provider)
+        - **ip_field** (String): Name of the field in the input data that contains the IP address
+        - **date_field** (String): Name of the field in the input data that contains the date associated with the IP
+        - **alienvault_key** (String): API key for authenticating requests to the AlienVault service
+        - **abuseipdb_key** (String): API key for authenticating requests to the AbuseIPDB service
+        - **services** (list): List of external services to query. Valid options are: [AbuseIPDB, AlienVault, TorProject]
     """
 
     def read_config(self):
@@ -354,16 +371,34 @@ class IP_info(base.job.BaseModule):
         self.set_default_config('max_days', 90)
         self.set_default_config('alienvault_key', None)
         self.set_default_config('abuseipdb_key', None)
+        self.set_default_config('services', '["AbuseIPDB", "AlienVault", "TorProject"]')
 
     def run(self, path=None):
         self.check_params(path, check_from_module=True)
         max_days = int(self.myconfig('max_days'))
 
-        tn = tor_node(self.myconfig('tor_db_file'))
-        ab_key = self.myconfig('abuseipdb_key')
-        ab = abuseipdb(api_key=ab_key, config=self.config)
-        av_key = self.myconfig('alienvault_key')
-        av = alienvault(api_key=av_key, config=self.config)
+        # Initialize services
+        available_services = ["abuseipdb", "alienvault", "torproject"]
+        services = self.myarray('services')
+        services = [i.lower() for i in services]
+        tools_to_remove = []
+        for i, tool in enumerate(services):
+            if tool not in available_services:
+                self.logger().error(f'Search tool {tool} not among available services: {available_services}')
+                tools_to_remove.append(i)
+                continue
+            elif tool == "abuseipdb":
+                ab_key = self.myconfig('abuseipdb_key')
+                ab = abuseipdb(api_key=ab_key, config=self.config)
+            elif tool == "alienvault":
+                av_key = self.myconfig('alienvault_key')
+                av = alienvault(api_key=av_key, config=self.config)
+            elif tool == "torproject":
+                tn = tor_node(self.myconfig('tor_db_file'))
+        for tool_to_remove in tools_to_remove:
+            services.pop(tool_to_remove)
+
+        # Get ip_field and date_field
         parsed_ips = set()
         flag_dict = True
         try:
@@ -373,13 +408,14 @@ class IP_info(base.job.BaseModule):
             now = datetime.datetime.now()
             flag_dict = False
 
+        # Main loop
         for iteminfo in self.from_module.run(path):
             if not flag_dict:
                 ip_item = iteminfo.rstrip()
                 fdate = now
             else:
-                ip_item = iteminfo[ip_field]
-                fdate = iteminfo[date_field]
+                ip_item = iteminfo.get(ip_field)
+                fdate = iteminfo.get(date_field)
 
             # When a list of IP is passed as input, return only unique IPs
             if not flag_dict and ip_item in parsed_ips:
@@ -389,9 +425,13 @@ class IP_info(base.job.BaseModule):
                 continue
 
             parsed_ips.add(ip_item)
-            res = tn.check_tor_ip(ip_item)
-            res.update(ab.get_ip_data(ip_item))
-            res.update(av.ip(ip_item))
+            res = {'ip': ip_item}
+            if "abuseipdb" in services:
+                res.update(ab.get_ip_data(ip_item))
+            if "alienvault" in services:
+                res.update(av.ip(ip_item))
+            if "torproject" in services:
+                res.update(tn.check_tor_ip(ip_item))
             for k, v in res.items():
                 if isinstance(v, list):
                     res[k] = ';'.join(v)
