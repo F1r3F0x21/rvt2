@@ -288,6 +288,7 @@ class RenameFields(base.job.BaseModule):
 
         fields = self.myarray('fields')
         new_fields = self.myarray('new_fields')
+        replace_fields = self.myflag('replace')
 
         if not fields:
             yield from self.from_module.run(path)

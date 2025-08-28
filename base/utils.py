@@ -31,6 +31,7 @@ import datetime
 import pytz
 import dateutil.parser
 import ipaddress
+from charset_normalizer import from_path
 from functools import lru_cache
 from pathlib import Path, PureWindowsPath
 
@@ -174,6 +175,16 @@ def get_windows_user_from_path(path, logger=logging):
         user = ""
         logger.warning(f'Provided path does not match a Windows user personal directory. {path}')
     return user
+
+
+def detect_encoding(filepath: str) -> str:
+    """ Detect probable encoding of a text/CSV file. Returns the most likely encoding as a string"""
+    results = from_path(filepath)
+    best = results.best()
+    if best is None:
+        raise ValueError("Encoding could not be detected")
+    return best.encoding
+
 
 # ----------------------------
 # OUTPUT MANAGEMENT

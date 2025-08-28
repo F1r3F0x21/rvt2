@@ -19,7 +19,7 @@ import base.utils
 
 def check_file_date(fdate, days):
     """ checks if date is older than X days"""
-    if fdate is None or fdate == '-':
+    if not fdate or fdate == '-':
         return False
 
     if isinstance(fdate, datetime.datetime):
@@ -112,10 +112,8 @@ class tor_node(object):
         with gzip.open(self.db_file, 'r') as db:
             for line in db:
                 if ip == line.decode().rstrip():
-                    return {'ip': ip,
-                            'torExitNode': True}
-        return {'ip': ip,
-                'torExitNode': False}
+                    return {'torExitNode': True}
+        return {'torExitNode': False}
 
 
 class abuseipdb(object):
@@ -347,7 +345,7 @@ class alienvault(object):
 
 
 class IPInfo(base.job.BaseModule):
-    """ A module that gets the results from other modules and yields info about IP.
+    """ Get input from other modules and provide additional information about IP.
         When 'ip_field' and 'date_field' are defined, input data is assumed to be a dictionary.
         Otherwise, input data is treated as a string containg an IP address.
         The search services generate the following new fields:
@@ -401,31 +399,37 @@ class IPInfo(base.job.BaseModule):
         # Get ip_field and date_field
         parsed_ips = set()
         flag_dict = True
-        try:
-            ip_field = self.myarray('ip_field')[0]
-            date_field = self.myarray('date_field')[0]
-        except Exception:
-            now = datetime.datetime.now()
+        ip_field = self.myconfig('ip_field')
+        if not ip_field:
             flag_dict = False
+        date_field = self.myconfig('date_field')
+        if not date_field:
+            now = datetime.datetime.now()
 
-        # Main loop
         for iteminfo in self.from_module.run(path):
-            if not flag_dict:
+            res= {name: "" for name in "isp asn domain hostnames usageType countryCode countryName city abuseConfidenceScore totalReports isWhitelisted isTor torExitNode lastReportedAt alerts malicious".split()}
+            if not flag_dict:  # Input data is treated as a string containg an IP address.
                 ip_item = iteminfo.rstrip()
                 fdate = now
-            else:
+            else:  # Input data is assumed to be a dictionary
                 ip_item = iteminfo.get(ip_field)
-                fdate = iteminfo.get(date_field)
+                fdate = iteminfo.get(date_field) if date_field else now
 
             # When a list of IP is passed as input, return only unique IPs
             if not flag_dict and ip_item in parsed_ips:
                 continue
             # Skip if the date is older than 'max_days' before today
             if flag_dict and check_file_date(fdate, max_days):
+                # Update the original dictionary but don't overwrite fields
+                for key, value in res.items():
+                    if key not in iteminfo:
+                        iteminfo[key] = value
+                yield iteminfo
                 continue
 
             parsed_ips.add(ip_item)
-            res = {'ip': ip_item}
+            if not flag_dict:
+                res['ip'] = ip_item
             if "abuseipdb" in services:
                 res.update(ab.get_ip_data(ip_item))
             if "alienvault" in services:
