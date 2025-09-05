@@ -1,0 +1,86 @@
+{
+  "1004":{
+    "description": "The server rejected an incorrectly signed message",
+    "provider": "Microsoft-Windows-SmbServer",
+    "category": ["authentication"],
+    "type": ["error"],
+    "path": {
+      "UserData/EventData":{
+        "Name": ["ClientName", "UserName", "ClientAddress", "SessionID"],
+        "transform": {"ClientName": "client.name", "UserName": "user.name"}
+      }
+    }
+  },
+  "1005":{
+    "description": "The server rejected an invalid negotiation request. Connection was terminated",
+    "provider": "Microsoft-Windows-SmbServer",
+    "category": ["authentication"],
+    "type": ["error"],
+    "path": {
+      "UserData/EventData":{
+        "Name": ["ClientName", "UserName", "ClientAddress", "SessionID", "ExpectedDialect", "ExpectedCapabilities", "ExpectedSecurityMode", "ReceivedDialect", "ReceivedCapabilities", "ReceivedSecurityMode"],
+        "transform": {"ClientName": "client.name", "UserName": "user.name"}
+      }
+    }
+  },
+  "1010":{
+    "description": "Endpoint added",
+    "provider": "Microsoft-Windows-SmbServer",
+    "category": ["authentication"],
+    "type": ["information"],
+    "path": {
+      "UserData/EventData":{
+        "Name": ["Name", "DomainName", "TransportName", "TransportFlags"],
+        "transform": {"Name": "client.address", "DomainName": "client.domain"}
+      }
+    }
+  },
+  "1011":{
+    "description": "Endpoint removed",
+    "provider": "Microsoft-Windows-SmbServer",
+    "category": ["authentication"],
+    "type": ["information"],
+    "path": {
+      "UserData/EventData":{
+        "Name": ["Name", "DomainName", "TransportName"],
+        "transform": {"Name": "client.address", "DomainName": "client.domain"}
+      }
+    }
+  },
+  "1016":{
+    "description": "Reopen failed",
+    "provider": "Microsoft-Windows-SmbServer",
+    "category": ["authentication"],
+    "type": ["error"],
+    "path": {
+      "UserData/EventData":{
+        "Name": ["Status", "RKFStatus", "ConnectionGUID", "ClientName", "ShareName", "UserName", "SessionId", "FileName", "Reason"],
+        "transform": {"UserName": "user.name", "FileName": "file.name", "ClientName": "client.name", "SessionId": "data.SessionID"}
+      }
+    }
+  },
+  "1017":{
+    "description": "Handle scavenged",
+    "provider": "Microsoft-Windows-SmbServer",
+    "category": ["authentication"],
+    "type": ["information"],
+    "path": {
+      "UserData/EventData":{
+        "Name": ["DurableHandle", "ResilientHandle", "PersistentFID", "VolatileFIL", "ShareName", "FileName", "ResumeKey"],
+        "transform": {"FileName": "file.name"}
+      }
+    }
+  },
+  "1020":{
+    "description": "File system operation has taken longer than expected",
+    "provider": "Microsoft-Windows-SmbServer",
+    "category": ["authentication"],
+    "type": ["warning"],
+    "path": {
+      "UserData/EventData":{
+        "Name": ["SessionGUID", "SessionId", "ConnectionGuid", "UserName", "ClientName", "ClientAddress", "ShareName", "FileName", "Duration", "Threshold"],
+        "transform": {"UserName": "user.name", "FileName": "file.name", "ClientName": "client.name", "SessionId": "data.SessionID"}
+      }
+    }
+  }
+}

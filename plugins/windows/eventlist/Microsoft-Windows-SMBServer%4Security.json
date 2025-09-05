@@ -1,7 +1,7 @@
 {
   "551":{
     "description": "SMB Session Authentication Failure",
-    "provider": "Microsoft-Windows-SMBServer",
+    "provider": "Microsoft-Windows-SmbServer",
     "category": ["authentication"],
     "type": ["info", "error"],
     "path": {
@@ -11,13 +11,13 @@
       },
       "UserData/EventData": {
         "Name": ["ClientAddress", "ClientName", "ConnectionGUID", "SessionGUID", "SessionId", "Status", "TranslatedStatus", "UserName"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.domain", "ConnectionGUID": "data.ConnectionGUID", "SessionGUID": "data.SessionGUID", "SessionId": "data.SessionID", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
+        "transform": {"ClientName": "client.name", "ConnectionGUID": "data.ConnectionGUID", "SessionGUID": "data.SessionGUID", "SessionId": "data.SessionID", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
       }
     }
   },
   "1006":{
     "description": "The share denied access to the client.",
-    "provider": "Microsoft-Windows-SMBServer",
+    "provider": "Microsoft-Windows-SmbServer",
     "category": ["authentication"],
     "type": ["info", "error"],
     "path": {
@@ -27,13 +27,13 @@
       },
       "UserData/EventData": {
         "Name": ["ClientAddress", "ClientName", "GrantedAccess", "MappedAccess", "SessionID", "ShareName", "SharePath", "ShareSecurityDescriptor", "Status", "TranslatedStatus", "UserName"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.domain", "GrantedAccess": "data.GrantedAccess", "MappedAccess": "data.MappedAccess", "SessionId": "data.SessionID", "ShareName": "data.ShareName", "SharePath": "data.SharePath", "ShareSecurityDescriptor": "data.ShareSecurityDescriptor", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
+        "transform": {"ClientName": "client.name", "GrantedAccess": "data.GrantedAccess", "MappedAccess": "data.MappedAccess", "SessionId": "data.SessionID", "ShareName": "data.ShareName", "SharePath": "data.SharePath", "ShareSecurityDescriptor": "data.ShareSecurityDescriptor", "Status": "data.Status", "TranslatedStatus": "data.TranslatedStatus", "UserName": "user.name"}
       }
     }
   },
   "1007":{
     "description": "The share denied anonymous access to the client.",
-    "provider": "Microsoft-Windows-SMBServer",
+    "provider": "Microsoft-Windows-SmbServer",
     "category": ["authentication"],
     "type": ["info", "error"],
     "path": {
@@ -43,7 +43,23 @@
       },
       "UserData/EventData": {
         "Name": ["ClientAddress", "ClientName", "ShareName", "SharePath"],
-        "transform": {"ClientAddress": "data.ClientAddress", "ClientName": "source.domain", "ShareName": "data.ShareName", "SharePath": "data.SharePath"}
+        "transform": {"ClientName": "client.name", "ShareName": "data.ShareName", "SharePath": "data.SharePath"}
+      }
+    }
+  },
+  "1009":{
+    "description": "Server denied anonymous access to the client",
+    "provider": "Microsoft-Windows-SmbServer",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "UserData/EventData/#attributes": {
+        "Name": ["xmlns"],
+        "transform": {"xmlns": "data.namespace"}
+      },
+      "UserData/EventData": {
+        "Name": ["ClientAddress", "ClientName", "SessionID", "SessionGUID", "ConnectionGUID"],
+        "transform": {"ClientName": "client.name"}
       }
     }
   }

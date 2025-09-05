@@ -18,8 +18,8 @@
     "type": ["info", "error"],
     "path": {
       "EventData":{
-        "Name": ["ServerName", "InstanceName", "ConnectionType", "LocalAddress", "RemoteAddress", "Status", "Reason"],
-        "transform": {"ServerName": "destination.domain", "InstanceName": "data.InstanceName", "ConnectionType": "data.ConnectionType", "LocalAddress": "data.LocalAddress", "RemoteAddress": "data.RemoteAddress", "Status": "data.Status", "Reason": "data.Reason"}
+        "Name": ["ServerName", "Address", "ConnectionType", "Status", "Reason"],
+        "transform": {"ServerName": "destination.domain", "ConnectionType": "data.ConnectionType", "Address": "data.Address", "Status": "data.Status", "Reason": "data.Reason"}
       }
     }
   },
@@ -39,7 +39,7 @@
     "description": "The client lost its session to the server",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
-    "type": ["info"],
+    "type": ["warning"],
     "path": {
       "EventData":{
         "Name": ["ServerName", "SessionId", "Address", "Status"],
@@ -63,11 +63,11 @@
     "description": "The connection to the share was lost",
     "provider": "Microsoft-Windows-SMBClient",
     "category": ["authentication"],
-    "type": ["info"],
+    "type": ["warning"],
     "path": {
       "EventData":{
         "Name": ["ServerName", "SessionId", "Address", "Status"],
-        "transform": {"ServerName": "data.ShareName", "SessionId": "data.SessionID", "Address": "data.Address", "Status": "data.Status"}
+        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "Address": "data.Address", "Status": "data.Status"}
       }
     }
   },
@@ -90,8 +90,8 @@
     "type": ["info", "error"],
     "path": {
       "EventData":{
-        "Name": ["ServerName", "SessionId", "InstanceName", "Smb2Command", "ElapsedTimeInMs", "Status"],
-        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "InstanceName": "data.InstanceName", "Smb2Command": "data.Smb2Command", "ElapsedTimeInMs": "data.ElapsedTimeInMs", "Status": "data.Status"}
+        "Name": ["ServerName", "SessionId", "MessageId", "Smb2Command", "Status"],
+        "transform": {"ServerName": "destination.domain", "SessionId": "data.SessionID", "Smb2Command": "data.Smb2Command", "Status": "data.Status"}
       }
     }
   },  

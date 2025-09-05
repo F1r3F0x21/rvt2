@@ -1130,7 +1130,7 @@ class Poweron(base.job.BaseModule):
         i = 0
         import subprocess
 
-        cmd = f"grep -o '\"event.created\": \"20..-..-.....:..:..' {self.path}|sort -u|cut -b 19-"
+        cmd = f"grep -o '\"event.created\":\"20..-..-.....:..:..' {self.path}|sort -u|cut -b 18-"
         output = subprocess.check_output(cmd, shell=True).decode()
         for line in output.split('\n'):
             if unexpected[i] > line:
@@ -1442,7 +1442,7 @@ class USBPlugs2(base.job.BaseModule):
             ev['Description'] = event.get('message', '')
             ev['action'] = event.get('event.action', '')
             ev['VolumeName'] = event.get('data.DeviceVolumeName', '')
-            if device not in devices:  # device to put in list
+            if device not in plugs.keys():  # device to put in list
                 devices.append(device)
                 plugs[device] = []
             else:

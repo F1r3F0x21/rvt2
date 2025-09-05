@@ -109,6 +109,18 @@
       }
     }
   },
+  "4664":{
+    "description": "An attempt was made to create a hard link",
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "category": ["database"],
+    "type": ["access", "info"],
+    "path": {
+      "EventData":{
+        "Name": ["SubjectUserSid", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "FileName", "LinkName", "TransactionId"],
+        "transform": {"SubjectUserName": "source.user.name", "SubjectDomainName": "source.domain", "SubjectUserSid": "user.id", "FileName": "file.path", "LinkName": "file.target_path"}
+      }
+    }
+  },
   "4672":{
     "description": "Special privileges assigned to new logon",
     "provider": "Microsoft-Windows-Security-Auditing",

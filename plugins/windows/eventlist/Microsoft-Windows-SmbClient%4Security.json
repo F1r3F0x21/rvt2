@@ -1,4 +1,16 @@
 {
+  "31000":{
+    "description": "An attempt to initialize a security context failed",
+    "provider": "Microsoft-Windows-SMBClient",
+    "category": ["authentication"],
+    "type": ["info", "error"],
+    "path": {
+      "EventData":{
+        "Name": ["LogonId", "PrincipalName", "SecurityStatus", "ServerName", "UserName", "SecurityStatus", "Status", "Reason"],
+        "transform": {"LogonId": "data.LogonId", "PrincipalName": "data.PrincipalName", "SecurityStatus": "data.SecurityStatus", "ServerName": "destination.domain", "UserName": "user.name", "Status": "data.Status", "Reason": "data.Reason"}
+      }
+    }
+  },
   "31001":{
     "description": "An attempt to initialize a security context failed",
     "provider": "Microsoft-Windows-SMBClient",

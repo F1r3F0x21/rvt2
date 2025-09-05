@@ -7,7 +7,7 @@
     "path": {
       "EventData":{
         "Name": ["ServerName"],
-        "transform": {"ServerName": "destination.domain"}
+        "transform": {"ServerName": "data.Address"}
       }
     }
   }

@@ -510,15 +510,19 @@ class SMBClientServer(EventJob):
 
     def _decode_address(self, hex_string):
         # Convert the hex string to bytes
-        try:
-            data = bytes.fromhex(hex_string)
-            if len(data) >= 8:
-                ip = ".".join(map(str, data[4:8]))
-                return ip
-            return ''
-        except Exception as exc:
-            self.logger().debug(exc)
-            return ''
+        if hex_string.startswith("170000"):
+            ip = re.sub(":::+", "::", ":".join([hex_string[i:i + 4] for i in range(16, 48, 4)]).replace("0000", "")).lower()
+            return ip
+        else:
+            try:
+                data = bytes.fromhex(hex_string)
+                if len(data) >= 8:
+                    ip = ".".join(map(str, data[4:8]))
+                    return ip
+                return ''
+            except Exception as exc:
+                self.logger().debug(exc)
+                return ''
 
 
 class RDPLocal(EventJob):
@@ -777,7 +781,7 @@ class Application(EventJob):
                 ev.pop('data.#text', "")
                 if data:
                     for e, field in enumerate(fields[ev['event.code']]['fields']):
-                        if len(data) == e:
+                        if e >= len(data):
                             continue
                         if data[e] == '(NULL)' or data[e] == '':
                             continue

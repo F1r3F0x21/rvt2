@@ -43,6 +43,7 @@
 0xc0000224: User is required to change password at next logon
 0xc0000225: The object was not found
 0xc0000234: The user account has been automatically locked because too many invalid logon attempts or password change attempts have been requested
+0xc0000236: The remote system refused the network connection.
 0xc00002ee: Failure Reason: An Error occurred during Logon
 0xc000035c: The client's session has expired; the client MUST re-authenticate to continue accessing resources
 0xc0000413: Logon Failure: The machine you are logging onto is protected by an authentication firewall. The specified account is not allowed to authenticate to the machine
