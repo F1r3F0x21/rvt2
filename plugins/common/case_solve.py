@@ -1,4 +1,4 @@
-# Copyright (C) INCIDE Digital Data S.L.
+# Copyright (C) DEFION.
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -21,33 +21,29 @@ import sys
 
 
 class Case_Solve(base.job.BaseModule):
-    """ Mount all partitions in a disk and then run from_module. """
+    """ Solve a case. """
 
     def run(self, path=None):
-        txt = """MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMM+          ,MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMI                MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMM+                   ~MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMM            MMM         MMMMMMMMMMMMMM   MMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMM8             MMM          MMMMMMMMMMMMM   MMMMMMMM   IMMMMMMMMMMMMMMM
-MMMMMMMMM+                          +MMMMMMMMMMMMMMMMMMMMMMMM   IMMMMMMMMMMMMMMM
-MMMMMMMMM?              MMM   MMVMMMMMM:       +MM   MMM77777   IMM8      ,MMMMM
-MMMMMMMMDi              MMM   MMM=  MMM~   MM   +M   MN         IMI   MM   :MMMM
-MMMMMMMM~               MMM   MM+   MMM   MMMMMMMM   M?   MMM   IMI         MMMM
-MMMMMMMM~               MMM   MM+   MMM   MMMMMMMM   M+   MMM   IMI   MMMMMMMMMM
-MMMMMMMMD               MMM   MM+   MMM~   MM   :M   MD         IMI   MM   ~MMMM
-MMMMMMMMM?              MMM   MM?   MMMM.      ~MM   MMM+       ?MM8      ,MMMMM
-MMMMMMMMM+                          IMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMM8                         MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMM                       MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMM                    ?MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMM                ,MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMM:          ~MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+        txt = """*********************************************************************************************************************************
+*********************************************************************************************************************************
+***                                                                                                                           ***
+***  [[[[[[[[[[[[[[[[[[[    [[[[[[[[[[[[[[[[[[[[[ [[[[][[[[[[[[[[[[[[[[ [[[[[[    [[][[[[[[[[[[[[[[[   [[[[[[[[       [[[[[[  ***
+***  [][][][][][][][][][[[  ][][][][][][][][][][] [][][][][][][][][][][ [][][]  [[][[][][][][][][][][[ [][][][][[     [][][]  ***
+***  [[][[[        [[[[][]  [[[][[                [[[[[[                [[][[[ [][[][[         [[[[[[[ [[][[[[[][[[[  [[][[[  ***
+***  [][][]         [][[[[[ [][[][][[[[[[[[[[[[[  [][][][[[[[[[[[[[[[[  [][][] [[[[[]           [][][] [][][][[[][][[][[[][]  ***
+***  [[[[[[[[[[[[[[[[[][][  [[][[[                [[][[[[][][][][][][]  [[[[[[ [][][[[[[[[[[[[[][[][[[ [[[[[[[   [[][[][[[[[  ***
+***  [][][][][][][][][[[[[  [][][][[[[[[[[[[[[[[[ [][][]                [][][]  [[[][][][][][][[][[][  [][][][     [][[][][]  ***
+***  [[[[[[[[][[[][[[][     [[[[[[][][][][][][][] [[[[[[                [[][[[    [[[[[[][[[][][[][    [[][[[[        [[[[[[  ***
+***                                                                                                                           ***
+***                                                                                                                           ***
+***                                                                                                        ACTIVE DEFENSE     ***
+***                                                                                                                           ***
+*********************************************************************************************************************************
+*********************************************************************************************************************************
 
-********************************************************************************
-* An expert team from INCIDE is comming to your place. Please wait ...         *
-********************************************************************************
+*********************************************************************************************************************************
+* An expert team from DEFION is comming to your place. Please wait ...                                                        ***
+*********************************************************************************************************************************
 """
 
         self.print(txt)

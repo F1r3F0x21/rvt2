@@ -22,8 +22,8 @@ sys.setrecursionlimit(1500)
 # -- Project information -----------------------------------------------------
 
 project = 'RVT2'
-copyright = '2020, INCIDE Digital Data S.L.'
-author = 'INCIDE Digital Data S.L.'
+copyright = '2025, DEFION.'
+author = 'DEFION.'
 
 # The full version, including alpha/beta/rc tags
 release = '2.0'
