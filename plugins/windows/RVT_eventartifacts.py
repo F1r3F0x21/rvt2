@@ -1423,7 +1423,7 @@ class USBDevice(object):
 
 
 class USBPlugs2(base.job.BaseModule):
-    """ Extracts logon and rdp artifacts """
+    """ Extracts logon and usb artifacts """
 
     def run(self, path=None):
         """

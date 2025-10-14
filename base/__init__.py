@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 # parser module
 # Copyright (C) 2018 Juanvi Vera jvera@incide.es
 # This program is free software; you can redistribute it and/or modify

@@ -331,6 +331,15 @@
       }
     }
   },
+  "15457": {
+    "description": "Configuration option '<data.option>', changed from <data.old_value> to <data.new_value>. Run the RECONFIGURE statement to install",
+    "provider": "MSSQLSERVER",
+    "path": {
+      "EventData/Data":{
+        "Name": ["#text"]
+      }
+    }
+  },
   "17806": {
     "description": "SSPI handshake failed with error code <error.code>, state <data.state> while establishing a connection with integrated security; the connection has been closed",
     "provider": "MSSQLSERVER",

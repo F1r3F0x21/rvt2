@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
 # Copyright (C) 2025, DEFION.
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -306,6 +303,48 @@ class RenameFields(base.job.BaseModule):
                     # Remove the old field in both cases
                     del result[old]
             yield result
+
+
+class ReplaceFields(base.job.BaseModule):
+    """ Replace values of a key by values of a dict.
+
+    Module description:
+        - **path**: not used, passed to *from_module*.
+        - **from_module**: Data dict.
+        - **yields**: The updated dict data.
+
+    Configuration:
+        - **field**: field to be replaced
+        - **values**: values to be replaced
+    """
+
+    def read_config(self):
+        super().read_config()
+        self.set_default_config('section', 'DEFAULT')
+        self.set_default_config('field', '')
+        self.set_default_config('values', '')
+
+    def run(self, path=None):
+        self.check_params(path, check_from_module=True)
+
+        field = self.myconfig('field')
+
+        if not field:
+            yield from self.from_module.run(path)
+            return []
+
+        try:
+            values = dict(ast.literal_eval(self.myconfig('values')))
+        except Exception as exc:
+            self.logger().warning(f"Problems on parsing input parameter 'conditions': {exc}")
+            yield from self.from_module.run(path)
+            return
+
+        for data in self.from_module.run(path):
+            if field in data.keys():
+                if data[field] in values.keys():
+                    data[field] = values[data[field]]
+            yield data
 
 
 class DateFields(base.job.BaseModule):
