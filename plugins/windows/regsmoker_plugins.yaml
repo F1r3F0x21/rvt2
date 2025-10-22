@@ -276,6 +276,10 @@ ntuser:
     output: csv
   msoffice:
     filename: recentdocs/msoffice_user.json
+  msoffice_link:
+    filename: recentdocs/msoffice_user_link.csv
+  msoffice_security:
+    filename: user_config/msoffice_user_security.csv
   oisc:
     filename: recentdocs/oisc_user.csv
     output: csv
