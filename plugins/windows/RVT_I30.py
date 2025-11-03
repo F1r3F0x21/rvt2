@@ -75,7 +75,7 @@ class INDXRipper(base.job.BaseModule):
                 imagefile = p.loop
                 offset = 0
 
-            cmd = ['python3', indxripper, '--dedup']  # first part of command to execute
+            cmd = ['/usr/local/rvt2/plugins/external/INDXRipper/venv/bin/python3', indxripper, '--dedup']  # first part of command to execute
             if offset > 0:  # Not loop device
                 cmd.append('-o')
                 cmd.append(str(offset))

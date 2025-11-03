@@ -19,6 +19,7 @@ dnspython = "*"
 elasticsearch = "*"
 evtx = "*"
 hexdump = "*"
+ijson = "*"
 iOSbackup = "*"
 #leveldb = "*"
 libbde-python = "*"
@@ -67,6 +68,7 @@ ujson = "*"
 winactivities = {ref = "master", git = "https://github.com/forensicmatt/ActivitiesCacheParser.git"}
 xmltodict = "*"
 yara-python = "*"
+yajl-py = {ref = "master", git = "https://github.com/pykler/yajl-py.git"}
 
 [dev-packages]
 sphinx = "*"

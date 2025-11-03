@@ -59,7 +59,8 @@ install_debian_deps() {
     apt-get install -y \
         bindfs dislocker ewf-tools libewf-dev testdisk \
         libimage-exiftool-perl \
-        fuse3 libfuse3-dev libfuse-dev libicu-dev libattr1-dev
+        fuse3 libfuse3-dev libfuse-dev libicu-dev libattr1-dev \
+        install libyajl2 libyajl-dev
     apt-get install -y libparse-win32registry-perl # regripper
 }
 

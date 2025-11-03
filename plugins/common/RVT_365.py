@@ -18,8 +18,9 @@ import dateutil.parser
 import base.job
 from base.utils import sanitize_ip, detect_encoding
 
+
 class Parse_Audit_Logs(base.job.BaseModule):
-    """ 
+    """
         Office 365 Audit Logs original CSV output contains a json format field `AuditData`.
         Parse regular fields and `AuditData` field and yield the results
     """
@@ -58,7 +59,7 @@ class Parse_Audit_Logs(base.job.BaseModule):
         }
 
         sharepoint_fields = ['ApplicationDisplayName', 'ClientAppName', 'ItemType', 'ListName', 'TargetUserOrGroupName',
-                    'AuthenticationType', 'DeviceDisplayName', 'SourceFileExtension', 'UserAgent']
+                             'AuthenticationType', 'DeviceDisplayName', 'SourceFileExtension', 'UserAgent']
 
         # RecordType list: https://learn.microsoft.com/en-us/office/office-365-management-api/office-365-management-activity-api-schema
         yield_event = True
@@ -109,7 +110,7 @@ class Parse_Audit_Logs(base.job.BaseModule):
                 # RecordType = ExchangeAdmin (1)
                 "AccessRights": "",
                 "InheritanceType": "",
-                "User": "", # TargetUser
+                "User": "",  # TargetUser
                 "DisplayName": "",
                 "Name": "",
                 "PrimarySmtpAddress": "",
@@ -162,8 +163,8 @@ class Parse_Audit_Logs(base.job.BaseModule):
                     audit_data = json.loads(row['AuditData'])
                 elif 'auditData' in row:
                     audit_data = json.loads(row['auditData'])
-                    #audit_data = row['auditData']
-            except:
+                    # audit_data = row['auditData']
+            except Exception:
                 data['CreationTime'] = dateutil.parser.parse(row['CreationDate']).isoformat()
                 data['Operation'] = row['Operations']
                 data['UserId'] = row['UserIds']
@@ -175,7 +176,7 @@ class Parse_Audit_Logs(base.job.BaseModule):
             # Check if not in general fields
             for field in ['CreationTime', 'UserId', 'Operation', 'RecordType']:
                 if not data[field]:
-                    data[field] = str(audit_data.get(field,""))
+                    data[field] = str(audit_data.get(field, ""))
             # ad_fields = ['CreationTime', 'UserId', 'Operation', 'ClientIP', 'LogonError', 'ObjectId', 'ResultStatus', 'UserKey', 'SessionID']
             ad_fields = ["Workload", "SessionId", "ObjectId", "ResultStatus", "UserKey", "UserType", "LogonType",
                          "MailboxOwnerUPN", "MailboxGuid", "MailboxOwnerSid", "ExternalAccess", "OrganizationId", "OrganizationName"]
@@ -203,7 +204,7 @@ class Parse_Audit_Logs(base.job.BaseModule):
                     for ext_property in audit_data.get("ExtendedProperties", []):
                         if ext_property["Name"] == selected_prop:
                             data[selected_prop] = ext_property["Value"]
-                device_properties = zip(['SessionId', 'OS', 'BrowserType'],['SessionId', 'OS', 'Browser'])
+                device_properties = zip(['SessionId', 'OS', 'BrowserType'], ['SessionId', 'OS', 'Browser'])
                 for selected_prop, translated_prop in device_properties:
                     for dev_property in audit_data.get("DeviceProperties", []):
                         if dev_property["Name"] == selected_prop:
@@ -211,7 +212,7 @@ class Parse_Audit_Logs(base.job.BaseModule):
 
             # Fields on RecordType=ExchangeItem and RecordType=ExchangeItemGroup
             if data['RecordType'] in ('2', 'ExchangeItem', '3', 'ExchangeItemGroup', '50', 'ExchangeItemAggregated'):
-                data["ModifiedProperties"] = str(audit_data.get("ModifiedProperties",""))
+                data["ModifiedProperties"] = str(audit_data.get("ModifiedProperties", ""))
                 data['OrganizationId'] = audit_data.get('OrganizationId')
                 data['OperationCount'] = audit_data.get('OperationCount')
                 data['CrossMailboxOperation'] = audit_data.get('CrossMailboxOperation')
@@ -249,7 +250,7 @@ class Parse_Audit_Logs(base.job.BaseModule):
             if data['RecordType'] in ('25', 'MicrosoftTeams'):
                 teams_fields = ['CommunicationType', 'ChatName', 'ItemName']
                 for field in teams_fields:
-                    data[field] = audit_data.get(field,"")
+                    data[field] = audit_data.get(field, "")
                 for ext_property in audit_data.get("ExtendedProperties", []):
                     if ext_property.get("Name") == "OsName":
                         data['OS'] = ext_property.get("Value")
@@ -333,31 +334,31 @@ class Parse_SignInLogs(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         self.coalesce_fields = [
-            {'fields': ["createdDateTime","Date (UTC)","CreatedDateTime","Fecha (UTC)"], 'new_field': 'Date'},
-            {'fields': ["userId","User ID","UserID","Id. de usuario"], 'new_field': 'UserID'},
-            {'fields': ["userDisplayName","User","UserDisplayName","Usuario"], 'new_field': 'User'},
-            {'fields': ["userPrincipalName","Username","UserPrincipalName","Nombre de usuario"], 'new_field': 'Username'},
-            {'fields': ["userType","User type","UserType","Tipo de usuario"], 'new_field': 'UserType'},
-            {'fields': ["ipAddress","IP address","IpAddress","Dirección IP"], 'new_field': 'ClientIp'},
-            {'fields': ["location","Location","Ubicación"], 'new_field': 'Location'},
-            {'fields': ["autonomousSystemNumber","Autonomous system  number","Autonomous system number","AutonomousSystemNumber","Número de sistema autónomo"], 'new_field': 'ASN'},
-            {'fields': ["operatingSystem","Operating System","OperatingSystem","Sistema operativo"], 'new_field': 'OS'},
-            {'fields': ["browser","Browser","Explorador"], 'new_field': 'Browser'},
-            {'fields': ["userAgent","User agent","UserAgent"], 'new_field': 'UserAgent'},
-            {'fields': ["clientAppUsed","Client App","ClientAppUsed","Aplicación cliente"], 'new_field': 'ClientApp'},
-            {'fields': ["deviceID","Device ID","DeviceID"], 'new_field': 'DeviceID'},
-            {'fields': ["sessionId","Session ID","SessionID","Correlation ID","CorrelationId","Id. de correlación"], 'new_field': 'SessionID'},
-            {'fields': ["status","Status","Estado"], 'new_field': 'Status'},
-            {'fields': ["clientCredentialType","Client credential type","ClientCredentialType","Tipo de credencial de cliente"], 'new_field': 'ClientCredentialType'},
-            {'fields': ["authenticationProtocol","Authentication Protocol","AuthenticationProtocol","Protocolo de autenticación"], 'new_field': 'AuthProtocol'},
-            {'fields': ["authenticationRequirement","Authentication requirement","AuthenticationRequirement","Requisito de autenticación"], 'new_field': 'AuthRequirement'},
-            {'fields': ["multifactorAuthenticationResult","Multifactor authentication result","MultifactorAuthenticationResult"], 'new_field': 'MFAResult'},
-            #{'fields': ["Multifactor authentication auth method","MultifactorAuthenticationAuthMethod"], 'new_field': 'MFAMethod'},
-            {'fields': ["failureReason","Failure reason","FailureReason","Motivo del error"], 'new_field': 'FailureReason'},
-            {'fields': ["appDisplayName","Application","AppDisplayName","Aplicación"], 'new_field': 'Application'},
-            {'fields': ["resourceDisplayName","Resource","ResourceDisplayName","Recurso"], 'new_field': 'Resource'},
-            {'fields': ["signInSessionStatusCode","Token Protection - Sign In Session StatusCode","TokenProtection-SignInSessionStatusCode"], 'new_field': 'TokenStatusCode'},
-            {'fields': ["conditionalAccessStatus","Conditional Access","ConditionalAccessStatus"], 'new_field': 'ConditionalAccessStatus'}
+            {'fields': ["createdDateTime", "Date (UTC)", "CreatedDateTime", "Fecha (UTC)"], 'new_field': 'Date'},
+            {'fields': ["userId", "User ID", "UserID", "Id. de usuario"], 'new_field': 'UserID'},
+            {'fields': ["userDisplayName", "User", "UserDisplayName", "Usuario"], 'new_field': 'User'},
+            {'fields': ["userPrincipalName", "Username", "UserPrincipalName", "Nombre de usuario"], 'new_field': 'Username'},
+            {'fields': ["userType", "User type", "UserType", "Tipo de usuario"], 'new_field': 'UserType'},
+            {'fields': ["ipAddress", "IP address", "IpAddress", "Dirección IP"], 'new_field': 'ClientIp'},
+            {'fields': ["location", "Location", "Ubicación"], 'new_field': 'Location'},
+            {'fields': ["autonomousSystemNumber", "Autonomous system  number", "Autonomous system number", "AutonomousSystemNumber", "Número de sistema autónomo"], 'new_field': 'ASN'},
+            {'fields': ["operatingSystem", "Operating System", "OperatingSystem", "Sistema operativo"], 'new_field': 'OS'},
+            {'fields': ["browser", "Browser", "Explorador"], 'new_field': 'Browser'},
+            {'fields': ["userAgent", "User agent", "UserAgent"], 'new_field': 'UserAgent'},
+            {'fields': ["clientAppUsed", "Client App", "ClientAppUsed", "Aplicación cliente"], 'new_field': 'ClientApp'},
+            {'fields': ["deviceID", "Device ID", "DeviceID"], 'new_field': 'DeviceID'},
+            {'fields': ["sessionId", "Session ID", "SessionID", "Correlation ID", "CorrelationId", "Id. de correlación"], 'new_field': 'SessionID'},
+            {'fields': ["status", "Status", "Estado"], 'new_field': 'Status'},
+            {'fields': ["clientCredentialType", "Client credential type", "ClientCredentialType", "Tipo de credencial de cliente"], 'new_field': 'ClientCredentialType'},
+            {'fields': ["authenticationProtocol", "Authentication Protocol", "AuthenticationProtocol", "Protocolo de autenticación"], 'new_field': 'AuthProtocol'},
+            {'fields': ["authenticationRequirement", "Authentication requirement", "AuthenticationRequirement", "Requisito de autenticación"], 'new_field': 'AuthRequirement'},
+            {'fields': ["multifactorAuthenticationResult", "Multifactor authentication result", "MultifactorAuthenticationResult"], 'new_field': 'MFAResult'},
+            # {'fields': ["Multifactor authentication auth method","MultifactorAuthenticationAuthMethod"], 'new_field': 'MFAMethod'},
+            {'fields': ["failureReason", "Failure reason", "FailureReason", "Motivo del error"], 'new_field': 'FailureReason'},
+            {'fields': ["appDisplayName", "Application", "AppDisplayName", "Aplicación"], 'new_field': 'Application'},
+            {'fields': ["resourceDisplayName", "Resource", "ResourceDisplayName", "Recurso"], 'new_field': 'Resource'},
+            {'fields': ["signInSessionStatusCode", "Token Protection - Sign In Session StatusCode", "TokenProtection-SignInSessionStatusCode"], 'new_field': 'TokenStatusCode'},
+            {'fields': ["conditionalAccessStatus", "Conditional Access", "ConditionalAccessStatus"], 'new_field': 'ConditionalAccessStatus'}
         ]
 
         self.flatten_fields = [
@@ -428,20 +429,20 @@ class Parse_AzureAD_AuditLogs(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
 
         self.coalesce_fields = [
-            {'fields': ["activityDateTime","ActivityDateTime","Date (UTC)","Fecha (UTC)"], 'new_field': 'Date'},
-            {'fields': ["CorrelationId","correlationId"], 'new_field': 'CorrelationId'},
-            {'fields': ["category","Category","Categoría"], 'new_field': 'Category'},
-            {'fields': ["result","Result","Resultado"], 'new_field': 'Result'},
-            {'fields': ["resultReason","ResultReason"], 'new_field': 'ResultReason'},
-            {'fields': ["loggedByService","LoggedByService","Service","Servicio"], 'new_field': 'LoggedByService'},
-            {'fields': ["activityDisplayName","ActivityDisplayName","Activity","Actividad"], 'new_field': 'Activity'},
-            {'fields': ["ActorName","ActorUserPrincipalName"], 'new_field': 'ActorName'},
-            {'fields': ["IpAddress","IPAddress"], 'new_field': 'IpAddress'},
-            {'fields': ["TargetType","Target1Type"], 'new_field': 'TargetType'},
-            {'fields': ["TargetName","Target1DisplayName"], 'new_field': 'TargetName'},
-            {'fields': ["TargetUPN","Target1UserPrincipalName","Objetivo1NombrePrincipalDeUsuario"], 'new_field': 'TargetUPN'},
-            {'fields': ["TargetModifiedPropertyName","Target1ModifiedProperty1Name"], 'new_field': 'TargetModifiedProperty'},
-            {'fields': ["UserAgent","User Agent","Agente de usuario"], 'new_field': 'UserAgent'}
+            {'fields': ["activityDateTime", "ActivityDateTime", "Date (UTC)", "Fecha (UTC)"], 'new_field': 'Date'},
+            {'fields': ["CorrelationId", "correlationId"], 'new_field': 'CorrelationId'},
+            {'fields': ["category", "Category", "Categoría"], 'new_field': 'Category'},
+            {'fields': ["result", "Result", "Resultado"], 'new_field': 'Result'},
+            {'fields': ["resultReason", "ResultReason"], 'new_field': 'ResultReason'},
+            {'fields': ["loggedByService", "LoggedByService", "Service", "Servicio"], 'new_field': 'LoggedByService'},
+            {'fields': ["activityDisplayName", "ActivityDisplayName", "Activity", "Actividad"], 'new_field': 'Activity'},
+            {'fields': ["ActorName", "ActorUserPrincipalName"], 'new_field': 'ActorName'},
+            {'fields': ["IpAddress", "IPAddress"], 'new_field': 'IpAddress'},
+            {'fields': ["TargetType", "Target1Type"], 'new_field': 'TargetType'},
+            {'fields': ["TargetName", "Target1DisplayName"], 'new_field': 'TargetName'},
+            {'fields': ["TargetUPN", "Target1UserPrincipalName", "Objetivo1NombrePrincipalDeUsuario"], 'new_field': 'TargetUPN'},
+            {'fields': ["TargetModifiedPropertyName", "Target1ModifiedProperty1Name"], 'new_field': 'TargetModifiedProperty'},
+            {'fields': ["UserAgent", "User Agent", "Agente de usuario"], 'new_field': 'UserAgent'}
         ]
 
         is_json = False
@@ -536,8 +537,8 @@ class Parse_AzureAD_AuditLogs(base.job.BaseModule):
 
     def join_modifiedProperties(self, data):
         modifiedProperties = []
-        for target_idx in range(1,3):
-            for property_idx in range(1,5):
+        for target_idx in range(1, 3):
+            for property_idx in range(1, 5):
                 prop_name = data.get(f'Target{target_idx}ModifiedProperty{property_idx}Name')
                 if prop_name:
                     old_value = data.get(f'Target{target_idx}ModifiedProperty{property_idx}OldValue')
@@ -562,7 +563,7 @@ class Parse_MessageTrace(base.job.BaseModule):
         self.check_params(path, check_path=True, check_path_exists=True)
         # MessageTrace from 365 portal is provided in 'utf-16-le' encoding
         # When extracted with PowerShell, the results are encoded in 'utf8'
-        input_encoding = base.utils.detect_encoding(path)
+        input_encoding = detect_encoding(path)
         self.logger().info(f'Input encoding: {input_encoding}. File: {path}')
 
         self.coalesce_fields = [

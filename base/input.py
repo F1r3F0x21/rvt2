@@ -296,6 +296,13 @@ class JSONReader(AllLinesInFile):
         is_ndjson = False
 
         # Try parsing as a whole JSON
+        if os.path.getsize(path) > 1000000000:  # large json file, will use ijson to parse
+            import ijson.backends.yajl2 as ijson
+            with open(path, 'rb') as infile:
+                for record in ijson.items(infile, "item"):
+                    yield record
+            return []
+
         with open(path, 'r', encoding=self.myconfig('encoding')) as infile:
             try:
                 data = json.load(infile)
