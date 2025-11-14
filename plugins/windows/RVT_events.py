@@ -104,10 +104,10 @@ class GetEvents(object):
                 exist_specific_parser = False
 
                 if "*" in self.data_json.keys():
-                    if self.data_json["*"]["provider"] == data['event.provider'] and self.data_json["*"]["dataset"] == data['event.dataset']:
+                    if self.data_json["*"]["provider"].lower() == data['event.provider'].lower() and self.data_json["*"]["dataset"] == data['event.dataset']:
                         default_parser = True
 
-                    if data['event.code'] in self.data_json.keys() and re.search(self.data_json[data['event.code']]['provider'], data['event.provider']):
+                    if data['event.code'] in self.data_json.keys() and re.search(self.data_json[data['event.code']]['provider'], data['event.provider'], re.I):
                         exist_specific_parser = True
 
                 event_code = data['event.code']
@@ -115,7 +115,7 @@ class GetEvents(object):
                     event_code = "*"
 
                 # Events not defined in data_json
-                if not default_parser and (not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider'])):
+                if not default_parser and (not data['event.code'] in self.data_json.keys() or not re.search(self.data_json[data['event.code']]['provider'], data['event.provider'], re.I)):
                     # EventData, UserData are just reproduced as dictionaries
                     if 'EventData' in rec:
                         data['EventData'] = rec['EventData']

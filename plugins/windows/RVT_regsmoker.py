@@ -221,6 +221,19 @@ class Regsmoker(base.job.BaseModule):
         # Get rules associated with each hive
         sigma_path = os.path.join(self.regsmoker_path, 'sigma')
 
+        checkfile = self.myconfig('checkfile')
+        checklist = set()
+        check_directory(os.path.join(self.myconfig('analysisdir'), 'hives'), create=True)
+        with open(checkfile, 'r') as f_in:
+            for line in f_in:
+                checklist.add(line.rstrip())
+        write_headers = not os.path.exists(self.myconfig('outfile'))
+
+        out_f = open(self.myconfig('outfile'), 'a')
+        csv_out = csv.writer(out_f, delimiter=';')
+        if write_headers:
+            csv_out.writerow(['lastwrite', 'hive', 'value', 'description'])
+
         with open(os.path.join(output_path, 'rules.json'), 'a') as f_out:
             for hive, hivefile in regfiles.items():
                 if hive in ('security', 'system', 'software', 'amcache', 'sam', 'bcd'):
@@ -231,14 +244,28 @@ class Regsmoker(base.job.BaseModule):
                                 sigma = self.reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname))
                                 results = None
                                 if sigma.check_conditions():
-                                    results = sigma.get_result()
+                                    results = sigma.get_result(True)
                                     f_out.write(f"{json.dumps(results, escape_forward_slashes=False)}\n")
+                                    if fname in checklist:
+                                        for data in results['data']:
+                                            lastwrite = data['lastwrite']
+                                            for keyn, value in data.items():
+                                                if keyn == 'lastwrite':
+                                                    continue
+                                                csv_out.writerow([lastwrite, keyn, value, results['description']])
                                 if tlog1 is not None:
                                     sigma2 = self.reg_sigma.Sigma(hivefile, os.path.join(sigma_path, fname), tlog1, tlog2)
                                     if sigma.check_conditions():
-                                        results2 = sigma2.get_result()
+                                        results2 = sigma2.get_result(True)
                                         if results != results2:
                                             f_out.write(f"{json.dumps(results2, escape_forward_slashes=False)}\n")
+                                            if fname in checklist:
+                                                for data in results['data']:
+                                                    lastwrite = data['lastwrite']
+                                                    for keyn, value in data.items():
+                                                        if keyn == 'lastwrite':
+                                                            continue
+                                                        csv_out.writerow([lastwrite, keyn, value, results['description']])
                             except Exception as exc:
                                 self.logger().warning(f"Problems applying rule {fname} against file {hivefile}. {exc}")
                 elif hive in ('ntuser', 'usrclass'):
@@ -250,14 +277,28 @@ class Regsmoker(base.job.BaseModule):
                                     sigma = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
                                     results = None
                                     if sigma.check_conditions():
-                                        results = sigma.get_result()
+                                        results = sigma.get_result(True)
                                         f_out.write(f"{json.dumps(results, escape_forward_slashes=False)}\n")
+                                        if fname in checklist:
+                                            for data in results['data']:
+                                                lastwrite = data['lastwrite']
+                                                for keyn, value in data.items():
+                                                    if keyn == 'lastwrite':
+                                                        continue
+                                                    csv_out.writerow([lastwrite, keyn, value, results['description']])
                                     if tlog1 is not None:
                                         sigma2 = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname), tlog1, tlog2)
                                         if sigma.check_conditions():
-                                            results2 = sigma2.get_result()
+                                            results2 = sigma2.get_result(True)
                                             if results != results2:
                                                 f_out.write(f"{json.dumps(results2, escape_forward_slashes=False)}\n")
+                                                if fname in checklist:
+                                                    for data in results['data']:
+                                                        lastwrite = data['lastwrite']
+                                                        for keyn, value in data.items():
+                                                            if keyn == 'lastwrite':
+                                                                continue
+                                                            csv_out.writerow([lastwrite, keyn, value, results['description']])
                                 except Exception as exc:
                                     self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
                 elif hive in ('user', 'userclass'):
@@ -274,16 +315,31 @@ class Regsmoker(base.job.BaseModule):
                                         sigma = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname))
                                         results = None
                                         if sigma.check_conditions():
-                                            results = sigma.get_result()
+                                            results = sigma.get_result(True)
                                             f_out.write(f"{json.dumps(results, escape_forward_slashes=False)}\n")
+                                            if fname in checklist:
+                                                for data in results['data']:
+                                                    lastwrite = data['lastwrite']
+                                                    for keyn, value in data.items():
+                                                        if keyn == 'lastwrite':
+                                                            continue
+                                                        csv_out.writerow([lastwrite, keyn, value, results['description']])
                                         if tlog1 is not None:
                                             sigma2 = self.reg_sigma.Sigma(hfile, os.path.join(sigma_path, fname), tlog1, tlog2)
                                             if sigma.check_conditions():
-                                                results2 = sigma2.get_result()
+                                                results2 = sigma2.get_result(True)
                                                 if results != results2:
                                                     f_out.write(f"{json.dumps(results2, escape_forward_slashes=False)}\n")
+                                                    if fname in checklist:
+                                                        for data in results['data']:
+                                                            lastwrite = data['lastwrite']
+                                                            for keyn, value in data.items():
+                                                                if keyn == 'lastwrite':
+                                                                    continue
+                                                                csv_out.writerow([lastwrite, keyn, value, results['description']])
                                     except Exception as exc:
                                         self.logger().warning(f"Problems applying rule {fname} against file {hfile}. {exc}")
+        f_out.close()
         return []
 
     def get_rules(self):

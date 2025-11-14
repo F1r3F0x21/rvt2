@@ -36,9 +36,9 @@ class Filter_Events(base.job.BaseModule):
         events = ast.literal_eval(self.config.config[self.config.job_name]['events_dict'])
 
         for event in self.from_module.run(path):
-            if event['event.code'] in events.keys() and event['event.provider'] == events[event['event.code']]:
+            if event['event.code'] in events.keys() and event['event.provider'].lower() == events[event['event.code']].lower():
                 yield event
-            if "*" in events.keys() and event['event.provider'] == events["*"]:
+            if "*" in events.keys() and event['event.provider'].lower() == events["*"].lower():
                 yield event
 
 
