@@ -336,7 +336,7 @@ class ReplaceFields(base.job.BaseModule):
         try:
             values = dict(ast.literal_eval(self.myconfig('values')))
         except Exception as exc:
-            self.logger().warning(f"Problems on parsing input parameter 'conditions': {exc}")
+            self.logger().warning(f"Problems on parsing input parameter 'values': {exc}")
             yield from self.from_module.run(path)
             return
 

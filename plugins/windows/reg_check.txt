@@ -14,11 +14,13 @@ disable_uac_remote_restrictions.yaml
 elevated_install.yaml
 enable_anonymous_connection.yaml
 hidden_users.yaml
+hyperv_network.yaml
 lm_hashes_enabled.yaml
 microsoft_event_viewer_redirectionProgram.yaml
 microsoft_event_viewer_redirectionURL.yaml
 multiple_rdp_sessions_per_user.yaml
 multiple_user_sessions_enabled.yaml
+netlm_downgrade.yaml
 office_application_startup.yaml
 outlook_macro_execution_enabled.yaml
 persistence_com_extension_special_folders.yaml
@@ -36,6 +38,7 @@ RDP_remote_assistance_feature.yaml
 screensaver_suspicious_binary.yaml
 suspicious_startup_folder.yaml
 suspicious_user.yaml
+sysinternals.yaml
 tls_1_enabled.yaml
 uacbypass_eventviewer.yaml
 uacbypass_sdclt.yaml

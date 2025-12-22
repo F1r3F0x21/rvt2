@@ -73,7 +73,7 @@ class Unback2(plugins.ios.IOSModule):
                 base.utils.check_directory(unzip_path, create=True, delete_exists=False)
 
                 with zipfile.ZipFile(path, 'r') as myzip:
-                    bkid = myzip.namelist()[0]
+                    bkid = myzip.namelist()[1]
 
                     self.logger().debug(f'Extracting file {path} to {unzip_path}')
                     if not base.utils.check_directory(os.path.join(unzip_path, bkid)):
@@ -132,7 +132,7 @@ class Unback2(plugins.ios.IOSModule):
 
         password = self.myconfig('password', '1nc1d3pwd2')
 
-        b = iOSbackup(udid=os.path.basename(bk_path), backuproot=self.myconfig('unzip_path'), cleartextpassword=password)
+        b = iOSbackup(udid=os.path.basename(bk_path), backuproot=os.path.join(self.myconfig('unzip_path'), 'Backup'), cleartextpassword=password)
         for dom in b.getDomains():
             b.getFolderDecryptedCopy(includeDomains=dom, targetFolder=extract_path)
 

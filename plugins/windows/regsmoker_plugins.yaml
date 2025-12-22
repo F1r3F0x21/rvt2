@@ -380,6 +380,8 @@ security:
   auditpol:
     filename: eventlog_info/auditpol.csv
     output: csv
+  secpol:
+    filename: user_account/secpol.json
 bcd:
   bcd:
     filename: persistence/bcd.csv

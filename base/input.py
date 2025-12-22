@@ -296,7 +296,7 @@ class JSONReader(AllLinesInFile):
         is_ndjson = False
 
         # Try parsing as a whole JSON
-        if os.path.getsize(path) > 1000000000:  # large json file, will use ijson to parse
+        if os.path.getsize(path) > 1000000000 and not path.endswith('events.json'):  # large json file, will use ijson to parse
             import ijson.backends.yajl2 as ijson
             with open(path, 'rb') as infile:
                 for record in ijson.items(infile, "item"):
