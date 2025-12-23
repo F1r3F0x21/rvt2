@@ -26,11 +26,17 @@ def colorize_section(section):
 <%
 # Notice the <% : these lines are run when data is available
 sections = {}
+related_jobs = {}
 for job in data:
     job_section = job.get('section', None)
+    related = job.get('related', None)
     if not job_section:
         job_section = 'unclassified'
-    if job_section in sections:
+    if related and related not in related_jobs:
+        related_jobs[related] = [job]
+    elif related:
+        related_jobs[related].append(job)
+    elif job_section in sections:
         sections[job_section].append(job)
     else:
         sections[job_section] = [job]
@@ -40,6 +46,11 @@ ${colorize_section('# Section ' + section)}
 
 % for job in sections[section]:
 - ${colorize_job(job['job'])}: ${job.get('short', '')}
+  % if related_jobs.get(job['job'], None):
+    % for rel in related_jobs[job['job']]:
+      - ${colorize_job(rel['job'])}: ${rel.get('short', '')}
+    % endfor
+  % endif
 % endfor
 
 % endfor

@@ -206,5 +206,6 @@ class AvailableJobs(base.job.BaseModule):
                 yield dict(
                     job=section,
                     section=job_section,
-                    short=self.config.get(section, 'description', default='').split('\n')[0]
+                    short=self.config.get(section, 'description', default='').split('\n')[0],
+                    related=self.config.get(section, 'related', default=None)
                 )
