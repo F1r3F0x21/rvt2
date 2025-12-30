@@ -156,7 +156,10 @@ class UsnJrnl(base.job.BaseModule):
         for fname in os.listdir(flows_folder):  # finds json files with data of UsnJrnl
             if fname.endswith('json'):
                 with open(os.path.join(flows_folder, fname), 'r') as f_in:
-                    line = json.loads(f_in.readline())
+                    line = f_in.readline()
+                    if len(line) < 5:
+                        continue
+                    line = json.loads(line)
                     if 'ParentSequenceNumber' in line.keys():  # File maches
                         for k in device.keys():
                             if k.endswith(line['Device'][:-1]) and '$MFT' in os.listdir(device[k]):
