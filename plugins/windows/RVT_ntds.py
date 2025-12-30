@@ -39,7 +39,7 @@ class Parse(base.job.BaseModule):
 
         try:
             with open(os.path.join(base_path, 'bodyfile.csv'), 'w') as fout:
-                run_command([ntdsxtract, ntds_file, 'timeline', '-q'], fout, stderr=subprocess.DEVNULL, logger=self.logger())
+                run_command([ntdsxtract, ntds_file, 'timeline', '-F', 'bodyfile', '-q'], fout, stderr=subprocess.DEVNULL, logger=self.logger())
             with open(os.path.join(base_path, 'timeline.csv'), 'w') as fout:
                 run_command(['mactime', "-b", os.path.join(base_path, 'bodyfile.csv'), "-m", "-y", "-d"], fout, stderr=subprocess.DEVNULL, logger=self.logger())
             os.remove(os.path.join(base_path, 'bodyfile.csv'))
@@ -49,25 +49,14 @@ class Parse(base.job.BaseModule):
 
             with open(os.path.join(base_path, 'users.json'), 'w') as fout:
                 for line in yield_command([ntdsxtract, ntds_file, 'user', '-F', 'json-lines'], stderr=subprocess.DEVNULL, logger=self.logger()):
-                    fout.write(self.change_date_format(line))
+                    fout.write(line)
             with open(os.path.join(base_path, 'groups.json'), 'w') as fout:
                 for line in yield_command([ntdsxtract, ntds_file, 'group', '-F', 'json-lines'], stderr=subprocess.DEVNULL, logger=self.logger()):
-                    fout.write(self.change_date_format(line))
+                    fout.write(line)
             with open(os.path.join(base_path, 'computers.json'), 'w') as fout:
                 for line in yield_command([ntdsxtract, ntds_file, 'computer', '-F', 'json-lines'], stderr=subprocess.DEVNULL, logger=self.logger()):
-                    fout.write(self.change_date_format(line))
+                    fout.write(line)
         except Exception:
             self.logger().error("Problems parsing {base_path} file")
         return []
 
-    def change_date_format(self, data):
-        data = json.loads(data)
-        regex = re.compile(r"(\d\d)-(\d\d)-(\d{4})T([\d:]+)\+0000")
-        for dte in data.keys():
-            if dte in ("record_time", "when_created", "when_changed", "last_logon", "last_logon_time_stamp", "account_expires", "password_last_set", "bad_pwd_time"):
-                if not data[dte]:
-                    continue
-                aux = regex.match(data.get(dte, ''))
-                if aux:
-                    data[dte] = f"{aux.group(3)}-{aux.group(2)}-{aux.group(1)} {aux.group(4)}Z"
-        return json.dumps(data, escape_forward_slashes=False)
