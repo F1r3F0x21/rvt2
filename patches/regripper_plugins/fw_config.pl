@@ -60,7 +60,7 @@ sub pluginmain {
 		if ($key = $root_key->get_subkey($key_path)) {
 			::rptMsg("Windows Firewall Configuration");
 			::rptMsg($key_path);
-			::rptMsg("LastWrite Time ".::getDateFromEpoch($key->get_timestamp())."Z");
+			::rptMsg("LastWrite Time ".::format8601Date($key->get_timestamp())."Z");
 		
 			my %vals = getKeyValues($key);
 			if (scalar(keys %vals) > 0) {
@@ -83,7 +83,7 @@ sub pluginmain {
 					if (scalar(keys %vals) > 0) {
 						::rptMsg("");
 						::rptMsg($key_path."\\".$config);
-						::rptMsg("LastWrite Time ".::getDateFromEpoch($key->get_timestamp())."Z");
+						::rptMsg("LastWrite Time ".::format8601Date($key->get_timestamp())."Z");
 						foreach my $v (keys %vals) {
 							::rptMsg("\t".$v." -> ".$vals{$v});
 						}

@@ -211,7 +211,8 @@ software:
   susclient:
     filename: storage_information/susclient.json
   volumeinfocache:
-    filename: storage_information/volumeinfocache.json
+    filename: storage_information/volumeinfocache.csv
+    output: csv
   appcompatflags:
     filename: execution/appcompatflags.json
   defbrowser:
@@ -222,7 +223,7 @@ ntuser:
   appcompatflags:
     filename: execution/appcompatflags_user.json
   defender_smartscreen:
-    filename: installed_programs/defender_smartscreen.json
+    filename: installed_programs/defender_smartscreen_user.json
   pslogging:
     filename: installed_programs/pslogging_user.json
   shc:
@@ -248,7 +249,7 @@ ntuser:
   compdesc:
     filename: os_info/compdesc_user.json
   disablemru:
-    filename: user_config/disablemru.json
+    filename: user_config/disablemru_user.json
   nation:
     filename: user_config/nation_user.csv
     output: csv
@@ -278,6 +279,7 @@ ntuser:
     filename: recentdocs/msoffice_user.json
   msoffice_link:
     filename: recentdocs/msoffice_user_link.csv
+    output: csv
   msoffice_security:
     filename: user_config/msoffice_user_security.csv
   oisc:
@@ -327,7 +329,7 @@ ntuser:
   putty_recent:
     filename: lateral_movement/putty_recent_user.json
   putty_sessions:
-    filename: lateral_movement/putty_sessions_user..csv
+    filename: lateral_movement/putty_sessions_user.csv
     output: csv
   tsclient:
     filename: lateral_movement/tsclient_user.json
@@ -360,7 +362,7 @@ ntuser:
   typedurls:
     filename: web_browsing_info/typedurls_user.json
   mmc:
-    filename: general_usr_activity/mmc.json
+    filename: general_usr_activity/mmc_user.json
   typedpaths:
     filename: general_usr_activity/typedpaths_user.json
   wordwheelquery:

@@ -45,7 +45,7 @@ sub pluginmain {
 	if ($key = $root_key->get_subkey($key_path)) {
 		::rptMsg("Default Browser Check #1");
 		::rptMsg($key_path);
-		::rptMsg("LastWrite Time ".::getDateFromEpoch($key->get_timestamp())."Z");
+		::rptMsg("LastWrite Time ".::format8601Date($key->get_timestamp())."Z");
 		::rptMsg("");
 		my $browser = $key->get_value("")->get_data();
 		::rptMsg("Default Browser : ".$browser);
@@ -60,7 +60,7 @@ sub pluginmain {
 	if (my $key = $root_key->get_subkey($key_path)) {
 		::rptMsg("Default Browser Check #2");
 		::rptMsg($key_path);
-		::rptMsg("LastWrite Time ".::getDateFromEpoch($key->get_timestamp())."Z");
+		::rptMsg("LastWrite Time ".::format8601Date($key->get_timestamp())."Z");
 		::rptMsg("");
 		my $browser;
 		eval {

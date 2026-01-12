@@ -203,12 +203,12 @@ build_install_volatility() {
 }
 
 build_install_regripper() (
-    local NAME="RegRipper3.0"
-    local COMMIT="c59d23d151059aa98f1888ee52e2eea16f746f21"
+    local NAME="RegRipper4.0"
+    local COMMIT="f925c0965db202eed46071b3e68f6d3a49b41a31"
     [ -d /tmp/patches ] || cp -rp patches /tmp/
     cd "${SRCDIR}"
     _download_verify "https://github.com/keydet89/${NAME}/archive/${COMMIT}.zip" \
-        "db7040058e80fe816e2a8936a29c5a62ebab235eec0870d306453832a0343335"
+        "d41db444e52f202c58418d8027a3ba44335029c343143a2d215d5a9deadbd700"
     mv "${COMMIT}".zip ${NAME}-${COMMIT}.zip
     unzip ${NAME}-${COMMIT}.zip
     cd ${NAME}-${COMMIT}
@@ -219,49 +219,31 @@ build_install_regripper() (
     install -p -m 755 *.pl *.txt *.md /opt/regripper/
     install -p -dm 755 /opt/regripper/plugins/
     install -p -m 755 plugins/* /opt/regripper/plugins/
-    install -p -m 755 /tmp/patches/regripper_plugins/ccleaner.pl \
+    install -p -m 755 /tmp/patches/regripper_plugins/at.pl \
+          /tmp/patches/regripper_plugins/ccleaner.pl \
           /tmp/patches/regripper_plugins/cortana.pl \
           /tmp/patches/regripper_plugins/defbrowser.pl \
           /tmp/patches/regripper_plugins/diag_sr.pl \
+          /tmp/patches/regripper_plugins/drivers32.pl \
           /tmp/patches/regripper_plugins/eventlog.pl \
           /tmp/patches/regripper_plugins/eventlogs.pl \
           /tmp/patches/regripper_plugins/fw_config.pl \
+          /tmp/patches/regripper_plugins/ica_sessions.pl \
           /tmp/patches/regripper_plugins/ie_settings.pl \
           /tmp/patches/regripper_plugins/ie_version.pl \
           /tmp/patches/regripper_plugins/outlook_search.pl \
           /tmp/patches/regripper_plugins/polacdms.pl \
           /tmp/patches/regripper_plugins/proxysettings.pl \
           /tmp/patches/regripper_plugins/rdphint.pl \
-          /tmp/patches/regripper_plugins/rdpnla.pl \
-          /tmp/patches/regripper_plugins/silentprocessexit.pl \
-          /tmp/patches/regripper_plugins/silentprocessexit_tln.pl \
-          /tmp/patches/regripper_plugins/teamviewer.pl \
+          /tmp/patches/regripper_plugins/svc.pl \
+          /tmp/patches/regripper_plugins/svcdll.pl \
+          /tmp/patches/regripper_plugins/taskcache.pl \
           /tmp/patches/regripper_plugins/vmware_vsphere_client.pl \
-          /tmp/patches/regripper_plugins/winevt.pl \
-          /tmp/patches/regripper_plugins/winlogon_db.pl \
-          /tmp/patches/regripper_plugins/winnt_cv.pl \
-          /tmp/patches/regripper_plugins/winscp_sessions.pl \
           /tmp/patches/regripper_plugins/winver2.pl \
         /opt/regripper/plugins/
     install -p -dm 755 /usr/local/bin/
     ln -s /opt/regripper/rip.pl /usr/local/bin/rip
     rm -r /tmp/patches
-
-    # Replaces Base, File and Key.pm with regripper version
-
-    local WIN32REGISTRY=$(dirname $(dpkg -L libparse-win32registry-perl|grep "/Base.pm"))
-    if [ -e Base.pm ]; then
-        sudo cp -np "$WIN32REGISTRY/Base.pm" "$WIN32REGISTRY/Base.pm.old"
-        sudo cp -p Base.pm "$WIN32REGISTRY"
-    fi
-    if [ -e File.pm ]; then
-        sudo cp -np "$WIN32REGISTRY/WinNT/File.pm" "$WIN32REGISTRY/WinNT/File.pm.old"
-        sudo cp -p File.pm "$WIN32REGISTRY/WinNT/"
-    fi
-    if [ -e Key.pm ]; then
-        sudo cp -np "$WIN32REGISTRY/WinNT/Key.pm" "$WIN32REGISTRY/WinNT/Key.pm.old"
-        sudo cp -p Key.pm "$WIN32REGISTRY/WinNT/"
-    fi
 )
 
 build_install_ntfs3g_system_compression() (

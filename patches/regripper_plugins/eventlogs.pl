@@ -55,7 +55,7 @@ sub pluginmain {
 		if ($win = $root_key->get_subkey($win_path)) {
 			::rptMsg("EventLog Configuration");
 			::rptMsg($win_path);
-			::rptMsg("LastWrite Time ".::getDateFromEpoch($win->get_timestamp())."Z");
+			::rptMsg("LastWrite Time ".::format8601Date($win->get_timestamp())."Z");
 			my $cn;
 			if ($cn = $win->get_value("ComputerName")->get_data()) {
 				::rptMsg("ComputerName = ".$cn);				
@@ -79,7 +79,7 @@ sub pluginmain {
 			if ($evlog = $root_key->get_subkey($evpath)) {
 				::rptMsg("	".$logname->get_name()." EventLog");
 				::rptMsg("	".$evpath);
-				::rptMsg("	LastWrite Time ".::getDateFromEpoch($evlog->get_timestamp())."Z");
+				::rptMsg("	LastWrite Time ".::format8601Date($evlog->get_timestamp())."Z");
 				::rptMsg("	Configuration Settings");
 				::rptMsg("		Log location: ".$evlog->get_value('File')->get_data());
 				::rptMsg("		Log Size: ".$evlog->get_value('MaxSize')->get_data()." Bytes");

@@ -24,7 +24,7 @@ from plugins.windows.RVT_hives import get_hives
 import base.job
 
 
-def write_registry_file(filename, pluginlist, hivedict, regfiles, rip='/opt/regripper/rip.pl', logger=logging, logfile=None, separator="." * 105):
+def write_registry_file(filename, pluginlist, hivedict, regfiles, rip='/opt/RegRipper4.0/rip.pl', logger=logging, logfile=None, separator="." * 105):
     """ Generates a report file for a group of related regripper plugins.
 
     Parameters:
@@ -78,7 +78,7 @@ class Autorip(base.job.BaseModule):
 
     def read_config(self):
         super().read_config()
-        self.set_default_config('rip', '/opt/regripper/rip.pl')
+        self.set_default_config('rip', '/opt/RegRipper4.0/rip.pl')
         self.set_default_config('pluginshives', os.path.join(self.config.config['windows']['plugindir'], 'regripper_plugins.json'))
         self.set_default_config('ripplugins', os.path.join(self.config.config['windows']['plugindir'], 'autorip.json'))
         self.set_default_config('errorfile', os.path.join(self.myconfig('sourcedir'), f"{self.myconfig('source')}_aux.log"))

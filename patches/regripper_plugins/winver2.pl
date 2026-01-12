@@ -33,9 +33,9 @@ my $VERSION = getVersion();
 sub pluginmain {
 	my $class = shift;
 	my $hive = shift;
-	::logMsg("Launching winver2 v.".$VERSION);
+	::logMsg("Launching winver v2.".$VERSION);
 	::rptMsg("winver2 v.".$VERSION); 
-    ::rptMsg("(".getHive().") ".getShortDescr()."\n"); 
+  ::rptMsg("(".getHive().") ".getShortDescr()."\n"); 
   
   
   my %vals = (1 => "ProductName",
@@ -52,7 +52,8 @@ sub pluginmain {
               12 => "BuildLabEx",
               13 => "CompositionEditionID",
               14 => "RegisteredOrganization",
-              15 => "RegisteredOwner");
+              15 => "RegisteredOwner",
+              16 => "DisplayVersion");
          
 	my $reg = Parse::Win32Registry->new($hive);
 	my $root_key = $reg->get_root_key;
@@ -60,7 +61,7 @@ sub pluginmain {
 	my $key;
 	if ($key = $root_key->get_subkey($key_path)) {
         ::rptMsg($key_path);
-		::rptMsg("LastWrite Time ".::getDateFromEpoch($key->get_timestamp())."Z");
+		::rptMsg("LastWrite Time ".::format8601Date($key->get_timestamp())."Z");
 		::rptMsg("");
 		
 		foreach my $v (sort {$a <=> $b} keys %vals) {
@@ -73,14 +74,14 @@ sub pluginmain {
 		
 		eval {
 			my $install = $key->get_value("InstallDate")->get_data();
-			::rptMsg(sprintf "%-25s %-20s","InstallDate",::getDateFromEpoch($install)."Z");
+			::rptMsg(sprintf "%-25s %-20s","InstallDate",::format8601Date($install)."Z");
 		};
 	
 		eval {
 			my $it = $key->get_value("InstallTime")->get_data();
 			my ($t0,$t1) = unpack("VV",$it);
 			my $t = ::getTime($t0,$t1);
-			::rptMsg(sprintf "%-25s %-20s","InstallTime",::getDateFromEpoch($t)."Z");
+			::rptMsg(sprintf "%-25s %-20s","InstallTime",::format8601Date($t)."Z");
 		};
 		
 	}

@@ -42,7 +42,7 @@ sub pluginmain {
 	if ($key = $root_key->get_subkey($key_path)) {
 		::rptMsg("ProxySettings");
 		::rptMsg($key_path);
-		::rptMsg("LastWrite Time ".::getDateFromEpoch($key->get_timestamp())."Z");
+		::rptMsg("LastWrite Time ".::format8601Date($key->get_timestamp())."Z");
 		my @vals = $key->get_list_of_values();
 		if (scalar(@vals) > 0) {
 			my %proxy;

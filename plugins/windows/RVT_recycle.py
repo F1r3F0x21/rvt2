@@ -352,7 +352,7 @@ class Recycle(base.job.BaseModule):
         save_csv(self.RB_files, outfile=output_file, quoting=0, file_exists='OVERWRITE')
 
     def generate_SID_user(self, partition):
-        rip = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        rip = self.config.get('plugins.common', 'rip', '/opt/RegRipper4.0/rip.pl')
 
         try:
             software = self.locate_hives(partition)['software']

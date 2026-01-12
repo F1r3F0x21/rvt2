@@ -107,7 +107,7 @@ def get_hives(path):
     # Recursive search in subdirectories. Username will be taken from the directory name where hive is found
     for root, dirs, files in os.walk(path):
         for file in files:
-            for hve, hve_name in zip(['ntuser.dat', 'usrclass.dat', 'user.dat', 'userclass.dat'], ['ntuser', 'usrclass', 'user', 'userclass']):
+            for hve, hve_name in zip(['ntuser.dat', 'usrclass.dat', 'user.dat', 'userclasses.dat'], ['ntuser', 'usrclass', 'user', 'userclass']):
                 if file.lower() == hve:
                     user = relative_path(root, path).split('/')[0]
                     if hve_name in ('user', 'userclass'):
@@ -323,7 +323,7 @@ class AllKeys(base.job.BaseModule):
         # Parse all hives
         for i, reg_hive in regfiles.items():
             self._save_and_log(reg_hive)
-        for cls, cls_name in zip([ntuser, usrclass, user, userclass], ['NTUSER.DAT', 'UsrClass.dat', 'User.dat', 'UserClass.dat']):
+        for cls, cls_name in zip([ntuser, usrclass, user, userclass], ['NTUSER.DAT', 'UsrClass.dat', 'User.dat', 'UserClasses.dat']):
             if cls:
                 for user, reg_hive in cls.items():
                     if isinstance(reg_hive, list):
@@ -658,7 +658,7 @@ class ShimCache(BaseRegistry):
 
     def parse_ShimCache_hive(self, sysfile):
         """ Launch shimcache regripper plugin and parse results """
-        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        ripcmd = self.config.get('plugins.common', 'rip', '/opt/RegRipper4.0/rip.pl')
         date_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
 
         # shimcache regripper plugin output sample:
@@ -716,7 +716,7 @@ class SysCache(BaseRegistry):
 
     def parse_SysCache_hive(self, path):
         """ Use syscache_csv plugin from regripper to parse SysCache hive """
-        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        ripcmd = self.config.get('plugins.common', 'rip', '/opt/RegRipper4.0/rip.pl')
         output_text = run_command([ripcmd, "-r", path, "-p", "syscache_csv"], logger=self.logger())
 
         try:
@@ -737,7 +737,7 @@ class SysCache(BaseRegistry):
             inode = line[1].split('/')[0]
 
             if len(line) == 2:  # Hash not included
-                results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")), ("Name", ""), ("Sha1", "")
+                results.append(OrderedDict([("Date", dateutil.parser.parse(keydate).strftime("%Y-%m-%dT%H:%M:%SZ")), ("Name", ""), ("Sha1", ""),
                                             ("Malware", ""), ("FileID", fileID), ("Inode", inode), ("FilenameFromHash", "")]))
                 continue
 
@@ -832,7 +832,7 @@ class AppCompat(BaseRegistry):
 
     def parse_appcompatcache(self, path):
         """ Use appcompatcache plugin from regripper to parse AppCompatCache key in SYSTEM hive """
-        ripcmd = self.config.get('plugins.common', 'rip', '/opt/regripper/rip.pl')
+        ripcmd = self.config.get('plugins.common', 'rip', '/opt/RegRipper4.0/rip.pl')
         date_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
         line_number = 0
         start = 1000

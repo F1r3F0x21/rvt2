@@ -68,7 +68,7 @@ sub pluginmain {
 			# Return # plugin name, registry key and last modified date #
 			::rptMsg("VMware vSphere Client");
 			::rptMsg($key_path);
-			::rptMsg("LastWrite Time ".::getDateFromEpoch($key->get_timestamp())."Z");
+			::rptMsg("LastWrite Time ".::format8601Date($key->get_timestamp())."Z");
 			::rptMsg("");
 
 			# Extract # all keys from VMware vSphere Client registry path #

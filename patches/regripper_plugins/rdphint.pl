@@ -48,7 +48,7 @@ sub pluginmain {
 				::rptMsg("");
 				::rptMsg("Hostname: ".$s->get_name());
 				::rptMsg("Domain/Username: ".$path);
-				::rptMsg("LastWrite: ".::getDateFromEpoch($s->get_timestamp())."Z");
+				::rptMsg("LastWrite: ".::format8601Date($s->get_timestamp())."Z");
 				::rptMsg("");
 			}
 		}

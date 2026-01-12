@@ -44,7 +44,7 @@ sub pluginmain {
 	if ($key = $root_key->get_subkey($key_path)) {
 		# Print registry key name and last modified date 
 		::rptMsg($key_path);
-		::rptMsg("LastWrite Time ".::getDateFromEpoch($key->get_timestamp())."Z");
+		::rptMsg("LastWrite Time ".::format8601Date($key->get_timestamp())."Z");
 		::rptMsg("");
 		my %cckeys; # temporary associative array for storing name / value pairs eg ("UpdateCheck", 1)
 		# Extract ccleaner key values into ccvals array 
