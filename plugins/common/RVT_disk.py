@@ -52,7 +52,7 @@ def getSourceImage(myconfig, imagefile=None, vss=False):
                 return KNOWN_IMAGETYPES[ext]['imgclass'](imagefile=ifile, imagetype=KNOWN_IMAGETYPES[ext]['type'], params=myconfig)
             else:
                 logging.warning(f'{imagefile} is not {ext} file. It will be treated as raw file')
-                return KNOWN_IMAGETYPES['raw']['imgclass'](imagefile=imagefile, imagetype=KNOWN_IMAGETYPES['raw']['type'], params=myconfig)
+                return KNOWN_IMAGETYPES['raw']['imgclass'](imagefile=ifile, imagetype=KNOWN_IMAGETYPES['raw']['type'], params=myconfig)
     logging.warning(f'Image file not found for source={source} in imagedir={imagedir}')
     imf = get_mountpoints(myconfig, myconfig('sourcedir'))
     if imf:  # mounted image

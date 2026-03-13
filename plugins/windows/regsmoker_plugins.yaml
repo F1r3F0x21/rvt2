@@ -261,7 +261,8 @@ ntuser:
   logonstats:
     filename: user_account/logonstats_user.json
   advanced_ip_scanner:
-    filename: scan_programs/advanced_ip_scanner_user.json
+    filename: scan_programs/advanced_ip_scanner_user.csv
+    output: csv
   adobe:
     filename: recentdocs/adobe_user.csv
     output: csv

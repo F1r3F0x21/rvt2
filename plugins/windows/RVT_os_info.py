@@ -178,7 +178,7 @@ class CharacterizeWindows(base.job.BaseModule):
                     for line in f_in:
                         if line.startswith(field):
                             if plug == 'compname':
-                                self.os_info[part][field_names[field]] = line.split('= ')[1].rstrip('\n').strip()
+                                self.os_info[part][field_names[field]] = line.rstrip().split(' ')[-1]
                             else:
                                 self.os_info[part][field_names[field]] = line[len(field) + 3:].rstrip('\n').strip()
                             break

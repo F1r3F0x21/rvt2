@@ -110,6 +110,8 @@ Concepto|Valor
                 if aux:
                     ip_list.append(aux.group(1))
         results['IP'] = ip_list
+        if not os.path.exists(os.path.join(live_response_dir, 'network', 'hostnamectl.txt')):
+            return results
         regex2 = re.compile(r"(Virtualization|Operating System|Kernel|Architecture): (.*)")
         with open(os.path.join(live_response_dir, 'network', 'hostnamectl.txt'), 'r') as f_in:
             for line in f_in:
