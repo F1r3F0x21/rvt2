@@ -18,7 +18,6 @@ import base.job
 import os
 import re
 import csv
-import datetime
 import xmltodict
 import ujson as json
 import shutil
@@ -64,7 +63,7 @@ class MSSQL(base.job.BaseModule):
             self.logger().error(f'{self.docker_compose_path} not exists')
             return []
 
-        srch = re.compile(r'mnt/([^/]+)/Program Files/Microsoft SQL Server/([^/]+)/')
+        srch = re.compile(r'mnt/([^/]+).*/([^/]+)/MSSQL/')
         aux = srch.search(path)
         self.partition = aux.group(1)
         self.version = aux.group(2)
