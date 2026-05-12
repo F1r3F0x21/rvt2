@@ -28,6 +28,39 @@ from base.utils import check_folder, check_file
 from base.commands import run_command
 import base.job
 
+import fcntl
+import struct
+
+
+BLKGETSIZE64 = 0x80081272
+
+
+class NBDImgInfo(pytsk3.Img_Info):
+
+    def __init__(self, path):
+        self._fd = os.open(path, os.O_RDONLY)
+
+        # Obtener tamaño ANTES de super()
+        self._size = struct.unpack(
+            'Q',
+            fcntl.ioctl(self._fd, BLKGETSIZE64, b' ' * 8)
+        )[0]
+
+        super().__init__(
+            url="",
+            type=pytsk3.TSK_IMG_TYPE_EXTERNAL
+        )
+
+    def close(self):
+        os.close(self._fd)
+
+    def read(self, offset, size):
+        os.lseek(self._fd, offset, os.SEEK_SET)
+        return os.read(self._fd, size)
+
+    def get_size(self):
+        return self._size
+
 
 def getSourceImage(myconfig, imagefile=None, vss=False):
     """ Returns the path to the image file.
@@ -251,7 +284,10 @@ class RawImage(BaseImage):
         imagefile = self._getRawImagefile()
         self.logger.debug(f"Listing partitions. source={self.params('source')} imagefile={imagefile} type={self.imagetype}")
 
-        img = pytsk3.Img_Info(imagefile)
+        if imagefile.startswith('/dev/'):  # block or loop device
+            img = NBDImgInfo("/dev/nbd0")
+        else:
+            img = pytsk3.Img_Info(imagefile)
         try:
             volume = pytsk3.Volume_Info(img)
             self.sectorsize = volume.info.block_size
@@ -403,11 +439,62 @@ class AFFImage(BaseImage):
             run_command(["sudo", umount, '-l', mp])
 
 
-class VHDXImage(BaseImage):
-    """ Manages a VHDX image (VmWare)
+class QEMUImage(BaseImage):
+    """ Manages a QEMU image
 
     Params:
         - nbd-device: the device to mount. Defaults to /dev/ndb0 """
+
+    def _get_ndb(self):
+        srch = re.compile(rf'qemu-nbd.*(/dev/nbd\d+).*{self.imagefile}')
+        output = subprocess.check_output(['ps', '-eo', 'pid,args']).decode()
+
+        # return "/dev/nbd0"
+        aux = srch.search(output)
+        if aux:
+            return aux.group(1)
+
+        for dev in range(0, 50):
+            if not self._is_nbd_in_use('nbd{dev}'):
+                return f"/dev/nbd{dev}"
+        return False
+
+    def _is_nbd_in_use(self, device):
+        # Check if nbd block device is in use
+
+        SYS_PID = f'/sys/block/{device}/pid'
+        if os.path.exists(SYS_PID):
+            try:
+                with open(SYS_PID, "r") as f:
+                    pid = f.read().strip()
+
+                if pid and pid != "0":
+                    return True
+            except Exception as e:
+                return False, f"Error writting {SYS_PID}: {e}"
+
+    def __init__(self, imagefile, imagetype, params):
+        super().__init__(imagefile, imagetype, params)
+
+        self.fuse_path = self._get_ndb()
+        # fusedevice will be used as imagefile
+        qemu_nbd = self.params('qemu_nbd', 'qemu-nbd')
+        try:
+            # TODO: check if this needs sudo
+            if not self._is_nbd_in_use(self.fuse_path.split('/')[-1]):
+                run_command(["sudo", qemu_nbd, "-c", self.fuse_path, "-r", self.imagefile])
+        except Exception:
+            self.logger.error(f"Cannot mount QEMU imagefile={self.imagefile}")
+            raise base.job.RVTError(f"Cannot mount QEMU imagefile={self.imagefile}")
+        self.raw_image = RawImage(self.fuse_path, 'raw', self.params, load=False)
+        self.partitions = self.raw_image.partitions
+
+    def mount(self, partitions=None, vss=False):
+
+        # creates RawImage to mount
+        self.raw_image.mount(partitions, vss)
+        if self.load:
+            self.save_disk()
 
     def _getRawImagefile(self):
         device = self.params('nbd_device', '/dev/nbd0')
@@ -416,13 +503,13 @@ class VHDXImage(BaseImage):
             # TODO: check if this needs sudo
             run_command(["sudo", qemu_nbd, "-c", device, "-r", self.imagefile])
         except Exception:
-            self.logger.error(f"Cannot mount VHDX imagefile={self.imagefile}")
-            raise base.job.RVTError(f"Cannot mount VHDX imagefile={self.imagefile}")
+            self.logger.error(f"Cannot mount QEMU imagefile={self.imagefile}")
+            raise base.job.RVTError(f"Cannot mount QEMU imagefile={self.imagefile}")
         return device
 
     def umount(self):
         super().umount()
-        device = self.params('ndb-device', '/dev/nbd0')
+        device = self.fusepath
         qemu_nbd = self.params('qemu_nbd', '/usr/bin/qemu_nbd')
         # TODO: check if this needs sudo
         run_command(["sudo", qemu_nbd, "-d", device])
@@ -439,7 +526,8 @@ KNOWN_IMAGETYPES = {
     "aff4": dict(type='aff4', imgclass=AFFImage),
     "E01": dict(type='encase', imgclass=FuseImage),
     "vmdk": dict(type='vmdk', imgclass=FuseImage),
-    "vhdx": dict(type='vhdx', imgclass=VHDXImage),
+    "vhdx": dict(type='qemu', imgclass=QEMUImage),
+    "qcow2": dict(type='qemu', imgclass=QEMUImage),
     "zip": dict(type='compressed', imgclass=CompressedImage),
     "tar": dict(type='compressed', imgclass=CompressedImage),
     "tgz": dict(type='compressed', imgclass=CompressedImage),

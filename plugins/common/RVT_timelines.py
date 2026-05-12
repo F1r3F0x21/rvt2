@@ -97,7 +97,10 @@ class Timelines(BaseTimeline):
 
                 if not p.isMountable:
                     continue
-                if p.filesystem == "lvm":
+                if disk.imagetype == 'qemu':
+                    run_command([self.fls, "-s", "0", "-m", mountpath, "-r", "-o", str(p.osects),
+                                 disk.fuse_path], stdout=f, logger=self.logger())
+                elif p.filesystem == "lvm":
                     for lv in p.lvm_info:
                         vol = lv["logicalVolume"]
                         mountpath = base.utils.relative_path(os.path.join(p.mountdir, f'p{p.partition}l{vol}'), self.myconfig('casedir'))
