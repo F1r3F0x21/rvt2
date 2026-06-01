@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/c/Users/frans/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(grep '^class ' 'C:/Users/frans/Documents/RVT2 DEF/rvt2/__TRACKED_VAR__')"
+    ]
+  }
+}
